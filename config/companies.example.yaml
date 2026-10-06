@@ -1,0 +1,3 @@
+# Example seed companies. Copy to companies.yaml.
+companies:
+  - { name: "Example Co", ats: ashby, slug: "example" }

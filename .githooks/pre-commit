@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Blocks personal data from reaching this public repo.
+set -euo pipefail
+fail=0
+
+# 1. Private config files and generated data must never be staged
+blocked=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^(config/|data/)|\.env$|\.db$' \
+          | grep -v -E '^config/(README\.md|.*\.example\..*)$' || true)
+if [ -n "$blocked" ]; then
+  echo "BLOCKED: private files staged:"; echo "$blocked" | sed 's/^/  /'; fail=1
+fi
+
+# 2. Known personal strings (from config/private-patterns.txt) in staged changes
+patterns=config/private-patterns.txt
+if [ -f "$patterns" ]; then
+  added=$(git diff --cached -U0 --no-color | grep -E '^\+' | grep -v -E '^\+\+\+' || true)
+  while IFS= read -r p; do
+    [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac
+    if printf '%s' "$added" | grep -F -i -q -- "$p"; then
+      echo "BLOCKED: staged changes contain a private string from $patterns"; fail=1
+    fi
+  done < "$patterns"
+fi
+
+[ "$fail" -eq 0 ] || { echo "Commit aborted. Remove the personal data and try again."; exit 1; }

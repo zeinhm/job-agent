@@ -1,0 +1,19 @@
+# dependencies / build
+node_modules/
+dist/
+.DS_Store
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# PRIVATE: personal config (only *.example files are public)
+config/*
+!config/README.md
+!config/*.example.*
+
+# PRIVATE: everything the agent generates (postings, digests, drafts, db)
+data/
+*.db
+*.db-*

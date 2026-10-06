@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(~/.hermes/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Edit(./config/**)",
+      "Bash(git push --force:*)",
+      "Bash(git push origin main:*)"
+    ]
+  }
+}

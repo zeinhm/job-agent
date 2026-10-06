@@ -1,0 +1,4 @@
+# Copy to private-patterns.txt (gitignored). One string per line; the pre-commit hook
+# blocks any commit whose staged changes contain one of them (case-insensitive).
+alex@example.com
+000-0000-0000

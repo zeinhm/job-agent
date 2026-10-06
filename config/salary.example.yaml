@@ -1,0 +1,11 @@
+# Example salary config (fake numbers). Copy to salary.yaml and set your own.
+floor_idr_month: 10000000
+position_in_listed_range: 0.7
+tiers:
+  indonesia:       { ask_idr_month: 12000000 }
+  regional:        { ask_idr_month: 15000000 }
+  global_adjusted: { ask_idr_month: 14000000 }
+  global_flat:     { ask_usd_year: 50000 }
+unknown_policy: research_then_regional
+text_field_answer: "Open, happy to align with your compensation band for my location"
+review_salary_answers: true

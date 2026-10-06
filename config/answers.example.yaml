@@ -1,0 +1,15 @@
+# Example answer bank (fake persona). Copy to answers.yaml and fill with your real, truthful answers.
+contact:
+  full_name:  { answer: "Alex Example", approved: true }
+  email:      { answer: "alex@example.com", approved: true }
+  location:   { answer: "Somewhere, Earth", approved: true }
+  timezone:   { answer: "GMT+0", approved: true }
+work_setup:
+  remote_only:            { answer: "Yes", approved: true }
+  notice_period:          { answer: "2 weeks", approved: true }
+  working_hours_overlap:  { answer: "Full overlap with Europe", approved: true }
+experience:
+  total_years_professional: { answer: "7+ years", approved: true }
+  years_react:              { answer: "7", approved: true }
+education:
+  has_bachelors_degree:     { answer: "Yes", approved: true }
