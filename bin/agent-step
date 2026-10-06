@@ -1,0 +1,205 @@
+#!/usr/bin/env bash
+# agent-step: run one Hermes board task through Claude Code, as plain code.
+#
+#   bin/agent-step <role> <task-id>        role: dev | qa | auditor | researcher | pm
+#
+# Does every mechanical step deterministically: saves the card, prepares the
+# worktree (dev), builds the prompt, runs bin/cc-route, reads the verdict,
+# posts the report as a comment, and does the git work (push / merge / ledger /
+# cleanup / commit docs). The calling Hermes agent only acts on the last lines:
+#
+#   ACTION: complete            -> complete the task, SUMMARY is the summary
+#   ACTION: block               -> block the task, REASON is the reason
+#
+# Written for macOS bash 3.2 (no bash 4 features).
+set -uo pipefail
+
+ROLE="${1:?usage: agent-step <dev|qa|auditor|researcher|pm> <task-id>}"
+ID="${2:?usage: agent-step <dev|qa|auditor|researcher|pm> <task-id>}"
+case "$ROLE" in dev|qa|auditor|researcher|pm) ;; *) echo "unknown role: $ROLE" >&2; exit 2 ;; esac
+
+REPO="$(git rev-parse --show-toplevel)" || exit 2
+cd "$REPO"
+H="$REPO/data/handoff"; mkdir -p "$H"
+CARDF="$H/$ID-card.md"; PROMPTF="$H/$ID-prompt.md"; OUTF="$H/$ID-out.txt"; COMMENTF="$H/$ID-comment.md"
+LOCK="$REPO/.git/agent-step.lock"
+
+finish() { # $1=complete|block  $2=text
+  echo
+  echo "AGENT-STEP RESULT"
+  echo "ACTION: $1"
+  if [ "$1" = complete ]; then echo "SUMMARY: $2"; else echo "REASON: $2"; fi
+  exit 0
+}
+lock_main() { # serialize work in the main checkout across agents (max 10 min wait)
+  local i=0
+  until mkdir "$LOCK" 2>/dev/null; do
+    i=$((i+1)); [ $i -gt 120 ] && finish block "HUMAN: main checkout lock busy for 10 min ($LOCK); remove it if no agent is running"
+    sleep 5
+  done
+  trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+}
+unlock_main() { rmdir "$LOCK" 2>/dev/null; trap - EXIT; }
+main_clean_or_block() {
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    finish block "HUMAN: the main checkout has uncommitted changes; commit or stash them, then unblock"
+  fi
+}
+post_comment() {
+  if [ -s "$COMMENTF" ]; then
+    hermes kanban comment "$ID" "$(cat "$COMMENTF")" >/dev/null 2>&1 || echo "[agent-step] warning: could not post comment"
+  else
+    hermes kanban comment "$ID" "$(printf 'Claude Code report (comment file missing), last lines:\n\n%s' "$(tail -40 "$OUTF")")" >/dev/null 2>&1 || true
+  fi
+}
+merge_branch() { # $1 = branch; merges into main and pushes. Blocks on any problem.
+  local br="$1"
+  lock_main
+  main_clean_or_block
+  git checkout -q main || finish block "HUMAN: could not check out main"
+  git pull -q --ff-only origin main || finish block "HUMAN: git pull on main failed (diverged?)"
+  git fetch -q origin "$br" 2>/dev/null || true
+  local ref="$br"; git show-ref --quiet "refs/heads/$br" || ref="origin/$br"
+  if ! git merge -q --no-ff "$ref" -m "Merge $br ($ID)"; then
+    git merge --abort 2>/dev/null; finish block "HUMAN: merge conflict for $br"
+  fi
+}
+cleanup_branch() { # $1 = branch, $2 = dev task id
+  git worktree remove --force ".worktrees/$2" 2>/dev/null
+  git worktree remove --force ".worktrees/$2-review" 2>/dev/null
+  git branch -q -D "$1" 2>/dev/null
+  git push -q origin --delete "$1" 2>/dev/null || true
+}
+
+# ---------------------------------------------------------------- card
+hermes kanban show "$ID" > "$CARDF" 2>/dev/null || finish block "HUMAN: could not read task $ID"
+TITLE="$(head -1 "$CARDF" | sed -E "s/^Task $ID: //")"
+MAX_FAILS="${AGENT_STEP_MAX_FAILS:-3}"
+PREV_FAILS="$(grep -c 'FAIL: waiting on rework card' "$CARDF" 2>/dev/null || true)"
+REWORK_DEPTH="$(printf '%s' "$(head -1 "$CARDF")" | grep -o 'Rework' | wc -l | tr -d ' ')"
+fail_or_stop() { # FAIL verdict: allow a rework cycle, or stop the loop and hand it to the human
+  if [ "$PREV_FAILS" -ge $((MAX_FAILS - 1)) ]; then
+    finish block "HUMAN: FAIL number $((PREV_FAILS + 1)) on this task (limit $MAX_FAILS). Stopping the rework loop: decide whether to fix it yourself, change the task, or drop it"
+  fi
+  finish block "FAIL: waiting on rework card (cycle $((PREV_FAILS + 1)) of $MAX_FAILS)"
+}
+RISK="$(grep -m1 -oiE '\*\*Risk:\*\* *(high|medium|low)' "$CARDF" | grep -oiE 'high|medium|low' | tr 'A-Z' 'a-z')"
+PARENTS="$(sed -n 's/^ *parents: *//p' "$CARDF" | tr ',' ' ')"
+rm -f "$COMMENTF"
+
+if [ "$ROLE" = dev ] && [ "$REWORK_DEPTH" -ge 3 ]; then
+  finish block "HUMAN: rework of a rework of a rework ($TITLE). Stopping the loop: needs a human decision"
+fi
+
+# ---------------------------------------------------------------- work dir
+WORKDIR="$REPO"; CLOUD=0; BR="-"
+if [ "$ROLE" = dev ]; then
+  CLOUD=1
+  BR="$(git branch --list "task/$ID-*" --format='%(refname:short)' | head -1)"
+  if [ -z "$BR" ]; then
+    BR="$(git ls-remote --heads origin "task/$ID-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
+  fi
+  if [ -z "$BR" ]; then
+    SLUG="$(printf '%s' "$TITLE" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-30 | sed -E 's/-+$//')"
+    BR="task/$ID-${SLUG:-work}"
+  fi
+  WORKDIR="$REPO/.worktrees/$ID"
+  if [ ! -d "$WORKDIR" ]; then
+    if git show-ref --quiet "refs/heads/$BR"; then git worktree add -q "$WORKDIR" "$BR"
+    elif git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+      git fetch -q origin "$BR" && git worktree add -q "$WORKDIR" -b "$BR" "origin/$BR"
+    else git worktree add -q "$WORKDIR" -b "$BR" main
+    fi || finish block "HUMAN: could not create worktree for $BR"
+  fi
+  git -C "$WORKDIR" pull -q --ff-only origin "$BR" 2>/dev/null || true   # picks up a finished cloud session
+fi
+
+# ---------------------------------------------------------------- prompt
+{
+  echo "Role: $ROLE"; echo "Task: $ID"; echo "Repo root: $REPO"; echo "Work dir: $WORKDIR"
+  [ "$ROLE" = dev ] && echo "Branch: $BR"
+  echo "Comment file: $COMMENTF"; echo
+  cat prompts/roles/common.md "prompts/roles/$ROLE.md"; echo
+  echo "## Task card"; cat "$CARDF"
+} > "$PROMPTF"
+
+# ---------------------------------------------------------------- run Claude Code
+echo "[agent-step] $ROLE $ID: running Claude Code (this can take a while)..."
+( cd "$WORKDIR" && CC_ROUTE_CLOUD=$CLOUD "$REPO/bin/cc-route" -f "$PROMPTF" ) > "$OUTF" 2>&1
+RC=$?
+echo "[agent-step] cc-route exit=$RC"; tail -3 "$OUTF"
+
+if grep -q '\[cc-route\] CLOUD' "$OUTF"; then
+  URL="$(grep -oE 'https://claude\.ai/code/[^ )]+' "$OUTF" | head -1)"
+  hermes kanban comment "$ID" "Running in a Claude Code cloud session: ${URL:-see data/handoff/$ID-out.txt}" >/dev/null 2>&1 || true
+  finish block "CLOUD: waiting for the cloud session's PR (${URL:-no url}); unblock to resume"
+fi
+if [ $RC -eq 42 ] || grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit" "$OUTF"; then
+  RESET="$(grep -oiE 'resets? [^.)]*' "$OUTF" | head -1)"
+  finish block "LIMIT: Claude Code plan limit reached${RESET:+ ($RESET)}; unblock after the reset"
+fi
+[ $RC -eq 3 ] && finish block "HUMAN: cc-route setup error: $(grep -m1 ERROR "$OUTF")"
+
+VLINE="$(grep '^VERDICT:' "$OUTF" | tail -1)"
+[ -z "$VLINE" ] && { post_comment; finish block "HUMAN: Claude Code returned no verdict, see data/handoff/$ID-out.txt"; }
+VERDICT="$(printf '%s' "$VLINE" | sed -E 's/^VERDICT: *([A-Z]+).*/\1/')"
+VBR="$(printf '%s' "$VLINE" | sed -nE 's/.*\| *branch: *([^ |]+).*/\1/p')"
+VSUM="$(printf '%s' "$VLINE" | awk -F'|' '{print $NF}' | sed -E 's/^ +//; s/ +$//')"
+post_comment
+
+[ "$VERDICT" = BLOCKED ] && finish block "HUMAN: $VSUM"
+
+# ---------------------------------------------------------------- role actions
+case "$ROLE" in
+  dev)
+    [ "$VERDICT" = DONE ] || finish block "HUMAN: unexpected verdict $VERDICT"
+    git -C "$WORKDIR" push -q -u origin "$BR" || finish block "HUMAN: could not push $BR"
+    finish complete "$VSUM" ;;
+
+  qa)
+    [ "$VERDICT" = FAIL ] && fail_or_stop
+    [ "$VERDICT" = PASS ] || finish block "HUMAN: unexpected verdict $VERDICT"
+    [ "$RISK" = high ] && finish complete "QA PASS (high risk, auditor next): $VSUM"
+    [ -z "$VBR" ] || [ "$VBR" = "-" ] && finish block "HUMAN: QA PASS but no branch in the verdict"
+    DEVID="$(printf '%s' "$VBR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
+    DEVTITLE="$(hermes kanban show "$DEVID" 2>/dev/null | head -1 | sed -E "s/^Task $DEVID: //")"
+    merge_branch "$VBR"
+    printf '| %s | %s | %s | %s | %s |\n' "$DEVID" "${DEVTITLE:-$VBR}" "${RISK:-medium}" "$(git rev-parse --short HEAD)" "$(date +%F)" >> docs/audit-ledger.md
+    git add docs/audit-ledger.md && git commit -q -m "chore: audit ledger $DEVID" || true
+    git push -q origin main || finish block "HUMAN: merged locally but push of main failed"
+    cleanup_branch "$VBR" "$DEVID"; unlock_main
+    finish complete "QA PASS, merged $VBR: $VSUM" ;;
+
+  auditor)
+    if [ -n "$VBR" ] && [ "$VBR" != "-" ]; then   # individual audit of a task branch
+      [ "$VERDICT" = FAIL ] && fail_or_stop
+      [ "$VERDICT" = PASS ] || finish block "HUMAN: unexpected verdict $VERDICT"
+      DEVID="$(printf '%s' "$VBR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
+      merge_branch "$VBR"
+      git push -q origin main || finish block "HUMAN: merged locally but push of main failed"
+      cleanup_branch "$VBR" "$DEVID"; unlock_main
+      finish complete "Audit PASS, merged $VBR: $VSUM"
+    fi
+    # batch / phase-end audit: commit the report (+ ledger), tag, push
+    lock_main; main_clean_or_block
+    git checkout -q main && git pull -q --ff-only origin main || finish block "HUMAN: could not update main"
+    git add docs/audits/ docs/audit-ledger.md 2>/dev/null
+    git commit -q -m "docs: audit report ($ID)" || true
+    N="$(printf '%s' "$TITLE" | grep -oE '#[0-9]+' | tr -d '#' | head -1)"
+    [ -n "$N" ] && git tag "audit-$N" 2>/dev/null
+    git push -q origin main --tags || finish block "HUMAN: push of the audit report failed"
+    unlock_main
+    finish complete "Audit $VERDICT: $VSUM" ;;
+
+  researcher|pm)
+    [ "$VERDICT" = DONE ] || finish block "HUMAN: unexpected verdict $VERDICT"
+    lock_main; main_clean_or_block
+    git checkout -q main && git pull -q --ff-only origin main || finish block "HUMAN: could not update main"
+    if [ "$ROLE" = researcher ]; then git add docs/research/ 2>/dev/null; else git add docs/ 2>/dev/null; fi
+    if ! git diff --cached --quiet; then
+      git commit -q -m "docs($ROLE): $ID" || finish block "HUMAN: commit blocked (pre-commit hook?), see data/handoff/$ID-out.txt"
+      git push -q origin main || finish block "HUMAN: push of docs failed"
+    fi
+    unlock_main
+    finish complete "$VSUM" ;;
+esac
