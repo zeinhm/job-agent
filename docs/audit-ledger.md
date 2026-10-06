@@ -14,3 +14,4 @@ Last audit tag: (none yet)
 **Counts:** medium 3 / 5 - low 0 / 10
 | t_cf5d7920 | Implement Greenhouse source adapter | medium | b7f0257 | 2026-10-07 |
 | t_7e6323cc | Implement Lever source adapter | medium | a8199f4 | 2026-10-07 |
+| t_6b3ccf13 | Implement Himalayas source adapter | medium | e8625e5 | 2026-10-07 |
