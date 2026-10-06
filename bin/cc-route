@@ -63,11 +63,11 @@ run_local() {
   local out status
   out=$(claude -p "$PROMPT" --permission-mode acceptEdits 2>&1); status=$?
   printf '%s\n' "$out"
-  if [ $status -ne 0 ] && printf '%s' "$out" | grep -qiE 'usage limit|rate limit|limit reached|out of (usage|credits)'; then
+  if printf '%s' "$out" | grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit|out of (usage|credits)"; then
     return 42   # plan limit hit
   fi
   return $status
-}
+} 
 
 run_cloud() {
   log "CLOUD"
