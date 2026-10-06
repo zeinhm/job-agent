@@ -1,0 +1,12 @@
+{
+  "name": "@job-agent/sources",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@job-agent/core": "workspace:*"
+  }
+}

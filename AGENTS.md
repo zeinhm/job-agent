@@ -73,6 +73,18 @@ Rules:
 5. **Stay in scope.** Do exactly what the task card says. Ideas for other work go in a comment for the PM, not in the diff.
 6. **Max 3 FAIL cycles per task.** After the third, block for the human.
 
+## Worktrees
+
+- The main checkout (repo root) always stays on `main`. Nobody runs `git checkout`, `git switch`, `git reset` or `git stash` there.
+- Only these commits happen in the main checkout: merges by the final reviewer (+ the audit-ledger row), research docs by the researcher, PM planning docs. Always `git add <explicit paths>`, never `git add -A` / `git add .`.
+- Dev: `git worktree add .worktrees/<task-id> -b task/<task-id>-<slug> main`, then `cd` there and `pnpm install`. All edits, tests and commits happen in the worktree.
+- Rework: reuse the original dev task's branch and worktree. If it was removed: `git worktree add .worktrees/<original-task-id> task/<original-task-id>-<slug>`.
+- QA / auditor: `git worktree add --detach .worktrees/<dev-task-id>-review task/<dev-task-id>-<slug>`, review there, and `git worktree remove --force` it at the end of your run, PASS or FAIL.
+- Merge (final reviewer only), in the main checkout: confirm `git branch --show-current` is `main` and there are no modified tracked files (otherwise block with `HUMAN:`), then merge, `git worktree remove .worktrees/<dev-task-id>`, `git branch -d task/<dev-task-id>-<slug>`.
+- `config/` and `data/` are gitignored and do not exist inside a worktree. Tests never need them. A live run from a worktree uses `JOB_AGENT_CONFIG_DIR=<repo root>/config JOB_AGENT_DB=$TMPDIR/<task-id>.db`; unmerged code never writes the real `data/job-agent.db`.
+- On a git lock error (`index.lock`), wait 30 s and retry; never delete the lock file.
+- The pre-commit hook is activated by every `pnpm install` (`prepare` script and `.pnpmfile.cjs`); check with `git config --get core.hooksPath`.
+
 ## Evidence (required for every dev task)
 
 A dev task is not "done" without an evidence comment containing:
