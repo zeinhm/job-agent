@@ -12,3 +12,4 @@ Last audit tag: (none yet)
 | t_263c9659 | Add Phase 1 database schema and first migration | medium | c65664e | 2026-10-07 |
 
 **Counts:** medium 3 / 5 - low 0 / 10
+| t_cf5d7920 | Implement Greenhouse source adapter | medium | b7f0257 | 2026-10-07 |
