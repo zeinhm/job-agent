@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@job-agent/core": "workspace:*",
-    "@job-agent/sources": "workspace:*"
+    "@job-agent/sources": "workspace:*",
+    "drizzle-orm": "^0.45.3"
   }
 }

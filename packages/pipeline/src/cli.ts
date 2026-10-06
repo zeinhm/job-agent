@@ -1,5 +1,8 @@
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
+import { defaultDbPath, loadConfig, openDb } from "@job-agent/core";
+import { buildAdapters } from "@job-agent/sources";
+import { runDiscover } from "./discover.ts";
 
 export interface Io {
   out: (text: string) => void;
@@ -8,8 +11,28 @@ export interface Io {
 
 type Command = (args: string[], io: Io) => Promise<number> | number;
 
-// Commands are added by the tasks that own them: discover, fx, process, digest.
-const commands: Record<string, Command> = {};
+// Commands are added by the tasks that own them: fx, process, digest.
+const commands: Record<string, Command> = {
+  discover: async (args, io) => {
+    const { values } = parseArgs({
+      args,
+      options: { source: { type: "string" }, force: { type: "boolean", default: false } },
+    });
+    const db = openDb(defaultDbPath());
+    try {
+      return await runDiscover({
+        db,
+        adapters: buildAdapters(loadConfig()),
+        source: values.source,
+        force: values.force,
+        out: io.out,
+        err: io.err,
+      });
+    } finally {
+      db.$client.close();
+    }
+  },
+};
 
 const usage = (): string =>
   `Usage: job-agent <command> [options]\n\nCommands:\n${
@@ -25,8 +48,8 @@ export async function main(
     err: (t) => process.stderr.write(t),
   },
 ): Promise<number> {
-  const { positionals } = parseArgs({ args: argv, allowPositionals: true, strict: false });
-  const [name, ...rest] = positionals;
+  // The command is the first argument; the rest (flags with values) belongs to the command's own parser.
+  const [name, ...rest] = argv;
   const command = name === undefined ? undefined : commands[name];
   if (name === undefined || command === undefined) {
     if (name !== undefined) io.err(`Unknown command: ${name}\n`);
