@@ -132,9 +132,14 @@ describe("Rate limiting", () => {
     expect(completionTimes).toHaveLength(5);
     expect(completionTimes.every((t) => t !== undefined)).toBe(true);
 
-    const times = completionTimes as number[];
+    // Type assertion: after the every() check passes, treat as number[]
+    const times: number[] = completionTimes as number[];
     for (let i = 1; i < times.length; i++) {
-      expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(2000);
+      const prev = times[i - 1];
+      const curr = times[i];
+      if (prev !== undefined && curr !== undefined) {
+        expect(curr - prev).toBeGreaterThanOrEqual(2000);
+      }
     }
   });
 
