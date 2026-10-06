@@ -10,16 +10,25 @@ if [ -n "$blocked" ]; then
   echo "BLOCKED: private files staged:"; echo "$blocked" | sed 's/^/  /'; fail=1
 fi
 
-# 2. Known personal strings (from config/private-patterns.txt) in staged changes
-patterns=config/private-patterns.txt
-if [ -f "$patterns" ]; then
-  added=$(git diff --cached -U0 --no-color | grep -E '^\+' | grep -v -E '^\+\+\+' || true)
-  while IFS= read -r p; do
-    [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac
-    if printf '%s' "$added" | grep -F -i -q -- "$p"; then
-      echo "BLOCKED: staged changes contain a private string from $patterns"; fail=1
-    fi
-  done < "$patterns"
+# 2. Known personal strings (from the MAIN checkout's config/private-patterns.txt)
+#    Resolved via the git common dir so it also works inside worktrees,
+#    where the gitignored config/ directory does not exist.
+common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+patterns="$(dirname "$common_dir")/config/private-patterns.txt"
+if [ ! -f "$patterns" ]; then
+  echo "WARNING: $patterns not found, private-string check skipped" >&2
+else
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    added=$(git diff --cached -U0 --no-color -- "$f" | grep -E '^\+' | grep -v -E '^\+\+\+' || true)
+    while IFS= read -r p || [ -n "$p" ]; do
+      [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac
+      if printf '%s' "$added" | grep -F -i -q -- "$p"; then
+        echo "BLOCKED: private-string check failed for staged file: $f"; fail=1
+        break
+      fi
+    done < "$patterns"
+  done < <(git diff --cached --name-only --diff-filter=ACMR)
 fi
 
 [ "$fail" -eq 0 ] || { echo "Commit aborted. Remove the personal data and try again."; exit 1; }
