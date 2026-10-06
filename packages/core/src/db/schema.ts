@@ -1,4 +1,5 @@
 import { index, integer, sqliteTable, text, unique } from "drizzle-orm/sqlite-core";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 
 export const companies = sqliteTable("companies", {
   id: text("id").primaryKey(),
@@ -109,3 +110,19 @@ export const fx_rates = sqliteTable(
     ),
   }),
 );
+
+// Inferred types for inserts and selects
+export type Company = InferSelectModel<typeof companies>;
+export type NewCompany = InferInsertModel<typeof companies>;
+
+export type Posting = InferSelectModel<typeof postings>;
+export type NewPosting = InferInsertModel<typeof postings>;
+
+export type Analysis = InferSelectModel<typeof analysis>;
+export type NewAnalysis = InferInsertModel<typeof analysis>;
+
+export type SourceRun = InferSelectModel<typeof source_runs>;
+export type NewSourceRun = InferInsertModel<typeof source_runs>;
+
+export type FxRate = InferSelectModel<typeof fx_rates>;
+export type NewFxRate = InferInsertModel<typeof fx_rates>;
