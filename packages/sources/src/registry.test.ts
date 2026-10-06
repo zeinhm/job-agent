@@ -1,25 +1,24 @@
-import type { AppConfig } from "@job-agent/core";
 import { describe, expect, it } from "vitest";
+import { makeConfig } from "./test-utils.ts";
 import { buildAdapters } from "./registry.ts";
 
 describe("buildAdapters", () => {
-  it("returns no adapters until adapter tasks add them", () => {
-    const config: AppConfig = {
-      salary: {
-        floor_idr_month: 1,
-        position_in_listed_range: 0.5,
-        tiers: {
-          indonesia: { ask_idr_month: 1 },
-          regional: { ask_idr_month: 1 },
-          global_adjusted: { ask_idr_month: 1 },
-          global_flat: { ask_usd_year: 1 },
-        },
-        unknown_policy: "x",
-        text_field_answer: "x",
-        review_salary_answers: false,
-      },
-      companies: [],
-    };
-    expect(buildAdapters(config)).toEqual([]);
+  it("returns no lever adapter without a lever company", () => {
+    expect(buildAdapters(makeConfig())).toEqual([]);
+    expect(buildAdapters(makeConfig([{ name: "Acme", ats: "greenhouse", slug: "acme" }]))).toEqual(
+      [],
+    );
+  });
+
+  it("returns exactly one lever adapter when the config has lever companies", () => {
+    const adapters = buildAdapters(
+      makeConfig([
+        { name: "Acme", ats: "greenhouse", slug: "acme" },
+        { name: "Globex", ats: "lever", slug: "globex" },
+        { name: "Initech", ats: "lever", slug: "initech" },
+      ]),
+    );
+    expect(adapters.map((a) => a.name)).toEqual(["lever"]);
+    expect(adapters[0]?.minIntervalMinutes).toBe(60);
   });
 });
