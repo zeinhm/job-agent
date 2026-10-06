@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildAdapters } from "./registry.ts";
 
 describe("buildAdapters", () => {
-  it("returns no adapters until adapter tasks add them", () => {
+  it("returns only the companyless adapters when no companies are configured", () => {
     const config: AppConfig = {
       salary: {
         floor_idr_month: 1,
@@ -20,6 +20,6 @@ describe("buildAdapters", () => {
       },
       companies: [],
     };
-    expect(buildAdapters(config)).toEqual([]);
+    expect(buildAdapters(config).map((a) => a.name)).toEqual(["remotive"]);
   });
 });
