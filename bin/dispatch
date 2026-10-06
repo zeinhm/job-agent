@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# dispatch: run the Hermes board with bin/agent-step. No AI in the loop.
+#
+#   bin/dispatch              run continuously (Ctrl+C to stop)
+#   bin/dispatch --once       one pass, then exit
+#   bin/dispatch --dry-run    show what it would do, change nothing
+#
+# Replaces the Hermes gateway dispatcher + Hermes workers. KEEP THE GATEWAY STOPPED
+# while this runs, otherwise Hermes workers (Haiku) also pick up tasks.
+#
+# Each pass:
+#   1. forget finished jobs
+#   2. promote todo tasks whose parents are all done
+#   3. start ready tasks: max 1 per role, max DISPATCH_MAX in total (default 3)
+# Each job: claim -> bin/agent-step <role> <id> -> apply its ACTION line
+#   complete -> comment summary + complete
+#   block    -> block with reason
+#   rework   -> create the dev card from the body file, link it as parent,
+#               block+unblock this task so it waits (todo) until the rework is done
+#
+# Env: DISPATCH_MAX (3), DISPATCH_INTERVAL seconds (60). Written for macOS bash 3.2.
+set -uo pipefail
+
+REPO="$(git rev-parse --show-toplevel)" || exit 2
+cd "$REPO"
+STATE="$REPO/data/dispatch"; RUN="$STATE/running"; LOG="$STATE/dispatch.log"
+mkdir -p "$RUN"
+MAX="${DISPATCH_MAX:-3}"; INTERVAL="${DISPATCH_INTERVAL:-60}"
+ROLES=" dev qa auditor researcher pm "
+DRY=0; ONCE=0
+for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; --once) ONCE=1 ;; *) echo "unknown option $a" >&2; exit 2 ;; esac; done
+
+log() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
+board() { hermes kanban list 2>/dev/null | grep -oE 't_[0-9a-f]+ +[a-z_]+ +[A-Za-z0-9_-]+'; }   # "id status assignee"
+status_of() { hermes kanban show "$1" 2>/dev/null | sed -n 's/^ *status: *//p' | head -1; }
+parents_of() { hermes kanban show "$1" 2>/dev/null | sed -n 's/^ *parents: *//p' | tr ',' ' '; }
+running_count() { ls "$RUN" 2>/dev/null | wc -l | tr -d ' '; }
+role_busy() { ls "$RUN" 2>/dev/null | grep -qE "\.$1(\.dry)?\$"; }
+
+# ------------------------------------------------------------------ one job (runs in background)
+run_task() { # $1 role, $2 id
+  local role="$1" id="$2" out rc hb action field_s f t r new
+  ( while sleep 240; do hermes kanban heartbeat "$id" >/dev/null 2>&1 || true; done ) & hb=$!
+  out="$(bin/agent-step "$role" "$id" 2>&1)"; rc=$?
+  kill "$hb" 2>/dev/null
+  printf '%s\n' "$out" > "$STATE/$id-step.txt"
+  field() { printf '%s\n' "$out" | sed -n "s/^$1: //p" | tail -1; }
+  action="$(field ACTION)"
+  case "$action" in
+    complete)
+      hermes kanban comment "$id" "Result: $(field SUMMARY)" >/dev/null 2>&1
+      hermes kanban complete "$id" >/dev/null 2>&1 || hermes kanban block "$id" "HUMAN: could not mark complete: $(field SUMMARY)"
+      log "complete $role $id: $(field SUMMARY)" ;;
+    block)
+      hermes kanban block "$id" "$(field REASON)" >/dev/null 2>&1
+      log "block $role $id: $(field REASON)" ;;
+    rework)
+      t="$(field REWORK_TITLE)"; f="$(field REWORK_BODY_FILE)"; r="$(field REASON)"
+      new="$(hermes kanban create "$t" --assignee dev --workspace "dir:$REPO" --body-file "$f" 2>&1 | grep -oE 't_[0-9a-f]+' | head -1)"
+      if [ -n "$new" ]; then
+        hermes kanban link "$new" "$id" >/dev/null 2>&1
+        hermes kanban block "$id" "$r (rework card $new)" >/dev/null 2>&1
+        hermes kanban unblock "$id" >/dev/null 2>&1   # back to todo: waits until the rework card is done
+        log "rework $role $id -> created $new: $t"
+      else
+        hermes kanban block "$id" "HUMAN: could not create the rework card ($t), body in $f" >/dev/null 2>&1
+        log "rework FAILED for $id: could not create card"
+      fi ;;
+    *)
+      hermes kanban block "$id" "HUMAN: agent-step gave no ACTION (exit $rc), see data/dispatch/$id-step.txt" >/dev/null 2>&1
+      log "no ACTION for $role $id (exit $rc)" ;;
+  esac
+}
+
+# ------------------------------------------------------------------ startup: recover orphaned runs
+recover() {
+  local id st role
+  while read -r id st role; do
+    [ "$st" = running ] || continue
+    case "$ROLES" in *" $role "*) ;; *) continue ;; esac
+    ls "$RUN" 2>/dev/null | grep -q "^$id\." && continue
+    log "reclaim orphaned running task $id ($role)"
+    [ $DRY -eq 1 ] || hermes kanban reclaim "$id" >/dev/null 2>&1
+  done <<EOF
+$(board)
+EOF
+}
+
+# ------------------------------------------------------------------ one pass
+pass() {
+  local f pid id st role ok p pst
+  for f in "$RUN"/*; do
+    [ -e "$f" ] || continue
+    pid="$(cat "$f")"
+    kill -0 "$pid" 2>/dev/null || rm -f "$f"
+  done
+
+  local B; B="$(board)"
+  while read -r id st role; do                     # promote todo -> ready when all parents are done
+    [ "$st" = todo ] || continue
+    ok=1
+    for p in $(parents_of "$id"); do
+      pst="$(printf '%s\n' "$B" | awk -v p="$p" '$1==p{print $2}')"
+      [ -z "$pst" ] && pst="$(status_of "$p")"
+      case "$pst" in done|archived) ;; *) ok=0; break ;; esac
+    done
+    if [ $ok -eq 1 ]; then log "promote $id ($role)"; [ $DRY -eq 1 ] || hermes kanban promote "$id" >/dev/null 2>&1; fi
+  done <<EOF
+$B
+EOF
+
+  B="$(board)"
+  while read -r id st role; do                     # start ready tasks
+    [ "$st" = ready ] || continue
+    case "$ROLES" in *" $role "*) ;; *) continue ;; esac
+    [ "$(running_count)" -ge "$MAX" ] && break
+    role_busy "$role" && continue
+    if [ $DRY -eq 1 ]; then log "DRY: would start $role $id"; touch "$RUN/$id.$role.dry"; continue; fi
+    hermes kanban claim "$id" >/dev/null 2>&1 || { log "claim failed for $id, skipping"; continue; }
+    log "start $role $id"
+    ( run_task "$role" "$id" >> "$STATE/$id-dispatch.log" 2>&1 ) &
+    echo "$!" > "$RUN/$id.$role"
+  done <<EOF
+$B
+EOF
+  [ $DRY -eq 1 ] && rm -f "$RUN"/*.dry
+}
+
+# ------------------------------------------------------------------ main
+if pgrep -f "hermes_cli.main.*gateway" >/dev/null 2>&1 || hermes gateway status 2>/dev/null | grep -qi "supervised by launchd (PID"; then
+  echo "The Hermes gateway is running. Stop it first (hermes gateway stop), or Hermes workers will also take tasks." >&2
+  exit 2
+fi
+log "dispatch started (max $MAX, interval ${INTERVAL}s$([ $DRY -eq 1 ] && echo ', DRY RUN'))"
+recover
+while :; do
+  pass
+  [ $ONCE -eq 1 ] && break
+  sleep "$INTERVAL"
+done
+if [ $ONCE -eq 1 ] && [ $DRY -eq 0 ]; then
+  log "waiting for started jobs to finish..."; wait; log "all jobs finished"
+fi
