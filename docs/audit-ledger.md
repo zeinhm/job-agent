@@ -8,5 +8,6 @@ Last audit tag: (none yet)
 | Task id | Title | Risk | Merged commit | Merged on |
 |---|---|---|---|---|
 | t_4affb67b | Scaffold pnpm monorepo | medium | fa1e127 | 2026-10-07 |
+| t_1c4a241e | Core types, SourceError, config loader | medium | e3a318a | 2026-10-07 |
 
-**Counts:** medium 1 / 5 - low 0 / 10
+**Counts:** medium 2 / 5 - low 0 / 10
