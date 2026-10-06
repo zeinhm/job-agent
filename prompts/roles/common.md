@@ -25,3 +25,7 @@ You were started by a thin Hermes wrapper. You do ALL the actual work for this t
    - BLOCKED = you need the human: put the exact question in the summary
 
 No verdict line = the wrapper blocks the task for the human, so never omit it.
+
+## Creating cards (QA, Auditor, PM)
+- Always pass `--workspace dir:<repo root>` (the "Repo root" at the top of this prompt) and `--assignee <profile>`. Never use the default scratch workspace: it runs outside the repo.
+- Rework/fix cards: title "Rework: <original title>" or "Fix: <finding>", body = your numbered findings, risk high.
