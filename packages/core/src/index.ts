@@ -18,4 +18,4 @@ export { postings, source_runs } from "./db/schema.ts";
 export { SourceError } from "./errors.ts";
 export { createLogger, log, type LogLevel, type LogSink, type Logger } from "./log.ts";
 export type { RawPosting, RawSalary, SourceAdapter } from "./types.ts";
-export { httpGet, httpGetJson, httpGetText, HttpError } from "./http.ts";
+export { httpGet, httpGetJson, httpGetText, HttpError, __testInjectTimeAndSleep } from "./http.ts";

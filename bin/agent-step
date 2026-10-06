@@ -52,6 +52,32 @@ post_comment() {
     hermes kanban comment "$ID" "$(printf 'Claude Code report (comment file missing), last lines:\n\n%s' "$(tail -40 "$OUTF")")" >/dev/null 2>&1 || true
   fi
 }
+rework() { # $1 = title, $2 = body file, $3 = reason. Asks the wrapper agent to create a dev card and wait on it.
+  echo
+  echo "AGENT-STEP RESULT"
+  echo "ACTION: rework"
+  echo "REWORK_TITLE: $1"
+  echo "REWORK_BODY_FILE: $2"
+  echo "REASON: $3"
+  exit 0
+}
+wt_for_branch() { # prints the worktree path where branch $1 is checked out, if any
+  git worktree list --porcelain | awk -v b="refs/heads/$1" '/^worktree /{p=$2} $0=="branch "b{print p; exit}'
+}
+sync_card() { # $1 = branch, $2 = conflicting files. Creates a "sync with main" rework (not counted as a FAIL).
+  local f="$H/$ID-sync.md" dt
+  dt="$(printf '%s' "$1" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
+  {
+    echo "Branch: $1"; echo
+    echo "**Risk:** high"; echo
+    echo "The branch no longer merges cleanly with main. Conflicting files:"
+    printf '%s\n' "$2" | sed 's/^/- /'; echo
+    echo "Merge origin/main into the branch, resolve every conflict (for source registries keep every entry from both sides),"
+    echo "update tests that changed because of main, re-run \`pnpm check\`, commit the merge and report evidence."
+    echo "Original dev task: ${dt:-unknown}. QA card waiting on this: $ID."
+  } > "$f"
+  rework "Sync with main: ${DEVTITLE:-$1}" "$f" "SYNC: waiting on sync card for $1"
+}
 merge_branch() { # $1 = branch; merges into main and pushes. Blocks on any problem.
   local br="$1"
   lock_main
@@ -60,9 +86,16 @@ merge_branch() { # $1 = branch; merges into main and pushes. Blocks on any probl
   git pull -q --ff-only origin main || finish block "HUMAN: git pull on main failed (diverged?)"
   git fetch -q origin "$br" 2>/dev/null || true
   local ref="$br"; git show-ref --quiet "refs/heads/$br" || ref="origin/$br"
-  if ! git merge -q --no-ff "$ref" -m "Merge $br ($ID)"; then
-    git merge --abort 2>/dev/null; finish block "HUMAN: merge conflict for $br"
+  # squash: main only ever receives the final state of the branch, never its intermediate commits
+  # (so anything fixed by a rework, e.g. a leaked value, never enters main's history)
+  if ! git merge -q --squash "$ref" >/dev/null 2>&1; then
+    local cf; cf="$(git diff --name-only --diff-filter=U)"
+    git reset -q --hard HEAD; unlock_main
+    [ -n "$cf" ] && sync_card "$br" "$cf"
+    finish block "HUMAN: squash merge of $br failed"
   fi
+  git diff --cached --quiet && { unlock_main; finish block "HUMAN: $br has nothing to merge (already in main?)"; }
+  git commit -q -m "${MERGE_TITLE:-Merge $br} ($ID, squash of $br)" || { git reset -q --hard HEAD; unlock_main; finish block "HUMAN: squash commit of $br was refused (pre-commit hook?), see data/handoff/$ID-out.txt"; }
 }
 cleanup_branch() { # $1 = branch, $2 = dev task id
   git worktree remove --force ".worktrees/$2" 2>/dev/null
@@ -77,11 +110,14 @@ TITLE="$(head -1 "$CARDF" | sed -E "s/^Task $ID: //")"
 MAX_FAILS="${AGENT_STEP_MAX_FAILS:-3}"
 PREV_FAILS="$(grep -c 'FAIL: waiting on rework card' "$CARDF" 2>/dev/null || true)"
 REWORK_DEPTH="$(printf '%s' "$(head -1 "$CARDF")" | grep -o 'Rework' | wc -l | tr -d ' ')"
-fail_or_stop() { # FAIL verdict: allow a rework cycle, or stop the loop and hand it to the human
+fail_or_stop() { # FAIL verdict: ask the wrapper to create a rework card, or stop the loop
   if [ "$PREV_FAILS" -ge $((MAX_FAILS - 1)) ]; then
     finish block "HUMAN: FAIL number $((PREV_FAILS + 1)) on this task (limit $MAX_FAILS). Stopping the rework loop: decide whether to fix it yourself, change the task, or drop it"
   fi
-  finish block "FAIL: waiting on rework card (cycle $((PREV_FAILS + 1)) of $MAX_FAILS)"
+  local f="$H/$ID-rework.md"
+  { echo "Branch: $VBR"; echo; echo "**Risk:** high"; echo; echo "Fix exactly the numbered findings below, re-run all checks, and address each finding by number in the evidence."
+    echo "Review card waiting on this: $ID."; echo; cat "$COMMENTF" 2>/dev/null || tail -60 "$OUTF"; } > "$f"
+  rework "Rework: ${DEVTITLE:-$VBR}" "$f" "FAIL: waiting on rework card (cycle $((PREV_FAILS + 1)) of $MAX_FAILS)"
 }
 RISK="$(grep -m1 -oiE '\*\*Risk:\*\* *(high|medium|low)' "$CARDF" | grep -oiE 'high|medium|low' | tr 'A-Z' 'a-z')"
 PARENTS="$(sed -n 's/^ *parents: *//p' "$CARDF" | tr ',' ' ')"
@@ -96,22 +132,33 @@ WORKDIR="$REPO"; CLOUD=0; BR="-"
 if [ "$ROLE" = dev ]; then
   CLOUD=1
   BR="$(git branch --list "task/$ID-*" --format='%(refname:short)' | head -1)"
-  if [ -z "$BR" ]; then
-    BR="$(git ls-remote --heads origin "task/$ID-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
-  fi
+  [ -z "$BR" ] && BR="$(git ls-remote --heads origin "task/$ID-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
+  # rework / sync cards continue on the original dev branch named in the card ("Branch: task/...")
+  [ -z "$BR" ] && BR="$(grep -m1 -oE 'Branch: *task/t_[0-9a-f]+-[A-Za-z0-9._-]+' "$CARDF" | sed -E 's/^Branch: *//')"
   if [ -z "$BR" ]; then
     SLUG="$(printf '%s' "$TITLE" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-30 | sed -E 's/-+$//')"
     BR="task/$ID-${SLUG:-work}"
   fi
-  WORKDIR="$REPO/.worktrees/$ID"
-  if [ ! -d "$WORKDIR" ]; then
+  git fetch -q origin 2>/dev/null || true
+  WORKDIR="$(wt_for_branch "$BR")"
+  if [ -z "$WORKDIR" ]; then
+    WTID="$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"; WORKDIR="$REPO/.worktrees/${WTID:-$ID}"
     if git show-ref --quiet "refs/heads/$BR"; then git worktree add -q "$WORKDIR" "$BR"
-    elif git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
-      git fetch -q origin "$BR" && git worktree add -q "$WORKDIR" -b "$BR" "origin/$BR"
-    else git worktree add -q "$WORKDIR" -b "$BR" main
+    elif git show-ref --quiet "refs/remotes/origin/$BR"; then git worktree add -q "$WORKDIR" -b "$BR" "origin/$BR"
+    else git worktree add -q "$WORKDIR" -b "$BR" origin/main 2>/dev/null || git worktree add -q "$WORKDIR" -b "$BR" main
     fi || finish block "HUMAN: could not create worktree for $BR"
   fi
   git -C "$WORKDIR" pull -q --ff-only origin "$BR" 2>/dev/null || true   # picks up a finished cloud session
+  # keep the branch current with main; leave conflicts for Claude Code to resolve
+  SYNC_NOTE=""
+  if ! git -C "$WORKDIR" merge -q --no-edit origin/main >/dev/null 2>&1; then
+    CONFL="$(git -C "$WORKDIR" diff --name-only --diff-filter=U)"
+    if [ -n "$CONFL" ]; then
+      SYNC_NOTE="IMPORTANT: origin/main was just merged into this branch and has CONFLICTS in: $(printf '%s' "$CONFL" | tr '\n' ' '). Resolve them first (for source registries keep every entry from both sides), update affected tests, then commit the merge."
+    else
+      git -C "$WORKDIR" merge --abort 2>/dev/null
+    fi
+  fi
 fi
 
 find_task_branch() { # $1 = task id -> prints task/<id>-* branch (local or on origin)
@@ -138,6 +185,14 @@ if [ "$ROLE" = qa ] || [ "$ROLE" = auditor ]; then
     REF="$REVIEW_BR"; git show-ref --quiet "refs/remotes/origin/$REVIEW_BR" && REF="origin/$REVIEW_BR"
     git worktree add -q --detach "$REVIEW_WT" "$REF" || finish block "HUMAN: could not create review worktree for $REVIEW_BR"
     BR="$REVIEW_BR"
+    DEVTITLE="$(hermes kanban show "$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')" 2>/dev/null | head -1 | sed -E 's/^Task [^:]*: //')"
+    # review what main will actually get: the branch merged with current main
+    if ! git -C "$REVIEW_WT" -c user.name=agent-step -c user.email=agent-step@local merge -q --no-edit origin/main >/dev/null 2>&1; then
+      CONFL="$(git -C "$REVIEW_WT" diff --name-only --diff-filter=U)"
+      git -C "$REVIEW_WT" merge --abort 2>/dev/null; git worktree remove --force "$REVIEW_WT" 2>/dev/null
+      [ -n "$CONFL" ] && sync_card "$BR" "$CONFL"
+      finish block "HUMAN: could not merge origin/main into the review checkout of $BR"
+    fi
   elif [ "$ROLE" = auditor ]; then   # batch / phase-end audit: review current origin/main
     git worktree add -q --detach "$REVIEW_WT" origin/main || finish block "HUMAN: could not create audit worktree of origin/main"
   else
@@ -151,6 +206,7 @@ REPORTF="$H/$ID-report.md"; rm -f "$REPORTF"
 {
   echo "Role: $ROLE"; echo "Task: $ID"; echo "Repo root: $REPO"; echo "Work dir: $WORKDIR"
   [ "$ROLE" = dev ] && echo "Branch: $BR"
+  [ -n "${SYNC_NOTE:-}" ] && echo "$SYNC_NOTE"
   [ -n "$REVIEW_WT" ] && [ "$BR" != "-" ] && echo "Reviewing branch: $BR (you are already in a detached review worktree of it)"
   [ -n "$REVIEW_WT" ] && [ "$BR" = "-" ] && echo "Reviewing: origin/main (batch / phase-end audit; detached worktree)"
   [ "$ROLE" = auditor ] && echo "Audit report file: $REPORTF"
@@ -201,7 +257,7 @@ case "$ROLE" in
     [ -z "$VBR" ] || [ "$VBR" = "-" ] && finish block "HUMAN: QA PASS but no branch in the verdict"
     DEVID="$(printf '%s' "$VBR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
     DEVTITLE="$(hermes kanban show "$DEVID" 2>/dev/null | head -1 | sed -E "s/^Task $DEVID: //")"
-    merge_branch "$VBR"
+    MERGE_TITLE="${DEVTITLE:-}" merge_branch "$VBR"
     printf '| %s | %s | %s | %s | %s |\n' "$DEVID" "${DEVTITLE:-$VBR}" "${RISK:-medium}" "$(git rev-parse --short HEAD)" "$(date +%F)" >> docs/audit-ledger.md
     git add docs/audit-ledger.md && git commit -q -m "chore: audit ledger $DEVID" || true
     git push -q origin main || finish block "HUMAN: merged locally but push of main failed"

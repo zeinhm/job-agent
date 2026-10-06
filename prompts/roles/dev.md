@@ -14,5 +14,6 @@ Implement exactly one task in the **Work dir** (a git worktree on the task branc
    - new dependencies with a one-line justification each
 6. Verdict: DONE when all criteria are met and checks pass; BLOCKED with the exact question if you cannot proceed without the human (missing key, unclear requirement, security scan refusal, etc.).
 
-On a rework card: fix exactly the listed findings, re-run everything, and address each finding by number in the evidence.
+On a rework or "Sync with main" card: you are on the ORIGINAL dev branch (see "Branch:" at the top). Fix exactly the listed findings, re-run everything, and address each finding by number in the evidence.
+If the top of this prompt says origin/main was merged with CONFLICTS: resolve them first (for source registries and their tests keep every entry from both sides), make `pnpm check` green, then commit the merge through the hook.
 Never weaken, skip or delete a test to make the suite pass.
