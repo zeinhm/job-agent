@@ -3,9 +3,11 @@
 # below a threshold, and in a Claude Code cloud session (promo credit) above it.
 #
 #   bin/cc-route "<task prompt>"
+#   bin/cc-route -f <prompt-file>
 #
 # Output starts with one line the caller must read:
 #   [cc-route] LOCAL  -> task ran here; result is in the working tree
+#   exit 42           -> plan limit hit and cloud not allowed (retry after reset)
 #   [cc-route] CLOUD  -> task was handed to a cloud session; wait for its PR on GitHub
 #
 # Env overrides (optional):
@@ -15,7 +17,12 @@
 #   CC_ROUTE_FORCE       local|cloud  (testing only)
 set -uo pipefail
 
-PROMPT="${1:?usage: cc-route \"<task prompt>\"}"
+if [ "${1:-}" = "-f" ]; then
+  [ -f "${2:-}" ] || { echo "[cc-route] ERROR: prompt file not found: ${2:-}" >&2; exit 3; }
+  PROMPT="$(cat "$2")"
+else
+  PROMPT="${1:?usage: cc-route \"<task prompt>\"  |  cc-route -f <prompt-file>}"
+fi
 THRESHOLD="${CC_ROUTE_THRESHOLD:-80}"
 CLOUD_ENABLED="${CC_ROUTE_CLOUD:-1}"
 CLOUD_UNTIL="${CC_ROUTE_CLOUD_UNTIL:-2026-11-05}"
@@ -67,7 +74,7 @@ run_local() {
     return 42   # plan limit hit
   fi
   return $status
-} 
+}
 
 run_cloud() {
   log "CLOUD"
