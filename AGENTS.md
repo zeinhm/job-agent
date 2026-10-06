@@ -83,7 +83,7 @@ Rules:
 - Merge (final reviewer only), in the main checkout: confirm `git branch --show-current` is `main` and there are no modified tracked files (otherwise block with `HUMAN:`), then merge, `git worktree remove .worktrees/<dev-task-id>`, `git branch -d task/<dev-task-id>-<slug>`.
 - `config/` and `data/` are gitignored and do not exist inside a worktree. Tests never need them. A live run from a worktree uses `JOB_AGENT_CONFIG_DIR=<repo root>/config JOB_AGENT_DB=$TMPDIR/<task-id>.db`; unmerged code never writes the real `data/job-agent.db`.
 - On a git lock error (`index.lock`), wait 30 s and retry; never delete the lock file.
-- The pre-commit hook is activated by `pnpm install` (`prepare` script); check with `git config --get core.hooksPath`.
+- The pre-commit hook is activated by every `pnpm install` (`prepare` script and `.pnpmfile.cjs`); check with `git config --get core.hooksPath`.
 
 ## Evidence (required for every dev task)
 

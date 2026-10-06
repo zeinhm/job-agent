@@ -12,4 +12,8 @@ export default tseslint.config(
     ],
   },
   ...tseslint.configs.strict,
+  {
+    files: ["**/*.cjs"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 );
