@@ -1,0 +1,70 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { parse } from "yaml";
+import { z } from "zod";
+
+const salaryConfigSchema = z.strictObject({
+  floor_idr_month: z.number().positive(),
+  position_in_listed_range: z.number().min(0).max(1),
+  tiers: z.strictObject({
+    indonesia: z.strictObject({ ask_idr_month: z.number().positive() }),
+    regional: z.strictObject({ ask_idr_month: z.number().positive() }),
+    global_adjusted: z.strictObject({ ask_idr_month: z.number().positive() }),
+    global_flat: z.strictObject({ ask_usd_year: z.number().positive() }),
+  }),
+  unknown_policy: z.string().min(1),
+  text_field_answer: z.string().min(1),
+  review_salary_answers: z.boolean(),
+});
+
+const companiesConfigSchema = z.strictObject({
+  companies: z.array(
+    z.strictObject({
+      name: z.string().min(1),
+      ats: z.enum(["greenhouse", "lever", "ashby"]),
+      slug: z.string().min(1),
+    }),
+  ),
+});
+
+export type SalaryConfig = z.infer<typeof salaryConfigSchema>;
+export type CompanyConfig = z.infer<typeof companiesConfigSchema>["companies"][number];
+export type AppConfig = {
+  salary: SalaryConfig;
+  companies: CompanyConfig[];
+};
+
+/** Reads and validates one YAML file. Errors name the file and key path, never the values. */
+function loadYamlFile<T>(dir: string, file: string, schema: z.ZodType<T>): T {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, file), "utf8");
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? "unknown error";
+    throw new Error(`Config file ${file} could not be read in ${dir} (${code})`, { cause: err });
+  }
+
+  let raw: unknown;
+  try {
+    raw = parse(text);
+  } catch (err) {
+    const code = err instanceof Error && "code" in err ? String(err.code) : "YAML_ERROR";
+    throw new Error(`Config file ${file} is not valid YAML (${code})`);
+  }
+
+  const result = schema.safeParse(raw);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.code}`)
+      .join("; ");
+    throw new Error(`Config file ${file} is invalid: ${issues}`);
+  }
+  return result.data;
+}
+
+export function loadConfig(dir: string = process.env.JOB_AGENT_CONFIG_DIR ?? "config"): AppConfig {
+  return {
+    salary: loadYamlFile(dir, "salary.yaml", salaryConfigSchema),
+    companies: loadYamlFile(dir, "companies.yaml", companiesConfigSchema).companies,
+  };
+}
