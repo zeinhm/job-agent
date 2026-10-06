@@ -1,4 +1,5 @@
 import type { AppConfig, SourceAdapter } from "@job-agent/core";
+import { createAshbyAdapter } from "./ashby/index.ts";
 import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
@@ -13,6 +14,9 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
 
   const leverCompanies = config.companies.filter((c) => c.ats === "lever");
   if (leverCompanies.length > 0) adapters.push(createLeverAdapter(leverCompanies));
+
+  const ashby = config.companies.filter((c) => c.ats === "ashby");
+  if (ashby.length > 0) adapters.push(createAshbyAdapter(ashby));
 
   adapters.push(createHimalayasAdapter());
   adapters.push(createWeWorkRemotelyAdapter());

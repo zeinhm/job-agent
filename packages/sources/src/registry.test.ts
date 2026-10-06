@@ -3,13 +3,20 @@ import { makeConfig } from "./test-utils.ts";
 import { buildAdapters } from "./registry.ts";
 
 describe("buildAdapters", () => {
+  const names = (config: ReturnType<typeof makeConfig>) => buildAdapters(config).map((a) => a.name);
+
   it("returns no lever adapter without a lever company", () => {
-    const names = (config: ReturnType<typeof makeConfig>) =>
-      buildAdapters(config).map((a) => a.name);
     expect(names(makeConfig())).not.toContain("lever");
     expect(names(makeConfig([{ name: "Acme", ats: "greenhouse", slug: "acme" }]))).not.toContain(
       "lever",
     );
+  });
+
+  it("returns an ashby adapter only when the config has an ashby company", () => {
+    expect(names(makeConfig())).not.toContain("ashby");
+    expect(names(makeConfig([{ name: "G", ats: "greenhouse", slug: "g" }]))).not.toContain("ashby");
+    const list = names(makeConfig([{ name: "A", ats: "ashby", slug: "a" }]));
+    expect(list.filter((n) => n === "ashby")).toHaveLength(1);
   });
 
   it("always includes exactly one himalayas adapter with a 60 minute interval", () => {

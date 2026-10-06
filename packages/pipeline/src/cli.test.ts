@@ -63,6 +63,9 @@ describe("discover command", () => {
 
   it("exits 0 when every registered adapter returns no postings", async () => {
     server.use(
+      http.get("https://api.ashbyhq.com/posting-api/job-board/example", () =>
+        HttpResponse.json({ jobs: [] }),
+      ),
       http.get("https://himalayas.app/jobs/api", () =>
         HttpResponse.json({ jobs: [], nextCursor: null }),
       ),
