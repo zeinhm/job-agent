@@ -61,6 +61,16 @@ for n in config/salary.yaml data/x.json .env a.db "config/café.yaml" "data/é.j
   git reset -q; rm -f -- "$n"
 done
 
+# (g2) check 1: typechange under data/ (symlink -> regular file) is blocked
+mkdir -p data; ln -s a.txt data/t.json; git add -f data/t.json
+git -c core.hooksPath=/dev/null commit -q -m seed-symlink
+rm data/t.json; echo x > data/t.json; git add -f data/t.json
+if git diff --cached --name-status | grep -q '^T'; then ok "(g2) staged change is a typechange"; else bad "(g2) not a typechange"; fi
+if try_commit g2; then bad "(g2) data/ typechange committed"; else
+  if grep -q "BLOCKED: private files staged" "$OUT"; then ok "(g2) data/ typechange blocked"; else bad "(g2) blocked by wrong check"; fi
+fi
+git reset -q; git rm -q -f --cached data/t.json; git -c core.hooksPath=/dev/null commit -q -m drop-symlink; rm -f data/t.json
+
 # (h) non-ASCII file name containing the fake string, in a worktree
 printf 'leak %s\n' "$FAKE" > "café.txt"; git add "café.txt"
 if try_commit h; then bad "(h) café.txt leak committed"; else ok "(h) café.txt leak blocked"; fi
@@ -77,6 +87,39 @@ git reset -q; rm -f 'q"uote.txt'
 git add big.txt
 if try_commit j; then bad "(j) large-file leak committed"; else ok "(j) large-file leak blocked"; fi
 git reset -q; rm -f big.txt
+
+# (k) check 2 gaps: modified file, typechange, lowercase, no trailing newline, pathspec magic
+echo "base" > m.txt; git add m.txt; git commit -q -m base-m
+echo "leak $FAKE" >> m.txt; git add m.txt
+if try_commit k1; then bad "(k1) modified-file leak committed"; else ok "(k1) modified-file leak blocked"; fi
+git reset -q; git checkout -q -- m.txt
+
+ln -s m.txt tc.txt; git add tc.txt; git commit -q -m base-tc
+rm tc.txt; printf 'leak %s\n' "$FAKE" > tc.txt; git add tc.txt
+if git diff --cached --name-status | grep -q '^T'; then ok "(k2) staged change is a typechange"; else bad "(k2) not a typechange"; fi
+if try_commit k2; then bad "(k2) typechange leak committed"; else ok "(k2) typechange leak blocked"; fi
+git reset -q; git checkout -q -- tc.txt
+
+printf 'leak %s\n' "$(echo "$FAKE" | tr 'A-Z' 'a-z')" > lc.txt; git add lc.txt
+if try_commit k3; then bad "(k3) lowercase leak committed"; else ok "(k3) lowercase leak blocked"; fi
+git reset -q; rm -f lc.txt
+
+printf '# fake patterns\n%s' "$FAKE" > "$R/config/private-patterns.txt"
+printf 'leak %s\n' "$FAKE" > nn.txt; git add nn.txt
+if try_commit k4; then bad "(k4) no-trailing-newline pattern missed leak"; else ok "(k4) no-trailing-newline pattern blocked leak"; fi
+git reset -q; rm -f nn.txt
+printf '# fake patterns\n%s\n' "$FAKE" > "$R/config/private-patterns.txt"
+
+printf 'leak %s\n' "$FAKE" > ':(exclude)z.txt'; GIT_LITERAL_PATHSPECS=1 git add -- ':(exclude)z.txt'
+if try_commit k5; then bad "(k5) pathspec-magic name leak committed"; else ok "(k5) pathspec-magic name leak blocked"; fi
+if grep -q "$FAKE" "$OUT"; then bad "(f) fake string printed in (k5)"; else ok "(f) fake string not in output (k5)"; fi
+git reset -q; rm -f ':(exclude)z.txt'
+
+# (k6) name that is pathspec magic excluding itself: without literal pathspecs the diff is empty
+printf 'leak %s\n' "$FAKE" > ':(exclude)*'; GIT_LITERAL_PATHSPECS=1 git add -- ':(exclude)*'
+if [ "$(git diff --cached --name-only | wc -l)" -eq 1 ]; then ok "(k6) magic-named file is staged"; else bad "(k6) magic-named file not staged"; fi
+if try_commit k6; then bad "(k6) self-excluding magic name leak committed"; else ok "(k6) self-excluding magic name leak blocked"; fi
+git reset -q; rm -f ':(exclude)*'
 
 # (e) patterns file absent
 rm -f "$R/config/private-patterns.txt"

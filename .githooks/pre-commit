@@ -11,7 +11,7 @@ while IFS= read -r -d '' f; do
      && ! [[ "$f" =~ ^config/(README\.md|.*\.example\..*)$ ]]; then
     blocked+=("$f")
   fi
-done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+done < <(git diff --cached --name-only -z --diff-filter=ACMRT)
 if [ "${#blocked[@]}" -gt 0 ]; then
   echo "BLOCKED: private files staged:"; printf '  %s\n' "${blocked[@]}"; fail=1
 fi
@@ -26,17 +26,27 @@ patterns="$(dirname "$common_dir")/config/private-patterns.txt"
 if [ ! -f "$patterns" ]; then
   echo "WARNING: $patterns not found, private-string check skipped" >&2
 else
-  while IFS= read -r -d '' f; do
-    [ -z "$f" ] && continue
-    added=$(GIT_LITERAL_PATHSPECS=1 git diff --cached -U0 --no-color -- "$f" | grep -E '^\+' | grep -v -E '^\+\+\+' || true)
-    while IFS= read -r p || [ -n "$p" ]; do
-      [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac
-      if grep -F -i -q -- "$p" <<<"$added"; then
-        echo "BLOCKED: private-string check failed for staged file: $f"; fail=1
-        break
-      fi
-    done < "$patterns"
-  done < <(git diff --cached --name-only -z --diff-filter=ACMR)
+  # Clean the patterns once: drop comments and blank lines, keep a last line without newline.
+  clean=$(mktemp "${TMPDIR:-/tmp}/hook-patterns.XXXXXX")
+  trap 'rm -f "$clean"' EXIT
+  while IFS= read -r p || [ -n "$p" ]; do
+    [ -z "$p" ] && continue; case "$p" in \#*) continue;; esac
+    printf '%s\n' "$p" >> "$clean"
+  done < "$patterns"
+  if [ -s "$clean" ]; then
+    # Fast path: one scan of all added lines (renames shown as add, so content is the same
+    # as the per-file view). Only when something matches do we walk files to name offenders.
+    all_added=$(git diff --cached -U0 --no-color --no-renames --diff-filter=ACMRT | grep -E '^\+' | grep -v -E '^\+\+\+' || true)
+    if grep -F -i -q -f "$clean" <<<"$all_added"; then
+      while IFS= read -r -d '' f; do
+        [ -z "$f" ] && continue
+        added=$(GIT_LITERAL_PATHSPECS=1 git diff --cached -U0 --no-color -- "$f" | grep -E '^\+' | grep -v -E '^\+\+\+' || true)
+        if grep -F -i -q -f "$clean" <<<"$added"; then
+          echo "BLOCKED: private-string check failed for staged file: $f"; fail=1
+        fi
+      done < <(git diff --cached --name-only -z --diff-filter=ACMRT)
+    fi
+  fi
 fi
 
 [ "$fail" -eq 0 ] || { echo "Commit aborted. Remove the personal data and try again."; exit 1; }
