@@ -51,6 +51,33 @@ if try_commit c2; then ok "(c) config/foo.example.yaml allowed"; else bad "(c) e
 echo "hello" > d.txt; git add d.txt
 if try_commit d; then ok "(d) clean worktree commit succeeds"; else bad "(d) clean commit failed: $(cat "$OUT")"; fi
 
+# (g) check 1: each private path class is blocked (incl. non-ASCII config/ and data/ names)
+mkdir -p config data
+for n in config/salary.yaml data/x.json .env a.db "config/café.yaml" "data/é.json"; do
+  echo "x" > "$n"; git add -f -- "$n"
+  if try_commit g; then bad "(g) $n committed"; else
+    if grep -q "BLOCKED: private files staged" "$OUT"; then ok "(g) $n blocked"; else bad "(g) $n blocked by wrong check"; fi
+  fi
+  git reset -q; rm -f -- "$n"
+done
+
+# (h) non-ASCII file name containing the fake string, in a worktree
+printf 'leak %s\n' "$FAKE" > "café.txt"; git add "café.txt"
+if try_commit h; then bad "(h) café.txt leak committed"; else ok "(h) café.txt leak blocked"; fi
+if grep -q "$FAKE" "$OUT"; then bad "(f) fake string printed in (h)"; else ok "(f) fake string not in output (h)"; fi
+git reset -q; rm -f "café.txt"
+
+# (i) file name containing a double quote
+printf 'leak %s\n' "$FAKE" > 'q"uote.txt'; git add 'q"uote.txt'
+if try_commit i; then bad "(i) quote-name leak committed"; else ok "(i) quote-name leak blocked"; fi
+git reset -q; rm -f 'q"uote.txt'
+
+# (j) fake string on line 1 of a >=200KB file
+{ printf 'leak %s\n' "$FAKE"; head -c 200000 /dev/zero | tr '\0' 'a'; echo; } > big.txt
+git add big.txt
+if try_commit j; then bad "(j) large-file leak committed"; else ok "(j) large-file leak blocked"; fi
+git reset -q; rm -f big.txt
+
 # (e) patterns file absent
 rm -f "$R/config/private-patterns.txt"
 echo "more" > e.txt; git add e.txt
