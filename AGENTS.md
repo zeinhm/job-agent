@@ -127,3 +127,5 @@ This repository is **public**. The owner's personal data must never reach a comm
 - Task comments are the only channel between agents. Be specific: file, line, command, output.
 - Comments addressed to the human start with `HUMAN:`.
 - Keep comments short. Long findings go in a file under `docs/` and the comment links to it.
+
+- **Push right after merging:** the merging profile (QA or Auditor) runs `git push origin main` immediately after every merge. This also pushes the researcher's doc commits. Cloud sessions start from GitHub, so anything not pushed is invisible to them.
