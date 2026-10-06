@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SYNTHETIC fixture: hand-written to match docs/research/t_92e11b3f-remote-boards.md; weworkremotely.com was unreachable from the dev sandbox. Re-record with the curl commands in the task evidence. -->
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss">
+  <channel>
+    <title>We Work Remotely: Front-End Programming</title>
+    <link>https://weworkremotely.com/remote-jobs.rss</link>
+    <description>We Work Remotely: Front-End Programming</description>
+    <language>en-US</language>
+    <ttl>60</ttl>
+    <item>
+      <title>Acme Labs: Senior React Developer</title>
+      <region>Anywhere in the World</region>
+      <country></country>
+      <state></state>
+      <skills>React, TypeScript, and CSS</skills>
+      <category>Front-End Programming</category>
+      <type>Full-Time</type>
+      <description>&lt;p&gt;Join &lt;strong&gt;Acme&lt;/strong&gt; &amp;amp; build things. Apply: jobs@example.com&lt;/p&gt;</description>
+      <pubDate>Tue, 06 Oct 2026 13:25:57 +0000</pubDate>
+      <expires_at>Thu, 05 Nov 2026 13:25:57 +0000</expires_at>
+      <guid>https://weworkremotely.com/remote-jobs/acme-labs-senior-react-developer</guid>
+      <link>https://weworkremotely.com/remote-jobs/acme-labs-senior-react-developer</link>
+    </item>
+    <item>
+      <title>Globex: Front-End Engineer</title>
+      <region>USA Only</region>
+      <country></country>
+      <state></state>
+      <skills>Vue, JavaScript</skills>
+      <category>Front-End Programming</category>
+      <type>Full-Time</type>
+      <description>&lt;p&gt;Join &lt;strong&gt;Acme&lt;/strong&gt; &amp;amp; build things. Apply: jobs@example.com&lt;/p&gt;</description>
+      <pubDate>Mon, 05 Oct 2026 09:00:00 +0000</pubDate>
+      <expires_at>Thu, 05 Nov 2026 13:25:57 +0000</expires_at>
+      <guid>https://weworkremotely.com/remote-jobs/globex-front-end-engineer</guid>
+      <link>https://weworkremotely.com/remote-jobs/globex-front-end-engineer</link>
+    </item>
+    <item>
+      <title>Initech: UI Developer</title>
+      <region>Europe</region>
+      <country></country>
+      <state></state>
+      <skills>Angular</skills>
+      <category>Front-End Programming</category>
+      <type>Contract</type>
+      <description>&lt;p&gt;Join &lt;strong&gt;Acme&lt;/strong&gt; &amp;amp; build things. Apply: jobs@example.com&lt;/p&gt;</description>
+      <pubDate>Sat, 01 Aug 2026 08:00:00 +0000</pubDate>
+      <expires_at>Thu, 05 Nov 2026 13:25:57 +0000</expires_at>
+      <guid>https://weworkremotely.com/remote-jobs/initech-ui-developer</guid>
+      <link>https://weworkremotely.com/remote-jobs/initech-ui-developer</link>
+    </item>
+    <item>
+      <title>Hooli: Web Developer (Part-Time)</title>
+      <region>Anywhere in the World</region>
+      <country></country>
+      <state></state>
+      <skills>HTML, CSS</skills>
+      <category>Front-End Programming</category>
+      <type>Part-Time</type>
+      <description>&lt;p&gt;Join &lt;strong&gt;Acme&lt;/strong&gt; &amp;amp; build things. Apply: jobs@example.com&lt;/p&gt;</description>
+      <pubDate>Sun, 04 Oct 2026 10:30:00 +0000</pubDate>
+      <expires_at>Thu, 05 Nov 2026 13:25:57 +0000</expires_at>
+      <guid>https://weworkremotely.com/remote-jobs/hooli-web-developer</guid>
+      <link>https://weworkremotely.com/remote-jobs/hooli-web-developer</link>
+    </item>
+  </channel>
+</rss>

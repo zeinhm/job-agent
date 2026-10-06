@@ -211,15 +211,15 @@ describe("buildAdapters (greenhouse)", () => {
 
   it("returns a greenhouse adapter when the config has a greenhouse company", () => {
     const adapters = buildAdapters({ ...base, companies: [acme] });
-    expect(adapters.map((a) => a.name)).toEqual(["greenhouse"]);
+    expect(adapters.map((a) => a.name)).toEqual(["greenhouse", "weworkremotely"]);
   });
 
-  it("returns none when the config has only other ATS companies", () => {
+  it("returns no greenhouse adapter when the config has only other ATS companies", () => {
     const adapters = buildAdapters({
       ...base,
       companies: [{ name: "Other", ats: "lever", slug: "other" }],
     });
-    expect(adapters).toEqual([]);
+    expect(adapters.map((a) => a.name)).toEqual(["lever", "weworkremotely"]);
   });
 
   it("only requests boards of greenhouse companies", async () => {

@@ -3,7 +3,13 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildAdapters } from "@job-agent/sources";
 import { main } from "./cli.ts";
+
+vi.mock("@job-agent/sources", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@job-agent/sources")>();
+  return { ...actual, buildAdapters: vi.fn(actual.buildAdapters) };
+});
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -57,6 +63,7 @@ describe("discover command", () => {
   it("exits 0 when no adapter is registered and none is requested", async () => {
     const dir = withEnv();
     try {
+      vi.mocked(buildAdapters).mockReturnValueOnce([]);
       const c = capture();
       expect(await main(["discover", "--force"], c.io)).toBe(0);
     } finally {
