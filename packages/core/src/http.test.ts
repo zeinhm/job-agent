@@ -68,6 +68,29 @@ describe("httpGet", () => {
     expect(error.message).toContain("data=ok");
   });
 
+  it("should redact uppercase query param names", async () => {
+    const url = "https://example.com/api?TOKEN=secret123&KEY=secret456&data=ok";
+    const error = new HttpError(url, 404);
+    expect(error.message).toContain("TOKEN=REDACTED");
+    expect(error.message).toContain("KEY=REDACTED");
+    expect(error.message).not.toContain("secret123");
+    expect(error.message).not.toContain("secret456");
+    expect(error.message).toContain("data=ok");
+  });
+
+  it("should redact mixed-case query param names", async () => {
+    const url =
+      "https://example.com/api?ToKeN=secret1&AcCeSs_ToKeN=secret2&Api_Key=secret3&data=ok";
+    const error = new HttpError(url, 404);
+    expect(error.message).toContain("ToKeN=REDACTED");
+    expect(error.message).toContain("AcCeSs_ToKeN=REDACTED");
+    expect(error.message).toContain("Api_Key=REDACTED");
+    expect(error.message).not.toContain("secret1");
+    expect(error.message).not.toContain("secret2");
+    expect(error.message).not.toContain("secret3");
+    expect(error.message).toContain("data=ok");
+  });
+
   it("should throw before making request if minIntervalMs is too small", async () => {
     await expect(httpGet("https://example.com/test", { minIntervalMs: 500 })).rejects.toThrow(
       /minIntervalMs must be at least 1000/,

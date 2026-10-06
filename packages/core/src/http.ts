@@ -44,9 +44,11 @@ function redactUrl(url: string): string {
   try {
     const parsed = new URL(url);
     const sensitive = ["token", "key", "api_key", "access_token"];
-    for (const param of sensitive) {
-      if (parsed.searchParams.has(param)) {
-        parsed.searchParams.set(param, "REDACTED");
+    // Iterate through searchParams and check keys case-insensitively
+    const sensitiveSet = new Set(sensitive.map((s) => s.toLowerCase()));
+    for (const [key] of parsed.searchParams.entries()) {
+      if (sensitiveSet.has(key.toLowerCase())) {
+        parsed.searchParams.set(key, "REDACTED");
       }
     }
     return parsed.toString();
