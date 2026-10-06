@@ -16,4 +16,7 @@ Last audit tag: (none yet)
 | t_7e6323cc | Implement Lever source adapter | medium | a8199f4 | 2026-10-07 |
 | t_6b3ccf13 | Implement Himalayas source adapter | medium | e8625e5 | 2026-10-07 |
 | t_7762821c | Implement We Work Remotely RSS source adapter | medium | 03cdc67 | 2026-10-07 |
-| t_e83f59ac | Implement Ashby source adapter | medium | 351a222 | 2026-10-07 |
+|| t_e83f59ac | Implement Ashby source adapter | medium | 351a222 | 2026-10-07 |
+|| t_a2ab4f25 | Implement Remotive source adapter | medium | b3a8e1c | 2026-10-07 |
+
+**Counts:** medium 6 / 5 - low 0 / 10 _(batch audit triggered: 6 medium tasks)_
