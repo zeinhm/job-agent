@@ -1,0 +1,5 @@
+# Allow unsafe builds to proceed
+allow-build-scripts=msw
+
+# Disable strict build script checking  
+build-fails-limit=0
