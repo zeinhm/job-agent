@@ -1,12 +1,14 @@
-import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fx_rates, openDb } from "@job-agent/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
 });
 
 function capture() {
@@ -59,6 +61,57 @@ describe("discover command", () => {
     try {
       const c = capture();
       expect(await main(["discover", "--force"], c.io)).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("fx command", () => {
+  const fixture = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../core/test/fixtures/fx/er-api-usd.json"),
+    "utf-8",
+  );
+
+  function withDb(): { dir: string; db: string } {
+    const dir = mkdtempSync(join(tmpdir(), "job-agent-fx-"));
+    const db = join(dir, "t.db");
+    vi.stubEnv("JOB_AGENT_DB", db);
+    return { dir, db };
+  }
+
+  function countRows(path: string): number {
+    const db = openDb(path);
+    try {
+      return db.select().from(fx_rates).all().length;
+    } finally {
+      db.$client.close();
+    }
+  }
+
+  it("stores the fixture rates, prints them, and is idempotent", async () => {
+    const { dir, db } = withDb();
+    try {
+      vi.stubGlobal("fetch", async () => new Response(fixture, { status: 200 }));
+      const c = capture();
+      expect(await main(["fx"], c.io)).toBe(0);
+      expect(c.out.join("")).toContain("2026-10-06 USD/IDR 17892.583535");
+      expect(countRows(db)).toBe(7);
+      expect(await main(["fx"], capture().io)).toBe(0);
+      expect(countRows(db)).toBe(7);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("exits 1 with the error and writes no rows on HTTP failure", async () => {
+    const { dir, db } = withDb();
+    try {
+      vi.stubGlobal("fetch", async () => new Response("nope", { status: 404 }));
+      const c = capture();
+      expect(await main(["fx"], c.io)).toBe(1);
+      expect(c.err.join("")).toContain("fx failed");
+      expect(countRows(db)).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
