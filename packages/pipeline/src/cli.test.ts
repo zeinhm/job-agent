@@ -2,10 +2,17 @@ import { copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
 
+const server = setupServer();
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterAll(() => server.close());
 afterEach(() => {
+  server.resetHandlers();
   vi.unstubAllEnvs();
 });
 
@@ -54,7 +61,12 @@ describe("discover command", () => {
     }
   });
 
-  it("exits 0 when no adapter is registered and none is requested", async () => {
+  it("exits 0 when every registered adapter returns no postings", async () => {
+    server.use(
+      http.get("https://himalayas.app/jobs/api", () =>
+        HttpResponse.json({ jobs: [], nextCursor: null }),
+      ),
+    );
     const dir = withEnv();
     try {
       const c = capture();
