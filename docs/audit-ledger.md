@@ -27,3 +27,4 @@ Last audit tag: (none yet)
 | t_b77fea1a | Implement HN "Who is hiring" source adapter | medium | 9e61e52 | 2026-10-07 |
 | t_23700548 | Implement cross-source dedupe | medium | 876908e | 2026-10-07 |
 | t_97bdc85f | Implement daily FX rate fetch and storage | medium | 590001e | 2026-10-07 |
+| t_4595a4e3 | Rework: Location eligibility golden set (relabel 17 disputed cases) | medium | b271004 | 2026-10-07 |
