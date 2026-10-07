@@ -1,5 +1,13 @@
 # Golden Set: Location and Indonesia Rules
 
+## Correction note (t_4595a4e3)
+
+The location summary counts below were wrong: the table has 55 location rows, not 60+, and the per-class counts did not add up.
+17 labels in the table (loc-04, 07, 10-19, 48-52 in `fixtures/golden/location.json`) contradicted the binding precedence rules
+of the classifier card (t_53e40c35). The fixture was relabelled to follow the rules and the `disputed` escape hatch was removed;
+the tables in this file are the original research labels and are kept as written. The fixture is the authoritative golden set:
+55 cases, `worldwide` 8, `apac_ok` 3, `restricted` 36, `unclear` 8.
+
 ## Summary
 
 **Evidence count by expected class (Location cases: 60+)**
