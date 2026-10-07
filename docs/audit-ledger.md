@@ -23,3 +23,4 @@ Last audit tag: (none yet)
 | t_3654c586 | Implement web3.career source adapter | medium | baec69e | 2026-10-07 |
 | t_44be3ba1 | Implement RemoteOK source adapter | medium | 404bd58 | 2026-10-07 |
 | t_55e4e4d3 | Fix main: buildAdapters greenhouse/lever tests | medium | a92b54a | 2026-10-07 |
+| t_e6e46c8e | Implement posting normalization | medium | 3d15c3d | 2026-10-07 |
