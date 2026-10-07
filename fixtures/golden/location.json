@@ -1,0 +1,404 @@
+[
+  {
+    "id": "loc-01",
+    "locationText": "Remote",
+    "descriptionSnippet": "Multi-region hiring, no restrictions mentioned",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=42297424 (DuckDuckGo)"
+  },
+  {
+    "id": "loc-02",
+    "locationText": "Remote",
+    "descriptionSnippet": "No geographic restriction in the posting",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Beeper)"
+  },
+  {
+    "id": "loc-03",
+    "locationText": "Remote",
+    "descriptionSnippet": "\"We hire globally\" implied by no US-only note",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Limitless)"
+  },
+  {
+    "id": "loc-04",
+    "locationText": "REMOTE (all remote)",
+    "descriptionSnippet": "\"Hiring GMT-8 to GMT+2\" covers wide range including Asia",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Eigen)",
+    "disputed": "Snippet range GMT-8 to GMT+2 excludes +7; card rule 2 (timezone range that excludes +7) gives restricted, label says worldwide."
+  },
+  {
+    "id": "loc-05",
+    "locationText": "REMOTE (World)",
+    "descriptionSnippet": "Explicit worldwide language",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=43858554 (ThreatMark)"
+  },
+  {
+    "id": "loc-06",
+    "locationText": "Remote",
+    "descriptionSnippet": "Global hiring, no region specified",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=43547611 (Enveritas)"
+  },
+  {
+    "id": "loc-07",
+    "locationText": "Remote",
+    "descriptionSnippet": "\"Our team is fully remote, with team members in North America, Europe, and APAC\"",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Epistemic AI)",
+    "disputed": "Description lists North America; card rule 2 (restriction in description) fires before the APAC mention, giving restricted."
+  },
+  {
+    "id": "loc-08",
+    "locationText": "Remote",
+    "descriptionSnippet": "No restrictions, standard remote posting",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Klara Inc)"
+  },
+  {
+    "id": "loc-09",
+    "locationText": "Remote",
+    "descriptionSnippet": "\"Fully Remote\" with no location restrictions",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Cactus)"
+  },
+  {
+    "id": "loc-10",
+    "locationText": "Remote",
+    "descriptionSnippet": "\"fully-remote, except where specific locations are noted\" (and no specific note for this role)",
+    "expected": "worldwide",
+    "source": "https://news.ycombinator.com/item?id=42297424 (DuckDuckGo)",
+    "disputed": "Snippet carries no worldwide wording; bare Remote -> unclear under card rule 5."
+  },
+  {
+    "id": "loc-11",
+    "locationText": "Remote (EU time zone)",
+    "descriptionSnippet": "EU role, explicit timezone requirement",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=42297424 (PlantingSpace)",
+    "disputed": "EU timezone has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-12",
+    "locationText": "Remote (Europe)",
+    "descriptionSnippet": "Europe-only region, GMT+0 to GMT+2",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Better Stack \"UTC ± 3h\")",
+    "disputed": "Snippet range GMT+0 to GMT+2 excludes +7; rule 2 gives restricted, label says apac_ok."
+  },
+  {
+    "id": "loc-13",
+    "locationText": "Remote (UTC +3 to UTC -3)",
+    "descriptionSnippet": "Explicit timezone range; UTC+3 is close to GMT+7",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Checkly)",
+    "disputed": "Range UTC+3 to UTC-3 excludes +7; rule 2 gives restricted, label says apac_ok (card AC treats the same shape as restricted)."
+  },
+  {
+    "id": "loc-14",
+    "locationText": "Remote (EU timezone)",
+    "descriptionSnippet": "EU-centered timezone",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=42297424 (PlantingSpace)",
+    "disputed": "EU timezone has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-15",
+    "locationText": "Remote (Europe)",
+    "descriptionSnippet": "AREO Europe remote role",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=42297424 (AREO)",
+    "disputed": "Europe has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-16",
+    "locationText": "Remote (EU)",
+    "descriptionSnippet": "Europe-only region",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Much Better Adventures)",
+    "disputed": "EU has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-17",
+    "locationText": "Remote (CET)",
+    "descriptionSnippet": "Central European timezone",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Quotez)",
+    "disputed": "CET has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-18",
+    "locationText": "Remote (Europe)",
+    "descriptionSnippet": "Spacelift Europe remote role",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Spacelift)",
+    "disputed": "Europe has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-19",
+    "locationText": "Europe (Madrid, Oslo, Berlin, Barcelona...) Remote (EU timezone)/Hybrid/On-site",
+    "descriptionSnippet": "EU cities, timezone-aware",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Orca)",
+    "disputed": "Europe/EU timezone has no APAC signal in the card rules; gives unclear, label says apac_ok."
+  },
+  {
+    "id": "loc-20",
+    "locationText": "Remote, Asia",
+    "descriptionSnippet": "Explicit Asia region mention",
+    "expected": "apac_ok",
+    "source": "PLAN example"
+  },
+  {
+    "id": "loc-21",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "Explicit US-only restriction",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Brilliant.org)"
+  },
+  {
+    "id": "loc-22",
+    "locationText": "Remote (US only)",
+    "descriptionSnippet": "Explicit US-only language",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (SmarterDx)"
+  },
+  {
+    "id": "loc-23",
+    "locationText": "Remote (US, Canada)",
+    "descriptionSnippet": "North America only, excludes APAC",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Collaborative Drug Discovery)"
+  },
+  {
+    "id": "loc-24",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "Explicit US-only scope",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Lirio)"
+  },
+  {
+    "id": "loc-25",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "\"Remote (US) / Los Angeles\" — US scope",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Spotify)"
+  },
+  {
+    "id": "loc-26",
+    "locationText": "REMOTE (US)",
+    "descriptionSnippet": "Explicit US-only",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (ID.me)"
+  },
+  {
+    "id": "loc-27",
+    "locationText": "Remote (US-based)",
+    "descriptionSnippet": "US residence required",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (InnoVint)"
+  },
+  {
+    "id": "loc-28",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "Pure US remote role",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Lirio)"
+  },
+  {
+    "id": "loc-29",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "US restriction explicit",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Freed)"
+  },
+  {
+    "id": "loc-30",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "US-only remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Heyday Health)"
+  },
+  {
+    "id": "loc-31",
+    "locationText": "Remote (US)",
+    "descriptionSnippet": "US scope",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Honor)"
+  },
+  {
+    "id": "loc-32",
+    "locationText": "Remote within UK/Europe",
+    "descriptionSnippet": "UK/Europe region",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Count)"
+  },
+  {
+    "id": "loc-33",
+    "locationText": "REMOTE within UK/Europe",
+    "descriptionSnippet": "UK/Europe scope",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Count)"
+  },
+  {
+    "id": "loc-34",
+    "locationText": "Remote (North, Central, South America)",
+    "descriptionSnippet": "Americas only",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Dover)"
+  },
+  {
+    "id": "loc-35",
+    "locationText": "Remote (US & international, but some overlap with clients needed)",
+    "descriptionSnippet": "US-primary, regional variation",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Nelknet)"
+  },
+  {
+    "id": "loc-36",
+    "locationText": "Remote (must work US hours)",
+    "descriptionSnippet": "Synchronous US hours required",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Fathom)"
+  },
+  {
+    "id": "loc-37",
+    "locationText": "REMOTE (must work US hours)",
+    "descriptionSnippet": "US hours synchronous requirement",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43547611 (Fathom)"
+  },
+  {
+    "id": "loc-38",
+    "locationText": "Remote (U.S. time zones)",
+    "descriptionSnippet": "US timezone restriction",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43547611 (Foxglove)"
+  },
+  {
+    "id": "loc-39",
+    "locationText": "New York, NY",
+    "descriptionSnippet": "Onsite only, no remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Goblins)"
+  },
+  {
+    "id": "loc-40",
+    "locationText": "Williamsburg, New York",
+    "descriptionSnippet": "Onsite only, no remote option",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Goblins)"
+  },
+  {
+    "id": "loc-41",
+    "locationText": "ONSITE, New York",
+    "descriptionSnippet": "On-site, no remote option",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Godel Terminal)"
+  },
+  {
+    "id": "loc-42",
+    "locationText": "Hybrid - London",
+    "descriptionSnippet": "Hybrid on-site in London, not fully remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Cour des comptes)"
+  },
+  {
+    "id": "loc-43",
+    "locationText": "HYBRID / ONSITE",
+    "descriptionSnippet": "Hybrid or on-site, not remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Channable)"
+  },
+  {
+    "id": "loc-44",
+    "locationText": "ONSITE, Hanau, Germany",
+    "descriptionSnippet": "Pure on-site, no remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Heraeus)"
+  },
+  {
+    "id": "loc-45",
+    "locationText": "ONSITE / HYBRID Stuttgart, Germany",
+    "descriptionSnippet": "On-site or hybrid, not fully remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Swabian Instruments)"
+  },
+  {
+    "id": "loc-46",
+    "locationText": "Paris, France",
+    "descriptionSnippet": "Onsite + hybrid, not fully remote",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Cour des comptes)"
+  },
+  {
+    "id": "loc-47",
+    "locationText": "San Francisco (ONSITE)",
+    "descriptionSnippet": "Pure on-site, explicit",
+    "expected": "restricted",
+    "source": "https://news.ycombinator.com/item?id=43858554 (Imbue)"
+  },
+  {
+    "id": "loc-48",
+    "locationText": "Remote (North America), SF, NYC",
+    "descriptionSnippet": "SF/NYC on-site option; \"Remote (North America)\" conditional",
+    "expected": "apac_ok",
+    "source": "https://news.ycombinator.com/item?id=42297424 (Brilliant.org)",
+    "disputed": "Remote (North America) is a restriction under card rule 2; label says apac_ok (the research notes themselves say it should be restricted)."
+  },
+  {
+    "id": "loc-49",
+    "locationText": "Remote - Americas/EMEA",
+    "descriptionSnippet": "Restricted to Americas and Europe, excludes Asia",
+    "expected": "unclear",
+    "source": "PLAN example",
+    "disputed": "Americas/EMEA are named restriction phrases in card rule 2; gives restricted, label says unclear."
+  },
+  {
+    "id": "loc-50",
+    "locationText": "Anywhere (UTC-3 to UTC+3)",
+    "descriptionSnippet": "Timezone range; UTC-3 to UTC+3 does NOT include GMT+7",
+    "expected": "unclear",
+    "source": "PLAN example",
+    "disputed": "Card AC requires restricted for a timezone range that excludes +7; label says unclear."
+  },
+  {
+    "id": "loc-51",
+    "locationText": "GMT+7 overlap required",
+    "descriptionSnippet": "Explicit GMT+7 mention",
+    "expected": "worldwide",
+    "source": "PLAN example",
+    "disputed": "GMT+7 in the location is an APAC signal (card rule 1) -> apac_ok, label says worldwide."
+  },
+  {
+    "id": "loc-52",
+    "locationText": "Remote",
+    "descriptionSnippet": "Description says \"must reside in the US\" but locationText omits it",
+    "expected": "unclear",
+    "source": "PLAN example (location-only interpretation vs. description)",
+    "disputed": "Card AC requires a description restriction to win -> restricted; label says unclear."
+  },
+  {
+    "id": "loc-53",
+    "locationText": "Remote",
+    "descriptionSnippet": "\"No US timezone restriction\" in description",
+    "expected": "worldwide",
+    "source": "PLAN example"
+  },
+  {
+    "id": "loc-54",
+    "locationText": "Remote (EU only)",
+    "descriptionSnippet": "Explicit EU-only restriction",
+    "expected": "restricted",
+    "source": "PLAN example"
+  },
+  {
+    "id": "loc-55",
+    "locationText": "Remote (Asia/APAC)",
+    "descriptionSnippet": "Explicit APAC/Asia scope",
+    "expected": "apac_ok",
+    "source": "PLAN example"
+  }
+]
