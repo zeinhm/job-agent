@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { defaultDbPath, loadConfig, openDb } from "@job-agent/core";
+import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
 import { runDiscover } from "./discover.ts";
 
@@ -11,7 +11,7 @@ export interface Io {
 
 type Command = (args: string[], io: Io) => Promise<number> | number;
 
-// Commands are added by the tasks that own them: fx, process, digest.
+// Commands are added by the tasks that own them: process, digest.
 const commands: Record<string, Command> = {
   discover: async (args, io) => {
     const { values } = parseArgs({
@@ -28,6 +28,19 @@ const commands: Record<string, Command> = {
         out: io.out,
         err: io.err,
       });
+    } finally {
+      db.$client.close();
+    }
+  },
+  fx: async (_args, io) => {
+    const db = openDb(defaultDbPath());
+    try {
+      const rows = await fetchAndStoreFx(db);
+      for (const r of rows) io.out(`${r.date} USD/${r.quote} ${r.rate}\n`);
+      return 0;
+    } catch (e) {
+      io.err(`fx failed: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
     } finally {
       db.$client.close();
     }
