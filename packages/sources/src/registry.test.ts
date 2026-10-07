@@ -32,7 +32,6 @@ describe("buildAdapters", () => {
   it("returns exactly one lever adapter when the config has lever companies", () => {
     const adapters = buildAdapters(
       makeConfig([
-        { name: "Acme", ats: "greenhouse", slug: "acme" },
         { name: "Globex", ats: "lever", slug: "globex" },
         { name: "Initech", ats: "lever", slug: "initech" },
       ]),
@@ -40,6 +39,20 @@ describe("buildAdapters", () => {
     const levers = adapters.filter((a) => a.name === "lever");
     expect(levers).toHaveLength(1);
     expect(levers[0]?.minIntervalMinutes).toBe(60);
+  });
+
+  it("returns one adapter per configured ATS", () => {
+    const adapters = buildAdapters(
+      makeConfig([
+        { name: "Acme", ats: "greenhouse", slug: "acme" },
+        { name: "Globex", ats: "lever", slug: "globex" },
+        { name: "Initech", ats: "lever", slug: "initech" },
+      ]),
+    );
+    expect(adapters.map((a) => a.name).filter((n) => n === "greenhouse" || n === "lever")).toEqual([
+      "greenhouse",
+      "lever",
+    ]);
   });
 
   it("always returns exactly one web3career adapter", () => {
