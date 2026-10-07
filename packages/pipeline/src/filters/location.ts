@@ -1,6 +1,5 @@
 import {
   APAC_PHRASES,
-  CASE_SENSITIVE_PHRASES,
   NO_REMOTE_PHRASES,
   ONSITE_PHRASES,
   REMOTE_PHRASES,
@@ -8,6 +7,7 @@ import {
   WORLDWIDE_DESCRIPTION_PHRASES,
   WORLDWIDE_LOCATION_PHRASES,
 } from "./keywords.ts";
+import { phrasePattern } from "./phrases.ts";
 
 export type LocationClass = "worldwide" | "apac_ok" | "restricted" | "unclear";
 
@@ -25,23 +25,6 @@ const TARGET_OFFSET = 7;
 type FieldName = "location" | "tags" | "description";
 type Field = { name: FieldName; text: string };
 type Hit = { phrase: string; field: FieldName };
-
-const patternCache = new Map<string, RegExp>();
-
-function phrasePattern(phrase: string): RegExp {
-  let re = patternCache.get(phrase);
-  if (!re) {
-    const body = phrase
-      .trim()
-      .split(/\s+/)
-      .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("\\s+");
-    const flags = CASE_SENSITIVE_PHRASES.includes(phrase) ? "u" : "ui";
-    re = new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, flags);
-    patternCache.set(phrase, re);
-  }
-  return re;
-}
 
 function findPhrase(fields: readonly Field[], phrases: readonly string[]): Hit | undefined {
   for (const field of fields) {

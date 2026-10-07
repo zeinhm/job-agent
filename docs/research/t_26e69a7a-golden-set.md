@@ -8,6 +8,13 @@ of the classifier card (t_53e40c35). The fixture was relabelled to follow the ru
 the tables in this file are the original research labels and are kept as written. The fixture is the authoritative golden set:
 55 cases, `worldwide` 8, `apac_ok` 3, `restricted` 36, `unclear` 8.
 
+## Correction note (t_0fa6d59c)
+
+The Indonesia table has 6 `not_applicable`, 6 `foreign_hiring_id`, 1 `unclear`, 1 `domestic` rows (the summary said 5/5/1/1).
+Six labels (idn-01, 02, 03, 05, 12, 13) contradicted the binding rule order of the classifier card: none mentions Indonesia or
+uses a .id domain, so rule 2 gives `not_applicable`. The fixture was relabelled to follow the rules and the `disputed` field was
+removed. The fixture (`fixtures/golden/indonesia.json`) is authoritative; the table below keeps the original research labels.
+
 ## Summary
 
 **Evidence count by expected class (Location cases: 60+)**

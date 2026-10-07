@@ -62,6 +62,43 @@ describe("keyword lists", () => {
     expect(has(keywords.WORLDWIDE_DESCRIPTION_PHRASES, "worldwide")).toBe(true);
   });
 
+  it("Indonesia list contains the card's Indonesia mentions", () => {
+    for (const p of [
+      "Indonesia",
+      "Indonesian",
+      "Jakarta",
+      "Bandung",
+      "Surabaya",
+      "Yogyakarta",
+      "Bali",
+      "Denpasar",
+      "Medan",
+      "Semarang",
+      "WIB",
+    ]) {
+      expect(has(keywords.INDONESIA_PHRASES, p), p).toBe(true);
+    }
+  });
+
+  it("EOR list contains the card's providers and not the bare word remote", () => {
+    for (const p of [
+      "employer of record",
+      "EOR",
+      "Deel",
+      "Remote.com",
+      "Oyster",
+      "Papaya Global",
+      "Multiplier",
+      "Velocity Global",
+      "Globalization Partners",
+      "G-P",
+      "Omnipresent",
+    ]) {
+      expect(has(keywords.EOR_PHRASES, p), p).toBe(true);
+    }
+    expect(has(keywords.EOR_PHRASES, "remote")).toBe(false);
+  });
+
   it("case-sensitive phrases are members of a matching list", () => {
     for (const p of keywords.CASE_SENSITIVE_PHRASES) {
       expect(has(keywords.APAC_PHRASES, p), p).toBe(true);

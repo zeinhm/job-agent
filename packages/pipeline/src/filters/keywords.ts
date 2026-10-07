@@ -105,3 +105,33 @@ export const WORLDWIDE_DESCRIPTION_PHRASES: readonly string[] = [
   "no us timezone restriction",
   "no restrictions",
 ];
+
+/** Indonesia mention in the location text or description (cities, country, demonym, timezone). */
+export const INDONESIA_PHRASES: readonly string[] = [
+  "Indonesia",
+  "Indonesian",
+  "Jakarta",
+  "Bandung",
+  "Surabaya",
+  "Yogyakarta",
+  "Bali",
+  "Denpasar",
+  "Medan",
+  "Semarang",
+  "WIB",
+];
+
+/** Employer-of-record signals. The bare word "remote" is not one; only the provider "Remote.com" is. */
+export const EOR_PHRASES: readonly string[] = [
+  "employer of record",
+  "EOR",
+  "Deel",
+  "Remote.com",
+  "Oyster",
+  "Papaya Global",
+  "Multiplier",
+  "Velocity Global",
+  "Globalization Partners",
+  "G-P",
+  "Omnipresent",
+];
