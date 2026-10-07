@@ -16,8 +16,10 @@
 # Each job: claim -> bin/agent-step <role> <id> -> apply its ACTION line
 #   complete -> comment summary + complete
 #   block    -> block with reason
-#   rework   -> create the dev card from the body file, link it as parent,
-#               block+unblock this task so it waits (todo) until the rework is done
+#   rework   -> create the dev card from the body file, release this task's claim,
+#               link the new card as its parent, and leave it waiting: the dispatcher
+#               never starts a task whose parents are not done. No block/unblock,
+#               because Hermes moves a card to triage after it is blocked twice.
 #
 # Env: DISPATCH_MAX (3), DISPATCH_INTERVAL seconds (60). Written for macOS bash 3.2.
 set -uo pipefail
@@ -35,12 +37,20 @@ log() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
 board() { hermes kanban list </dev/null 2>/dev/null | grep -oE 't_[0-9a-f]+ +[a-z_]+ +[A-Za-z0-9_-]+'; }   # "id status assignee"
 status_of() { hermes kanban show "$1" </dev/null 2>/dev/null | sed -n 's/^ *status: *//p' | head -1; }
 parents_of() { hermes kanban show "$1" </dev/null 2>/dev/null | sed -n 's/^ *parents: *//p' | tr ',' ' '; }
+parents_done() { # $1 id, $2 board snapshot. True when every parent is done or archived.
+  local p pst
+  for p in $(parents_of "$1"); do
+    pst="$(printf '%s\n' "$2" | awk -v p="$p" '$1==p{print $2}')"
+    [ -z "$pst" ] && pst="$(status_of "$p")"
+    case "$pst" in done|archived) ;; *) return 1 ;; esac
+  done
+}
 running_count() { ls "$RUN" 2>/dev/null | wc -l | tr -d ' '; }
 role_busy() { ls "$RUN" 2>/dev/null | grep -qE "\.$1(\.dry)?\$"; }
 
 # ------------------------------------------------------------------ one job (runs in background)
 run_task() { # $1 role, $2 id
-  local role="$1" id="$2" out rc hb action field_s f t r new
+  local role="$1" id="$2" out rc hb action f t r new s e
   ( while sleep 240; do hermes kanban heartbeat "$id" >/dev/null 2>&1 || true; done ) & hb=$!
   out="$(bin/agent-step "$role" "$id" 2>&1)"; rc=$?
   kill "$hb" 2>/dev/null
@@ -49,9 +59,14 @@ run_task() { # $1 role, $2 id
   action="$(field ACTION)"
   case "$action" in
     complete)
-      hermes kanban comment "$id" "Result: $(field SUMMARY)" >/dev/null 2>&1
-      hermes kanban complete "$id" >/dev/null 2>&1 || hermes kanban block "$id" "HUMAN: could not mark complete: $(field SUMMARY)"
-      log "complete $role $id: $(field SUMMARY)" ;;
+      s="$(field SUMMARY)"; [ -n "$s" ] || s="completed by agent-step ($role), see data/dispatch/$id-step.txt"
+      hermes kanban comment "$id" "Result: $s" >/dev/null 2>&1
+      if e="$(hermes kanban complete "$id" --summary "$s" 2>&1)"; then
+        log "complete $role $id: $s"
+      else
+        hermes kanban block "$id" "HUMAN: could not mark complete ($(printf '%s' "$e" | tail -1)): $s" >/dev/null 2>&1
+        log "complete FAILED for $id: $e"
+      fi ;;
     block)
       hermes kanban block "$id" "$(field REASON)" >/dev/null 2>&1
       log "block $role $id: $(field REASON)" ;;
@@ -59,10 +74,15 @@ run_task() { # $1 role, $2 id
       t="$(field REWORK_TITLE)"; f="$(field REWORK_BODY_FILE)"; r="$(field REASON)"
       new="$(hermes kanban create "$t" --assignee dev --workspace "dir:$REPO" --body-file "$f" 2>&1 | grep -oE 't_[0-9a-f]+' | head -1)"
       if [ -n "$new" ]; then
-        hermes kanban link "$new" "$id" >/dev/null 2>&1
-        hermes kanban block "$id" "$r (rework card $new)" >/dev/null 2>&1
-        hermes kanban unblock "$id" >/dev/null 2>&1   # back to todo: waits until the rework card is done
-        log "rework $role $id -> created $new: $t"
+        # The comment keeps the FAIL history that agent-step counts for the 3-FAIL limit.
+        hermes kanban comment "$id" "$r (rework card $new)" >/dev/null 2>&1
+        hermes kanban reclaim "$id" >/dev/null 2>&1    # release the claim first: linking a running task may be refused
+        if e="$(hermes kanban link "$new" "$id" 2>&1)" && parents_of "$id" | tr ' ' '\n' | grep -qx "$new"; then
+          log "rework $role $id -> created $new: $t (waits until $new is done)"
+        else
+          hermes kanban block "$id" "HUMAN: created $new but could not link it as parent of $id ($(printf '%s' "$e" | tail -1)). Link it by hand: hermes kanban link $new $id" >/dev/null 2>&1
+          log "rework LINK FAILED $new -> $id: $e"
+        fi
       else
         hermes kanban block "$id" "HUMAN: could not create the rework card ($t), body in $f" >/dev/null 2>&1
         log "rework FAILED for $id: could not create card"
@@ -89,7 +109,7 @@ EOF
 
 # ------------------------------------------------------------------ one pass
 pass() {
-  local f pid id st role ok p pst
+  local f pid id st role e
   for f in "$RUN"/*; do
     [ -e "$f" ] || continue
     pid="$(cat "$f")"
@@ -99,13 +119,7 @@ pass() {
   local B; B="$(board)"
   while read -r id st role; do                     # promote todo -> ready when all parents are done
     [ "$st" = todo ] || continue
-    ok=1
-    for p in $(parents_of "$id"); do
-      pst="$(printf '%s\n' "$B" | awk -v p="$p" '$1==p{print $2}')"
-      [ -z "$pst" ] && pst="$(status_of "$p")"
-      case "$pst" in done|archived) ;; *) ok=0; break ;; esac
-    done
-    if [ $ok -eq 1 ]; then log "promote $id ($role)"; [ $DRY -eq 1 ] || hermes kanban promote "$id" </dev/null >/dev/null 2>&1; fi
+    if parents_done "$id" "$B"; then log "promote $id ($role)"; [ $DRY -eq 1 ] || hermes kanban promote "$id" </dev/null >/dev/null 2>&1; fi
   done <<EOF
 $B
 EOF
@@ -116,9 +130,18 @@ EOF
     [ "$st" = ready ] || continue
     case "$ROLES" in *" $role "*) ;; *) [ $VERBOSE -eq 1 ] && log "skip $id: role '$role' not handled"; continue ;; esac
     if [ "$(running_count)" -ge "$MAX" ]; then [ $VERBOSE -eq 1 ] && log "skip $id and the rest: $MAX tasks already running"; break; fi
+    if ! parents_done "$id" "$B"; then [ $VERBOSE -eq 1 ] && log "skip $id: waiting on an open parent card"; continue; fi
     if role_busy "$role"; then [ $VERBOSE -eq 1 ] && log "skip $id: a $role task is already running ($(ls "$RUN" | grep -E "\.$role(\.dry)?\$" | tr '\n' ' '))"; continue; fi
     if [ $DRY -eq 1 ]; then log "DRY: would start $role $id"; touch "$RUN/$id.$role.dry"; continue; fi
-    hermes kanban claim "$id" </dev/null >/dev/null 2>&1 || { log "claim failed for $id, skipping"; continue; }
+    if ! e="$(hermes kanban claim "$id" </dev/null 2>&1)"; then
+      # A failed claim can still leave the card "running" with no worker behind it. Release it and say why.
+      log "claim failed for $id: $(printf '%s' "$e" | tail -1)"
+      if [ "$(status_of "$id")" = running ]; then
+        hermes kanban reclaim "$id" </dev/null >/dev/null 2>&1
+        hermes kanban block "$id" "HUMAN: claim failed ($(printf '%s' "$e" | tail -1)); card released, nothing ran" </dev/null >/dev/null 2>&1
+      fi
+      continue
+    fi
     log "start $role $id"
     ( run_task "$role" "$id" >> "$STATE/$id-dispatch.log" 2>&1 ) </dev/null &
     echo "$!" > "$RUN/$id.$role"

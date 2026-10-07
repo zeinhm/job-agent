@@ -40,6 +40,40 @@ lock_main() { # serialize work in the main checkout across agents (max 10 min wa
   trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 }
 unlock_main() { rmdir "$LOCK" 2>/dev/null; trap - EXIT; }
+gpush() { # git with the repo token from the macOS Keychain, for this one command only (same as the owner's jpush).
+  # The token never enters the environment that Claude Code runs in.
+  local tok=""
+  command -v security >/dev/null 2>&1 && tok="$(security find-generic-password -a "${USER:-$(id -un)}" -s "${AGENT_STEP_KEYCHAIN_SERVICE:-job-agent-github-token}" -w 2>/dev/null)"
+  JOB_AGENT_GITHUB_TOKEN="${tok:-${JOB_AGENT_GITHUB_TOKEN:-}}" git "$@"
+}
+push_or_block() { # $1 = block reason, rest = git args. Pushes with gpush; on failure blocks with git's last error line.
+  local msg="$1" out; shift
+  out="$(gpush "$@" 2>&1)" && return 0
+  finish block "$msg: $(printf '%s\n' "$out" | grep -v '^ *$' | tail -1)"
+}
+only_amended_on_remote() { # $1 = remote sha. True when every commit that exists only on the remote has a twin
+  # (same author + subject) in the local branch, i.e. the local branch amended/rebased it rather than missing new work.
+  local c twins
+  twins="$(git -C "$WORKDIR" log --format='%ae %s' HEAD --not "$1")"
+  for c in $(git -C "$WORKDIR" rev-list "$1" --not HEAD); do
+    printf '%s\n' "$twins" | grep -qxF "$(git -C "$WORKDIR" log -1 --format='%ae %s' "$c")" || return 1
+  done
+}
+push_task_branch() { # pushes $BR from $WORKDIR; uses --force-with-lease only when the remote holds amended copies
+  local out rsha
+  out="$(gpush -C "$WORKDIR" push -q -u origin "$BR" 2>&1)" && return 0
+  gpush -C "$WORKDIR" fetch -q origin "$BR" 2>/dev/null
+  rsha="$(git -C "$WORKDIR" rev-parse -q --verify "refs/remotes/origin/$BR")"
+  if [ -n "$rsha" ] && ! git -C "$WORKDIR" merge-base --is-ancestor "$rsha" HEAD; then
+    if only_amended_on_remote "$rsha"; then
+      out="$(gpush -C "$WORKDIR" push -q -u --force-with-lease="$BR:$rsha" origin "$BR" 2>&1)" \
+        && { echo "[agent-step] force-pushed $BR: remote tip $rsha was amended locally"; return 0; }
+    else
+      finish block "HUMAN: could not push $BR: the remote branch has commits that are not in the local branch (e.g. a cloud session pushed). Pull them into the worktree or push by hand"
+    fi
+  fi
+  finish block "HUMAN: could not push $BR: $(printf '%s\n' "$out" | grep -v '^ *$' | tail -1)"
+}
 main_clean_or_block() {
   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     finish block "HUMAN: the main checkout has uncommitted changes; commit or stash them, then unblock"
@@ -101,7 +135,7 @@ cleanup_branch() { # $1 = branch, $2 = dev task id
   git worktree remove --force ".worktrees/$2" 2>/dev/null
   git worktree remove --force ".worktrees/$2-review" 2>/dev/null
   git branch -q -D "$1" 2>/dev/null
-  git push -q origin --delete "$1" 2>/dev/null || true
+  gpush push -q origin --delete "$1" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------- card
@@ -247,7 +281,7 @@ post_comment
 case "$ROLE" in
   dev)
     [ "$VERDICT" = DONE ] || finish block "HUMAN: unexpected verdict $VERDICT"
-    git -C "$WORKDIR" push -q -u origin "$BR" || finish block "HUMAN: could not push $BR"
+    push_task_branch
     finish complete "$VSUM" ;;
 
   qa)
@@ -260,7 +294,7 @@ case "$ROLE" in
     MERGE_TITLE="${DEVTITLE:-}" merge_branch "$VBR"
     printf '| %s | %s | %s | %s | %s |\n' "$DEVID" "${DEVTITLE:-$VBR}" "${RISK:-medium}" "$(git rev-parse --short HEAD)" "$(date +%F)" >> docs/audit-ledger.md
     git add docs/audit-ledger.md && git commit -q -m "chore: audit ledger $DEVID" || true
-    git push -q origin main || finish block "HUMAN: merged locally but push of main failed"
+    push_or_block "HUMAN: merged locally but push of main failed" push -q origin main
     cleanup_branch "$VBR" "$DEVID"; unlock_main
     finish complete "QA PASS, merged $VBR: $VSUM" ;;
 
@@ -270,7 +304,7 @@ case "$ROLE" in
       [ "$VERDICT" = PASS ] || finish block "HUMAN: unexpected verdict $VERDICT"
       DEVID="$(printf '%s' "$VBR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
       merge_branch "$VBR"
-      git push -q origin main || finish block "HUMAN: merged locally but push of main failed"
+      push_or_block "HUMAN: merged locally but push of main failed" push -q origin main
       cleanup_branch "$VBR" "$DEVID"; unlock_main
       finish complete "Audit PASS, merged $VBR: $VSUM"
     fi
@@ -285,7 +319,7 @@ case "$ROLE" in
     git add docs/audits/ docs/audit-ledger.md 2>/dev/null
     git commit -q -m "docs: audit report ($ID)" || true
     [ -n "$N" ] && git tag "audit-$N" 2>/dev/null
-    git push -q origin main --tags || finish block "HUMAN: push of the audit report failed"
+    push_or_block "HUMAN: push of the audit report failed" push -q origin main --tags
     unlock_main
     finish complete "Audit $VERDICT: $VSUM" ;;
 
@@ -296,7 +330,7 @@ case "$ROLE" in
     if [ "$ROLE" = researcher ]; then git add docs/research/ 2>/dev/null; else git add docs/ 2>/dev/null; fi
     if ! git diff --cached --quiet; then
       git commit -q -m "docs($ROLE): $ID" || finish block "HUMAN: commit blocked (pre-commit hook?), see data/handoff/$ID-out.txt"
-      git push -q origin main || finish block "HUMAN: push of docs failed"
+      push_or_block "HUMAN: push of docs failed" push -q origin main
     fi
     unlock_main
     finish complete "$VSUM" ;;
