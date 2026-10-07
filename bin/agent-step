@@ -256,7 +256,7 @@ RC=$?
 [ -n "$REVIEW_WT" ] && git worktree remove --force "$REVIEW_WT" 2>/dev/null
 echo "[agent-step] cc-route exit=$RC"; tail -3 "$OUTF"
 
-if grep -q '\[cc-route\] CLOUD' "$OUTF"; then
+if grep -q '\[cc-route\] CLOUD$' "$OUTF" && ! grep -q 'CLOUD_FAILED' "$OUTF" && [ $RC -eq 0 ]; then
   URL="$(grep -oE 'https://claude\.ai/code/[^ )]+' "$OUTF" | head -1)"
   hermes kanban comment "$ID" "Running in a Claude Code cloud session: ${URL:-see data/handoff/$ID-out.txt}" >/dev/null 2>&1 || true
   finish block "CLOUD: waiting for the cloud session's PR (${URL:-no url}); unblock to resume"
