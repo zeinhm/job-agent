@@ -43,7 +43,9 @@
       "Bash(hermes kanban link:*)",
       "Bash(hermes kanban --help:*)",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "Bash(JOB_AGENT_DB=:*)",
+      "Bash(JOB_AGENT_CONFIG_DIR=:*)"
     ],
     "deny": [
       "Read(~/.hermes/**)",
