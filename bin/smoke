@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# bin/smoke [dir]: live smoke run of the pipeline on a temp DB with the EXAMPLE configs.
+# Only reads public job feeds. Never touches config/ or data/.
+set -euo pipefail
+REPO="$(git rev-parse --show-toplevel)"; cd "$REPO"
+DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/job-agent-smoke.XXXXXX")}"
+mkdir -p "$DIR/config"
+for f in config/*.example.*; do b="$(basename "$f")"; cp "$f" "$DIR/config/${b/.example/}"; done
+export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config"
+echo "== fx";                         pnpm -s job-agent fx
+echo "== discover --source remotive"; pnpm -s job-agent discover --source remotive
+echo "== process";                    pnpm -s job-agent process
+echo "== row counts"
+for t in $(sqlite3 "$JOB_AGENT_DB" ".tables"); do echo "$t: $(sqlite3 "$JOB_AGENT_DB" "select count(*) from $t")"; done
+echo "smoke dir: $DIR"
