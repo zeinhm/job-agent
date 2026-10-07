@@ -3,10 +3,17 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fx_rates, openDb } from "@job-agent/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
 
+const server = setupServer();
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterAll(() => server.close());
 afterEach(() => {
+  server.resetHandlers();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });
@@ -56,15 +63,39 @@ describe("discover command", () => {
     }
   });
 
-  it("exits 0 when no adapter is registered and none is requested", async () => {
+  it("exits 0 when every registered adapter returns no postings", async () => {
+    server.use(
+      http.get("https://api.ashbyhq.com/posting-api/job-board/example", () =>
+        HttpResponse.json({ jobs: [] }),
+      ),
+      http.get("https://himalayas.app/jobs/api", () =>
+        HttpResponse.json({ jobs: [], nextCursor: null }),
+      ),
+      http.get("https://hn.algolia.com/api/v1/search_by_date", () =>
+        HttpResponse.json({
+          hits: [{ objectID: "1", title: "Ask HN: Who is hiring? (May 2026)" }],
+        }),
+      ),
+      http.get("https://hn.algolia.com/api/v1/items/1", () => HttpResponse.json({ children: [] })),
+      http.get("https://remoteok.com/api", () => HttpResponse.json([{ legal: "terms" }])),
+      http.get("https://remotive.com/api/remote-jobs", () => HttpResponse.json({ jobs: [] })),
+      http.get(/^https:\/\/weworkremotely\.com\/categories\/.*\.rss$/, () =>
+        HttpResponse.xml(
+          '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title></channel></rss>',
+        ),
+      ),
+      http.get("https://web3.career/api/v1", () => HttpResponse.json(["feed", []])),
+    );
     const dir = withEnv();
+    vi.stubEnv("WEB3_CAREER_TOKEN", "test-token");
     try {
       const c = capture();
       expect(await main(["discover", "--force"], c.io)).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+    // The http client enforces a 2s gap per host (weworkremotely: 3 feeds, hn: 2 calls).
+  }, 20_000);
 });
 
 describe("fx command", () => {

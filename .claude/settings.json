@@ -21,6 +21,7 @@
       "Bash(git fetch:*)",
       "Bash(git worktree:*)",
       "Bash(git merge-base:*)",
+      "Bash(git merge:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
       "Bash(head:*)",
