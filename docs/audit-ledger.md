@@ -20,3 +20,4 @@ Last audit tag: (none yet)
 || t_a2ab4f25 | Implement Remotive source adapter | medium | b3a8e1c | 2026-10-07 |
 
 **Counts:** medium 6 / 5 - low 0 / 10 _(batch audit triggered: 6 medium tasks)_
+| t_3654c586 | Implement web3.career source adapter | medium | baec69e | 2026-10-07 |
