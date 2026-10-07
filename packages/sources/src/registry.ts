@@ -3,6 +3,7 @@ import { createAshbyAdapter } from "./ashby/index.ts";
 import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
+import { createRemoteOkAdapter } from "./remoteok/index.ts";
 import { createRemotiveAdapter } from "./remotive/index.ts";
 import { createWeb3CareerAdapter } from "./web3career/index.ts";
 import { createWeWorkRemotelyAdapter } from "./weworkremotely/index.ts";
@@ -21,6 +22,7 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
   if (ashby.length > 0) adapters.push(createAshbyAdapter(ashby));
 
   adapters.push(createHimalayasAdapter());
+  adapters.push(createRemoteOkAdapter());
   adapters.push(createRemotiveAdapter());
   adapters.push(createWeb3CareerAdapter());
   adapters.push(createWeWorkRemotelyAdapter());

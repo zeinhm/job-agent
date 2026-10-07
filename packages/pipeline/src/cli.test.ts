@@ -69,6 +69,7 @@ describe("discover command", () => {
       http.get("https://himalayas.app/jobs/api", () =>
         HttpResponse.json({ jobs: [], nextCursor: null }),
       ),
+      http.get("https://remoteok.com/api", () => HttpResponse.json([{ legal: "terms" }])),
       http.get("https://remotive.com/api/remote-jobs", () => HttpResponse.json({ jobs: [] })),
       http.get(/^https:\/\/weworkremotely\.com\/categories\/.*\.rss$/, () =>
         HttpResponse.xml(

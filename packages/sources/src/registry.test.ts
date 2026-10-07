@@ -12,6 +12,10 @@ describe("buildAdapters", () => {
     );
   });
 
+  it("always includes exactly one remoteok adapter", () => {
+    expect(names(makeConfig()).filter((n) => n === "remoteok")).toHaveLength(1);
+  });
+
   it("returns an ashby adapter only when the config has an ashby company", () => {
     expect(names(makeConfig())).not.toContain("ashby");
     expect(names(makeConfig([{ name: "G", ats: "greenhouse", slug: "g" }]))).not.toContain("ashby");
