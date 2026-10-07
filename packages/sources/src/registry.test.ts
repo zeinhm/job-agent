@@ -41,6 +41,12 @@ describe("buildAdapters", () => {
     expect(levers[0]?.minIntervalMinutes).toBe(60);
   });
 
+  it("always includes exactly one hn adapter with a monthly-thread interval", () => {
+    const hn = buildAdapters(makeConfig()).filter((a) => a.name === "hn");
+    expect(hn).toHaveLength(1);
+    expect(hn[0]?.minIntervalMinutes).toBe(360);
+  });
+
   it("returns one adapter per configured ATS", () => {
     const adapters = buildAdapters(
       makeConfig([

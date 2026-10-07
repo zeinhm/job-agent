@@ -69,6 +69,12 @@ describe("discover command", () => {
       http.get("https://himalayas.app/jobs/api", () =>
         HttpResponse.json({ jobs: [], nextCursor: null }),
       ),
+      http.get("https://hn.algolia.com/api/v1/search_by_date", () =>
+        HttpResponse.json({
+          hits: [{ objectID: "1", title: "Ask HN: Who is hiring? (May 2026)" }],
+        }),
+      ),
+      http.get("https://hn.algolia.com/api/v1/items/1", () => HttpResponse.json({ children: [] })),
       http.get("https://remoteok.com/api", () => HttpResponse.json([{ legal: "terms" }])),
       http.get("https://remotive.com/api/remote-jobs", () => HttpResponse.json({ jobs: [] })),
       http.get(/^https:\/\/weworkremotely\.com\/categories\/.*\.rss$/, () =>
@@ -86,5 +92,6 @@ describe("discover command", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+    // The http client enforces a 2s gap per host (weworkremotely: 3 feeds, hn: 2 calls).
+  }, 20_000);
 });
