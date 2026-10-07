@@ -4,6 +4,7 @@
 #   bin/dispatch              run continuously (Ctrl+C to stop)
 #   bin/dispatch --once       one pass, then exit
 #   bin/dispatch --dry-run    show what it would do, change nothing
+#   bin/dispatch --verbose    also log why ready tasks are skipped
 #
 # Replaces the Hermes gateway dispatcher + Hermes workers. KEEP THE GATEWAY STOPPED
 # while this runs, otherwise Hermes workers (Haiku) also pick up tasks.
@@ -27,13 +28,13 @@ STATE="$REPO/data/dispatch"; RUN="$STATE/running"; LOG="$STATE/dispatch.log"
 mkdir -p "$RUN"
 MAX="${DISPATCH_MAX:-3}"; INTERVAL="${DISPATCH_INTERVAL:-60}"
 ROLES=" dev qa auditor researcher pm "
-DRY=0; ONCE=0
-for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; --once) ONCE=1 ;; *) echo "unknown option $a" >&2; exit 2 ;; esac; done
+DRY=0; ONCE=0; VERBOSE=0
+for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; --once) ONCE=1 ;; --verbose) VERBOSE=1 ;; *) echo "unknown option $a" >&2; exit 2 ;; esac; done
 
 log() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
-board() { hermes kanban list 2>/dev/null | grep -oE 't_[0-9a-f]+ +[a-z_]+ +[A-Za-z0-9_-]+'; }   # "id status assignee"
-status_of() { hermes kanban show "$1" 2>/dev/null | sed -n 's/^ *status: *//p' | head -1; }
-parents_of() { hermes kanban show "$1" 2>/dev/null | sed -n 's/^ *parents: *//p' | tr ',' ' '; }
+board() { hermes kanban list </dev/null 2>/dev/null | grep -oE 't_[0-9a-f]+ +[a-z_]+ +[A-Za-z0-9_-]+'; }   # "id status assignee"
+status_of() { hermes kanban show "$1" </dev/null 2>/dev/null | sed -n 's/^ *status: *//p' | head -1; }
+parents_of() { hermes kanban show "$1" </dev/null 2>/dev/null | sed -n 's/^ *parents: *//p' | tr ',' ' '; }
 running_count() { ls "$RUN" 2>/dev/null | wc -l | tr -d ' '; }
 role_busy() { ls "$RUN" 2>/dev/null | grep -qE "\.$1(\.dry)?\$"; }
 
@@ -80,7 +81,7 @@ recover() {
     case "$ROLES" in *" $role "*) ;; *) continue ;; esac
     ls "$RUN" 2>/dev/null | grep -q "^$id\." && continue
     log "reclaim orphaned running task $id ($role)"
-    [ $DRY -eq 1 ] || hermes kanban reclaim "$id" >/dev/null 2>&1
+    [ $DRY -eq 1 ] || hermes kanban reclaim "$id" </dev/null >/dev/null 2>&1
   done <<EOF
 $(board)
 EOF
@@ -104,21 +105,22 @@ pass() {
       [ -z "$pst" ] && pst="$(status_of "$p")"
       case "$pst" in done|archived) ;; *) ok=0; break ;; esac
     done
-    if [ $ok -eq 1 ]; then log "promote $id ($role)"; [ $DRY -eq 1 ] || hermes kanban promote "$id" >/dev/null 2>&1; fi
+    if [ $ok -eq 1 ]; then log "promote $id ($role)"; [ $DRY -eq 1 ] || hermes kanban promote "$id" </dev/null >/dev/null 2>&1; fi
   done <<EOF
 $B
 EOF
 
   B="$(board)"
+  [ $VERBOSE -eq 1 ] && log "ready: $(printf '%s\n' "$B" | awk '$2=="ready"{printf "%s(%s) ", $1, $3}')"
   while read -r id st role; do                     # start ready tasks
     [ "$st" = ready ] || continue
-    case "$ROLES" in *" $role "*) ;; *) continue ;; esac
-    [ "$(running_count)" -ge "$MAX" ] && break
-    role_busy "$role" && continue
+    case "$ROLES" in *" $role "*) ;; *) [ $VERBOSE -eq 1 ] && log "skip $id: role '$role' not handled"; continue ;; esac
+    if [ "$(running_count)" -ge "$MAX" ]; then [ $VERBOSE -eq 1 ] && log "skip $id and the rest: $MAX tasks already running"; break; fi
+    if role_busy "$role"; then [ $VERBOSE -eq 1 ] && log "skip $id: a $role task is already running ($(ls "$RUN" | grep -E "\.$role(\.dry)?\$" | tr '\n' ' '))"; continue; fi
     if [ $DRY -eq 1 ]; then log "DRY: would start $role $id"; touch "$RUN/$id.$role.dry"; continue; fi
-    hermes kanban claim "$id" >/dev/null 2>&1 || { log "claim failed for $id, skipping"; continue; }
+    hermes kanban claim "$id" </dev/null >/dev/null 2>&1 || { log "claim failed for $id, skipping"; continue; }
     log "start $role $id"
-    ( run_task "$role" "$id" >> "$STATE/$id-dispatch.log" 2>&1 ) &
+    ( run_task "$role" "$id" >> "$STATE/$id-dispatch.log" 2>&1 ) </dev/null &
     echo "$!" > "$RUN/$id.$role"
   done <<EOF
 $B
