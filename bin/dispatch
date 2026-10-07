@@ -136,7 +136,8 @@ EOF
     if ! e="$(hermes kanban claim "$id" </dev/null 2>&1)"; then
       # A failed claim can still leave the card "running" with no worker behind it. Release it and say why.
       log "claim failed for $id: $(printf '%s' "$e" | tail -1)"
-      if [ "$(status_of "$id")" = running ]; then
+      # "status=running lock=..." means another claimer holds it: leave it alone.
+      if ! printf '%s' "$e" | grep -q "status=running" && [ "$(status_of "$id")" = running ]; then
         hermes kanban reclaim "$id" </dev/null >/dev/null 2>&1
         hermes kanban block "$id" "HUMAN: claim failed ($(printf '%s' "$e" | tail -1)); card released, nothing ran" </dev/null >/dev/null 2>&1
       fi
