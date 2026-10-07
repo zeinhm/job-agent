@@ -26,3 +26,4 @@ Last audit tag: (none yet)
 | t_e6e46c8e | Implement posting normalization | medium | 3d15c3d | 2026-10-07 |
 | t_b77fea1a | Implement HN "Who is hiring" source adapter | medium | 9e61e52 | 2026-10-07 |
 | t_23700548 | Implement cross-source dedupe | medium | 876908e | 2026-10-07 |
+| t_97bdc85f | Implement daily FX rate fetch and storage | medium | 590001e | 2026-10-07 |
