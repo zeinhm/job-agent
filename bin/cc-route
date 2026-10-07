@@ -31,6 +31,8 @@ THRESHOLD="${CC_ROUTE_THRESHOLD:-80}"
 CLOUD_ENABLED="${CC_ROUTE_CLOUD:-1}"
 CLOUD_UNTIL="${CC_ROUTE_CLOUD_UNTIL:-2026-11-05}"
 CACHE="${CC_ROUTE_CACHE:-$HOME/.claude/usage-cache.json}"
+OVERRIDES="$HOME/.config/job-agent/claude-overrides.json"
+[ -f "$OVERRIDES" ] || OVERRIDES=""
 MAX_AGE=$((60 * 60))   # usage readings older than 1h are treated as unknown
 NOW=$(date +%s)
 
@@ -72,7 +74,7 @@ current_usage() {
 run_local() {
   log "LOCAL"
   local out status
-  out=$(claude -p "$PROMPT" --permission-mode acceptEdits ${ADD_DIR:+--add-dir "$ADD_DIR"} 2>&1); status=$?
+  out=$(claude -p "$PROMPT" --permission-mode acceptEdits ${OVERRIDES:+--settings "$OVERRIDES"} ${ADD_DIR:+--add-dir "$ADD_DIR"} 2>&1); status=$?
   printf '%s\n' "$out"
   if printf '%s' "$out" | grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit|out of (usage|credits)"; then
     return 42   # plan limit hit
@@ -84,7 +86,7 @@ run_cloud() { # $1 = "quiet": on failure keep the cloud output out of stdout (sa
   log "CLOUD"
   # --cloud may require a TTY; `script` provides one on macOS.
   local out status
-  out=$(script -q /dev/null claude --cloud "$PROMPT" 2>&1); status=$?
+  out=$(script -q /dev/null claude --cloud "$PROMPT" ${OVERRIDES:+--settings "$OVERRIDES"} 2>&1); status=$?
   # cloud credit exhausted or launch refused: report as a limit so the caller blocks with LIMIT, not CLOUD
   if [ $status -ne 0 ] || printf '%s' "$out" | grep -qiE "out of (usage|credits)|insufficient credit|credit.*(exhausted|expired)|(usage|rate|session|weekly) limit|limit reached"; then
     if [ "${1:-}" = quiet ]; then
