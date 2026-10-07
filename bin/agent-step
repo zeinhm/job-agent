@@ -162,7 +162,7 @@ if [ "$ROLE" = dev ] && [ "$REWORK_DEPTH" -ge 3 ]; then
 fi
 
 # ---------------------------------------------------------------- work dir
-WORKDIR="$REPO"; CLOUD=0; BR="-"
+WORKDIR="$REPO"; CLOUD=0; BR="-"; PREFER=""
 if [ "$ROLE" = dev ]; then
   CLOUD=1
   BR="$(git branch --list "task/$ID-*" --format='%(refname:short)' | head -1)"
@@ -174,6 +174,12 @@ if [ "$ROLE" = dev ]; then
     BR="task/$ID-${SLUG:-work}"
   fi
   git fetch -q origin 2>/dev/null || true
+  # dev prefers the cloud credit, except when resuming: a branch already on origin with commits
+  # main lacks may hold a running/finished cloud session, so go local-first and never start a second one
+  PREFER=cloud
+  if git show-ref --quiet "refs/remotes/origin/$BR" && [ "$(git rev-list --count "origin/main..origin/$BR" 2>/dev/null || echo 0)" -gt 0 ]; then
+    PREFER=""
+  fi
   WORKDIR="$(wt_for_branch "$BR")"
   if [ -z "$WORKDIR" ]; then
     WTID="$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"; WORKDIR="$REPO/.worktrees/${WTID:-$ID}"
@@ -251,7 +257,7 @@ REPORTF="$H/$ID-report.md"; rm -f "$REPORTF"
 
 # ---------------------------------------------------------------- run Claude Code
 echo "[agent-step] $ROLE $ID: running Claude Code (this can take a while)..."
-( cd "$WORKDIR" && CC_ROUTE_CLOUD=$CLOUD "$REPO/bin/cc-route" -f "$PROMPTF" ) > "$OUTF" 2>&1
+( cd "$WORKDIR" && CC_ROUTE_CLOUD=$CLOUD CC_ROUTE_PREFER=$PREFER "$REPO/bin/cc-route" -f "$PROMPTF" ) > "$OUTF" 2>&1
 RC=$?
 [ -n "$REVIEW_WT" ] && git worktree remove --force "$REVIEW_WT" 2>/dev/null
 echo "[agent-step] cc-route exit=$RC"; tail -3 "$OUTF"

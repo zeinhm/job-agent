@@ -14,6 +14,8 @@
 #   CC_ROUTE_THRESHOLD   default 80   (% of 5h or 7d window that triggers cloud)
 #   CC_ROUTE_CLOUD       default 1    (0 = never use cloud)
 #   CC_ROUTE_CLOUD_UNTIL default 2026-11-05 (promo credit expiry; cloud off after this)
+#   CC_ROUTE_PREFER      cloud  (run cloud first while cloud is allowed; if the cloud
+#                        launch fails, fall back to a local run in the same call)
 #   CC_ROUTE_FORCE       local|cloud  (testing only)
 set -uo pipefail
 ADD_DIR=""
@@ -78,17 +80,24 @@ run_local() {
   return $status
 }
 
-run_cloud() {
+run_cloud() { # $1 = "quiet": on failure keep the cloud output out of stdout (saved to a file instead)
   log "CLOUD"
   # --cloud may require a TTY; `script` provides one on macOS.
   local out status
   out=$(script -q /dev/null claude --cloud "$PROMPT" 2>&1); status=$?
-  printf '%s\n' "$out"
   # cloud credit exhausted or launch refused: report as a limit so the caller blocks with LIMIT, not CLOUD
   if [ $status -ne 0 ] || printf '%s' "$out" | grep -qiE "out of (usage|credits)|insufficient credit|credit.*(exhausted|expired)|(usage|rate|session|weekly) limit|limit reached"; then
+    if [ "${1:-}" = quiet ]; then
+      # a fallback run follows; limit wording in the failed launch must not make the caller think the local run hit a limit
+      local f; f="$(mktemp "${TMPDIR:-/tmp}/cc-route-cloud.XXXXXX")" && printf '%s\n' "$out" > "$f"
+      log "cloud launch output saved to ${f:-<unavailable>}"
+    else
+      printf '%s\n' "$out"
+    fi
     log "CLOUD_FAILED (credit exhausted or launch refused)"
     return 42
   fi
+  printf '%s\n' "$out"
   return 0
 }
 
@@ -96,6 +105,14 @@ case "${CC_ROUTE_FORCE:-}" in
   local) run_local; exit $? ;;
   cloud) run_cloud; exit $? ;;
 esac
+
+if [ "${CC_ROUTE_PREFER:-}" = cloud ] && cloud_allowed; then
+  log "prefer cloud (CC_ROUTE_PREFER=cloud)"
+  run_cloud quiet; status=$?
+  [ $status -eq 42 ] || exit $status
+  log "cloud launch failed, falling back to local"
+  run_local; exit $?
+fi
 
 usage=$(current_usage)
 if [ -n "$usage" ] && awk -v u="$usage" -v t="$THRESHOLD" 'BEGIN{exit !(u>=t)}' && cloud_allowed; then
