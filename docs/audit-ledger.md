@@ -21,3 +21,4 @@ Last audit tag: (none yet)
 
 **Counts:** medium 6 / 5 - low 0 / 10 _(batch audit triggered: 6 medium tasks)_
 | t_3654c586 | Implement web3.career source adapter | medium | baec69e | 2026-10-07 |
+| t_44be3ba1 | Implement RemoteOK source adapter | medium | 404bd58 | 2026-10-07 |
