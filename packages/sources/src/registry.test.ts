@@ -37,4 +37,10 @@ describe("buildAdapters", () => {
     expect(levers).toHaveLength(1);
     expect(levers[0]?.minIntervalMinutes).toBe(60);
   });
+
+  it("always returns exactly one web3career adapter", () => {
+    const adapters = buildAdapters(makeConfig()).filter((a) => a.name === "web3career");
+    expect(adapters).toHaveLength(1);
+    expect(adapters[0]?.minIntervalMinutes).toBe(5);
+  });
 });

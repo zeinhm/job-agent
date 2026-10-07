@@ -215,6 +215,7 @@ describe("buildAdapters (greenhouse)", () => {
       "greenhouse",
       "himalayas",
       "remotive",
+      "web3career",
       "weworkremotely",
     ]);
   });

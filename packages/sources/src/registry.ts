@@ -4,6 +4,7 @@ import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
 import { createRemotiveAdapter } from "./remotive/index.ts";
+import { createWeb3CareerAdapter } from "./web3career/index.ts";
 import { createWeWorkRemotelyAdapter } from "./weworkremotely/index.ts";
 
 /** Builds every enabled adapter. Each adapter task adds one entry here and starts using `config`. */
@@ -21,6 +22,7 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
 
   adapters.push(createHimalayasAdapter());
   adapters.push(createRemotiveAdapter());
+  adapters.push(createWeb3CareerAdapter());
   adapters.push(createWeWorkRemotelyAdapter());
 
   return adapters;
