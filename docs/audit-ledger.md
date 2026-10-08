@@ -40,3 +40,4 @@ Last audit tag: (none yet)
 | t_67544a8a | Refresh stored postings when the employer edits them | medium | e7ceac6 | 2026-10-09 |
 | t_1f6911e8 | Extend bin/smoke to all keyless sources plus digest | low | c81d69d | 2026-10-09 |
 | t_0d85cc05 | Implement pay-context and facts extraction (Haiku) and the enrich command | medium | a34893f | 2026-10-09 |
+| t_d56b8ff0 | Resolve unclear location, Indonesia and role flags from extracted facts | medium | 4fe8ba2 | 2026-10-09 |
