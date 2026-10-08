@@ -16,3 +16,9 @@ before LLM extraction (rules are free; fewer postings reach the LLM):
 5. web3.career: the API answers with HTTP 302 (redirect); the adapter must follow it (or use the target URL).
    Never tested live before today.
 6. Every phase-end audit includes a live run (bin/smoke), not only fixtures.
+7. web3.career terms of use (from the API access email, 2026-10-08):
+   - Link to postings with the API's apply_url exactly as given (no rel="nofollow").
+   - Never modify apply_url: the URL cleanup (utm_*, ref removal) must SKIP web3.career links.
+   - Keep the token private (env only). Violations can suspend access.
+   - API reference moved to https://docs.bondex.app/api-reference ; the adapter was built from older docs:
+     record a real fixture and check the response shape.
