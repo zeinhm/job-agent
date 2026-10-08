@@ -25,3 +25,6 @@ Format: `YYYY-MM-DD | decision | why | who`
 - 2026-10-08: Phase 2 product AI calls go through the Anthropic API. Claude Haiku 5.5 (claude-haiku-5-5) for bulk
   extraction (pay context, HQ, remote region, scam signals) on postings that pass the rule filters; Sonnet only for
   fit scoring. Hard spend cap in code: $1/day; when reached, remaining postings wait for the next day.
+2026-10-08 | Phase 2 binding conventions in docs/phase-2-conventions.md: one schema card first; LLM results in a new `intel` table (rule results in `analysis` unchanged); one shared Anthropic client in core with the $1/day cap enforced by worst-case reservation before each call, env may only lower it; per-posting stage order extract -> resolve -> registry -> scam -> fit -> tier, newest first | avoid migration races, keep rule and LLM results auditable, make the cap impossible to exceed | pm (owner may veto at gate t_ade0f064)
+2026-10-08 | Role relevance is a rule filter in `process` (reject non-target and junior roles before any LLM call), lists in keywords.ts | live-run findings 2026-10-08 item 1; rules are free | pm (owner confirms at gate t_ade0f064)
+2026-10-08 | Agents never run LLM stages with a real key; tests use hand-built Messages API fixtures; the owner runs live `enrich` and the eval scripts | spend and key stay with the owner | pm (owner may veto at gate t_ade0f064)
