@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
 import { runDiscover } from "./discover.ts";
+import { runProcess } from "./process.ts";
 
 export interface Io {
   out: (text: string) => void;
@@ -11,7 +12,7 @@ export interface Io {
 
 type Command = (args: string[], io: Io) => Promise<number> | number;
 
-// Commands are added by the tasks that own them: process, digest.
+// Commands are added by the tasks that own them: digest.
 const commands: Record<string, Command> = {
   discover: async (args, io) => {
     const { values } = parseArgs({
@@ -28,6 +29,14 @@ const commands: Record<string, Command> = {
         out: io.out,
         err: io.err,
       });
+    } finally {
+      db.$client.close();
+    }
+  },
+  process: (_args, io) => {
+    const db = openDb(defaultDbPath());
+    try {
+      return runProcess({ db, out: io.out, err: io.err });
     } finally {
       db.$client.close();
     }
