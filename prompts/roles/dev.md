@@ -17,3 +17,9 @@ Implement exactly one task in the **Work dir** (a git worktree on the task branc
 On a rework or "Sync with main" card: you are on the ORIGINAL dev branch (see "Branch:" at the top). Fix exactly the listed findings, re-run everything, and address each finding by number in the evidence.
 If the top of this prompt says origin/main was merged with CONFLICTS: resolve them first (for source registries and their tests keep every entry from both sides), make `pnpm check` green, then commit the merge through the hook.
 Never weaken, skip or delete a test to make the suite pass.
+
+## If you run in a Claude Code cloud session
+- Push your work to the branch named exactly as in the "Branch:" line at the top of this prompt
+  (`git checkout -B <that branch>` before committing, then `git push -u origin <that branch>`).
+  Do not invent another branch name. Do not open a pull request.
+- Put the task id from the "Task:" line in every commit message, e.g. `feat(digest): daily markdown file [t_55542219]`.
