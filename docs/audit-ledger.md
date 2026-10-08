@@ -37,3 +37,4 @@ Last audit tag: (none yet)
 | t_08e114f8 | Fix web3.career adapter: follow the HTTP 302 redirect | medium | 3a6a43f | 2026-10-09 |
 | t_0860cdb9 | Group same company + same title postings into one digest entry | medium | 0d7a09d | 2026-10-09 |
 | t_3765117e | Implement role relevance filter with golden set | medium | efe6ab2 | 2026-10-09 |
+| t_67544a8a | Refresh stored postings when the employer edits them | medium | e7ceac6 | 2026-10-09 |
