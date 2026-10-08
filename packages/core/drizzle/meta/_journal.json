@@ -8,6 +8,13 @@
       "when": 1791310304208,
       "tag": "0000_spooky_grandmaster",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791471477817,
+      "tag": "0001_sticky_pandemic",
+      "breakpoints": true
     }
   ]
 }

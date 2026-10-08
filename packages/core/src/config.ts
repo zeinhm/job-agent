@@ -21,7 +21,7 @@ const companiesConfigSchema = z.strictObject({
   companies: z.array(
     z.strictObject({
       name: z.string().min(1),
-      ats: z.enum(["greenhouse", "lever", "ashby"]),
+      ats: z.enum(["greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee"]),
       slug: z.string().min(1),
     }),
   ),

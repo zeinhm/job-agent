@@ -45,7 +45,7 @@ describe("openDb", () => {
     }
   });
 
-  it("creates all five phase-1 tables", () => {
+  it("creates the phase-1 and phase-2 tables", () => {
     const db = openDb(":memory:");
     const tables = db.$client
       .prepare("SELECT name FROM sqlite_master WHERE type='table'")
@@ -54,7 +54,15 @@ describe("openDb", () => {
       .map((t) => t.name)
       .filter((name) => !name.startsWith("__")) // Exclude drizzle's internal tables
       .sort();
-    expect(tableNames).toEqual(["analysis", "companies", "fx_rates", "postings", "source_runs"]);
+    expect(tableNames).toEqual([
+      "analysis",
+      "companies",
+      "fx_rates",
+      "intel",
+      "llm_calls",
+      "postings",
+      "source_runs",
+    ]);
     db.$client.close();
   });
 });

@@ -7,13 +7,18 @@ export const companies = sqliteTable("companies", {
   normalized_name: text("normalized_name").notNull().unique(),
   domain: text("domain"),
   ats_type: text("ats_type", {
-    enum: ["greenhouse", "lever", "ashby"],
+    enum: ["greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee"],
   }),
   ats_slug: text("ats_slug"),
   hq_country: text("hq_country"), // ISO-3166 alpha-2
   company_type: text("company_type"),
-  pay_policy: text("pay_policy"),
-  pay_policy_source: text("pay_policy_source"),
+  pay_policy: text("pay_policy", {
+    enum: ["location_agnostic", "location_adjusted", "unknown"],
+  }),
+  pay_policy_source: text("pay_policy_source"), // free text, e.g. posting:<id>, careers:<url>
+  pay_policy_checked_at: text("pay_policy_checked_at"), // ISO 8601 UTC, nullable
+  discovered_via: text("discovered_via", { enum: ["config", "search", "manual"] }),
+  discovered_at: text("discovered_at"), // ISO 8601 UTC, nullable
   verified: integer("verified", { mode: "boolean" }).default(false),
   created_at: text("created_at").notNull(), // ISO 8601 UTC
 });
@@ -43,6 +48,8 @@ export const postings = sqliteTable(
     dedupe_hash: text("dedupe_hash"),
     canonical_posting_id: text("canonical_posting_id"), // Self-reference, no FK constraint here
     normalized_at: text("normalized_at"), // ISO 8601 UTC, nullable
+    content_hash: text("content_hash"),
+    updated_at: text("updated_at"), // ISO 8601 UTC, nullable
   },
   (table) => ({
     posting_source_external_id: unique("posting_source_external_id").on(
@@ -111,6 +118,47 @@ export const fx_rates = sqliteTable(
   }),
 );
 
+export const llm_calls = sqliteTable("llm_calls", {
+  id: text("id").primaryKey(),
+  day: text("day").notNull(), // YYYY-MM-DD, Asia/Jakarta
+  model: text("model").notNull(),
+  purpose: text("purpose", { enum: ["extract", "company_research", "fit"] }).notNull(),
+  posting_id: text("posting_id").references(() => postings.id),
+  company_id: text("company_id").references(() => companies.id),
+  input_tokens: integer("input_tokens").notNull(),
+  output_tokens: integer("output_tokens").notNull(),
+  cache_read_tokens: integer("cache_read_tokens").notNull(),
+  cost_usd: text("cost_usd").notNull(), // text decimal
+  status: text("status", { enum: ["ok", "error"] }).notNull(),
+  created_at: text("created_at").notNull(), // ISO 8601 UTC
+});
+
+export const intel = sqliteTable("intel", {
+  id: text("id").primaryKey(),
+  posting_id: text("posting_id")
+    .notNull()
+    .unique()
+    .references(() => postings.id),
+  status: text("status", { enum: ["pending", "done", "budget_wait", "failed"] }).notNull(),
+  extraction: text("extraction"), // JSON text, Zod-validated
+  extract_model: text("extract_model"),
+  extract_prompt_version: text("extract_prompt_version"),
+  final_decision: text("final_decision", { enum: ["keep", "reject", "suspicious"] }),
+  resolved_reasons: text("resolved_reasons"), // JSON text array
+  scam_score: integer("scam_score"), // 0-100
+  scam_reasons: text("scam_reasons"), // JSON text array
+  fit_score: integer("fit_score"), // 0-100, nullable
+  fit_reasons: text("fit_reasons"), // JSON text array
+  fit_model: text("fit_model"),
+  fit_prompt_version: text("fit_prompt_version"),
+  tier: text("tier", { enum: ["indonesia", "regional", "global_adjusted", "global_flat"] }),
+  ask_idr_month: integer("ask_idr_month"),
+  ask_usd_year: integer("ask_usd_year"),
+  ask_text: text("ask_text"),
+  ask_reason: text("ask_reason"),
+  updated_at: text("updated_at").notNull(), // ISO 8601 UTC
+});
+
 // Inferred types for inserts and selects
 export type Company = InferSelectModel<typeof companies>;
 export type NewCompany = InferInsertModel<typeof companies>;
@@ -126,3 +174,9 @@ export type NewSourceRun = InferInsertModel<typeof source_runs>;
 
 export type FxRate = InferSelectModel<typeof fx_rates>;
 export type NewFxRate = InferInsertModel<typeof fx_rates>;
+
+export type LlmCall = InferSelectModel<typeof llm_calls>;
+export type NewLlmCall = InferInsertModel<typeof llm_calls>;
+
+export type Intel = InferSelectModel<typeof intel>;
+export type NewIntel = InferInsertModel<typeof intel>;

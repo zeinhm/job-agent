@@ -102,6 +102,15 @@ describe("loadConfig", () => {
     expect(() => loadConfig(dir)).toThrow(/salary\.yaml/);
   });
 
+  it.each(["smartrecruiters", "workable", "recruitee"])("accepts ats: %s", (ats) => {
+    seed();
+    writeFileSync(
+      join(dir, "companies.yaml"),
+      `companies:\n  - { name: X, ats: ${ats}, slug: x }\n`,
+    );
+    expect(loadConfig(dir).companies).toEqual([{ name: "X", ats, slug: "x" }]);
+  });
+
   it("rejects an unknown ats value", () => {
     seed();
     writeFileSync(
