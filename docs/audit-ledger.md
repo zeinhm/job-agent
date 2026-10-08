@@ -36,3 +36,4 @@ Last audit tag: (none yet)
 | t_0f390819 | Fix HN adapter: only top-level comments are job posts | medium | 43ba2df | 2026-10-09 |
 | t_08e114f8 | Fix web3.career adapter: follow the HTTP 302 redirect | medium | 3a6a43f | 2026-10-09 |
 | t_0860cdb9 | Group same company + same title postings into one digest entry | medium | 0d7a09d | 2026-10-09 |
+| t_3765117e | Implement role relevance filter with golden set | medium | efe6ab2 | 2026-10-09 |
