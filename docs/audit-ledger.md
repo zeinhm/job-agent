@@ -29,3 +29,4 @@ Last audit tag: (none yet)
 | t_97bdc85f | Implement daily FX rate fetch and storage | medium | 590001e | 2026-10-07 |
 | t_4595a4e3 | Rework: Location eligibility golden set (relabel 17 disputed cases) | medium | b271004 | 2026-10-07 |
 | t_5f8224a0 | Implement Indonesia rule filter with golden set | medium | 35aa9f0 | 2026-10-07 |
+| t_b7a7cd40 | Implement process command (normalize, dedupe, filters, analysis rows) | medium | 991a7ae | 2026-10-08 |
