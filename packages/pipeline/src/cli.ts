@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
+import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
 import { runProcess } from "./process.ts";
 
@@ -12,7 +13,6 @@ export interface Io {
 
 type Command = (args: string[], io: Io) => Promise<number> | number;
 
-// Commands are added by the tasks that own them: digest.
 const commands: Record<string, Command> = {
   discover: async (args, io) => {
     const { values } = parseArgs({
@@ -37,6 +37,19 @@ const commands: Record<string, Command> = {
     const db = openDb(defaultDbPath());
     try {
       return runProcess({ db, out: io.out, err: io.err });
+    } finally {
+      db.$client.close();
+    }
+  },
+  digest: (args, io) => {
+    const { values } = parseArgs({ args, options: { date: { type: "string" } } });
+    const db = openDb(defaultDbPath());
+    try {
+      runDigest({ db, ...(values.date !== undefined ? { date: values.date } : {}), out: io.out });
+      return 0;
+    } catch (e) {
+      io.err(`digest failed: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
     } finally {
       db.$client.close();
     }

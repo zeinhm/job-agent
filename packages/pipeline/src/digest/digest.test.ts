@@ -1,0 +1,290 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { analysis, openDb, postings, source_runs, type Db } from "@job-agent/core";
+import { eq } from "drizzle-orm";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { main } from "../cli.ts";
+import { formatSalary, isDigestDate, jakartaDate, runDigest } from "./index.ts";
+
+const NOW = new Date("2026-10-07T03:00:00Z");
+const DATE = "2026-10-07";
+
+let db: Db;
+let dir: string;
+let n = 0;
+
+function seed(
+  id: string,
+  over: {
+    source?: string;
+    title?: string;
+    posted?: string | null;
+    decision?: "keep" | "reject";
+    flags?: string[];
+    reasons?: string[];
+    locationClass?: "worldwide" | "apac_ok" | "restricted" | "unclear";
+    indonesia?: "not_applicable" | "domestic";
+    canonical?: string;
+    digestedAt?: string | null;
+    salaryStatus?: "listed" | "unknown" | "unparsed" | "no_fx";
+    min?: number | null;
+    max?: number | null;
+    analyzedAt?: string;
+    applyUrl?: string;
+  } = {},
+) {
+  n += 1;
+  db.insert(postings)
+    .values({
+      id,
+      source: over.source ?? "remotive",
+      external_id: `e${n}`,
+      url: `https://example.com/jobs/${id}`,
+      apply_url: over.applyUrl ?? null,
+      title: over.title ?? `Job ${id}`,
+      company_name: "Acme Inc",
+      location_text: "Worldwide",
+      posted_at: over.posted === undefined ? "2026-10-05T00:00:00Z" : over.posted,
+      first_seen_at: NOW.toISOString(),
+      last_seen_at: NOW.toISOString(),
+      canonical_posting_id: over.canonical ?? null,
+    })
+    .run();
+  if (over.canonical !== undefined) return;
+  db.insert(analysis)
+    .values({
+      id: `a-${id}`,
+      posting_id: id,
+      location_class: over.locationClass ?? "worldwide",
+      indonesia_rule: over.indonesia ?? "not_applicable",
+      salary_status: over.salaryStatus ?? "listed",
+      salary_idr_month_min: over.min === undefined ? 25_000_000 : over.min,
+      salary_idr_month_max: over.max === undefined ? 30_000_000 : over.max,
+      decision: over.decision ?? "keep",
+      flags: JSON.stringify(over.flags ?? []),
+      reasons: JSON.stringify(over.reasons ?? []),
+      analyzed_at: over.analyzedAt ?? "2026-10-07T01:00:00Z",
+      digested_at: over.digestedAt ?? null,
+    })
+    .run();
+}
+
+function run(opts: { date?: string; now?: Date } = {}) {
+  const out: string[] = [];
+  const path = runDigest({
+    db,
+    outDir: dir,
+    now: () => opts.now ?? NOW,
+    ...(opts.date !== undefined ? { date: opts.date } : {}),
+    out: (t) => out.push(t),
+  });
+  return { path, out: out.join(""), text: readFileSync(path, "utf8") };
+}
+
+function run1(id: string, source: string, status: "ok" | "error", startedAt: string, msg?: string) {
+  db.insert(source_runs)
+    .values({
+      id: `r-${id}`,
+      source,
+      started_at: startedAt,
+      finished_at: startedAt,
+      status,
+      found: 10,
+      new: 3,
+      error_message: msg ?? null,
+    })
+    .run();
+}
+
+function seedDay() {
+  seed("m1", { title: "Older Match", posted: "2026-10-01T00:00:00Z" });
+  seed("m2", { title: "Newest Match", posted: "2026-10-06T00:00:00Z" });
+  seed("m3", { title: "Undated Match", posted: null });
+  seed("f1", {
+    title: "Old Flagged",
+    flags: ["salary_unknown"],
+    salaryStatus: "unknown",
+    posted: "2026-10-02T00:00:00Z",
+  });
+  seed("f2", {
+    title: "New Flagged",
+    flags: ["location_unclear"],
+    locationClass: "unclear",
+    posted: "2026-10-06T00:00:00Z",
+  });
+  seed("r1", { decision: "reject", locationClass: "restricted", reasons: ["location: us only"] });
+  seed("r2", {
+    decision: "reject",
+    reasons: ["location: ok", "salary: max below floor"],
+  });
+  seed("d1", { source: "himalayas", canonical: "m2" });
+  seed("d2", { source: "hn", canonical: "m2" });
+}
+
+beforeEach(() => {
+  db = openDb(":memory:");
+  dir = mkdtempSync(join(tmpdir(), "digest-test-"));
+  n = 0;
+});
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
+
+describe("formatSalary", () => {
+  const base = { status: "listed", idrMonthMin: null, idrMonthMax: null } as const;
+  it("formats a range", () => {
+    expect(formatSalary({ ...base, idrMonthMin: 25_000_000, idrMonthMax: 30_000_000 })).toBe(
+      "IDR 25.0M–30.0M / month",
+    );
+  });
+  it("formats min only", () => {
+    expect(formatSalary({ ...base, idrMonthMin: 25_000_000 })).toBe("from IDR 25.0M / month");
+  });
+  it("formats max only", () => {
+    expect(formatSalary({ ...base, idrMonthMax: 30_000_000 })).toBe("up to IDR 30.0M / month");
+  });
+  it("rounds to one decimal", () => {
+    expect(formatSalary({ ...base, idrMonthMin: 24_960_000, idrMonthMax: 30_040_000 })).toBe(
+      "IDR 25.0M–30.0M / month",
+    );
+  });
+  it("formats non-listed statuses", () => {
+    expect(formatSalary({ ...base, status: "unknown" })).toBe("salary unknown");
+    expect(formatSalary({ ...base, status: "unparsed" })).toBe("salary not parsed");
+    expect(formatSalary({ ...base, status: "no_fx" })).toBe("no FX rate");
+  });
+});
+
+describe("dates", () => {
+  it("uses Asia/Jakarta for the default date", () => {
+    expect(jakartaDate(new Date("2026-10-06T18:00:00Z"))).toBe("2026-10-07");
+    expect(jakartaDate(new Date("2026-10-06T16:00:00Z"))).toBe("2026-10-06");
+  });
+  it("validates the date", () => {
+    expect(isDigestDate("2026-10-07")).toBe(true);
+    expect(isDigestDate("2026-02-30")).toBe(false);
+    expect(isDigestDate("10/07/2026")).toBe(false);
+  });
+});
+
+describe("runDigest", () => {
+  it("lists matches and needs-a-look in order, duplicates only as extra sources", () => {
+    seedDay();
+    const { text, path, out } = run();
+    expect(path).toBe(join(dir, `${DATE}.md`));
+    expect(out).toBe(`${path}\n`);
+
+    const matches = text.slice(text.indexOf("## Matches"), text.indexOf("## Needs a look"));
+    const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Source health"));
+    expect(matches.match(/^### /gm)).toHaveLength(3);
+    expect(looks.match(/^### /gm)).toHaveLength(2);
+    expect(matches.indexOf("Newest Match")).toBeLessThan(matches.indexOf("Older Match"));
+    expect(matches.indexOf("Older Match")).toBeLessThan(matches.indexOf("Undated Match"));
+    expect(looks.indexOf("New Flagged")).toBeLessThan(looks.indexOf("Old Flagged"));
+
+    // Duplicates are not separate entries.
+    expect(text).not.toContain("### Job d1");
+    expect(text).toContain("- Sources: remotive, himalayas, hn");
+    expect(text).toContain("- Salary: IDR 25.0M–30.0M / month");
+    expect(text).toContain("- Salary: salary unknown");
+    expect(text).toContain("- Flags: location_unclear");
+    expect(text).toContain("- Location: unclear — Worldwide");
+    expect(text).toContain("- Posted: unknown");
+    expect(text).toContain("- Kept today: 5");
+    expect(text).toContain("- Flagged (needs a look): 2");
+    expect(text).toContain("- Rejected in the last 24h: 2 (location 1, indonesia 0, salary 1)");
+    expect(text).not.toContain("Job r1");
+  });
+
+  it("links the apply url for ATS canonicals and the posting url otherwise", () => {
+    seed("ats", { source: "greenhouse", applyUrl: "https://apply.example.com/ats" });
+    seed("api", { source: "remotive", applyUrl: "https://apply.example.com/api" });
+    const { text } = run();
+    expect(text).toContain("- Link: https://apply.example.com/ats");
+    expect(text).toContain("- Link: https://example.com/jobs/api");
+    expect(text).not.toContain("apply.example.com/api");
+  });
+
+  it("is idempotent and picks up newly kept postings under the same date", () => {
+    seedDay();
+    const first = run();
+    expect(run().text).toBe(first.text);
+
+    seed("late", { title: "Late Match" });
+    const second = run();
+    expect(second.text).toContain("### Late Match");
+    expect(second.text).toContain("### Newest Match");
+    expect(
+      db.select().from(analysis).where(eq(analysis.posting_id, "late")).get()?.digested_at,
+    ).toBe(DATE);
+    expect(run().text).toBe(second.text);
+  });
+
+  it("does not show a posting stamped on an earlier day", () => {
+    seed("old", { title: "Yesterday Match", digestedAt: "2026-10-06" });
+    seed("new", { title: "Today Match" });
+    const { text } = run();
+    expect(text).toContain("Today Match");
+    expect(text).not.toContain("Yesterday Match");
+  });
+
+  it("stamps with the --date value", () => {
+    seed("x");
+    run({ date: "2026-10-09" });
+    expect(db.select().from(analysis).get()?.digested_at).toBe("2026-10-09");
+  });
+
+  it("reports source errors and sources without an ok run in 24h", () => {
+    run1("1", "greenhouse", "ok", "2026-10-07T01:00:00Z");
+    run1("2", "remotive", "ok", "2026-10-06T20:00:00Z");
+    run1("3", "remotive", "error", "2026-10-07T02:00:00Z", "HTTP 503\nfrom remotive");
+    run1("4", "hn", "ok", "2026-10-01T00:00:00Z");
+    const { text } = run();
+    const health = text.slice(text.indexOf("## Source health"));
+    expect(health).toContain("- **greenhouse**: ok, found 10, new 3\n");
+    expect(health).toContain(
+      "- **remotive**: error, found 10, new 3, error: HTTP 503 from remotive\n",
+    );
+    expect(health).toContain("- **hn**: no run in the last 24h — NO SUCCESSFUL RUN");
+    expect(health).not.toMatch(/remotive.*NO SUCCESSFUL RUN/);
+  });
+
+  it("marks a source whose only recent runs failed", () => {
+    run1("1", "remotive", "error", "2026-10-07T02:00:00Z", "boom");
+    expect(run().text).toContain("error: boom — NO SUCCESSFUL RUN");
+  });
+
+  it("writes an empty day with the source health section", () => {
+    run1("1", "greenhouse", "ok", "2026-10-07T01:00:00Z");
+    const { text } = run();
+    expect(text).toContain("No new matches.");
+    expect(text).not.toContain("## Matches");
+    expect(text).toContain("- Kept today: 0");
+    expect(text).toContain("## Source health");
+    expect(text).toContain("- **greenhouse**: ok");
+  });
+
+  it("rejects an invalid date", () => {
+    expect(() => run({ date: "nope" })).toThrow(/Invalid date/);
+  });
+});
+
+describe("cli digest", () => {
+  it("fails on an invalid date without writing", async () => {
+    const prev = process.env["JOB_AGENT_DB"];
+    process.env["JOB_AGENT_DB"] = join(dir, "t.db");
+    const err: string[] = [];
+    try {
+      const code = await main(["digest", "--date", "bad"], {
+        out: () => {},
+        err: (t) => err.push(t),
+      });
+      expect(code).toBe(1);
+      expect(err.join("")).toContain("Invalid date");
+    } finally {
+      if (prev === undefined) delete process.env["JOB_AGENT_DB"];
+      else process.env["JOB_AGENT_DB"] = prev;
+    }
+  });
+});
