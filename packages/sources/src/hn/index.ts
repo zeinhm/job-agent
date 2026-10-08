@@ -26,6 +26,7 @@ const commentSchema = z.object({
   author: z.string().nullish(),
   text: z.string().nullish(),
   type: z.string().nullish(),
+  parent_id: z.number().int().nullish(),
 });
 type Comment = z.infer<typeof commentSchema>;
 
@@ -94,6 +95,8 @@ export function createHnAdapter(): SourceAdapter {
           continue;
         }
         const comment = parsed.data;
+        // Only direct children of the story are job posts; replies are discussion.
+        if (comment.parent_id !== Number(threadId)) continue;
         // Deleted and dead comments come back without author or text.
         if (!comment.author || !comment.text?.trim()) continue;
         if (comment.type && comment.type !== "comment") continue;

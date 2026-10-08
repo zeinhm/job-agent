@@ -13,6 +13,7 @@ type Comment = {
   author: string | null;
   text: string | null;
   type: string;
+  parent_id: number;
   children: Comment[];
 };
 type Thread = { id: number; children: Comment[] };
@@ -50,6 +51,7 @@ const comment = (id: number, text: string | null, over: Partial<Comment> = {}): 
   author: "hnuser",
   text,
   type: "comment",
+  parent_id: THREAD_ID,
   children: [],
   ...over,
 });
@@ -85,6 +87,36 @@ describe("hn adapter", () => {
       threadFixture.children.map((c) => String(c.id)),
     );
     expect(postings.every((p) => p.source === "hn")).toBe(true);
+  });
+
+  it("drops replies even when the thread response lists them alongside top-level comments", async () => {
+    serve({
+      id: THREAD_ID,
+      children: [
+        comment(1, "Acme | Backend Engineer | REMOTE"),
+        comment(2, "Thanks! Is this role open to APAC?", { parent_id: 1 }),
+        comment(3, "Beta | Frontend Engineer | REMOTE"),
+        comment(4, "Yes, it is.", { parent_id: 2 }),
+        comment(5, "Gamma | Data Engineer | REMOTE"),
+        { ...comment(6, "Delta | SRE | REMOTE"), parent_id: undefined },
+      ],
+    });
+    const postings = await adapter().fetch(new Date(0));
+    expect(postings.map((p) => p.externalId)).toEqual(["1", "3", "5"]);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it("still skips deleted top-level comments while dropping replies", async () => {
+    serve({
+      id: THREAD_ID,
+      children: [
+        comment(1, "Acme | Backend Engineer | REMOTE"),
+        comment(2, null, { author: null }),
+        comment(3, "reply | looks | like a job", { parent_id: 1 }),
+      ],
+    });
+    const postings = await adapter().fetch(new Date(0));
+    expect(postings.map((p) => p.externalId)).toEqual(["1"]);
   });
 
   it("maps a comment fully", async () => {
