@@ -26,6 +26,8 @@ function seed(
     locationClass?: "worldwide" | "apac_ok" | "restricted" | "unclear";
     indonesia?: "not_applicable" | "domestic";
     canonical?: string;
+    company?: string;
+    location?: string;
     digestedAt?: string | null;
     salaryStatus?: "listed" | "unknown" | "unparsed" | "no_fx";
     min?: number | null;
@@ -43,8 +45,8 @@ function seed(
       url: `https://example.com/jobs/${id}`,
       apply_url: over.applyUrl ?? null,
       title: over.title ?? `Job ${id}`,
-      company_name: "Acme Inc",
-      location_text: "Worldwide",
+      company_name: over.company ?? "Acme Inc",
+      location_text: over.location ?? "Worldwide",
       posted_at: over.posted === undefined ? "2026-10-05T00:00:00Z" : over.posted,
       first_seen_at: NOW.toISOString(),
       last_seen_at: NOW.toISOString(),
@@ -225,6 +227,35 @@ describe("runDigest", () => {
       db.select().from(analysis).where(eq(analysis.posting_id, "late")).get()?.digested_at,
     ).toBe(DATE);
     expect(run().text).toBe(second.text);
+  });
+
+  it("groups same company + title across locations into one entry and stamps all", () => {
+    seed("g1", { title: "Backend Engineer", location: "Berlin", posted: "2026-10-03T00:00:00Z" });
+    seed("g2", {
+      title: "Backend Engineer",
+      location: "Austin",
+      source: "greenhouse",
+      applyUrl: "https://apply.example.com/g2",
+    });
+    seed("g3", { title: "backend engineer", location: "Lisbon", company: "ACME" });
+    seed("g4", { title: "Backend Engineer", location: "Lisbon", company: "Globex" });
+    const { text } = run();
+    expect(text.match(/^### /gm)).toHaveLength(2);
+    expect(text).toContain("- Location: worldwide — Austin; Berlin; Lisbon");
+    expect(text).toContain("- Link: https://apply.example.com/g2");
+    expect(text).toContain("- Kept today: 2");
+    for (const id of ["g1", "g2", "g3", "g4"]) {
+      expect(db.select().from(analysis).where(eq(analysis.posting_id, id)).get()?.digested_at).toBe(
+        DATE,
+      );
+    }
+    expect(run().text).toBe(text);
+  });
+
+  it("caps joined locations at 5 with +N more", () => {
+    for (const c of "abcdefg") seed(`l${c}`, { title: "Same", location: `City ${c}` });
+    const { text } = run();
+    expect(text).toContain("City a; City b; City c; City d; City e; +2 more");
   });
 
   it("does not show a posting stamped on an earlier day", () => {

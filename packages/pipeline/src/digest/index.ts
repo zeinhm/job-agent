@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, isNull } from "drizzle-orm";
 import { analysis, postings, source_runs, type Db } from "@job-agent/core";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
+import { groupPostings, joinLocations } from "./group.ts";
 
 export { formatSalary } from "./format.ts";
 
@@ -37,21 +38,29 @@ interface Entry {
   flagged: boolean;
 }
 
-function buildEntry(
-  db: Db,
-  p: typeof postings.$inferSelect,
-  a: typeof analysis.$inferSelect,
-): Entry {
-  const flags = parseList(a.flags);
-  const dupSources = db
-    .select({ source: postings.source })
-    .from(postings)
-    .where(eq(postings.canonical_posting_id, p.id))
-    .all()
-    .map((d) => d.source);
-  const sources = [p.source, ...[...new Set(dupSources)].filter((s) => s !== p.source).sort()];
+type Row = { p: typeof postings.$inferSelect; a: typeof analysis.$inferSelect };
+
+/** One entry for a group of same company + title postings; the best member (ATS first) leads. */
+function buildEntry(db: Db, group: Row[]): Entry {
+  const { p, a } = group[0] as Row;
+  const flags = [...new Set(group.flatMap((r) => parseList(r.a.flags)))];
+  const sources: string[] = [];
+  for (const r of group) {
+    const dups = db
+      .select({ source: postings.source })
+      .from(postings)
+      .where(eq(postings.canonical_posting_id, r.p.id))
+      .all()
+      .map((d) => d.source);
+    for (const s of [r.p.source, ...[...new Set(dups)].sort()]) {
+      if (!sources.includes(s)) sources.push(s);
+    }
+  }
   const link = isAtsSource(p.source) ? (p.apply_url ?? p.url) : p.url;
-  const location = [a.location_class, p.location_text].filter((x) => x).join(" — ");
+  const locations = joinLocations(group.map((r) => r.p.location_text));
+  const location = [a.location_class, locations].filter((x) => x).join(" — ");
+  const dates = group.map((r) => r.p.posted_at).filter((d): d is string => d !== null);
+  const posted = dates.length > 0 ? dates.reduce((x, y) => (x > y ? x : y)) : null;
   const lines = [
     `### ${p.title} — ${p.company_name}`,
     "",
@@ -64,14 +73,14 @@ function buildEntry(
     `- Flags: ${flags.length > 0 ? flags.join(", ") : "none"}`,
     `- Link: ${link}`,
     `- Sources: ${sources.join(", ")}`,
-    `- Posted: ${p.posted_at !== null ? p.posted_at.slice(0, 10) : "unknown"}`,
+    `- Posted: ${posted !== null ? posted.slice(0, 10) : "unknown"}`,
     "",
   ];
   return {
     title: p.title,
     company: p.company_name,
     line: lines,
-    postedAt: p.posted_at,
+    postedAt: posted,
     flagged: flags.length > 0,
   };
 }
@@ -143,7 +152,7 @@ export function runDigest(opts: DigestOptions): string {
     if (fresh.length > 0) {
       t.update(analysis).set({ digested_at: date }).where(inArray(analysis.id, fresh)).run();
     }
-    return t
+    const rows: Row[] = t
       .select({ p: postings, a: analysis })
       .from(analysis)
       .innerJoin(postings, eq(postings.id, analysis.posting_id))
@@ -154,8 +163,23 @@ export function runDigest(opts: DigestOptions): string {
           isNull(postings.canonical_posting_id),
         ),
       )
-      .all()
-      .map(({ p, a }) => buildEntry(t, p, a));
+      .all();
+    const groups = groupPostings(
+      rows.map((r) => ({
+        row: r,
+        id: r.p.id,
+        title: r.p.title,
+        company: r.p.company_name,
+        isAts: isAtsSource(r.p.source),
+        postedAt: r.p.posted_at,
+      })),
+    );
+    return groups.map((g) =>
+      buildEntry(
+        t,
+        g.map((x) => x.row),
+      ),
+    );
   });
 
   const matches = entries.filter((e) => !e.flagged).sort(byPostedDesc);
