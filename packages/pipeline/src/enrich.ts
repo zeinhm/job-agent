@@ -14,10 +14,12 @@ import {
   type LlmDeps,
   type Posting,
 } from "@job-agent/core";
+import { resolveFlags } from "./intel/resolve.ts";
 import {
   EXTRACT_MODEL,
   EXTRACT_PROMPT_VERSION,
   extractFacts,
+  ExtractionSchema,
   type Extraction,
 } from "./intel/extract.ts";
 
@@ -44,7 +46,8 @@ type StageResult =
 /** A stage fills part of the `intel` row for one posting. Later cards add resolve, scam, fit, tier here. */
 interface Stage {
   name: string;
-  run: (posting: Posting, deps: LlmDeps) => Promise<StageResult>;
+  /** `soFar` is the merged patch of the earlier stages for this posting. */
+  run: (posting: Posting, deps: LlmDeps, soFar: IntelPatch) => Promise<StageResult>;
 }
 
 const extractStage: Stage = {
@@ -80,7 +83,33 @@ const extractStage: Stage = {
   },
 };
 
-const STAGES: Stage[] = [extractStage];
+/** Turns unclear flags into a decision from the extracted facts. Code only, no LLM call. */
+const resolveStage: Stage = {
+  name: "resolve",
+  run(p, deps, soFar) {
+    const parsed = ExtractionSchema.safeParse(JSON.parse(soFar.extraction ?? "null"));
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.code}`);
+      return Promise.resolve({
+        kind: "failed",
+        patch: { resolved_reasons: JSON.stringify(issues) },
+      });
+    }
+    const row = deps.db.select().from(analysis).where(eq(analysis.posting_id, p.id)).get();
+    const flags: unknown = JSON.parse(row?.flags ?? "[]");
+    const result = resolveFlags({
+      ruleDecision: row?.decision ?? "keep",
+      flags: Array.isArray(flags) ? flags.filter((f): f is string => typeof f === "string") : [],
+      extraction: parsed.data,
+    });
+    return Promise.resolve({
+      kind: "done",
+      patch: { final_decision: result.decision, resolved_reasons: JSON.stringify(result.reasons) },
+    });
+  },
+};
+
+const STAGES: Stage[] = [extractStage, resolveStage];
 
 function upsertIntel(
   db: Db,
@@ -161,7 +190,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     let outcome: "done" | "failed" | "retry" | "budget" = "done";
     try {
       for (const stage of STAGES) {
-        const result = await stage.run(posting, deps);
+        const result = await stage.run(posting, deps, patch);
         if (result.kind === "retry") {
           outcome = "retry";
           break;

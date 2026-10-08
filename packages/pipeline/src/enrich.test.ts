@@ -128,6 +128,48 @@ describe("enrich", () => {
     expect(db.select().from(llm_calls).all()).toHaveLength(1);
   });
 
+  it("resolve stage settles rule flags from the extraction and explains each change", async () => {
+    addPosting("p1");
+    db.update(analysis)
+      .set({ flags: JSON.stringify(["location_unclear", "indonesia_unclear", "role_unclear"]) })
+      .where(eq(analysis.posting_id, "p1"))
+      .run();
+    await enrich();
+    const row = intelOf("p1");
+    expect(row?.status).toBe("done");
+    expect(row?.final_decision).toBe("keep");
+    const reasons: string[] = JSON.parse(row?.resolved_reasons ?? "[]");
+    expect(reasons).toHaveLength(3);
+    expect(reasons[0]).toContain("worldwide");
+    expect(reasons[1]).toContain("DE");
+    expect(reasons[2]).toContain("senior");
+  });
+
+  it("resolve stage keeps unflagged postings untouched (empty reasons)", async () => {
+    addPosting("p1");
+    await enrich();
+    const row = intelOf("p1");
+    expect(row?.final_decision).toBe("keep");
+    expect(row?.resolved_reasons).toBe("[]");
+  });
+
+  it("resolve stage can reject from facts (mid level with role_unclear)", async () => {
+    const mid = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
+    const block = mid.content[mid.content.length - 1];
+    if (block?.text === undefined) throw new Error("fixture shape");
+    block.text = JSON.stringify({ ...JSON.parse(block.text), seniority: "mid" });
+    respond = () => HttpResponse.json(mid);
+    addPosting("p1");
+    db.update(analysis)
+      .set({ flags: JSON.stringify(["role_unclear"]) })
+      .where(eq(analysis.posting_id, "p1"))
+      .run();
+    await enrich();
+    const row = intelOf("p1");
+    expect(row?.final_decision).toBe("reject");
+    expect(JSON.parse(row?.resolved_reasons ?? "[]")).toHaveLength(1);
+  });
+
   it("asks only for facts: no keep/reject, tier or ask question in the prompt", async () => {
     addPosting("p1");
     await enrich();
