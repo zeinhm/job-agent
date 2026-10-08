@@ -31,3 +31,4 @@ Last audit tag: (none yet)
 | t_5f8224a0 | Implement Indonesia rule filter with golden set | medium | 35aa9f0 | 2026-10-07 |
 | t_b7a7cd40 | Implement process command (normalize, dedupe, filters, analysis rows) | medium | 991a7ae | 2026-10-08 |
 | t_0e4cc928 | Pilot: add docs/pilot.md | low | 4dc5700 | 2026-10-08 |
+| t_7d626c81 | Add Phase 2 database schema (intel, llm_calls, company and posting columns) | medium | be31dc0 | 2026-10-09 |
