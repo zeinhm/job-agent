@@ -81,7 +81,7 @@ describe("runProcess", () => {
     add({
       id: "worldwide",
       source: "remotive",
-      title: "Senior Backend Engineer",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
       salary_min: 120000,
@@ -92,7 +92,7 @@ describe("runProcess", () => {
     add({
       id: "us-only",
       source: "remotive",
-      title: "Staff Data Engineer",
+      title: "Senior Frontend Engineer",
       company_name: "Globex",
       location_text: "US only",
       remote: true,
@@ -100,7 +100,7 @@ describe("runProcess", () => {
     add({
       id: "domestic",
       source: "remotive",
-      title: "Product Designer",
+      title: "Senior Frontend Engineer",
       company_name: "Initech",
       location_text: "Worldwide",
       remote: true,
@@ -118,7 +118,7 @@ describe("runProcess", () => {
     add({
       id: "low-pay",
       source: "remotive",
-      title: "Support Engineer",
+      title: "Senior Frontend Engineer",
       company_name: "Umbrella",
       location_text: "Worldwide",
       remote: true,
@@ -130,14 +130,14 @@ describe("runProcess", () => {
     add({
       id: "bare-remote",
       source: "remotive",
-      title: "Platform Engineer",
+      title: "Senior Frontend Engineer",
       company_name: "Hooli",
       location_text: "Remote",
     });
     add({
       id: "dup",
       source: "himalayas",
-      title: "Senior Backend Engineer (Remote)",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
     });
@@ -173,15 +173,39 @@ describe("runProcess", () => {
     });
     for (const a of rows()) {
       const reasons = JSON.parse(a.reasons ?? "[]") as string[];
-      expect(reasons).toHaveLength(3);
+      expect(reasons).toHaveLength(4);
       expect(reasons[0]).toMatch(/^location: /);
       expect(reasons[1]).toMatch(/^indonesia: /);
-      expect(reasons[2]).toMatch(/^salary: /);
+      expect(reasons[2]).toMatch(/^role: /);
+      expect(reasons[3]).toMatch(/^salary: /);
     }
     expect(byPosting("low-pay").reasons).toContain("salary: max below floor");
     expect(result.out).toMatch(
-      /^processed 5, kept 2, rejected 3 \(location 1, indonesia 1, salary 1\), flagged 3\n$/,
+      /^processed 5, kept 2, rejected 3 \(location 1, indonesia 1, role 0, salary 1\), flagged 3\n$/,
     );
+  });
+
+  it("rejects non-target roles with `role: ...` and flags generic titles as role_unclear", () => {
+    const base = { source: "remotive", location_text: "Worldwide", remote: true } as const;
+    add({ id: "sales", title: "Sales Manager", ...base });
+    add({ id: "junior", title: "Junior Frontend Engineer", ...base });
+    add({ id: "generic", title: "Software Engineer", ...base });
+    add({ id: "target", title: "Senior Frontend Engineer", ...base });
+    const result = run();
+    expect(result.out).toMatch(
+      /^processed 4, kept 2, rejected 2 \(location 0, indonesia 0, role 2, salary 0\), flagged 4\n$/,
+    );
+    expect(byPosting("sales")).toMatchObject({ decision: "reject" });
+    expect(JSON.parse(byPosting("sales").reasons ?? "[]")).toContain(
+      'role: non-engineering role ("sales")',
+    );
+    expect(byPosting("junior").decision).toBe("reject");
+    expect(byPosting("generic")).toMatchObject({ decision: "keep" });
+    expect(JSON.parse(byPosting("generic").flags ?? "[]")).toEqual([
+      "role_unclear",
+      "salary_unknown",
+    ]);
+    expect(JSON.parse(byPosting("target").flags ?? "[]")).toEqual(["salary_unknown"]);
   });
 
   it("re-analyses a no_fx posting once rates exist, but not a digested one", () => {
@@ -195,7 +219,7 @@ describe("runProcess", () => {
     add({
       id: "late-fx",
       source: "remotive",
-      title: "Support Engineer",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
       ...pay,
@@ -203,7 +227,7 @@ describe("runProcess", () => {
     add({
       id: "sent",
       source: "remotive",
-      title: "Backend Engineer",
+      title: "Senior Frontend Engineer",
       company_name: "Globex",
       location_text: "Worldwide",
       remote: true,
@@ -255,7 +279,7 @@ describe("runProcess", () => {
     add({
       id: "remotive-1",
       source: "remotive",
-      title: "Senior Backend Engineer",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
     });
@@ -268,7 +292,7 @@ describe("runProcess", () => {
     add({
       id: "ashby-1",
       source: "ashby",
-      title: "Senior Backend Engineer",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
     });
@@ -285,7 +309,7 @@ describe("runProcess", () => {
     add({
       id: "a",
       source: "remotive",
-      title: "Backend Engineer",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
     });
@@ -312,7 +336,7 @@ describe("process command", () => {
     const code = await main(["process"], { out: (t) => out.push(t), err: () => undefined });
     expect(code).toBe(0);
     expect(out.join("")).toBe(
-      "processed 0, kept 0, rejected 0 (location 0, indonesia 0, salary 0), flagged 0\n",
+      "processed 0, kept 0, rejected 0 (location 0, indonesia 0, role 0, salary 0), flagged 0\n",
     );
   });
 
@@ -320,7 +344,7 @@ describe("process command", () => {
     add({
       id: "low-pay",
       source: "remotive",
-      title: "Support Engineer",
+      title: "Senior Frontend Engineer",
       location_text: "Worldwide",
       remote: true,
       salary_min: 300,

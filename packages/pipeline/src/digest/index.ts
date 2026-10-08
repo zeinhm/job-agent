@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { and, eq, gte, inArray, isNull } from "drizzle-orm";
 import { analysis, postings, source_runs, type Db } from "@job-agent/core";
+import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { groupPostings, joinLocations } from "./group.ts";
@@ -186,13 +187,17 @@ export function runDigest(opts: DigestOptions): string {
   const looks = entries.filter((e) => e.flagged).sort(byPostedDesc);
 
   const since = new Date(now.getTime() - DAY_MS).toISOString();
-  const rejected = db
-    .select()
+  const rejectedRows = db
+    .select({ r: analysis, p: postings })
     .from(analysis)
+    .innerJoin(postings, eq(postings.id, analysis.posting_id))
     .where(and(eq(analysis.decision, "reject"), gte(analysis.analyzed_at, since)))
     .all();
-  const byReason = { location: 0, indonesia: 0, salary: 0 };
-  for (const r of rejected) {
+  const rejected = rejectedRows.map((x) => x.r);
+  const byReason = { location: 0, indonesia: 0, role: 0, salary: 0 };
+  for (const { r, p } of rejectedRows) {
+    if (classifyRole({ title: p.title, descriptionText: p.description_text }).class === "reject")
+      byReason.role += 1;
     if (r.location_class === "restricted") byReason.location += 1;
     if (r.indonesia_rule === "domestic") byReason.indonesia += 1;
     if (parseList(r.reasons).includes(`salary: ${SALARY_BELOW_FLOOR_REASON}`)) byReason.salary += 1;
@@ -204,7 +209,7 @@ export function runDigest(opts: DigestOptions): string {
     `- Kept today: ${entries.length}`,
     `- Flagged (needs a look): ${looks.length}`,
     `- Rejected in the last 24h: ${rejected.length} ` +
-      `(location ${byReason.location}, indonesia ${byReason.indonesia}, salary ${byReason.salary})`,
+      `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary})`,
     "",
     ...(entries.length === 0 ? ["No new matches.", ""] : []),
     ...(entries.length === 0 ? [] : section("Matches", matches)),

@@ -13,6 +13,7 @@ import {
 import { dedupePending } from "./dedupe/index.ts";
 import { classifyIndonesia } from "./filters/indonesia.ts";
 import { classifyLocation } from "./filters/location.ts";
+import { classifyRole } from "./filters/role.ts";
 import { applySalaryFloor } from "./filters/salary-floor.ts";
 import { normalizePending } from "./normalize/index.ts";
 import { parseSalary, toIdrMonth } from "./salary/index.ts";
@@ -28,12 +29,13 @@ export interface ProcessOptions {
 const FLAG_ORDER = [
   "location_unclear",
   "indonesia_unclear",
+  "role_unclear",
   "salary_unknown",
   "salary_unparsed",
   "salary_no_fx",
 ] as const;
 
-type RejectRule = "location" | "indonesia" | "salary";
+type RejectRule = "location" | "indonesia" | "role" | "salary";
 
 /** Today in Asia/Jakarta as YYYY-MM-DD. */
 function jakartaDate(now: Date): string {
@@ -73,16 +75,19 @@ function analyze(db: Db, p: Posting, floor: number, now: Date) {
     companyDomain: company?.domain ?? null,
     salaryCurrency: "currency" in parsed ? parsed.currency : null,
   });
+  const role = classifyRole({ title: p.title, descriptionText: p.description_text });
   const floorResult = applySalaryFloor(idr, floor);
 
   const rejectedBy: RejectRule[] = [];
   if (location.class === "restricted") rejectedBy.push("location");
   if (indonesia.value === "domestic") rejectedBy.push("indonesia");
+  if (role.class === "reject") rejectedBy.push("role");
   if (floorResult.reject) rejectedBy.push("salary");
 
   const flags = new Set<string>();
   if (location.class === "unclear") flags.add("location_unclear");
   if (indonesia.value === "unclear") flags.add("indonesia_unclear");
+  if (role.class === "unclear") flags.add("role_unclear");
   if (floorResult.flag !== undefined) flags.add(floorResult.flag);
 
   // Same job already sent under another posting of the group: don't send it again.
@@ -118,6 +123,7 @@ function analyze(db: Db, p: Posting, floor: number, now: Date) {
     reasons: JSON.stringify([
       `location: ${location.reason}`,
       `indonesia: ${indonesia.reason}`,
+      `role: ${role.reason}`,
       `salary: ${floorResult.reason}`,
     ]),
     analyzed_at: now.toISOString(),
@@ -161,7 +167,7 @@ export function runProcess(opts: ProcessOptions): number {
   let rejectedTotal = 0;
   let flagged = 0;
   let failed = 0;
-  const rejected: Record<RejectRule, number> = { location: 0, indonesia: 0, salary: 0 };
+  const rejected: Record<RejectRule, number> = { location: 0, indonesia: 0, role: 0, salary: 0 };
 
   for (const p of todo) {
     try {
@@ -188,7 +194,7 @@ export function runProcess(opts: ProcessOptions): number {
 
   out(
     `processed ${processed}, kept ${kept}, rejected ${rejectedTotal} ` +
-      `(location ${rejected.location}, indonesia ${rejected.indonesia}, salary ${rejected.salary}), ` +
+      `(location ${rejected.location}, indonesia ${rejected.indonesia}, role ${rejected.role}, salary ${rejected.salary}), ` +
       `flagged ${flagged}${failed > 0 ? `, failed ${failed}` : ""}\n`,
   );
   return failed > 0 ? 1 : 0;

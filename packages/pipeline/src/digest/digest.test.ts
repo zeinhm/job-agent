@@ -201,8 +201,27 @@ describe("runDigest", () => {
     expect(text).toContain("- Posted: unknown");
     expect(text).toContain("- Kept today: 5");
     expect(text).toContain("- Flagged (needs a look): 2");
-    expect(text).toContain("- Rejected in the last 24h: 2 (location 1, indonesia 0, salary 1)");
+    expect(text).toContain(
+      "- Rejected in the last 24h: 2 (location 1, indonesia 0, role 0, salary 1)",
+    );
     expect(text).not.toContain("Job r1");
+  });
+
+  it("shows role_unclear postings under Needs a look and counts role rejects", () => {
+    seed("ok", { title: "Senior Frontend Engineer" });
+    seed("gen", { title: "Staff Engineer", flags: ["role_unclear"] });
+    seed("sales", {
+      title: "Sales Manager",
+      decision: "reject",
+      reasons: ["role: non-engineering"],
+    });
+    const { text } = run();
+    const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Source health"));
+    expect(looks).toContain("### Staff Engineer");
+    expect(looks).toContain("- Flags: role_unclear");
+    expect(text).toContain(
+      "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0)",
+    );
   });
 
   it("links the apply url for ATS canonicals and the posting url otherwise", () => {
