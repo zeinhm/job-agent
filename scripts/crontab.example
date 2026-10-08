@@ -1,0 +1,27 @@
+# job-agent Phase 1 schedule (system cron). Copy, replace the placeholders, then `crontab <file>`.
+# See docs/running.md.
+#
+# Cron frequency can't exceed source limits: every adapter has a minimum poll interval enforced in
+# code (discover records a `skipped` run for a source polled too recently), so running discover
+# more often than a source allows never sends it extra requests.
+#
+# Times are the Mac's local time and assume its clock is set to Asia/Jakarta (WIB, UTC+7).
+# Otherwise convert 07:00 / 08:00 WIB to local time.
+#
+# `discover` exits 1 when any source errors. Process and digest still run after it (`;`, not `&&`):
+# the other sources' postings still need processing, and the digest reports the error in Source health.
+#
+# Placeholders: /ABSOLUTE/PATH/TO/job-agent = the repo root, /ABSOLUTE/PATH/TO/node/bin = the folder
+# holding `node` and `pnpm` (`dirname "$(command -v pnpm)"`). Output is appended to data/logs/<command>.log.
+
+SHELL=/bin/bash
+PATH=/ABSOLUTE/PATH/TO/node/bin:/usr/bin:/bin
+
+# fx: daily 07:00 WIB
+0 7 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent fx >> data/logs/fx.log 2>&1
+
+# discover then process: every 2 hours, at :30 so it never overlaps the 08:00 digest run
+30 */2 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && { pnpm -s job-agent discover >> data/logs/discover.log 2>&1; pnpm -s job-agent process >> data/logs/process.log 2>&1; }
+
+# digest: daily 08:00 WIB, after a fresh discover and process
+0 8 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && { pnpm -s job-agent discover >> data/logs/discover.log 2>&1; pnpm -s job-agent process >> data/logs/process.log 2>&1; pnpm -s job-agent digest >> data/logs/digest.log 2>&1; }
