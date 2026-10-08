@@ -22,3 +22,6 @@ before LLM extraction (rules are free; fewer postings reach the LLM):
    - Keep the token private (env only). Violations can suspend access.
    - API reference moved to https://docs.bondex.app/api-reference ; the adapter was built from older docs:
      record a real fixture and check the response shape.
+8. web3.career live response (2026-10-08): 100 of 100 jobs rejected as invalid, because the adapter expects a
+   `url` field that the real API does not return (the link field is `apply_url`). A real fixture was recorded
+   with record:web3career; rebuild the adapter's schema against it (apply_url kept unmodified, see item 7).
