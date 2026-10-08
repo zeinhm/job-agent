@@ -34,3 +34,4 @@ Last audit tag: (none yet)
 | t_7d626c81 | Add Phase 2 database schema (intel, llm_calls, company and posting columns) | medium | be31dc0 | 2026-10-09 |
 | t_38151c18 | Fix location rules: country lists and 'Remote, <country>' are restricted | medium | 73fcf9f | 2026-10-09 |
 | t_0f390819 | Fix HN adapter: only top-level comments are job posts | medium | 43ba2df | 2026-10-09 |
+| t_08e114f8 | Fix web3.career adapter: follow the HTTP 302 redirect | medium | 3a6a43f | 2026-10-09 |
