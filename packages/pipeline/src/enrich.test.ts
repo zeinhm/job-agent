@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import {
   analysis,
+  companies,
   intel,
   llm_calls,
   openDb,
@@ -301,5 +302,33 @@ describe("cli enrich", () => {
     });
     expect(code).toBe(1);
     expect(err.join("")).not.toContain("Unknown command");
+  });
+});
+
+describe("enrich pay-policy registry", () => {
+  it("stores the stated policy on the company and records a conflict on the posting", async () => {
+    db.insert(companies)
+      .values({
+        id: "c1",
+        name: "Acme Inc",
+        normalized_name: "acme",
+        created_at: NOW.toISOString(),
+      })
+      .run();
+    addPosting("p1", "keep", { company_id: "c1" });
+    await enrich();
+    const c = db.select().from(companies).get();
+    expect(c?.pay_policy).toBe("location_agnostic");
+    expect(c?.pay_policy_source).toBe("posting:p1");
+
+    db.update(companies)
+      .set({ pay_policy: "location_adjusted", pay_policy_source: "manual" })
+      .run();
+    addPosting("p2", "keep", { company_id: "c1" });
+    await enrich();
+    expect(db.select().from(companies).get()?.pay_policy).toBe("location_adjusted");
+    expect(JSON.parse(intelOf("p2")?.resolved_reasons ?? "[]")).toEqual([
+      "pay policy conflict: posting says location_agnostic, registry keeps location_adjusted (source manual)",
+    ]);
   });
 });

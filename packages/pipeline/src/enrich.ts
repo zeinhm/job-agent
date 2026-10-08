@@ -18,10 +18,11 @@ import { resolveFlags } from "./intel/resolve.ts";
 import {
   EXTRACT_MODEL,
   EXTRACT_PROMPT_VERSION,
-  extractFacts,
   ExtractionSchema,
+  extractFacts,
   type Extraction,
 } from "./intel/extract.ts";
+import { recordPostingPolicy } from "./intel/registry.ts";
 
 export interface EnrichOptions {
   db: Db;
@@ -109,7 +110,34 @@ const resolveStage: Stage = {
   },
 };
 
-const STAGES: Stage[] = [extractStage, resolveStage];
+/** Stores the company pay policy stated by the posting (once, never over manual / careers). */
+const registryStage: Stage = {
+  name: "registry",
+  async run(p, deps, soFar) {
+    if (soFar.extraction === undefined || soFar.extraction === null)
+      return { kind: "done", patch: {} };
+    const extraction = ExtractionSchema.parse(JSON.parse(soFar.extraction));
+    const reasons = recordPostingPolicy(deps.db, { id: p.id, companyId: p.company_id }, extraction);
+    return {
+      kind: "done",
+      patch: reasons.length > 0 ? { resolved_reasons: JSON.stringify(reasons) } : {},
+    };
+  },
+};
+
+/** resolved_reasons are JSON arrays; stages append rather than overwrite. */
+function mergePatch(a: IntelPatch, b: IntelPatch): IntelPatch {
+  const merged = { ...a, ...b };
+  if (a.resolved_reasons && b.resolved_reasons) {
+    merged.resolved_reasons = JSON.stringify([
+      ...(JSON.parse(a.resolved_reasons) as unknown[]),
+      ...(JSON.parse(b.resolved_reasons) as unknown[]),
+    ]);
+  }
+  return merged;
+}
+
+const STAGES: Stage[] = [extractStage, resolveStage, registryStage];
 
 function upsertIntel(
   db: Db,
@@ -195,7 +223,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
           outcome = "retry";
           break;
         }
-        patch = { ...patch, ...result.patch };
+        patch = mergePatch(patch, result.patch);
         if (result.kind === "failed") {
           outcome = "failed";
           break;
