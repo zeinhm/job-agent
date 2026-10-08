@@ -43,3 +43,4 @@ Last audit tag: (none yet)
 | t_d56b8ff0 | Resolve unclear location, Indonesia and role flags from extracted facts | medium | 4fe8ba2 | 2026-10-09 |
 | t_736df3a8 | Implement company pay-policy registry | medium | 5222db2 | 2026-10-09 |
 | t_63f270d0 | Implement company pay-policy research from careers pages (Haiku) | medium | 6760618 | 2026-10-09 |
+| t_5bac0f79 | Implement SmartRecruiters source adapter | medium | 69ce348 | 2026-10-09 |
