@@ -32,3 +32,20 @@ export { PartialSourceError, SourceError } from "./errors.ts";
 export { createLogger, log, type LogLevel, type LogSink, type Logger } from "./log.ts";
 export type { RawPosting, RawSalary, SourceAdapter } from "./types.ts";
 export { httpGet, httpGetJson, httpGetText, HttpError, __testInjectTimeAndSleep } from "./http.ts";
+export {
+  callStructured,
+  LlmApiError,
+  LlmOutputError,
+  MissingApiKeyError,
+  type CallStructuredOptions,
+  type LlmDeps,
+  type LlmPurpose,
+} from "./llm/client.ts";
+export {
+  BudgetExceededError,
+  DAILY_LLM_CAP_USD,
+  effectiveCapUsd,
+  jakartaDay,
+  spentOnDay,
+} from "./llm/budget.ts";
+export { MODEL_PRICES, costFromUsage, type LlmModel } from "./llm/prices.ts";
