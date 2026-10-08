@@ -3,6 +3,7 @@ import {
   NO_REMOTE_PHRASES,
   ONSITE_PHRASES,
   REMOTE_PHRASES,
+  RESTRICTED_COUNTRY_NAMES,
   RESTRICTION_PHRASES,
   WORLDWIDE_DESCRIPTION_PHRASES,
   WORLDWIDE_LOCATION_PHRASES,
@@ -31,6 +32,35 @@ function findPhrase(fields: readonly Field[], phrases: readonly string[]): Hit |
     for (const phrase of phrases) {
       if (phrasePattern(phrase).test(field.text)) return { phrase, field: field.name };
     }
+  }
+  return undefined;
+}
+
+const COUNTRY_LIST_RE = /\bcountries\s*:\s*(.+)$/i;
+const REMOTE_PREFIX_RE = /^remote\s*(?:,|:|[-\u2013\u2014])\s*(.+)$/i;
+const REMOTE_PAREN_RE = /^remote\s*\((.+)\)$/i;
+const REMOTE_SUFFIX_RE = /^(.+?)\s*\(\s*remote\s*\)$/i;
+const COUNTRY_SPLIT_RE = /\s*(?:,|\/|&|\band\b|\bor\b)\s*/i;
+const COUNTRY_NAMES = new Set(RESTRICTED_COUNTRY_NAMES.map((c) => c.toLowerCase()));
+
+/**
+ * A country named by "Countries: <list>", "Remote, <country>", "Remote - <country>" or "<country> (Remote)".
+ * Runs after the APAC check, so lists containing Indonesia or an APAC region never get here.
+ */
+function findCountryRestriction(locationText: string): Hit | undefined {
+  for (const part of locationText.split(/[;|\n]/)) {
+    const text = part.trim();
+    const listed =
+      COUNTRY_LIST_RE.exec(text)?.[1] ??
+      REMOTE_PREFIX_RE.exec(text)?.[1] ??
+      REMOTE_PAREN_RE.exec(text)?.[1] ??
+      REMOTE_SUFFIX_RE.exec(text)?.[1];
+    if (!listed) continue;
+    const country = listed
+      .split(COUNTRY_SPLIT_RE)
+      .map((item) => item.trim())
+      .find((item) => COUNTRY_NAMES.has(item.toLowerCase()));
+    if (country) return { phrase: country, field: "location" };
   }
   return undefined;
 }
@@ -121,6 +151,15 @@ export function classifyLocation(input: LocationInput): LocationResult {
   const restriction = findPhrase(allFields, RESTRICTION_PHRASES);
   if (restriction) {
     return { class: "restricted", reason: `step 2 restriction ${cite(restriction)}` };
+  }
+  const countryRestriction = findPhrase(locationFields, WORLDWIDE_LOCATION_PHRASES)
+    ? undefined
+    : findCountryRestriction(locationText);
+  if (countryRestriction) {
+    return {
+      class: "restricted",
+      reason: `step 2 country restriction ${cite(countryRestriction)}`,
+    };
   }
   const excludingRange = [...locationTimezones, ...descriptionTimezones].find(
     (t) => !t.includesTarget,

@@ -11,6 +11,7 @@ const GoldenCase = z.object({
   descriptionSnippet: z.string(),
   expected: z.enum(CLASSES),
   source: z.string(),
+  added: z.literal("phase2").optional(),
 });
 
 const cases = z
@@ -81,6 +82,10 @@ describe("location golden set", () => {
         cases.some((c) => c.expected === cls),
         cls,
       ).toBe(true);
+  });
+
+  it("has at least 15 phase2 rows", () => {
+    expect(cases.filter((c) => c.added === "phase2").length).toBeGreaterThanOrEqual(15);
   });
 
   it("every result has a non-empty reason", () => {

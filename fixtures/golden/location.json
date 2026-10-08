@@ -383,5 +383,165 @@
     "descriptionSnippet": "Explicit APAC/Asia scope",
     "expected": "apac_ok",
     "source": "PLAN example"
+  },
+  {
+    "id": "loc-56",
+    "locationText": "Countries: Switzerland",
+    "descriptionSnippet": "Himalayas country restriction",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-57",
+    "locationText": "Countries: United States",
+    "descriptionSnippet": "Himalayas country restriction",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-58",
+    "locationText": "Countries: Brazil",
+    "descriptionSnippet": "Himalayas country restriction",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-59",
+    "locationText": "Countries: United Kingdom",
+    "descriptionSnippet": "Himalayas country restriction",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-60",
+    "locationText": "Countries: Germany, France",
+    "descriptionSnippet": "Country list without Indonesia or a covering region",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-61",
+    "locationText": "Countries: Indonesia, Vietnam",
+    "descriptionSnippet": "Country list includes Indonesia",
+    "expected": "apac_ok",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-62",
+    "locationText": "Countries: Worldwide",
+    "descriptionSnippet": "Himalayas empty country list means worldwide",
+    "expected": "worldwide",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-63",
+    "locationText": "Countries: Canada, United States; Timezones: UTC-8, UTC-5",
+    "descriptionSnippet": "Himalayas country plus timezone restriction",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-64",
+    "locationText": "Countries: Germany; Timezones: UTC+1",
+    "descriptionSnippet": "Himalayas single-country posting",
+    "expected": "restricted",
+    "source": "packages/sources/test/fixtures/himalayas/page1.json (Himalayas locationRestrictions)",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-65",
+    "locationText": "Remote, United States",
+    "descriptionSnippet": "Engineering role, remote within one country",
+    "expected": "restricted",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-66",
+    "locationText": "Remote, Indonesia",
+    "descriptionSnippet": "Engineering role, remote in Indonesia",
+    "expected": "apac_ok",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-67",
+    "locationText": "Remote, APAC",
+    "descriptionSnippet": "Engineering role, remote in APAC",
+    "expected": "apac_ok",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-68",
+    "locationText": "Remote - Germany",
+    "descriptionSnippet": "Remote within Germany",
+    "expected": "restricted",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-69",
+    "locationText": "Remote - Singapore",
+    "descriptionSnippet": "Remote within Singapore only (no Indonesia, no covering region)",
+    "expected": "restricted",
+    "source": "https://www.workingnomads.com public listing location string",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-70",
+    "locationText": "Canada (Remote)",
+    "descriptionSnippet": "Remote within Canada",
+    "expected": "restricted",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-71",
+    "locationText": "United Kingdom (Remote)",
+    "descriptionSnippet": "Remote within the UK",
+    "expected": "restricted",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-72",
+    "locationText": "Remote, USA",
+    "descriptionSnippet": "Remote within the USA",
+    "expected": "restricted",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-73",
+    "locationText": "Remote, Poland / Ukraine",
+    "descriptionSnippet": "Remote in two named countries",
+    "expected": "restricted",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-74",
+    "locationText": "Remote, Southeast Asia",
+    "descriptionSnippet": "Remote in SEA",
+    "expected": "apac_ok",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
+  },
+  {
+    "id": "loc-75",
+    "locationText": "Remote - Anywhere",
+    "descriptionSnippet": "No restriction stated",
+    "expected": "worldwide",
+    "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
+    "added": "phase2"
   }
 ]

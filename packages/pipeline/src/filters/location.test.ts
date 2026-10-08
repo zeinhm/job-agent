@@ -177,3 +177,30 @@ describe("reasons", () => {
     ).toContain('"must reside in" in description');
   });
 });
+
+describe("step 2: country-restricted remote", () => {
+  it.each([
+    "Remote, United States",
+    "Remote - Germany",
+    "Remote \u2013 France",
+    "Canada (Remote)",
+    "Remote (Brazil)",
+    "Countries: Germany, France",
+    "Countries: Switzerland; Timezones: UTC+1",
+    "Remote, Poland / Ukraine",
+  ])("%s -> restricted", (locationText) => {
+    check({ locationText }, "restricted", "country restriction");
+  });
+
+  it.each([
+    ["Remote, Indonesia", "apac_ok"],
+    ["Countries: Indonesia, Vietnam", "apac_ok"],
+    ["Remote, APAC", "apac_ok"],
+    ["Countries: Germany, Southeast Asia", "apac_ok"],
+    ["Countries: Worldwide", "worldwide"],
+    ["Remote, Anywhere", "worldwide"],
+    ["Remote, Berlin", "unclear"],
+  ] as const)("%s -> %s", (locationText, expected) => {
+    check({ locationText }, expected);
+  });
+});

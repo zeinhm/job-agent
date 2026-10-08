@@ -13,7 +13,7 @@ import {
   type Db,
 } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +56,6 @@ const COMPANIES = `companies:
 `;
 
 // The injected duplicate: a Remotive item with the same company + title as Greenhouse job 8857611002.
-const GREENHOUSE_DUP_URL = "https://job-boards.greenhouse.io/gitlab/jobs/8857611002";
 const injected = JSON.parse(
   readFileSync(new URL("fixtures/e2e/injected-duplicate-remotive.json", import.meta.url), "utf8"),
 ) as Record<string, unknown>;
@@ -233,18 +232,27 @@ describe("phase 1 pipeline end to end", () => {
       expect(a.indonesia_rule).not.toBe("domestic");
     }
 
-    // The injected duplicate is one digest entry, linked to Greenhouse, listing both sources.
+    // The injected duplicate shares company and title across two sources. Its location is
+    // "Remote, India", a country restriction, so it is classified restricted and stays out of the digest.
     const dupRows = db
       .select()
       .from(postings)
       .where(eq(postings.title, "Associate Renewals Manager, India"))
       .all();
     expect(dupRows.map((p) => p.source).sort()).toEqual(["greenhouse", "remotive"]);
-    const heading = "### Associate Renewals Manager, India — GitLab";
-    expect(digest.split(heading)).toHaveLength(2);
-    const entry = digest.slice(digest.indexOf(heading)).split("\n\n")[1] ?? "";
-    expect(entry).toContain(`- Link: ${GREENHOUSE_DUP_URL}`);
-    expect(entry).toContain("- Sources: greenhouse, remotive");
+    const dupAnalysis = db
+      .select()
+      .from(analysis)
+      .where(
+        inArray(
+          analysis.posting_id,
+          dupRows.map((p) => p.id),
+        ),
+      )
+      .all();
+    expect(dupAnalysis.length).toBeGreaterThan(0);
+    for (const a of dupAnalysis) expect(a.location_class).toBe("restricted");
+    expect(digest).not.toContain("### Associate Renewals Manager, India");
 
     // Digest file layout.
     expect(path).toBe(join(dir, "digests", `${DATE}.md`));
