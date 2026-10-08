@@ -30,3 +30,4 @@ Last audit tag: (none yet)
 | t_4595a4e3 | Rework: Location eligibility golden set (relabel 17 disputed cases) | medium | b271004 | 2026-10-07 |
 | t_5f8224a0 | Implement Indonesia rule filter with golden set | medium | 35aa9f0 | 2026-10-07 |
 | t_b7a7cd40 | Implement process command (normalize, dedupe, filters, analysis rows) | medium | 991a7ae | 2026-10-08 |
+| t_0e4cc928 | Pilot: add docs/pilot.md | low | 4dc5700 | 2026-10-08 |
