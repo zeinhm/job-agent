@@ -1,0 +1,5 @@
+{
+  "permissions": {
+    "allow": ["Bash(hermes kanban create:*)", "Bash(hermes kanban link:*)", "WebFetch"]
+  }
+}

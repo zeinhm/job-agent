@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# release <task-id> ["answer"] [--local]: answer a HELD card (Doctor or owner) and let the automation continue.
+#   The answer is posted on the card, so the next run reads it. Retry and FAIL counters for the card reset.
+#   --local: run this dev card on Pro instead of the cloud (e.g. after the cloud attempts are used up).
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+ID="${1:?usage: release <task-id> [\"answer\"] [--local]}"; shift
+A=""; LOCAL=0; for x in "$@"; do [ "$x" = "--local" ] && LOCAL=1 || A="$x"; done
+[ -n "$A" ] && hk comment "$ID" "Answer: $A" >/dev/null
+rm -f "$STATE/errors/$ID" "$STATE/fails/$ID" "$STATE/notes/$ID.owner" "$STATE/cloud/$ID"
+[ $LOCAL -eq 1 ] && touch "$STATE/notes/$ID.local"
+hk unblock "$ID" && log "released $ID${A:+: $A}$([ $LOCAL -eq 1 ] && echo ' (local run)')"

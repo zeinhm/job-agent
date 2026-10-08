@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# cloud-dev <task-id> <attempt>: start the Dev's work for one card as a Claude Code cloud session
+# (cloud credit, not the Pro plan). Prints "SESSION <url>" and exits 0 when the session started.
+# Exit 43 = cloud credit used up / expired (caller switches the Dev to Pro). Exit 1 = other launch failure.
+# The session finishes by pushing a commit "[<id>] DONE: ..." (or "[<id>] BLOCKED: ...") that
+# bin/dispatch picks up from GitHub, so no branch-name guessing and no waiting on the session itself.
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+ID="$1"; ATTEMPT="${2:-1}"
+BR="$(dev_branch "$ID")"
+git -C "$REPO" fetch -q origin 2>/dev/null || true
+if git -C "$REPO" show-ref --quiet "refs/remotes/origin/$BR"; then
+  START="The branch $BR already exists on GitHub (earlier attempt, or the task being reworked). Run: git fetch origin && git checkout $BR && git merge origin/main (resolve any conflicts first; for source registries keep every entry from both sides). Then inspect git log to see what is already done, and continue from there."
+else
+  START="Create the branch from main: git fetch origin && git checkout -b $BR origin/main"
+fi
+PREV=""
+[ "$ATTEMPT" -gt 1 ] && PREV="This is attempt $ATTEMPT of $CLOUD_MAX_TRIES. The previous attempt ended without a DONE commit. Keep whatever useful work it pushed; find out from git log and the code why it did not finish, and finish it."
+PF="$REPO/data/handoff/$ID-cloud-prompt.md"; mkdir -p "$(dirname "$PF")"
+{
+cat <<P
+You are the Dev of an automated build team, running UNATTENDED in a Claude Code cloud session.
+Nobody will read or answer questions during this session. Never stop to ask, never wait for input:
+make reasonable decisions, write your assumptions into the final commit message, and keep going.
+
+Task: $ID
+Branch: $BR
+Attempt: $ATTEMPT of $CLOUD_MAX_TRIES
+$PREV
+
+## How to work (contract with the automation, follow exactly)
+1. $START
+2. Read AGENTS.md and prompts/roles/dev.md first and follow them.
+3. Commit early and push often: git push -u origin $BR after every meaningful step, so no work is lost if the
+   session ends. EVERY commit message contains [$ID].
+4. Before finishing: pnpm install && pnpm check must pass completely.
+5. Finish with exactly one final commit (use git commit --allow-empty if nothing is left to change) and push it:
+     subject:  [$ID] DONE: <one-line summary>
+     body:     the evidence: each acceptance criterion with how it is met; the commands you ran with their real
+               output (trimmed); new dependencies with a one-line reason; assumptions you made.
+6. Only if you truly cannot finish (a secret or account you do not have, a contradiction in the card): push a final
+   commit with subject "[$ID] BLOCKED: <the exact question>" and what you tried in the body. Never leave the
+   session waiting for an answer.
+7. Never push to main, never force-push, never open a pull request, never touch config/ or .env.
+
+## Role instructions
+$(cat "$REPO/prompts/roles/dev.md")
+
+## Task card
+$(card "$ID")
+P
+} > "$PF"
+OUT="$(script -q /dev/null claude --cloud "$(cat "$PF")" 2>&1)"; RC=$?
+URL="$(printf '%s' "$OUT" | grep -oE 'https://claude\.ai/code/session_[A-Za-z0-9]+' | head -1)"
+if printf '%s' "$OUT" | grep -qiE "out of (usage|credits)|insufficient credit|credit.*(exhausted|expired|used)|no (remaining )?credit"; then
+  echo "CLOUD_CREDIT_OUT"; printf '%s\n' "$OUT" | tail -3; exit 43
+fi
+if [ $RC -ne 0 ] || [ -z "$URL" ]; then echo "CLOUD_LAUNCH_FAILED"; printf '%s\n' "$OUT" | tail -5; exit 1; fi
+echo "SESSION $URL"

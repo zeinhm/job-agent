@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# escalate <task-id> "question": the Doctor hands a HELD card's question to the owner (NEEDS-ZEIN.md + notification).
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+ID="${1:?task id}"; Q="${2:?question}"
+printf '%s\n' "$Q" > "$STATE/notes/$ID.owner"
+hk comment "$ID" "Escalated to the owner: $Q" >/dev/null; log "escalated $ID to the owner: $Q"

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# cc-run <role> <workdir> <prompt-file> <out-file>: one local Claude Code run on the Pro plan,
+# with the role's model (bin/jobagent.conf) and permissions (.claude/roles/<role>.json, merged with the
+# private ~/.config/job-agent/claude-overrides.json if present).
+# Exit 42 = Pro limit reached (the out-file's last line is "LIMIT_RESET_EPOCH=<epoch or empty>").
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+ROLE="$1"; WD="$2"; PF="$3"; OUT="$4"
+eval "MODEL=\${MODEL_$ROLE:-sonnet}"
+SET="$(mktemp "${TMPDIR:-/tmp}/cc-settings.XXXXXX")"
+BASE="$REPO/.claude/roles/$ROLE.json"; OV="$HOME/.config/job-agent/claude-overrides.json"
+if [ -f "$BASE" ] && [ -f "$OV" ] && command -v jq >/dev/null; then jq -s '.[0] * .[1]' "$BASE" "$OV" > "$SET"
+elif [ -f "$BASE" ]; then cp "$BASE" "$SET"; else echo '{}' > "$SET"; fi
+( cd "$WD" && claude -p "$(cat "$PF")" --model "$MODEL" --settings "$SET" --permission-mode acceptEdits \
+    --add-dir "$(dirname "$PF")" ) > "$OUT" 2>&1 </dev/null
+RC=$?; rm -f "$SET"
+if grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit|out of (usage|credits)" "$OUT" \
+   && ! grep -q '^VERDICT:' "$OUT"; then
+  T="$(grep -oiE 'resets? +[0-9]{1,2}(:[0-9]{2})? ?[ap]m' "$OUT" | head -1 | grep -oiE '[0-9]{1,2}(:[0-9]{2})? ?[ap]m' | tr -d ' ' | tr 'a-z' 'A-Z')"
+  E=""; if [ -n "$T" ]; then
+    case "$T" in *:*) F="%I:%M%p" ;; *) F="%I%p" ;; esac
+    E="$(date -j -f "$F" "$T" +%s 2>/dev/null || date -d "$(printf '%s' "$T" | sed -E 's/([0-9])(AM|PM)/\1 \2/')" +%s 2>/dev/null)"
+    [ -n "$E" ] && [ "$E" -le "$(now)" ] && E=$((E + 86400))   # reset time already passed today -> tomorrow
+  fi
+  echo "LIMIT_RESET_EPOCH=$E" >> "$OUT"; exit 42
+fi
+exit $RC

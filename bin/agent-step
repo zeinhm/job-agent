@@ -1,343 +1,170 @@
 #!/usr/bin/env bash
-# agent-step: run one Hermes board task through Claude Code, as plain code.
+# agent-step <role> <task-id>: one LOCAL run (Claude Code on the Pro plan) for qa | auditor | researcher | pm,
+# and for dev only when the cloud is unavailable. Does all mechanical work as code and ends with ACTION lines
+# that bin/dispatch acts on. It never blocks a card itself.
 #
-#   bin/agent-step <role> <task-id>        role: dev | qa | auditor | researcher | pm
-#
-# Does every mechanical step deterministically: saves the card, prepares the
-# worktree (dev), builds the prompt, runs bin/cc-route, reads the verdict,
-# posts the report as a comment, and does the git work (push / merge / ledger /
-# cleanup / commit docs). The calling Hermes agent only acts on the last lines:
-#
-#   ACTION: complete            -> complete the task, SUMMARY is the summary
-#   ACTION: block               -> block the task, REASON is the reason
-#
-# Written for macOS bash 3.2 (no bash 4 features).
+#   ACTION: complete   SUMMARY: ...
+#   ACTION: rework     KIND: fail|sync   REWORK_TITLE: ...   REWORK_BODY_FILE: ...
+#   ACTION: pause      RESET: <epoch or empty>          (Pro limit reached)
+#   ACTION: question   QUESTION: ...                    (needs a decision: Doctor first, owner if it must be)
 set -uo pipefail
-
-ROLE="${1:?usage: agent-step <dev|qa|auditor|researcher|pm> <task-id>}"
-ID="${2:?usage: agent-step <dev|qa|auditor|researcher|pm> <task-id>}"
-case "$ROLE" in dev|qa|auditor|researcher|pm) ;; *) echo "unknown role: $ROLE" >&2; exit 2 ;; esac
-
-REPO="$(git rev-parse --show-toplevel)" || exit 2
+. "$(dirname "$0")/lib.sh"
+ROLE="${1:?role}"; ID="${2:?task id}"
+case "$ROLE" in dev|qa|auditor|researcher|pm) ;; *) echo "unknown role $ROLE" >&2; exit 2 ;; esac
 cd "$REPO"
 H="$REPO/data/handoff"; mkdir -p "$H"
-CARDF="$H/$ID-card.md"; PROMPTF="$H/$ID-prompt.md"; OUTF="$H/$ID-out.txt"; COMMENTF="$H/$ID-comment.md"
+CARDF="$H/$ID-card.md"; PROMPTF="$H/$ID-prompt.md"; OUTF="$H/$ID-out.txt"; COMMENTF="$H/$ID-comment.md"; REPORTF="$H/$ID-report.md"
 LOCK="$REPO/.git/agent-step.lock"
 
-finish() { # $1=complete|block  $2=text
-  echo
-  echo "AGENT-STEP RESULT"
-  echo "ACTION: $1"
-  if [ "$1" = complete ]; then echo "SUMMARY: $2"; else echo "REASON: $2"; fi
-  exit 0
-}
-lock_main() { # serialize work in the main checkout across agents (max 10 min wait)
-  local i=0
-  until mkdir "$LOCK" 2>/dev/null; do
-    i=$((i+1)); [ $i -gt 120 ] && finish block "HUMAN: main checkout lock busy for 10 min ($LOCK); remove it if no agent is running"
-    sleep 5
-  done
-  trap 'rmdir "$LOCK" 2>/dev/null' EXIT
-}
-unlock_main() { rmdir "$LOCK" 2>/dev/null; trap - EXIT; }
-gpush() { # git with the repo token from the macOS Keychain, for this one command only (same as the owner's jpush).
-  # The token never enters the environment that Claude Code runs in.
-  local tok=""
-  command -v security >/dev/null 2>&1 && tok="$(security find-generic-password -a "${USER:-$(id -un)}" -s "${AGENT_STEP_KEYCHAIN_SERVICE:-job-agent-github-token}" -w 2>/dev/null)"
-  JOB_AGENT_GITHUB_TOKEN="${tok:-${JOB_AGENT_GITHUB_TOKEN:-}}" git "$@"
-}
-push_or_block() { # $1 = block reason, rest = git args. Pushes with gpush; on failure blocks with git's last error line.
-  local msg="$1" out; shift
-  out="$(gpush "$@" 2>&1)" && return 0
-  finish block "$msg: $(printf '%s\n' "$out" | grep -v '^ *$' | tail -1)"
-}
-only_amended_on_remote() { # $1 = remote sha. True when every commit that exists only on the remote has a twin
-  # (same author + subject) in the local branch, i.e. the local branch amended/rebased it rather than missing new work.
-  local c twins
-  twins="$(git -C "$WORKDIR" log --format='%ae %s' HEAD --not "$1")"
-  for c in $(git -C "$WORKDIR" rev-list "$1" --not HEAD); do
-    printf '%s\n' "$twins" | grep -qxF "$(git -C "$WORKDIR" log -1 --format='%ae %s' "$c")" || return 1
-  done
-}
-push_task_branch() { # pushes $BR from $WORKDIR; uses --force-with-lease only when the remote holds amended copies
-  local out rsha
-  out="$(gpush -C "$WORKDIR" push -q -u origin "$BR" 2>&1)" && return 0
-  gpush -C "$WORKDIR" fetch -q origin "$BR" 2>/dev/null
-  rsha="$(git -C "$WORKDIR" rev-parse -q --verify "refs/remotes/origin/$BR")"
-  if [ -n "$rsha" ] && ! git -C "$WORKDIR" merge-base --is-ancestor "$rsha" HEAD; then
-    if only_amended_on_remote "$rsha"; then
-      out="$(gpush -C "$WORKDIR" push -q -u --force-with-lease="$BR:$rsha" origin "$BR" 2>&1)" \
-        && { echo "[agent-step] force-pushed $BR: remote tip $rsha was amended locally"; return 0; }
-    else
-      finish block "HUMAN: could not push $BR: the remote branch has commits that are not in the local branch (e.g. a cloud session pushed). Pull them into the worktree or push by hand"
-    fi
-  fi
-  finish block "HUMAN: could not push $BR: $(printf '%s\n' "$out" | grep -v '^ *$' | tail -1)"
-}
-main_clean_or_block() {
-  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-    finish block "HUMAN: the main checkout has uncommitted changes; commit or stash them, then unblock"
-  fi
-}
-post_comment() {
-  if [ -s "$COMMENTF" ]; then
-    hermes kanban comment "$ID" "$(cat "$COMMENTF")" >/dev/null 2>&1 || echo "[agent-step] warning: could not post comment"
-  else
-    hermes kanban comment "$ID" "$(printf 'Claude Code report (comment file missing), last lines:\n\n%s' "$(tail -40 "$OUTF")")" >/dev/null 2>&1 || true
-  fi
-}
-rework() { # $1 = title, $2 = body file, $3 = reason. Asks the wrapper agent to create a dev card and wait on it.
-  echo
-  echo "AGENT-STEP RESULT"
-  echo "ACTION: rework"
-  echo "REWORK_TITLE: $1"
-  echo "REWORK_BODY_FILE: $2"
-  echo "REASON: $3"
-  exit 0
-}
-wt_for_branch() { # prints the worktree path where branch $1 is checked out, if any
-  git worktree list --porcelain | awk -v b="refs/heads/$1" '/^worktree /{p=$2} $0=="branch "b{print p; exit}'
-}
-sync_card() { # $1 = branch, $2 = conflicting files. Creates a "sync with main" rework (not counted as a FAIL).
-  local f="$H/$ID-sync.md" dt
-  dt="$(printf '%s' "$1" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
-  {
-    echo "Branch: $1"; echo
-    echo "**Risk:** high"; echo
-    echo "The branch no longer merges cleanly with main. Conflicting files:"
-    printf '%s\n' "$2" | sed 's/^/- /'; echo
-    echo "Merge origin/main into the branch, resolve every conflict (for source registries keep every entry from both sides),"
-    echo "update tests that changed because of main, re-run \`pnpm check\`, commit the merge and report evidence."
-    echo "Original dev task: ${dt:-unknown}. QA card waiting on this: $ID."
-  } > "$f"
-  rework "Sync with main: ${DEVTITLE:-$1}" "$f" "SYNC: waiting on sync card for $1"
-}
-merge_branch() { # $1 = branch; merges into main and pushes. Blocks on any problem.
-  local br="$1"
-  lock_main
-  main_clean_or_block
-  git checkout -q main || finish block "HUMAN: could not check out main"
-  git pull -q --ff-only origin main || finish block "HUMAN: git pull on main failed (diverged?)"
-  git fetch -q origin "$br" 2>/dev/null || true
-  local ref="$br"; git show-ref --quiet "refs/heads/$br" || ref="origin/$br"
-  # squash: main only ever receives the final state of the branch, never its intermediate commits
-  # (so anything fixed by a rework, e.g. a leaked value, never enters main's history)
+act()      { echo; echo "AGENT-STEP RESULT"; echo "ACTION: $1"; shift; for kv in "$@"; do echo "$kv"; done; exit 0; }
+complete() { act complete "SUMMARY: $1"; }
+question() { act question "QUESTION: $1"; }
+lock_main(){ local i=0; until mkdir "$LOCK" 2>/dev/null; do i=$((i+1)); [ $i -gt 120 ] && question "main checkout lock stuck ($LOCK)"; sleep 5; done
+             trap 'rmdir "$LOCK" 2>/dev/null' EXIT; }
+unlock_main(){ rmdir "$LOCK" 2>/dev/null; trap - EXIT; }
+main_ready(){ git checkout -q main 2>/dev/null || question "could not check out main in the repo"
+              if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+                git stash push -q -m "agent-step $ID: owner's uncommitted changes" && log "stashed uncommitted changes in main for $ID (git stash list)"
+              fi
+              git pull -q --ff-only origin main || question "git pull on main failed (diverged?)"; }
+post_comment(){ local f="$COMMENTF"; [ -s "$f" ] || { printf 'Report (no comment file), last lines:\n\n%s\n' "$(tail -40 "$OUTF")" > "$H/$ID-fallback.md"; f="$H/$ID-fallback.md"; }
+                hk comment "$ID" "$(cat "$f")" >/dev/null; }
+task_branch(){ local b; b="$(git branch --list "task/$1-*" --format='%(refname:short)' | head -1)"
+               [ -z "$b" ] && b="$(git ls-remote --heads origin "task/$1-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
+               printf '%s' "$b"; }
+squash_merge(){ # $1 branch, $2 commit title -> merged and pushed, or a sync rework
+  local br="$1" ref cf
+  lock_main; main_ready
+  git fetch -q origin "$br" 2>/dev/null; ref="origin/$br"; git show-ref --quiet "refs/remotes/$ref" || ref="$br"
   if ! git merge -q --squash "$ref" >/dev/null 2>&1; then
-    local cf; cf="$(git diff --name-only --diff-filter=U)"
-    git reset -q --hard HEAD; unlock_main
-    [ -n "$cf" ] && sync_card "$br" "$cf"
-    finish block "HUMAN: squash merge of $br failed"
+    cf="$(git diff --name-only --diff-filter=U)"; git reset -q --hard HEAD; unlock_main; sync_rework "$br" "$cf"
   fi
-  git diff --cached --quiet && { unlock_main; finish block "HUMAN: $br has nothing to merge (already in main?)"; }
-  git commit -q -m "${MERGE_TITLE:-Merge $br} ($ID, squash of $br)" || { git reset -q --hard HEAD; unlock_main; finish block "HUMAN: squash commit of $br was refused (pre-commit hook?), see data/handoff/$ID-out.txt"; }
+  git diff --cached --quiet && { unlock_main; complete "Nothing to merge: $br is already in main"; }
+  git commit -q -m "$2 ($ID, squash of $br)" || { git reset -q --hard HEAD; unlock_main; question "the squash commit of $br was refused by the pre-commit hook: see $OUTF"; }
+  gpush -q origin main || { git reset -q --hard HEAD~1; unlock_main; question "push of main failed after merging $br"; }
 }
-cleanup_branch() { # $1 = branch, $2 = dev task id
-  git worktree remove --force ".worktrees/$2" 2>/dev/null
-  git worktree remove --force ".worktrees/$2-review" 2>/dev/null
-  git branch -q -D "$1" 2>/dev/null
-  gpush push -q origin --delete "$1" 2>/dev/null || true
-}
-
-# ---------------------------------------------------------------- card
-hermes kanban show "$ID" > "$CARDF" 2>/dev/null || finish block "HUMAN: could not read task $ID"
-TITLE="$(head -1 "$CARDF" | sed -E "s/^Task $ID: //")"
-MAX_FAILS="${AGENT_STEP_MAX_FAILS:-3}"
-PREV_FAILS="$(grep -c 'FAIL: waiting on rework card' "$CARDF" 2>/dev/null || true)"
-REWORK_DEPTH="$(printf '%s' "$(head -1 "$CARDF")" | grep -o 'Rework' | wc -l | tr -d ' ')"
-fail_or_stop() { # FAIL verdict: ask the wrapper to create a rework card, or stop the loop
-  if [ "$PREV_FAILS" -ge $((MAX_FAILS - 1)) ]; then
-    finish block "HUMAN: FAIL number $((PREV_FAILS + 1)) on this task (limit $MAX_FAILS). Stopping the rework loop: decide whether to fix it yourself, change the task, or drop it"
-  fi
-  local f="$H/$ID-rework.md"
-  { echo "Branch: $VBR"; echo; echo "**Risk:** high"; echo; echo "Fix exactly the numbered findings below, re-run all checks, and address each finding by number in the evidence."
+sync_rework(){ # $1 branch, $2 conflicting files
+  local f="$H/$ID-sync.md"
+  { echo "Branch: $1"; echo; echo "**Risk:** high"; echo
+    echo "The branch no longer merges cleanly with main. Conflicting files:"; printf '%s\n' "$2" | sed 's/^/- /'; echo
+    echo "Merge origin/main into the branch, resolve every conflict (for source registries keep every entry from both sides),"
+    echo "update tests affected by main, make pnpm check green. Review card waiting on this: $ID."; } > "$f"
+  act rework "KIND: sync" "REWORK_TITLE: Sync with main: ${DEVTITLE:-$1}" "REWORK_BODY_FILE: $f"; }
+fail_rework(){ local f="$H/$ID-rework.md"
+  { echo "Branch: $BR"; echo; echo "**Risk:** high"; echo
+    echo "Fix exactly the numbered findings below, re-run all checks, and address each finding by number."
     echo "Review card waiting on this: $ID."; echo; cat "$COMMENTF" 2>/dev/null || tail -60 "$OUTF"; } > "$f"
-  rework "Rework: ${DEVTITLE:-$VBR}" "$f" "FAIL: waiting on rework card (cycle $((PREV_FAILS + 1)) of $MAX_FAILS)"
-}
+  act rework "KIND: fail" "REWORK_TITLE: Rework: ${DEVTITLE:-$BR}" "REWORK_BODY_FILE: $f"; }
+
+card "$ID" > "$CARDF"; head -1 "$CARDF" | grep -q "^Task $ID" || question "could not read card $ID"
+TITLE="$(head -1 "$CARDF" | sed -E "s/^Task $ID: //")"
 RISK="$(grep -m1 -oiE '\*\*Risk:\*\* *(high|medium|low)' "$CARDF" | grep -oiE 'high|medium|low' | tr 'A-Z' 'a-z')"
-PARENTS="$(sed -n 's/^ *parents: *//p' "$CARDF" | tr ',' ' ')"
-rm -f "$COMMENTF"
+PARENTS="$(field "$(cat "$CARDF")" parents | tr ',' ' ')"
+rm -f "$COMMENTF" "$REPORTF"
+WORKDIR="$REPO"; BR="-"; DEVTITLE=""; REVIEW_WT=""; NOTE=""
 
-if [ "$ROLE" = dev ] && [ "$REWORK_DEPTH" -ge 3 ]; then
-  finish block "HUMAN: rework of a rework of a rework ($TITLE). Stopping the loop: needs a human decision"
-fi
-
-# ---------------------------------------------------------------- work dir
-WORKDIR="$REPO"; CLOUD=0; BR="-"; PREFER=""
+# ------------------------------------------------------------------ prepare the work dir
 if [ "$ROLE" = dev ]; then
-  CLOUD=1
-  BR="$(git branch --list "task/$ID-*" --format='%(refname:short)' | head -1)"
-  [ -z "$BR" ] && BR="$(git ls-remote --heads origin "task/$ID-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
-  # rework / sync cards continue on the original dev branch named in the card ("Branch: task/...")
-  [ -z "$BR" ] && BR="$(grep -m1 -oE 'Branch: *task/t_[0-9a-f]+-[A-Za-z0-9._-]+' "$CARDF" | sed -E 's/^Branch: *//')"
-  if [ -z "$BR" ]; then
-    SLUG="$(printf '%s' "$TITLE" | tr 'A-Z' 'a-z' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-30 | sed -E 's/-+$//')"
-    BR="task/$ID-${SLUG:-work}"
-  fi
-  git fetch -q origin 2>/dev/null || true
-  # dev prefers the cloud credit, except when resuming: a branch already on origin with commits
-  # main lacks may hold a running/finished cloud session, so go local-first and never start a second one
-  PREFER=cloud
-  if git show-ref --quiet "refs/remotes/origin/$BR" && [ "$(git rev-list --count "origin/main..origin/$BR" 2>/dev/null || echo 0)" -gt 0 ]; then
-    PREFER=""
-  fi
-  WORKDIR="$(wt_for_branch "$BR")"
+  BR="$(dev_branch "$ID")"; git fetch -q origin 2>/dev/null
+  WORKDIR="$(git worktree list --porcelain | awk -v b="refs/heads/$BR" '/^worktree /{p=$2} $0=="branch "b{print p; exit}')"
   if [ -z "$WORKDIR" ]; then
-    WTID="$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"; WORKDIR="$REPO/.worktrees/${WTID:-$ID}"
+    WORKDIR="$REPO/.worktrees/$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
     if git show-ref --quiet "refs/heads/$BR"; then git worktree add -q "$WORKDIR" "$BR"
     elif git show-ref --quiet "refs/remotes/origin/$BR"; then git worktree add -q "$WORKDIR" -b "$BR" "origin/$BR"
-    else git worktree add -q "$WORKDIR" -b "$BR" origin/main 2>/dev/null || git worktree add -q "$WORKDIR" -b "$BR" main
-    fi || finish block "HUMAN: could not create worktree for $BR"
+    else git worktree add -q "$WORKDIR" -b "$BR" origin/main; fi || question "could not create the worktree for $BR"
   fi
-  git -C "$WORKDIR" pull -q --ff-only origin "$BR" 2>/dev/null || true   # picks up a finished cloud session
-  # keep the branch current with main; leave conflicts for Claude Code to resolve
-  SYNC_NOTE=""
+  git -C "$WORKDIR" pull -q --ff-only origin "$BR" 2>/dev/null
   if ! git -C "$WORKDIR" merge -q --no-edit origin/main >/dev/null 2>&1; then
-    CONFL="$(git -C "$WORKDIR" diff --name-only --diff-filter=U)"
-    if [ -n "$CONFL" ]; then
-      SYNC_NOTE="IMPORTANT: origin/main was just merged into this branch and has CONFLICTS in: $(printf '%s' "$CONFL" | tr '\n' ' '). Resolve them first (for source registries keep every entry from both sides), update affected tests, then commit the merge."
-    else
-      git -C "$WORKDIR" merge --abort 2>/dev/null
-    fi
+    CF="$(git -C "$WORKDIR" diff --name-only --diff-filter=U)"
+    [ -n "$CF" ] && NOTE="origin/main was merged into this branch and has CONFLICTS in: $(printf '%s' "$CF" | tr '\n' ' '). Resolve them first (keep every registry entry from both sides), then commit the merge." \
+                 || git -C "$WORKDIR" merge --abort 2>/dev/null
   fi
-fi
-
-find_task_branch() { # $1 = task id -> prints task/<id>-* branch (local or on origin)
-  local b
-  b="$(git branch --list "task/$1-*" --format='%(refname:short)' | head -1)"
-  [ -z "$b" ] && b="$(git ls-remote --heads origin "task/$1-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
-  printf '%s' "$b"
-}
-REVIEW_WT=""
-if [ "$ROLE" = qa ] || [ "$ROLE" = auditor ]; then
-  REVIEW_BR=""
-  for p in $PARENTS; do REVIEW_BR="$(find_task_branch "$p")"; [ -n "$REVIEW_BR" ] && break; done
-  if [ -z "$REVIEW_BR" ]; then   # e.g. auditor card whose parent is the QA card: look one level further
-    for p in $PARENTS; do
-      for gp in $(hermes kanban show "$p" 2>/dev/null | sed -n 's/^ *parents: *//p' | tr ',' ' '); do
-        REVIEW_BR="$(find_task_branch "$gp")"; [ -n "$REVIEW_BR" ] && break 2
-      done
-    done
-  fi
-  git fetch -q origin 2>/dev/null || true
-  REVIEW_WT="$REPO/.worktrees/$ID-review"
-  git worktree remove --force "$REVIEW_WT" 2>/dev/null
-  if [ -n "$REVIEW_BR" ]; then
-    REF="$REVIEW_BR"; git show-ref --quiet "refs/remotes/origin/$REVIEW_BR" && REF="origin/$REVIEW_BR"
-    git worktree add -q --detach "$REVIEW_WT" "$REF" || finish block "HUMAN: could not create review worktree for $REVIEW_BR"
-    BR="$REVIEW_BR"
-    DEVTITLE="$(hermes kanban show "$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')" 2>/dev/null | head -1 | sed -E 's/^Task [^:]*: //')"
-    # review what main will actually get: the branch merged with current main
+elif [ "$ROLE" = qa ] || [ "$ROLE" = auditor ]; then
+  for p in $PARENTS; do BR="$(task_branch "$p")"; [ -n "$BR" ] && break; done
+  if [ -z "$BR" ]; then for p in $PARENTS; do for gp in $(field "$(card "$p")" parents | tr ',' ' '); do
+      BR="$(task_branch "$gp")"; [ -n "$BR" ] && break 2; done; done; fi
+  git fetch -q origin 2>/dev/null; REVIEW_WT="$REPO/.worktrees/$ID-review"; git worktree remove --force "$REVIEW_WT" 2>/dev/null
+  if [ -n "$BR" ]; then
+    DEVTITLE="$(title_of "$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')")"
+    REF="$BR"; git show-ref --quiet "refs/remotes/origin/$BR" && REF="origin/$BR"
+    git worktree add -q --detach "$REVIEW_WT" "$REF" || question "could not create a review checkout of $BR"
     if ! git -C "$REVIEW_WT" -c user.name=agent-step -c user.email=agent-step@local merge -q --no-edit origin/main >/dev/null 2>&1; then
-      CONFL="$(git -C "$REVIEW_WT" diff --name-only --diff-filter=U)"
-      git -C "$REVIEW_WT" merge --abort 2>/dev/null; git worktree remove --force "$REVIEW_WT" 2>/dev/null
-      [ -n "$CONFL" ] && sync_card "$BR" "$CONFL"
-      finish block "HUMAN: could not merge origin/main into the review checkout of $BR"
+      CF="$(git -C "$REVIEW_WT" diff --name-only --diff-filter=U)"; git -C "$REVIEW_WT" merge --abort 2>/dev/null
+      git worktree remove --force "$REVIEW_WT" 2>/dev/null; [ -n "$CF" ] && sync_rework "$BR" "$CF"
+      question "could not merge origin/main into the review checkout of $BR"
     fi
-  elif [ "$ROLE" = auditor ]; then   # batch / phase-end audit: review current origin/main
-    git worktree add -q --detach "$REVIEW_WT" origin/main || finish block "HUMAN: could not create audit worktree of origin/main"
+  elif [ "$ROLE" = auditor ]; then
+    BR="-"; git worktree add -q --detach "$REVIEW_WT" origin/main || question "could not check out origin/main for the audit"
   else
-    finish block "HUMAN: QA could not find the dev branch for this card (parents: $PARENTS)"
+    question "no dev branch found for this QA card (parents: $PARENTS). If the work was done another way, close this card."
   fi
   WORKDIR="$REVIEW_WT"
 fi
-REPORTF="$H/$ID-report.md"; rm -f "$REPORTF"
 
-# ---------------------------------------------------------------- prompt
-{
-  echo "Role: $ROLE"; echo "Task: $ID"; echo "Repo root: $REPO"; echo "Work dir: $WORKDIR"
+# ------------------------------------------------------------------ prompt + run
+{ echo "Role: $ROLE"; echo "Task: $ID"; echo "Repo root: $REPO"; echo "Work dir: $WORKDIR"
   [ "$ROLE" = dev ] && echo "Branch: $BR"
-  [ -n "${SYNC_NOTE:-}" ] && echo "$SYNC_NOTE"
-  [ -n "$REVIEW_WT" ] && [ "$BR" != "-" ] && echo "Reviewing branch: $BR (you are already in a detached review worktree of it)"
-  [ -n "$REVIEW_WT" ] && [ "$BR" = "-" ] && echo "Reviewing: origin/main (batch / phase-end audit; detached worktree)"
+  [ -n "$REVIEW_WT" ] && [ "$BR" != "-" ] && echo "Reviewing branch: $BR (merged with current origin/main, detached checkout)"
+  [ -n "$REVIEW_WT" ] && [ "$BR" = "-" ] && echo "Reviewing: origin/main (batch / phase-end audit)"
   [ "$ROLE" = auditor ] && echo "Audit report file: $REPORTF"
+  [ -n "$NOTE" ] && echo "$NOTE"
   echo "Comment file: $COMMENTF"; echo
-  cat prompts/roles/common.md "prompts/roles/$ROLE.md"; echo
-  echo "## Task card"; cat "$CARDF"
+  cat prompts/roles/common.md "prompts/roles/$ROLE.md"; echo; echo "## Task card"; cat "$CARDF"
 } > "$PROMPTF"
-
-# ---------------------------------------------------------------- run Claude Code
-echo "[agent-step] $ROLE $ID: running Claude Code (this can take a while)..."
-( cd "$WORKDIR" && CC_ROUTE_CLOUD=$CLOUD CC_ROUTE_PREFER=$PREFER "$REPO/bin/cc-route" -f "$PROMPTF" ) > "$OUTF" 2>&1
-RC=$?
+log "agent-step: $ROLE $ID running Claude Code (Pro, model ${ROLE})"
+"$REPO/bin/cc-run" "$ROLE" "$WORKDIR" "$PROMPTF" "$OUTF"; RC=$?
 [ -n "$REVIEW_WT" ] && git worktree remove --force "$REVIEW_WT" 2>/dev/null
-echo "[agent-step] cc-route exit=$RC"; tail -3 "$OUTF"
-
-if grep -q '\[cc-route\] CLOUD$' "$OUTF" && ! grep -q 'CLOUD_FAILED' "$OUTF" && [ $RC -eq 0 ]; then
-  URL="$(grep -oE 'https://claude\.ai/code/[^ )]+' "$OUTF" | head -1)"
-  hermes kanban comment "$ID" "Running in a Claude Code cloud session: ${URL:-see data/handoff/$ID-out.txt}" >/dev/null 2>&1 || true
-  finish block "CLOUD: waiting for the cloud session's PR (${URL:-no url}); unblock to resume"
-fi
-if [ $RC -eq 42 ] || grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit" "$OUTF"; then
-  RESET="$(grep -oiE 'resets? [^.)]*' "$OUTF" | head -1)"
-  finish block "LIMIT: Claude Code plan limit reached${RESET:+ ($RESET)}; unblock after the reset"
-fi
-[ $RC -eq 3 ] && finish block "HUMAN: cc-route setup error: $(grep -m1 ERROR "$OUTF")"
+[ $RC -eq 42 ] && act pause "RESET: $(sed -n 's/^LIMIT_RESET_EPOCH=//p' "$OUTF" | tail -1)"
 
 VLINE="$(grep '^VERDICT:' "$OUTF" | tail -1)"
-[ -z "$VLINE" ] && { post_comment; finish block "HUMAN: Claude Code returned no verdict, see data/handoff/$ID-out.txt"; }
+[ -z "$VLINE" ] && { echo "no verdict (exit $RC)"; tail -5 "$OUTF"; exit 1; }    # dispatcher retries, then the Doctor
 VERDICT="$(printf '%s' "$VLINE" | sed -E 's/^VERDICT: *([A-Z]+).*/\1/')"
-VBR="$(printf '%s' "$VLINE" | sed -nE 's/.*\| *branch: *([^ |]+).*/\1/p')"
 VSUM="$(printf '%s' "$VLINE" | awk -F'|' '{print $NF}' | sed -E 's/^ +//; s/ +$//')"
 post_comment
-{ [ -z "$VBR" ] || [ "$VBR" = "-" ]; } && [ -n "$REVIEW_WT" ] && VBR="$BR"
+[ "$VERDICT" = BLOCKED ] && question "$VSUM"
 
-[ "$VERDICT" = BLOCKED ] && finish block "HUMAN: $VSUM"
-
-# ---------------------------------------------------------------- role actions
+# ------------------------------------------------------------------ act on the verdict
 case "$ROLE" in
   dev)
-    [ "$VERDICT" = DONE ] || finish block "HUMAN: unexpected verdict $VERDICT"
-    push_task_branch
-    finish complete "$VSUM" ;;
-
+    [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the dev run"
+    gpush -q -u origin "$BR" 2>/dev/null || gpush -q -u origin "$BR" || question "could not push $BR"
+    complete "$VSUM" ;;
   qa)
-    [ "$VERDICT" = FAIL ] && fail_or_stop
-    [ "$VERDICT" = PASS ] || finish block "HUMAN: unexpected verdict $VERDICT"
-    [ "$RISK" = high ] && finish complete "QA PASS (high risk, auditor next): $VSUM"
-    [ -z "$VBR" ] || [ "$VBR" = "-" ] && finish block "HUMAN: QA PASS but no branch in the verdict"
-    DEVID="$(printf '%s' "$VBR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
-    DEVTITLE="$(hermes kanban show "$DEVID" 2>/dev/null | head -1 | sed -E "s/^Task $DEVID: //")"
-    MERGE_TITLE="${DEVTITLE:-}" merge_branch "$VBR"
-    printf '| %s | %s | %s | %s | %s |\n' "$DEVID" "${DEVTITLE:-$VBR}" "${RISK:-medium}" "$(git rev-parse --short HEAD)" "$(date +%F)" >> docs/audit-ledger.md
-    git add docs/audit-ledger.md && git commit -q -m "chore: audit ledger $DEVID" || true
-    push_or_block "HUMAN: merged locally but push of main failed" push -q origin main
-    cleanup_branch "$VBR" "$DEVID"; unlock_main
-    finish complete "QA PASS, merged $VBR: $VSUM" ;;
-
+    [ "$VERDICT" = FAIL ] && fail_rework
+    [ "$VERDICT" = PASS ] || question "unexpected verdict $VERDICT from QA"
+    [ "$RISK" = high ] && complete "QA PASS (high risk, the auditor merges): $VSUM"
+    DEVID="$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
+    squash_merge "$BR" "${DEVTITLE:-Merge $BR}"
+    printf '| %s | %s | %s | %s | %s |\n' "$DEVID" "${DEVTITLE:-$BR}" "${RISK:-medium}" "$(git rev-parse --short HEAD)" "$(date +%F)" >> docs/audit-ledger.md
+    git add docs/audit-ledger.md && git commit -q -m "chore: audit ledger $DEVID" && gpush -q origin main
+    echo "$DEVID ${RISK:-medium}" >> "$STATE/merged.log"
+    git worktree remove --force ".worktrees/$DEVID" 2>/dev/null; git branch -q -D "$BR" 2>/dev/null; gpush -q origin --delete "$BR" 2>/dev/null
+    unlock_main; complete "QA PASS, merged $BR: $VSUM" ;;
   auditor)
-    if [ -n "$VBR" ] && [ "$VBR" != "-" ]; then   # individual audit of a task branch
-      [ "$VERDICT" = FAIL ] && fail_or_stop
-      [ "$VERDICT" = PASS ] || finish block "HUMAN: unexpected verdict $VERDICT"
-      DEVID="$(printf '%s' "$VBR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
-      merge_branch "$VBR"
-      push_or_block "HUMAN: merged locally but push of main failed" push -q origin main
-      cleanup_branch "$VBR" "$DEVID"; unlock_main
-      finish complete "Audit PASS, merged $VBR: $VSUM"
+    if [ "$BR" != "-" ]; then
+      [ "$VERDICT" = FAIL ] && fail_rework
+      [ "$VERDICT" = PASS ] || question "unexpected verdict $VERDICT from the auditor"
+      DEVID="$(printf '%s' "$BR" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"
+      squash_merge "$BR" "${DEVTITLE:-Merge $BR}"
+      echo "$DEVID high" >> "$STATE/merged.log"
+      git worktree remove --force ".worktrees/$DEVID" 2>/dev/null; git branch -q -D "$BR" 2>/dev/null; gpush -q origin --delete "$BR" 2>/dev/null
+      unlock_main; complete "Audit PASS, merged $BR: $VSUM"
     fi
-    # batch / phase-end audit: commit the report (+ ledger), tag, push
-    lock_main; main_clean_or_block
-    git checkout -q main && git pull -q --ff-only origin main || finish block "HUMAN: could not update main"
+    lock_main; main_ready
     N="$(printf '%s' "$TITLE" | grep -oE '#[0-9]+' | tr -d '#' | head -1)"
-    if [ -s "$REPORTF" ]; then
-      mkdir -p docs/audits
-      case "$TITLE" in *[Pp]hase*) cp "$REPORTF" "docs/audits/phase-${N:-x}.md" ;; *) cp "$REPORTF" "docs/audits/batch-${N:-$ID}.md" ;; esac
-    fi
-    git add docs/audits/ docs/audit-ledger.md 2>/dev/null
-    git commit -q -m "docs: audit report ($ID)" || true
-    [ -n "$N" ] && git tag "audit-$N" 2>/dev/null
-    push_or_block "HUMAN: push of the audit report failed" push -q origin main --tags
-    unlock_main
-    finish complete "Audit $VERDICT: $VSUM" ;;
-
+    if [ -s "$REPORTF" ]; then mkdir -p docs/audits
+      case "$TITLE" in *[Pp]hase*) cp "$REPORTF" "docs/audits/phase-${N:-x}.md" ;; *) cp "$REPORTF" "docs/audits/batch-${N:-$ID}.md" ;; esac; fi
+    git add docs/audits 2>/dev/null; git diff --cached --quiet || git commit -q -m "docs: audit report ($ID)"
+    [ -n "$N" ] && git tag -f "audit-$N" >/dev/null 2>&1
+    gpush -q origin main --tags 2>/dev/null || gpush -q origin main
+    unlock_main; complete "Audit $VERDICT: $VSUM (fix tasks, if any, are listed in the report)" ;;
   researcher|pm)
-    [ "$VERDICT" = DONE ] || finish block "HUMAN: unexpected verdict $VERDICT"
-    lock_main; main_clean_or_block
-    git checkout -q main && git pull -q --ff-only origin main || finish block "HUMAN: could not update main"
-    if [ "$ROLE" = researcher ]; then git add docs/research/ 2>/dev/null; else git add docs/ 2>/dev/null; fi
+    [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the $ROLE run"
+    lock_main; main_ready
+    if [ "$ROLE" = researcher ]; then git add docs/research 2>/dev/null; else git add docs 2>/dev/null; fi
     if ! git diff --cached --quiet; then
-      git commit -q -m "docs($ROLE): $ID" || finish block "HUMAN: commit blocked (pre-commit hook?), see data/handoff/$ID-out.txt"
-      push_or_block "HUMAN: push of docs failed" push -q origin main
+      git commit -q -m "docs($ROLE): $ID" || { git reset -q; unlock_main; question "the pre-commit hook refused the $ROLE docs: see $OUTF"; }
+      gpush -q origin main || { unlock_main; question "push of the $ROLE docs failed"; }
     fi
-    unlock_main
-    finish complete "$VSUM" ;;
+    unlock_main; complete "$VSUM" ;;
 esac

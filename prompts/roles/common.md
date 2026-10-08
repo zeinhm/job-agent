@@ -1,27 +1,27 @@
-# Common rules for every role (read first)
+# Common rules (every local role reads this first)
 
-You were started by a thin Hermes wrapper. You do ALL the actual work for this task: reading, running, testing, reasoning, writing. The wrapper only passes this prompt in and acts on your final verdict.
+You were started by the automation. Nobody is watching this run and nobody can answer questions during it.
+Never stop to ask or wait. Decide sensibly from the docs and the card, and write your assumptions in your report.
 
-## Before anything
-1. Read AGENTS.md, docs/PLAN.md sections named on the card, docs/decisions.md, docs/audit-patterns.md, and docs/phase-*-conventions.md if present.
-2. Read the task card at the end of this prompt, including all comments. Later PM comments override the card body.
+## Before you start
+1. Read AGENTS.md, then what the card points to: docs/PLAN.md sections, docs/decisions.md, docs/phase-*-conventions.md,
+   docs/audit-patterns.md, research docs.
+2. Read the whole card including its comments. Comments starting with "Answer:" are decisions from the Doctor or the
+   owner: follow them. Later comments override the card body.
 
 ## Hard rules
-- Follow every guardrail in AGENTS.md (public repo personal-data rules, no LinkedIn, no CAPTCHA bypass, no real applications, never read .env or ~/.hermes).
-- Never `git push` to main and never merge into main. The wrapper does merges and pushes.
-- Never mark tasks done/blocked yourself. The wrapper does that from your verdict.
-- You MAY use `hermes kanban` only for `show` and `list`. Never create, link, comment on, complete or block cards: Hermes refuses that from inside a run, and the wrapper does it for you from your verdict and report.
-- Stay in scope. Ideas for other work go in your comment for the PM.
+- The repo is public. Never put personal data (the owner's CV, salary, answers, contact details, IP addresses,
+  anything from config/ or data/) into code, tests, fixtures, docs or comments. Never read .env or config/.
+- No logins, no CAPTCHA bypass, no LinkedIn automation, no real job applications, no contacting anyone.
+- Never push to main and never merge: the automation does that. Never create, complete or block cards
+  (only the PM creates cards when planning). `hermes kanban show` and `list` are fine.
+- Live runs of the tool: use `bin/smoke` (temp DB, example configs, public feeds only).
 
-## Output contract (mandatory)
-1. Write your full report (evidence, findings, verdict reasoning) as markdown to the **Comment file** path given at the top of this prompt. Keep it specific: files, lines, commands, real output (trimmed, never paraphrased).
-2. The LAST line of your reply must be exactly one line in this format:
-
-   VERDICT: <DONE|PASS|FAIL|BLOCKED> | branch: <branch or -> | <one-line summary>
-
-   - DONE    = dev/research/pm work finished and verified
-   - PASS    = qa/auditor approve
-   - FAIL    = qa/auditor reject (you already created the rework card, see your role file)
-   - BLOCKED = you need the human: put the exact question in the summary
-
-No verdict line = the wrapper blocks the task for the human, so never omit it.
+## Your report (mandatory)
+1. Write your full report (evidence, findings, reasoning) as markdown to the Comment file given at the top.
+   Be specific: files, lines, commands, real output (trimmed, never paraphrased).
+2. The LAST line of your reply must be exactly:
+     VERDICT: <DONE|PASS|FAIL|BLOCKED> | branch: <branch or -> | <one-line summary>
+   - BLOCKED only when you cannot decide from the docs, the card and common sense. Put the exact question in the
+     summary. Start it with "OWNER:" only if it is about money, accounts or keys, salary or personal data,
+     legal or terms-of-service, or acting in the owner's name; everything else is answered by the Doctor.

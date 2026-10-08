@@ -1,107 +1,135 @@
 #!/usr/bin/env bash
-# dispatch: run the Hermes board with bin/agent-step. No AI in the loop.
+# dispatch: runs the board. No AI in here, only bookkeeping. Keep the Hermes gateway OFF.
+#   bin/dispatch            run continuously        bin/dispatch --once     one pass (and wait for jobs)
 #
-#   bin/dispatch              run continuously (Ctrl+C to stop)
-#   bin/dispatch --once       one pass, then exit
-#   bin/dispatch --dry-run    show what it would do, change nothing
-#   bin/dispatch --verbose    also log why ready tasks are skipped
-#
-# Replaces the Hermes gateway dispatcher + Hermes workers. KEEP THE GATEWAY STOPPED
-# while this runs, otherwise Hermes workers (Haiku) also pick up tasks.
-#
-# Each pass:
-#   1. forget finished jobs
-#   2. promote todo tasks whose parents are all done
-#   3. start ready tasks: max 1 per role, max DISPATCH_MAX in total (default 3)
-# Each job: claim -> bin/agent-step <role> <id> -> apply its ACTION line
-#   complete -> comment summary + complete
-#   block    -> block with reason
-#   rework   -> create the dev card from the body file, release this task's claim,
-#               link the new card as its parent, and leave it waiting: the dispatcher
-#               never starts a task whose parents are not done. No block/unblock,
-#               because Hermes moves a card to triage after it is blocked twice.
-#
-# Env: DISPATCH_MAX (3), DISPATCH_INTERVAL seconds (60). Written for macOS bash 3.2.
+# Where work runs:  dev -> Claude Code cloud session (cloud credit); after the credit: local Pro
+#                   qa / auditor / researcher / pm -> local Claude Code on Pro (bin/agent-step)
+# Cards are only BLOCKED for a question ("HELD #n [DOCTOR|OWNER]: ..."), always with a unique reason, so
+# Hermes never moves them to triage. Waiting is tracked here:
+#   cloud work in progress  -> card stays Running, state in data/dispatch/cloud/<id>
+#   Pro limit reached       -> card back to Ready, all Pro roles pause until the reset
+#   waiting for a rework    -> card back to Todo, linked to the rework card
 set -uo pipefail
-
-REPO="$(git rev-parse --show-toplevel)" || exit 2
+. "$(dirname "$0")/lib.sh"
 cd "$REPO"
-STATE="$REPO/data/dispatch"; RUN="$STATE/running"; LOG="$STATE/dispatch.log"
-mkdir -p "$RUN"
-MAX="${DISPATCH_MAX:-3}"; INTERVAL="${DISPATCH_INTERVAL:-60}"
+ONCE=0; [ "${1:-}" = "--once" ] && ONCE=1
 ROLES=" dev qa auditor researcher pm "
-DRY=0; ONCE=0; VERBOSE=0
-for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; --once) ONCE=1 ;; --verbose) VERBOSE=1 ;; *) echo "unknown option $a" >&2; exit 2 ;; esac; done
 
-log() { echo "$(date '+%F %T') $*" | tee -a "$LOG"; }
-board() { hermes kanban list </dev/null 2>/dev/null | grep -oE 't_[0-9a-f]+ +[a-z_]+ +[A-Za-z0-9_-]+'; }   # "id status assignee"
-status_of() { hermes kanban show "$1" </dev/null 2>/dev/null | sed -n 's/^ *status: *//p' | head -1; }
-parents_of() { hermes kanban show "$1" </dev/null 2>/dev/null | sed -n 's/^ *parents: *//p' | tr ',' ' '; }
-parents_done() { # $1 id, $2 board snapshot. True when every parent is done or archived.
-  local p pst
-  for p in $(parents_of "$1"); do
-    pst="$(printf '%s\n' "$2" | awk -v p="$p" '$1==p{print $2}')"
-    [ -z "$pst" ] && pst="$(status_of "$p")"
-    case "$pst" in done|archived) ;; *) return 1 ;; esac
-  done
+hold() { # $1 id, $2 DOCTOR|OWNER, $3 text  (unique reason -> never triage)
+  local k; k="$(counter notes "$1.hold")"
+  hk block "$1" "HELD #$k [$2]: $3" >/dev/null; log "hold $1 [$2]: $3"; }
+wait_on() { # $1 id, $2 new parent id, $3 why -> card back to todo, waiting for the parent
+  local k; k="$(counter notes "$1.wait")"
+  hk link "$2" "$1" >/dev/null
+  hk block "$1" "WAIT #$k: $3 ($2)" >/dev/null; hk unblock "$1" >/dev/null; log "wait $1 on $2: $3"; }
+parents_done() { local p s; for p in $(field "$(card "$1")" parents | tr ',' ' '); do
+    s="$(status_of "$p")"; case "$s" in done|archived) ;; *) return 1 ;; esac; done; return 0; }
+busy_role()  { ls "$STATE/running" 2>/dev/null | grep -q "\.$1\$"; }
+local_count(){ ls "$STATE/running" 2>/dev/null | wc -l | tr -d ' '; }
+
+# ------------------------------------------------------------------ batch audits (counted, created in code)
+maybe_batch_audit() {
+  local cut total med low n f="$STATE/merged.log"
+  [ -f "$f" ] || return 0
+  cut="$(cat "$STATE/audit-cutoff" 2>/dev/null || echo 0)"; total="$(wc -l < "$f" | tr -d ' ')"
+  med="$(tail -n +$((cut+1)) "$f" | grep -c ' medium$')"; low="$(tail -n +$((cut+1)) "$f" | grep -c ' low$')"
+  if [ "$med" -ge "$BATCH_MEDIUM" ] || [ "$low" -ge "$BATCH_LOW" ]; then
+    n="$(counter notes audit-number)"
+    printf '**Risk:** high\nBatch audit #%s: review everything merged since the previous audit tag (audit-%s, or the start), with weight on these QA-only merges:\n%s\nFollow the batch method in docs/audit-patterns.md. Write the report to the audit report file; list needed fixes under "## Fix tasks".\n' \
+      "$n" "$((n-1))" "$(tail -n +$((cut+1)) "$f" | sed 's/^/- /')" > "$STATE/notes/batch-$n.md"
+    hk create "Batch audit #$n" --assignee auditor --workspace "dir:$REPO" --priority 8 --body-file "$STATE/notes/batch-$n.md" >/dev/null \
+      && { echo "$total" > "$STATE/audit-cutoff"; log "created Batch audit #$n ($med medium, $low low)"; }
+  fi
 }
-running_count() { ls "$RUN" 2>/dev/null | wc -l | tr -d ' '; }
-role_busy() { ls "$RUN" 2>/dev/null | grep -qE "\.$1(\.dry)?\$"; }
 
-# ------------------------------------------------------------------ one job (runs in background)
-run_task() { # $1 role, $2 id
-  local role="$1" id="$2" out rc hb action f t r new s e
-  ( while sleep 240; do hermes kanban heartbeat "$id" >/dev/null 2>&1 || true; done ) & hb=$!
-  out="$(bin/agent-step "$role" "$id" 2>&1)"; rc=$?
-  kill "$hb" 2>/dev/null
-  printf '%s\n' "$out" > "$STATE/$id-step.txt"
-  field() { printf '%s\n' "$out" | sed -n "s/^$1: //p" | tail -1; }
-  action="$(field ACTION)"
-  case "$action" in
+# ------------------------------------------------------------------ local job (background)
+run_local() { # $1 role, $2 id
+  local role="$1" id="$2" out rc a s new t f kind
+  out="$("$REPO/bin/agent-step" "$role" "$id" 2>&1)"; rc=$?
+  printf '%s\n' "$out" > "$STATE/notes/$id-last.txt"
+  v() { printf '%s\n' "$out" | sed -n "s/^$1: //p" | tail -1; }
+  a="$(v ACTION)"
+  case "$a" in
     complete)
-      s="$(field SUMMARY)"; [ -n "$s" ] || s="completed by agent-step ($role), see data/dispatch/$id-step.txt"
-      hermes kanban comment "$id" "Result: $s" >/dev/null 2>&1
-      if e="$(hermes kanban complete "$id" --summary "$s" 2>&1)"; then
-        log "complete $role $id: $s"
-      else
-        hermes kanban block "$id" "HUMAN: could not mark complete ($(printf '%s' "$e" | tail -1)): $s" >/dev/null 2>&1
-        log "complete FAILED for $id: $e"
-      fi ;;
-    block)
-      hermes kanban block "$id" "$(field REASON)" >/dev/null 2>&1
-      log "block $role $id: $(field REASON)" ;;
+      hk complete "$id" --summary "$(v SUMMARY)" >/dev/null || hold "$id" DOCTOR "could not mark complete: $(v SUMMARY)"
+      rm -f "$STATE/errors/$id"; log "complete $role $id: $(v SUMMARY)"
+      [ "$role" = qa ] || [ "$role" = auditor ] && maybe_batch_audit ;;
     rework)
-      t="$(field REWORK_TITLE)"; f="$(field REWORK_BODY_FILE)"; r="$(field REASON)"
-      new="$(hermes kanban create "$t" --assignee dev --workspace "dir:$REPO" --body-file "$f" 2>&1 | grep -oE 't_[0-9a-f]+' | head -1)"
-      if [ -n "$new" ]; then
-        # The comment keeps the FAIL history that agent-step counts for the 3-FAIL limit.
-        hermes kanban comment "$id" "$r (rework card $new)" >/dev/null 2>&1
-        hermes kanban reclaim "$id" >/dev/null 2>&1    # release the claim first: linking a running task may be refused
-        if e="$(hermes kanban link "$new" "$id" 2>&1)" && parents_of "$id" | tr ' ' '\n' | grep -qx "$new"; then
-          log "rework $role $id -> created $new: $t (waits until $new is done)"
-        else
-          hermes kanban block "$id" "HUMAN: created $new but could not link it as parent of $id ($(printf '%s' "$e" | tail -1)). Link it by hand: hermes kanban link $new $id" >/dev/null 2>&1
-          log "rework LINK FAILED $new -> $id: $e"
-        fi
+      kind="$(v KIND)"; t="$(v REWORK_TITLE)"; f="$(v REWORK_BODY_FILE)"
+      if [ "$kind" = fail ] && [ "$(counter fails "$id")" -ge "$MAX_FAILS" ]; then
+        hold "$id" DOCTOR "FAIL number $MAX_FAILS on this task: decide (split the task, rewrite the card, or change approach). Last findings: $f"
       else
-        hermes kanban block "$id" "HUMAN: could not create the rework card ($t), body in $f" >/dev/null 2>&1
-        log "rework FAILED for $id: could not create card"
+        new="$(hk create "$t" --assignee dev --workspace "dir:$REPO" --priority 9 --body-file "$f" | grep -oE 't_[0-9a-f]+' | head -1)"
+        if [ -n "$new" ]; then hk reclaim "$id" >/dev/null 2>&1; wait_on "$id" "$new" "$kind rework"
+        else hold "$id" DOCTOR "could not create the $kind card ($t), body in $f"; fi
       fi ;;
+    pause)
+      s="$(v RESET)"; [ -z "$s" ] && s=$(( $(now) + 3600 ))
+      echo "$s" > "$STATE/pro-paused-until"; hk reclaim "$id" >/dev/null 2>&1
+      log "Pro limit reached ($role $id): Pro roles pause until $(date -r "$s" '+%H:%M' 2>/dev/null || date -d "@$s" '+%H:%M')" ;;
+    question)
+      hold "$id" DOCTOR "$(v QUESTION)" ;;
     *)
-      hermes kanban block "$id" "HUMAN: agent-step gave no ACTION (exit $rc), see data/dispatch/$id-step.txt" >/dev/null 2>&1
-      log "no ACTION for $role $id (exit $rc)" ;;
+      if [ "$(counter errors "$id")" -ge "$LOCAL_MAX_TRIES" ]; then
+        hold "$id" DOCTOR "$role run ended without a result $LOCAL_MAX_TRIES times (exit $rc), see data/dispatch/notes/$id-last.txt"
+      else hk reclaim "$id" >/dev/null 2>&1; log "no result for $role $id (exit $rc): will retry"; fi ;;
   esac
 }
 
-# ------------------------------------------------------------------ startup: recover orphaned runs
+# ------------------------------------------------------------------ cloud dev
+start_cloud() { # $1 id, $2 attempt -> 0 started, 43 credit out, 1 failed
+  local id="$1" n="$2" out rc url
+  out="$("$REPO/bin/cloud-dev" "$id" "$n" 2>&1)"; rc=$?
+  if [ $rc -eq 0 ]; then
+    url="$(printf '%s' "$out" | sed -n 's/^SESSION //p')"
+    printf 'attempt=%s\nstarted=%s\nurl=%s\n' "$n" "$(now)" "$url" > "$STATE/cloud/$id"
+    hk comment "$id" "Cloud attempt $n started: $url" >/dev/null; log "cloud $id attempt $n: $url"; return 0
+  fi
+  [ $rc -eq 43 ] && { touch "$STATE/cloud-off"; log "cloud credit used up: the Dev now runs on Pro"; return 43; }
+  log "cloud launch failed for $id: $(printf '%s' "$out" | tail -1)"; return 1
+}
+poll_cloud() {
+  local f id n started url br ref subj hit=""
+  git fetch -q --prune origin 2>/dev/null
+  for f in "$STATE"/cloud/t_*; do
+    [ -e "$f" ] || continue; id="$(basename "$f")"
+    n="$(sed -n 's/^attempt=//p' "$f")"; started="$(sed -n 's/^started=//p' "$f")"; url="$(sed -n 's/^url=//p' "$f")"
+    hit=""; br="$(dev_branch "$id")"
+    for ref in "origin/$br" $(git for-each-ref --format='%(refname:short)' refs/remotes/origin | grep -v "^origin/$br\$"); do
+      subj="$(git log -1 --format=%s "$ref" 2>/dev/null)"
+      case "$subj" in "[$id] DONE"*|"[$id] BLOCKED"*) hit="$ref"; break ;; esac
+    done
+    if [ -n "$hit" ]; then
+      subj="$(git log -1 --format=%s "$hit")"
+      if [ "$hit" != "origin/$br" ]; then   # the session used its own branch name: move the work to the task branch
+        gpush -q origin "refs/remotes/$hit:refs/heads/$br" && gpush -q origin --delete "${hit#origin/}" 2>/dev/null
+        log "cloud $id: moved ${hit#origin/} to $br"
+      fi
+      hk comment "$id" "$(printf 'Cloud result (%s):\n\n%s\n\n%s' "$url" "$subj" "$(git log -1 --format=%b "$hit")")" >/dev/null
+      rm -f "$f"
+      case "$subj" in
+        "[$id] DONE"*)    hk complete "$id" --summary "${subj#\[$id\] DONE: }" >/dev/null; log "complete dev $id (cloud): ${subj#\[$id\] DONE: }" ;;
+        "[$id] BLOCKED"*) hold "$id" DOCTOR "cloud Dev asks: ${subj#\[$id\] BLOCKED: }" ;;
+      esac
+    elif [ $(( $(now) - started )) -gt $((CLOUD_TIMEOUT_MIN * 60)) ]; then
+      if [ "$n" -lt "$CLOUD_MAX_TRIES" ]; then log "cloud $id attempt $n gave no result in ${CLOUD_TIMEOUT_MIN} min: next attempt"
+        start_cloud "$id" $((n+1)) || true
+      else rm -f "$f"; hold "$id" DOCTOR "$CLOUD_MAX_TRIES cloud attempts without a DONE commit (last session: $url). Check the branch $br and the card."; fi
+    else
+      hk heartbeat "$id" >/dev/null 2>&1 || true
+    fi
+  done
+}
+
+# ------------------------------------------------------------------ startup recovery
 recover() {
   local id st role
   while read -r id st role; do
     [ "$st" = running ] || continue
     case "$ROLES" in *" $role "*) ;; *) continue ;; esac
-    ls "$RUN" 2>/dev/null | grep -q "^$id\." && continue
-    log "reclaim orphaned running task $id ($role)"
-    [ $DRY -eq 1 ] || hermes kanban reclaim "$id" </dev/null >/dev/null 2>&1
+    [ -f "$STATE/cloud/$id" ] && continue
+    ls "$STATE/running" 2>/dev/null | grep -q "^$id\." && continue
+    hk reclaim "$id" >/dev/null 2>&1; log "recovered orphaned running card $id ($role)"
   done <<EOF
 $(board)
 EOF
@@ -109,60 +137,55 @@ EOF
 
 # ------------------------------------------------------------------ one pass
 pass() {
-  local f pid id st role e
-  for f in "$RUN"/*; do
-    [ -e "$f" ] || continue
-    pid="$(cat "$f")"
-    kill -0 "$pid" 2>/dev/null || rm -f "$f"
-  done
-
-  local B; B="$(board)"
-  while read -r id st role; do                     # promote todo -> ready when all parents are done
+  local f pid id st role B rc
+  for f in "$STATE"/running/*; do [ -e "$f" ] || continue; pid="$(cat "$f")"; kill -0 "$pid" 2>/dev/null || rm -f "$f"; done
+  [ -f "$STATE/pro-paused-until" ] && ! pro_paused && { rm -f "$STATE/pro-paused-until"; log "Pro limit reset: Pro roles resume"; }
+  poll_cloud
+  B="$(board)"
+  while read -r id st role; do          # promote todo cards whose parents are done
     [ "$st" = todo ] || continue
-    if parents_done "$id" "$B"; then log "promote $id ($role)"; [ $DRY -eq 1 ] || hermes kanban promote "$id" </dev/null >/dev/null 2>&1; fi
+    case "$ROLES" in *" $role "*) ;; *) continue ;; esac
+    parents_done "$id" && { hk promote "$id" >/dev/null; log "promote $id ($role)"; }
   done <<EOF
 $B
 EOF
-
   B="$(board)"
-  [ $VERBOSE -eq 1 ] && log "ready: $(printf '%s\n' "$B" | awk '$2=="ready"{printf "%s(%s) ", $1, $3}')"
-  while read -r id st role; do                     # start ready tasks
+  while read -r id st role; do          # start ready cards
     [ "$st" = ready ] || continue
-    case "$ROLES" in *" $role "*) ;; *) [ $VERBOSE -eq 1 ] && log "skip $id: role '$role' not handled"; continue ;; esac
-    if [ "$(running_count)" -ge "$MAX" ]; then [ $VERBOSE -eq 1 ] && log "skip $id and the rest: $MAX tasks already running"; break; fi
-    if ! parents_done "$id" "$B"; then [ $VERBOSE -eq 1 ] && log "skip $id: waiting on an open parent card"; continue; fi
-    if role_busy "$role"; then [ $VERBOSE -eq 1 ] && log "skip $id: a $role task is already running ($(ls "$RUN" | grep -E "\.$role(\.dry)?\$" | tr '\n' ' '))"; continue; fi
-    if [ $DRY -eq 1 ]; then log "DRY: would start $role $id"; touch "$RUN/$id.$role.dry"; continue; fi
-    if ! e="$(hermes kanban claim "$id" </dev/null 2>&1)"; then
-      # A failed claim can still leave the card "running" with no worker behind it. Release it and say why.
-      log "claim failed for $id: $(printf '%s' "$e" | tail -1)"
-      if [ "$(status_of "$id")" = running ]; then
-        hermes kanban reclaim "$id" </dev/null >/dev/null 2>&1
-        hermes kanban block "$id" "HUMAN: claim failed ($(printf '%s' "$e" | tail -1)); card released, nothing ran" </dev/null >/dev/null 2>&1
+    case "$ROLES" in *" $role "*) ;; *) continue ;; esac
+    [ -f "$STATE/cloud/$id" ] && continue
+    ls "$STATE/running" 2>/dev/null | grep -q "^$id\." && continue
+    parents_done "$id" || continue
+    if [ "$role" = dev ] && cloud_allowed && [ ! -f "$STATE/notes/$id.local" ]; then
+      hk claim "$id" >/dev/null 2>&1 || { log "claim failed for $id"; continue; }
+      start_cloud "$id" 1; rc=$?
+      [ $rc -eq 0 ] && continue
+      if [ $rc -ne 43 ]; then
+        hk reclaim "$id" >/dev/null 2>&1
+        [ "$(counter errors "$id")" -ge 3 ] && hold "$id" DOCTOR "the cloud session could not be started 3 times (see data/dispatch/dispatch.log)"
+        continue
       fi
+      hk reclaim "$id" >/dev/null 2>&1      # credit out: fall through to a local Pro run below on the next pass
       continue
     fi
-    log "start $role $id"
-    ( run_task "$role" "$id" >> "$STATE/$id-dispatch.log" 2>&1 ) </dev/null &
-    echo "$!" > "$RUN/$id.$role"
+    pro_paused && continue
+    [ "$(local_count)" -ge "$MAX_PARALLEL" ] && break
+    busy_role "$role" && continue
+    hk claim "$id" >/dev/null 2>&1 || { log "claim failed for $id"; continue; }
+    log "start $role $id (local, Pro)"
+    ( run_local "$role" "$id" ) </dev/null >/dev/null 2>&1 &
+    echo "$!" > "$STATE/running/$id.$role"
   done <<EOF
 $B
 EOF
-  [ $DRY -eq 1 ] && rm -f "$RUN"/*.dry
 }
 
 # ------------------------------------------------------------------ main
-if pgrep -f "hermes_cli.main.*gateway" >/dev/null 2>&1 || hermes gateway status 2>/dev/null | grep -qi "supervised by launchd (PID"; then
-  echo "The Hermes gateway is running. Stop it first (hermes gateway stop), or Hermes workers will also take tasks." >&2
-  exit 2
+if hermes gateway status </dev/null 2>/dev/null | grep -qiE "supervised by launchd \(PID|detached gateway process is running"; then
+  echo "The Hermes gateway is running: stop it (hermes gateway stop). Its AI workers would also take cards." >&2; exit 2
 fi
-log "dispatch started (max $MAX, interval ${INTERVAL}s$([ $DRY -eq 1 ] && echo ', DRY RUN'))"
+echo $$ > "$STATE/dispatch.pid"
+log "dispatch started (cloud: $(cloud_allowed && echo on || echo off), max $MAX_PARALLEL local)"
 recover
-while :; do
-  pass
-  [ $ONCE -eq 1 ] && break
-  sleep "$INTERVAL"
-done
-if [ $ONCE -eq 1 ] && [ $DRY -eq 0 ]; then
-  log "waiting for started jobs to finish..."; wait; log "all jobs finished"
-fi
+while :; do pass; [ $ONCE -eq 1 ] && break; sleep "$INTERVAL"; done
+[ $ONCE -eq 1 ] && wait

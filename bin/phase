@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Owner commands for phases.
+#   bin/phase plan <N>              start planning phase N (PM on Opus); you approve the plan afterwards
+#   bin/phase approve <card-id>     approve an owner card (plan approval, phase review)
+#   bin/phase owner                 list owner cards waiting for you
+set -uo pipefail
+. "$(dirname "$0")/lib.sh"
+case "${1:-}" in
+  plan)
+    N="${2:?phase number}"; F="$STATE/notes/plan-phase-$N.md"
+    sed "s/{{N}}/$N/g" "$REPO/prompts/phase-kickoff.md" > "$F"
+    hk create "Plan Phase $N" --assignee pm --workspace "dir:$REPO" --priority 10 --body-file "$F" ;;
+  approve)
+    ID="${2:?card id}"; hk complete "$ID" --summary "Approved by the owner${3:+: $3}" && log "owner approved $ID" ;;
+  owner)
+    board | awk '$3=="owner" && $2!="done" && $2!="archived"' ;;
+  *) sed -n '2,6p' "$0" ;;
+esac
