@@ -1,5 +1,8 @@
 import type { IdrMonth } from "../salary/index.ts";
 
+/** Reason text for a floor rejection; the digest counts rejections by it. */
+export const SALARY_BELOW_FLOOR_REASON = "max below floor";
+
 export type SalaryFloorFlag = "salary_unknown" | "salary_unparsed" | "salary_no_fx";
 
 export type SalaryFloorResult = { reject: boolean; flag?: SalaryFloorFlag; reason: string };
@@ -29,6 +32,6 @@ export function applySalaryFloor(normalized: IdrMonth, floorIdrMonth: number): S
       return { reject: false, flag: "salary_unknown", reason: "salary unknown" };
     return { reject: false, reason: "only min listed" };
   }
-  if (max < floorIdrMonth) return { reject: true, reason: "max below floor" };
+  if (max < floorIdrMonth) return { reject: true, reason: SALARY_BELOW_FLOOR_REASON };
   return { reject: false, reason: "max at or above floor" };
 }

@@ -83,7 +83,7 @@ One test proves discover -> process -> digest works across all nine adapters, of
 Test output and the generated digest from the e2e run (fixture data only).
 
 Events (7):
-  [2026-10-06 22:46] created {'assignee': 'dev', 'status': 'todo', 'parents': ['t_e073141b', 't_b91e0080', 't_cb51b7ef', 't_1215344b', 't_219450c4', 't_81b5da2d', 't_f64ed11b', 't_1a01099f', 't_1acae87e', 't_b86f7f6e'], 'creator_task_id': 't_338f17d2', 'tenant': None, 'workspace_kind': 'dir', 'workspace_path': '/Users/zein/projects/job-agent', 'branch_name': None, 'project_id': None, 'skills': None, 'goal_mode': None, 'model_override': None, 'provider_override': None}
+  [2026-10-06 22:46] created {'assignee': 'dev', 'status': 'todo', 'parents': ['t_e073141b', 't_b91e0080', 't_cb51b7ef', 't_1215344b', 't_219450c4', 't_81b5da2d', 't_f64ed11b', 't_1a01099f', 't_1acae87e', 't_b86f7f6e'], 'creator_task_id': 't_338f17d2', 'tenant': None, 'workspace_kind': 'dir', 'workspace_path': '<repo>', 'branch_name': None, 'project_id': None, 'skills': None, 'goal_mode': None, 'model_override': None, 'provider_override': None}
   [2026-10-06 22:46] dependency_wait {'reason': 'parent_not_done', 'parent': 't_e073141b'}
   [2026-10-07 08:55] linked {'parent': 't_49e9c059', 'child': 't_5777d0f2'}
   [2026-10-07 08:55] linked {'parent': 't_60521b3c', 'child': 't_5777d0f2'}
@@ -125,4 +125,4 @@ The owner can run Phase 1 daily on their Mac by following one doc and installing
 Output of the fresh-clone run above.
 
 Events (2):
-  [2026-10-06 22:46] created {'assignee': 'dev', 'status': 'todo', 'parents': ['t_3a40cd7e'], 'creator_task_id': 't_338f17d2', 'tenant': None, 'workspace_kind': 'dir', 'workspace_path': '/Users/zein/projects/job-agent', 'branch_name': None, 'project_id': None, 'skills': None, 'goal_mode': None, 'model_override': None, 'provider_override': None}
+  [2026-10-06 22:46] created {'assignee': 'dev', 'status': 'todo', 'parents': ['t_3a40cd7e'], 'creator_task_id': 't_338f17d2', 'tenant': None, 'workspace_kind': 'dir', 'workspace_path': '<repo>', 'branch_name': None, 'project_id': None, 'skills': None, 'goal_mode': None, 'model_override': None, 'provider_override': None}

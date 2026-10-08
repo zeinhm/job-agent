@@ -1,4 +1,4 @@
-import { SourceError, log, __testInjectTimeAndSleep } from "@job-agent/core";
+import { PartialSourceError, SourceError, log, __testInjectTimeAndSleep } from "@job-agent/core";
 import { readFileSync } from "node:fs";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -117,6 +117,34 @@ describe("lever adapter", () => {
       expect.any(String),
       expect.objectContaining({ slug: "gone" }),
     );
+  });
+
+  it("surfaces 404 slugs as a warning and errors when every slug is 404", async () => {
+    server.use(
+      http.get(`${API}/gone`, () => new HttpResponse(null, { status: 404 })),
+      http.get(`${API}/alpha`, () => HttpResponse.json(fixture)),
+    );
+    const adapter = adapterFor("gone", "alpha");
+    await adapter.fetch(new Date(0));
+    expect(adapter.takeWarnings?.()).toEqual(["1 board not found: gone"]);
+
+    server.use(http.get(`${API}/alpha`, () => new HttpResponse(null, { status: 404 })));
+    const err = await adapter.fetch(new Date(0)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceError);
+    expect((err as SourceError).message).toContain("all 2 boards not found: gone, alpha");
+  });
+
+  it("tries every board and keeps the successes when one slug returns 500", async () => {
+    server.use(
+      http.get(`${API}/flaky`, () => new HttpResponse(null, { status: 500 })),
+      http.get(`${API}/alpha`, () => HttpResponse.json(fixture)),
+    );
+    const err = await adapterFor("flaky", "alpha")
+      .fetch(new Date(0))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialSourceError);
+    expect((err as PartialSourceError).postings).toHaveLength(fixture.length);
+    expect((err as PartialSourceError).message).toContain("1 of 2 boards failed");
   });
 
   it("rejects with SourceError on 500 after retries", async () => {

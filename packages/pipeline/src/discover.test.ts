@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
+  PartialSourceError,
   SourceError,
   openDb,
   postings,
@@ -243,6 +244,34 @@ describe("runDiscover errors", () => {
       found: 0,
       new: 0,
       error_message: "[b] HTTP 500 from https://example.com/?token=[redacted]",
+    });
+  });
+
+  it("stores the postings of a PartialSourceError but records an error run", async () => {
+    const partial = fake("b", async () => {
+      throw new PartialSourceError("b", "1 of 2 boards failed", [raw("b", 1), raw("b", 2)]);
+    });
+    const r = await run({ adapters: [partial] });
+    expect(r.code).toBe(1);
+    expect(db.select().from(postings).all()).toHaveLength(2);
+    expect(runsFor("b")[0]).toMatchObject({
+      status: "error",
+      found: 2,
+      new: 2,
+      error_message: "[b] 1 of 2 boards failed",
+    });
+  });
+
+  it("records adapter warnings on an ok run", async () => {
+    const adapter = {
+      ...fake("b", async () => three("b")),
+      takeWarnings: () => ["1 board not found: gone"],
+    };
+    const r = await run({ adapters: [adapter] });
+    expect(r.code).toBe(0);
+    expect(runsFor("b")[0]).toMatchObject({
+      status: "ok",
+      error_message: "1 board not found: gone",
     });
   });
 

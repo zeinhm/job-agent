@@ -36,4 +36,9 @@ export interface SourceAdapter {
   /** Poll no more often than this. */
   minIntervalMinutes: number;
   fetch(since: Date): Promise<RawPosting[]>;
+  /**
+   * Non-fatal problems from the last successful fetch (for example unknown company slugs).
+   * Returns them once and clears them; discover records them in the run's error_message.
+   */
+  takeWarnings?(): string[];
 }

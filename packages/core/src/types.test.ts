@@ -37,6 +37,7 @@ describe("core types", () => {
       name: string;
       minIntervalMinutes: number;
       fetch(since: Date): Promise<RawPosting[]>;
+      takeWarnings?(): string[];
     }>();
   });
 });

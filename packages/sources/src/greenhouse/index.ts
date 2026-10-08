@@ -8,6 +8,7 @@ import {
   type SourceAdapter,
 } from "@job-agent/core";
 import { z } from "zod";
+import { fetchAllBoards } from "../boards.ts";
 
 const SOURCE = "greenhouse";
 const BOARD_URL = "https://boards-api.greenhouse.io/v1/boards";
@@ -94,19 +95,26 @@ async function fetchBoard(company: CompanyConfig): Promise<RawPosting[] | null> 
 }
 
 export function createGreenhouseAdapter(companies: CompanyConfig[]): SourceAdapter {
+  let warnings: string[] = [];
   return {
     name: SOURCE,
     minIntervalMinutes: 60,
     async fetch(since: Date): Promise<RawPosting[]> {
-      const result: RawPosting[] = [];
-      for (const company of companies) {
+      warnings = [];
+      const result = await fetchAllBoards(SOURCE, companies, async (company) => {
         const postings = await fetchBoard(company);
-        for (const p of postings ?? []) {
-          if (p.postedAt !== undefined && new Date(p.postedAt) < since) continue;
-          result.push(p);
-        }
-      }
-      return result;
+        return (
+          postings &&
+          postings.filter((p) => p.postedAt === undefined || new Date(p.postedAt) >= since)
+        );
+      });
+      warnings = result.warnings;
+      return result.postings;
+    },
+    takeWarnings() {
+      const taken = warnings;
+      warnings = [];
+      return taken;
     },
   };
 }

@@ -9,6 +9,7 @@ import {
   type SourceAdapter,
 } from "@job-agent/core";
 import { z } from "zod";
+import { fetchAllBoards } from "../boards.ts";
 
 const SOURCE = "lever";
 const BASE_URL = "https://api.lever.co/v0/postings";
@@ -138,23 +139,29 @@ function parseJobs(slug: string, companyName: string, items: unknown[]): RawPost
 }
 
 export function createLeverAdapter(companies: readonly CompanyConfig[]): SourceAdapter {
+  let warnings: string[] = [];
   return {
     name: SOURCE,
     minIntervalMinutes: MIN_INTERVAL_MINUTES,
     async fetch(since: Date): Promise<RawPosting[]> {
-      const results: RawPosting[] = [];
-      for (const company of companies) {
+      warnings = [];
+      const result = await fetchAllBoards(SOURCE, companies, async (company) => {
         const items = await fetchBoard(company.slug);
         if (items === null) {
           log.warn("lever: unknown slug (404), skipping", { source: SOURCE, slug: company.slug });
-          continue;
+          return null;
         }
-        for (const posting of parseJobs(company.slug, company.name, items)) {
-          if (posting.postedAt !== undefined && new Date(posting.postedAt) < since) continue;
-          results.push(posting);
-        }
-      }
-      return results;
+        return parseJobs(company.slug, company.name, items).filter(
+          (p) => p.postedAt === undefined || new Date(p.postedAt) >= since,
+        );
+      });
+      warnings = result.warnings;
+      return result.postings;
+    },
+    takeWarnings() {
+      const taken = warnings;
+      warnings = [];
+      return taken;
     },
   };
 }

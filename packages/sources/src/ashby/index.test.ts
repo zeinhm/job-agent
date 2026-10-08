@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  PartialSourceError,
   SourceError,
   __testInjectTimeAndSleep,
   createLogger,
@@ -171,6 +172,33 @@ describe("ashby adapter", () => {
     expect(postings.every((p) => p.company === "Globex Test")).toBe(true);
     const warn = logLines.find((l) => l.level === "warn");
     expect(warn?.slug).toBe("acme");
+  });
+
+  it("surfaces a 404 board as a warning and errors when every board is 404", async () => {
+    server.use(
+      serve("globex", fixture),
+      http.get(BOARD, () => new HttpResponse(null, { status: 404 })),
+    );
+    const adapter = createAshbyAdapter([acme, globex], log);
+    await adapter.fetch(new Date(0));
+    expect(adapter.takeWarnings?.()).toEqual(["1 board not found: acme"]);
+
+    server.use(http.get(BOARD, () => new HttpResponse(null, { status: 404 })));
+    const err = await adapter.fetch(new Date(0)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceError);
+    expect((err as SourceError).message).toContain("all 2 boards not found: acme, globex");
+  });
+
+  it("tries every board and keeps the successes when one board returns 500", async () => {
+    server.use(
+      serve("globex", fixture),
+      http.get(BOARD, () => new HttpResponse(null, { status: 500 })),
+    );
+    const err = await createAshbyAdapter([acme, globex], log)
+      .fetch(new Date(0))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialSourceError);
+    expect((err as PartialSourceError).postings).toHaveLength(fixture.jobs.length);
   });
 
   it("rejects with SourceError on 500 after retries", async () => {

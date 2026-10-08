@@ -82,7 +82,13 @@ function run(opts: { date?: string; now?: Date } = {}) {
   return { path, out: out.join(""), text: readFileSync(path, "utf8") };
 }
 
-function run1(id: string, source: string, status: "ok" | "error", startedAt: string, msg?: string) {
+function run1(
+  id: string,
+  source: string,
+  status: "ok" | "error" | "skipped",
+  startedAt: string,
+  msg?: string,
+) {
   db.insert(source_runs)
     .values({
       id: `r-${id}`,
@@ -248,6 +254,16 @@ describe("runDigest", () => {
     );
     expect(health).toContain("- **hn**: no run in the last 24h — NO SUCCESSFUL RUN");
     expect(health).not.toMatch(/remotive.*NO SUCCESSFUL RUN/);
+  });
+
+  it("ignores skipped runs when picking the latest run, and labels ok-run notes as warnings", () => {
+    run1("1", "greenhouse", "ok", "2026-10-07T01:00:00Z", "1 board not found: gone");
+    run1("2", "greenhouse", "skipped", "2026-10-07T02:00:00Z");
+    const { text } = run();
+    expect(text).toContain(
+      "- **greenhouse**: ok, found 10, new 3, warning: 1 board not found: gone\n",
+    );
+    expect(text).not.toContain("skipped");
   });
 
   it("marks a source whose only recent runs failed", () => {

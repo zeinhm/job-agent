@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import {
+  PartialSourceError,
   SourceError,
   log,
   postings,
@@ -131,17 +132,26 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
     try {
       const items = await adapter.fetch(since);
       const added = storePostings(db, items, startedAt.toISOString());
-      record("ok", items.length, added);
+      const warning = adapter.takeWarnings?.().join("; ");
+      record("ok", items.length, added, warning || undefined);
       out(`${adapter.name}: ok, found ${items.length}, new ${added}\n`);
+      if (warning) out(`${adapter.name}: warning, ${warning}\n`);
     } catch (e) {
       errored = true;
+      // Keep what the boards that worked returned; the run stays "error" so lastOk (and `since`) do not advance.
+      let found = 0;
+      let added = 0;
+      if (e instanceof PartialSourceError) {
+        found = e.postings.length;
+        added = storePostings(db, e.postings, startedAt.toISOString());
+      }
       // Only SourceError messages are guaranteed redacted; anything else is reduced to its type.
       const message =
         e instanceof SourceError
           ? e.message
           : `[${adapter.name}] unexpected error (${e instanceof Error ? e.name : "unknown"})`;
       log.error("discover adapter failed", { source: adapter.name, error: message });
-      record("error", 0, 0, message);
+      record("error", found, added, message);
       out(`${adapter.name}: error, ${message}\n`);
     }
   }

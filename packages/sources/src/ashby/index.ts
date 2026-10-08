@@ -10,6 +10,7 @@ import {
   type SourceAdapter,
 } from "@job-agent/core";
 import { z } from "zod";
+import { fetchAllBoards } from "../boards.ts";
 
 const SOURCE = "ashby";
 const BASE_URL = "https://api.ashbyhq.com/posting-api/job-board";
@@ -112,7 +113,7 @@ async function fetchCompany(
   company: CompanyConfig,
   since: Date,
   log: Logger,
-): Promise<RawPosting[]> {
+): Promise<RawPosting[] | null> {
   const url = `${BASE_URL}/${encodeURIComponent(company.slug)}?includeCompensation=true`;
 
   let body: unknown;
@@ -121,7 +122,7 @@ async function fetchCompany(
   } catch (err) {
     if (err instanceof HttpError && err.status === 404) {
       log.warn("Ashby board not found, skipping", { source: SOURCE, slug: company.slug });
-      return [];
+      return null;
     }
     throw new SourceError(SOURCE, `fetching board "${company.slug}" failed: ${String(err)}`, {
       cause: err,
@@ -169,15 +170,22 @@ export function createAshbyAdapter(
   companies: CompanyConfig[],
   log: Logger = defaultLog,
 ): SourceAdapter {
+  let warnings: string[] = [];
   return {
     name: SOURCE,
     minIntervalMinutes: 60,
     async fetch(since: Date): Promise<RawPosting[]> {
-      const postings: RawPosting[] = [];
-      for (const company of companies) {
-        postings.push(...(await fetchCompany(company, since, log)));
-      }
-      return postings;
+      warnings = [];
+      const result = await fetchAllBoards(SOURCE, companies, (company) =>
+        fetchCompany(company, since, log),
+      );
+      warnings = result.warnings;
+      return result.postings;
+    },
+    takeWarnings() {
+      const taken = warnings;
+      warnings = [];
+      return taken;
     },
   };
 }

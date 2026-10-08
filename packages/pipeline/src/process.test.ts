@@ -184,6 +184,57 @@ describe("runProcess", () => {
     );
   });
 
+  it("re-analyses a no_fx posting once rates exist, but not a digested one", () => {
+    db.delete(fx_rates).run();
+    const pay = {
+      salary_min: 300,
+      salary_max: 400,
+      salary_currency: "USD",
+      salary_period: "month",
+    } as const;
+    add({
+      id: "late-fx",
+      source: "remotive",
+      title: "Support Engineer",
+      location_text: "Worldwide",
+      remote: true,
+      ...pay,
+    });
+    add({
+      id: "sent",
+      source: "remotive",
+      title: "Backend Engineer",
+      company_name: "Globex",
+      location_text: "Worldwide",
+      remote: true,
+      ...pay,
+    });
+    run();
+    expect(byPosting("late-fx")).toMatchObject({ salary_status: "no_fx", decision: "keep" });
+    db.update(analysis)
+      .set({ digested_at: "2026-10-06" })
+      .where(eq(analysis.posting_id, "sent"))
+      .run();
+
+    db.insert(fx_rates)
+      .values({
+        id: "fx2",
+        date: "2026-10-06",
+        base: "USD",
+        quote: "IDR",
+        rate: "16000",
+        source: "test",
+        fetched_at: NOW.toISOString(),
+      })
+      .run();
+    const second = run();
+
+    expect(second.out).toMatch(/^processed 1,/);
+    expect(rows()).toHaveLength(2);
+    expect(byPosting("late-fx")).toMatchObject({ salary_status: "listed", decision: "reject" });
+    expect(byPosting("sent")).toMatchObject({ salary_status: "no_fx", digested_at: "2026-10-06" });
+  });
+
   it("creates no extra rows on a second run", () => {
     seedSix();
     run();

@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { and, eq, gte, inArray, isNull } from "drizzle-orm";
 import { analysis, postings, source_runs, type Db } from "@job-agent/core";
+import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 
 export { formatSalary } from "./format.ts";
@@ -101,7 +102,7 @@ function sourceHealth(db: Db, now: Date): string[] {
   if (names.length === 0) return [...lines, "No source runs recorded.", ""];
   for (const name of names) {
     const recent = all
-      .filter((r) => r.source === name && r.started_at >= since)
+      .filter((r) => r.source === name && r.started_at >= since && r.status !== "skipped")
       .sort((a, b) => (a.started_at < b.started_at ? 1 : a.started_at > b.started_at ? -1 : 0));
     const latest = recent[0];
     const noOk = !recent.some((r) => r.status === "ok");
@@ -110,7 +111,7 @@ function sourceHealth(db: Db, now: Date): string[] {
     else {
       text = `${latest.status}, found ${latest.found}, new ${latest.new}`;
       if (latest.error_message !== null)
-        text += `, error: ${latest.error_message.replace(/\s+/g, " ")}`;
+        text += `, ${latest.status === "error" ? "error" : "warning"}: ${latest.error_message.replace(/\s+/g, " ")}`;
     }
     lines.push(`- **${name}**: ${text}${noOk ? " — NO SUCCESSFUL RUN" : ""}`);
   }
@@ -170,7 +171,7 @@ export function runDigest(opts: DigestOptions): string {
   for (const r of rejected) {
     if (r.location_class === "restricted") byReason.location += 1;
     if (r.indonesia_rule === "domestic") byReason.indonesia += 1;
-    if (parseList(r.reasons).includes("salary: max below floor")) byReason.salary += 1;
+    if (parseList(r.reasons).includes(`salary: ${SALARY_BELOW_FLOOR_REASON}`)) byReason.salary += 1;
   }
 
   const body = [

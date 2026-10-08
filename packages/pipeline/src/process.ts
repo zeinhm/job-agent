@@ -135,11 +135,18 @@ export function runProcess(opts: ProcessOptions): number {
   normalizePending(db, { now });
   dedupePending(db);
 
+  // A posting analysed while the FX table was empty (no_fx) is analysed again once rates exist,
+  // unless it was already sent in a digest.
   const analysed = new Set(
     db
-      .select({ id: analysis.posting_id })
+      .select({
+        id: analysis.posting_id,
+        status: analysis.salary_status,
+        digested_at: analysis.digested_at,
+      })
       .from(analysis)
       .all()
+      .filter((a) => !(a.status === "no_fx" && a.digested_at === null))
       .map((a) => a.id),
   );
   const todo = db
@@ -160,6 +167,7 @@ export function runProcess(opts: ProcessOptions): number {
     try {
       const result = db.transaction((tx) => {
         const r = analyze(tx as unknown as Db, p, floor, now());
+        tx.delete(analysis).where(eq(analysis.posting_id, p.id)).run();
         tx.insert(analysis).values(r.row).run();
         return r;
       });

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { SourceError, type AppConfig } from "@job-agent/core";
+import { PartialSourceError, SourceError, type AppConfig } from "@job-agent/core";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -121,6 +121,37 @@ describe("greenhouse adapter", () => {
     expect(new Set(postings.map((p) => p.company))).toEqual(new Set(["Globex Test"]));
     const warn = logs().find((l) => l.level === "warn" && l.slug === "acme");
     expect(warn).toBeDefined();
+  });
+
+  it("surfaces a 404 board as a warning and errors when every board is 404", async () => {
+    captureLogs();
+    server.use(
+      http.get(`${API}/acme/jobs`, () => new HttpResponse(null, { status: 404 })),
+      http.get(`${API}/globex/jobs`, () => HttpResponse.json(fixture)),
+    );
+    const adapter = createGreenhouseAdapter([acme, globex]);
+    await adapter.fetch(new Date(0));
+    expect(adapter.takeWarnings?.()).toEqual(["1 board not found: acme"]);
+    expect(adapter.takeWarnings?.()).toEqual([]);
+
+    server.use(http.get(`${API}/globex/jobs`, () => new HttpResponse(null, { status: 404 })));
+    const err = await adapter.fetch(new Date(0)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceError);
+    expect((err as SourceError).message).toContain("all 2 boards not found: acme, globex");
+  });
+
+  it("tries every board and keeps the successes when one board returns 500", async () => {
+    captureLogs();
+    server.use(
+      http.get(`${API}/acme/jobs`, () => new HttpResponse(null, { status: 500 })),
+      http.get(`${API}/globex/jobs`, () => HttpResponse.json(fixture)),
+    );
+    const err = await createGreenhouseAdapter([acme, globex])
+      .fetch(new Date(0))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialSourceError);
+    expect((err as PartialSourceError).postings).toHaveLength(fixture.jobs.length);
+    expect((err as PartialSourceError).message).toContain("1 of 2 boards failed");
   });
 
   it("rejects with SourceError when a board keeps returning 500", async () => {

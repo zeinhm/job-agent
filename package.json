@@ -1,4 +1,5 @@
 {
+  "repository": "https://github.com/zeinhm/job-agent",
   "name": "job-agent",
   "version": "0.1.0",
   "private": true,
