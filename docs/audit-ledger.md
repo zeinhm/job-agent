@@ -33,3 +33,4 @@ Last audit tag: (none yet)
 | t_0e4cc928 | Pilot: add docs/pilot.md | low | 4dc5700 | 2026-10-08 |
 | t_7d626c81 | Add Phase 2 database schema (intel, llm_calls, company and posting columns) | medium | be31dc0 | 2026-10-09 |
 | t_38151c18 | Fix location rules: country lists and 'Remote, <country>' are restricted | medium | 73fcf9f | 2026-10-09 |
+| t_0f390819 | Fix HN adapter: only top-level comments are job posts | medium | 43ba2df | 2026-10-09 |
