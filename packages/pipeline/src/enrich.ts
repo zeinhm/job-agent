@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   analysis,
   BudgetExceededError,
+  getRate,
   intel,
   jakartaDay,
   LlmApiError,
@@ -13,6 +14,7 @@ import {
   type Db,
   type LlmDeps,
   type Posting,
+  type SalaryConfig,
 } from "@job-agent/core";
 import { resolveFlags } from "./intel/resolve.ts";
 import {
@@ -23,11 +25,14 @@ import {
   type Extraction,
 } from "./intel/extract.ts";
 import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
-import { recordPostingPolicy } from "./intel/registry.ts";
+import { payPolicyFor, recordPostingPolicy } from "./intel/registry.ts";
 import { runScamStage } from "./intel/scam-stage.ts";
+import { decideTierAndAsk, type TierFx } from "./intel/tier.ts";
 
 export interface EnrichOptions {
   db: Db;
+  /** Salary config (floor, tier asks, text answer) for the tier stage. */
+  salary: SalaryConfig;
   /** Stop after this many postings. */
   limit?: number | undefined;
   env?: Record<string, string | undefined>;
@@ -157,6 +162,46 @@ const registryStage: Stage = {
   },
 };
 
+/** Tier and ask for kept postings (PLAN 5.3). Pure code on the extraction, registry policy and stored FX. */
+function tierStage(salary: SalaryConfig, at: Date): Stage {
+  return {
+    name: "tier",
+    run(p, deps, ctx) {
+      const soFar = ctx.patch;
+      if (soFar.final_decision !== "keep" || !soFar.extraction) {
+        return Promise.resolve({ kind: "done", patch: {} });
+      }
+      const extraction = ExtractionSchema.parse(JSON.parse(soFar.extraction));
+      const day = jakartaDay(at);
+      const idrPerUsd = getRate(deps.db, "IDR", day);
+      if (idrPerUsd === null) {
+        // Never guess a number: no tier until the `fx` command has stored a rate.
+        return Promise.resolve({
+          kind: "done",
+          patch: { resolved_reasons: JSON.stringify(["tier skipped: no IDR FX rate stored"]) },
+        });
+      }
+      const currency = extraction.listedSalary?.currency.toUpperCase();
+      const other = currency === undefined ? null : getRate(deps.db, currency, day);
+      const fx: TierFx = {
+        idrPerUsd,
+        ...(currency !== undefined && other !== null ? { perUsd: { [currency]: other } } : {}),
+      };
+      const result = decideTierAndAsk(extraction, payPolicyFor(deps.db, p.company_id), salary, fx);
+      return Promise.resolve({
+        kind: "done",
+        patch: {
+          tier: result.tier,
+          ask_idr_month: result.askIdrMonth,
+          ask_usd_year: result.askUsdYear,
+          ask_text: result.askText,
+          ask_reason: result.askReason,
+        },
+      });
+    },
+  };
+}
+
 /** resolved_reasons are JSON arrays; stages append rather than overwrite. */
 function mergePatch(a: IntelPatch, b: IntelPatch): IntelPatch {
   const merged = { ...a, ...b };
@@ -238,6 +283,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     resolveStage,
     scamStage,
     registryStage,
+    tierStage(opts.salary, now()),
     ...(opts.extraStages ?? []),
   ];
   const lookupDomainAge = createDomainAgeLookup(now);

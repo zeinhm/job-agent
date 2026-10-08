@@ -1,11 +1,13 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import {
   __testInjectTimeAndSleep,
   analysis,
   intel,
+  loadConfig,
   log,
   openDb,
   postings,
@@ -19,6 +21,14 @@ import { runEnrich, type Stage } from "./enrich.ts";
 import { reasonPoints } from "./intel/scam.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+// Numbers of config/salary.example.yaml (fake persona), through the real loader.
+const configDir = mkdtempSync(join(tmpdir(), "job-agent-scam-"));
+const exampleDir = resolve(here, "../../../config");
+copyFileSync(join(exampleDir, "salary.example.yaml"), join(configDir, "salary.yaml"));
+copyFileSync(join(exampleDir, "companies.example.yaml"), join(configDir, "companies.yaml"));
+const SALARY = loadConfig(configDir).salary;
+afterAll(() => rmSync(configDir, { recursive: true, force: true }));
 const extractOk = JSON.parse(
   readFileSync(resolve(here, "../test/fixtures/anthropic/extract-ok.json"), "utf-8"),
 ) as Record<string, unknown>;
@@ -101,6 +111,7 @@ function enrich() {
     now: () => NOW,
     out: () => {},
     err: () => {},
+    salary: SALARY,
     extraStages: [later],
   });
 }

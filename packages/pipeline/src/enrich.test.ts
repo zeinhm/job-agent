@@ -1,12 +1,15 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import {
   analysis,
   companies,
+  fx_rates,
   intel,
   llm_calls,
+  loadConfig,
   openDb,
   postings,
   type Db,
@@ -23,6 +26,14 @@ import { PROMPT_VERSION } from "./intel/prompts/extract.ts";
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(resolve(here, "../test/fixtures/anthropic", name), "utf-8"));
+
+// Numbers of config/salary.example.yaml (fake persona), through the real loader.
+const configDir = mkdtempSync(join(tmpdir(), "job-agent-enrich-"));
+const exampleDir = resolve(here, "../../../config");
+copyFileSync(join(exampleDir, "salary.example.yaml"), join(configDir, "salary.yaml"));
+copyFileSync(join(exampleDir, "companies.example.yaml"), join(configDir, "companies.yaml"));
+const SALARY = loadConfig(configDir).salary;
+afterAll(() => rmSync(configDir, { recursive: true, force: true }));
 
 const URL = "https://api.anthropic.com/v1/messages";
 const NOW = new Date("2026-10-09T05:00:00Z"); // 12:00 WIB
@@ -82,6 +93,7 @@ async function enrich(over: { env?: Record<string, string | undefined>; limit?: 
   const err: string[] = [];
   const code = await runEnrich({
     db,
+    salary: SALARY,
     env: over.env ?? ENV,
     limit: over.limit,
     now: () => NOW,
@@ -91,10 +103,25 @@ async function enrich(over: { env?: Record<string, string | undefined>; limit?: 
   return { code, out: out.join(""), err: err.join("") };
 }
 
+function seedFx(quote: string, rate: string) {
+  db.insert(fx_rates)
+    .values({
+      id: `fx-${quote}`,
+      date: "2026-10-08",
+      base: "USD",
+      quote,
+      rate,
+      source: "test",
+      fetched_at: NOW.toISOString(),
+    })
+    .run();
+}
+
 const intelOf = (id: string) => db.select().from(intel).where(eq(intel.posting_id, id)).get();
 
 beforeEach(() => {
   db = openDb(":memory:");
+  seedFx("IDR", "17900");
   n = 0;
   requests = [];
   respond = () => HttpResponse.json(fixture("extract-ok.json"));
@@ -330,5 +357,32 @@ describe("enrich pay-policy registry", () => {
     expect(JSON.parse(intelOf("p2")?.resolved_reasons ?? "[]")).toEqual([
       "pay policy conflict: posting says location_agnostic, registry keeps location_adjusted (source manual)",
     ]);
+  });
+});
+
+describe("enrich tier stage", () => {
+  it("writes tier, both asks, no text and a reason naming the branch for a kept posting", async () => {
+    addPosting("p1");
+    await enrich();
+    const row = intelOf("p1");
+    // extract-ok: USD 90k-130k, all_locations -> 90k + 0.7 x 40k = 118k USD/year
+    expect(row?.tier).toBe("global_flat");
+    expect(row?.ask_idr_month).toBe(Math.round((118_000 * 17_900) / 12));
+    expect(row?.ask_usd_year).toBeGreaterThanOrEqual(118_000);
+    expect(row?.ask_text).toBeNull();
+    expect(row?.ask_reason).toContain("branch=listed_agnostic");
+  });
+
+  it("no stored FX rate -> no tier, explicit reason, posting still done", async () => {
+    db.delete(fx_rates).run();
+    addPosting("p1");
+    await enrich();
+    const row = intelOf("p1");
+    expect(row?.status).toBe("done");
+    expect(row?.tier).toBeNull();
+    expect(row?.ask_idr_month).toBeNull();
+    expect(JSON.parse(row?.resolved_reasons ?? "[]")).toContain(
+      "tier skipped: no IDR FX rate stored",
+    );
   });
 });

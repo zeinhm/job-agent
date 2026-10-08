@@ -44,9 +44,16 @@ const commands: Record<string, Command> = {
       io.err(`enrich: ${e instanceof Error ? e.message : String(e)}\n`);
       return 1;
     }
+    let salary;
+    try {
+      salary = loadConfig().salary;
+    } catch (e) {
+      io.err(`enrich: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
     const db = openDb(defaultDbPath());
     try {
-      return await runEnrich({ db, limit, out: io.out, err: io.err });
+      return await runEnrich({ db, salary, limit, out: io.out, err: io.err });
     } finally {
       db.$client.close();
     }
