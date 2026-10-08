@@ -1,0 +1,204 @@
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import {
+  analysis,
+  BudgetExceededError,
+  intel,
+  jakartaDay,
+  LlmApiError,
+  LlmOutputError,
+  log,
+  postings,
+  spentOnDay,
+  type Db,
+  type LlmDeps,
+  type Posting,
+} from "@job-agent/core";
+import {
+  EXTRACT_MODEL,
+  EXTRACT_PROMPT_VERSION,
+  extractFacts,
+  type Extraction,
+} from "./intel/extract.ts";
+
+export interface EnrichOptions {
+  db: Db;
+  /** Stop after this many postings. */
+  limit?: number | undefined;
+  env?: Record<string, string | undefined>;
+  now?: () => Date;
+  /** Override the API base URL (tests). */
+  baseURL?: string;
+  out: (text: string) => void;
+  err: (text: string) => void;
+}
+
+type IntelPatch = Partial<typeof intel.$inferInsert>;
+
+type StageResult =
+  | { kind: "done"; patch: IntelPatch }
+  | { kind: "failed"; patch: IntelPatch }
+  /** Transient API failure: nothing is stored, the posting is retried on the next run. */
+  | { kind: "retry" };
+
+/** A stage fills part of the `intel` row for one posting. Later cards add resolve, scam, fit, tier here. */
+interface Stage {
+  name: string;
+  run: (posting: Posting, deps: LlmDeps) => Promise<StageResult>;
+}
+
+const extractStage: Stage = {
+  name: "extract",
+  async run(p, deps) {
+    try {
+      const extraction: Extraction = await extractFacts(
+        {
+          postingId: p.id,
+          title: p.title,
+          companyName: p.company_name,
+          locationText: p.location_text,
+          salaryText: p.salary_text,
+          descriptionText: p.description_text,
+        },
+        deps,
+      );
+      return {
+        kind: "done",
+        patch: {
+          extraction: JSON.stringify(extraction),
+          extract_model: EXTRACT_MODEL,
+          extract_prompt_version: EXTRACT_PROMPT_VERSION,
+        },
+      };
+    } catch (e) {
+      if (e instanceof LlmOutputError) {
+        return { kind: "failed", patch: { resolved_reasons: JSON.stringify(e.issues) } };
+      }
+      if (e instanceof LlmApiError) return { kind: "retry" };
+      throw e;
+    }
+  },
+};
+
+const STAGES: Stage[] = [extractStage];
+
+function upsertIntel(
+  db: Db,
+  postingId: string,
+  status: NonNullable<IntelPatch["status"]>,
+  patch: IntelPatch,
+  at: Date,
+) {
+  const set = { ...patch, status, updated_at: at.toISOString() };
+  db.insert(intel)
+    .values({ id: randomUUID(), posting_id: postingId, ...set })
+    .onConflictDoUpdate({ target: intel.posting_id, set })
+    .run();
+}
+
+/** Kept canonical postings with no intel row, or a pending / budget_wait one; newest first. */
+function selectPostings(db: Db, limit: number | undefined): Posting[] {
+  const query = db
+    .select({ posting: postings })
+    .from(postings)
+    .innerJoin(analysis, eq(analysis.posting_id, postings.id))
+    .leftJoin(intel, eq(intel.posting_id, postings.id))
+    .where(
+      and(
+        isNull(postings.canonical_posting_id),
+        eq(analysis.decision, "keep"),
+        or(isNull(intel.id), inArray(intel.status, ["pending", "budget_wait"])),
+      ),
+    )
+    .orderBy(
+      desc(sql`coalesce(${postings.posted_at}, ${postings.first_seen_at})`),
+      desc(postings.first_seen_at),
+      postings.id,
+    );
+  const rows = limit === undefined ? query.all() : query.limit(limit).all();
+  return rows.map((r) => r.posting);
+}
+
+/** Runs the LLM stages on kept postings within the daily budget. Always exits 0 unless the input is invalid. */
+export async function runEnrich(opts: EnrichOptions): Promise<number> {
+  const { db, out, err } = opts;
+  const env = opts.env ?? process.env;
+  const now = opts.now ?? (() => new Date());
+
+  if (opts.limit !== undefined && (!Number.isInteger(opts.limit) || opts.limit < 1)) {
+    err("enrich: --limit must be a positive integer\n");
+    return 1;
+  }
+
+  const todo = selectPostings(db, opts.limit);
+
+  if (!env["ANTHROPIC_API_KEY"]) {
+    // Postings stay pending so the digest can list them as waiting for scoring.
+    for (const p of todo) upsertIntel(db, p.id, "pending", {}, now());
+    out("ANTHROPIC_API_KEY not set, LLM stages skipped\n");
+    return 0;
+  }
+
+  const deps: LlmDeps = {
+    db,
+    env,
+    now,
+    ...(opts.baseURL !== undefined ? { baseURL: opts.baseURL } : {}),
+  };
+
+  let enriched = 0;
+  let budgetWait = 0;
+  let failed = 0;
+  let budgetStopped = false;
+
+  for (const posting of todo) {
+    if (budgetStopped) {
+      upsertIntel(db, posting.id, "budget_wait", {}, now());
+      budgetWait += 1;
+      continue;
+    }
+    let patch: IntelPatch = {};
+    let outcome: "done" | "failed" | "retry" | "budget" = "done";
+    try {
+      for (const stage of STAGES) {
+        const result = await stage.run(posting, deps);
+        if (result.kind === "retry") {
+          outcome = "retry";
+          break;
+        }
+        patch = { ...patch, ...result.patch };
+        if (result.kind === "failed") {
+          outcome = "failed";
+          break;
+        }
+      }
+    } catch (e) {
+      if (!(e instanceof BudgetExceededError)) throw e;
+      outcome = "budget";
+    }
+
+    if (outcome === "done") {
+      upsertIntel(db, posting.id, "done", patch, now());
+      enriched += 1;
+    } else if (outcome === "failed") {
+      upsertIntel(db, posting.id, "failed", patch, now());
+      failed += 1;
+    } else if (outcome === "retry") {
+      upsertIntel(db, posting.id, "pending", {}, now());
+      failed += 1;
+    } else {
+      budgetStopped = true;
+      log.warn("enrich: daily LLM budget reached, remaining postings wait", {
+        posting_id: posting.id,
+      });
+      upsertIntel(db, posting.id, "budget_wait", {}, now());
+      budgetWait += 1;
+    }
+  }
+
+  const spent = spentOnDay(db, jakartaDay(now()));
+  out(
+    `enriched ${enriched}, budget_wait ${budgetWait}, failed ${failed}, spent $${spent.toFixed(2)} today\n`,
+  );
+  return 0;
+}

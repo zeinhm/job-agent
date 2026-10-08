@@ -5,6 +5,7 @@ import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb, source_runs } from 
 import { buildAdapters } from "@job-agent/sources";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
+import { runEnrich } from "./enrich.ts";
 import { runProcess } from "./process.ts";
 
 export interface Io {
@@ -30,6 +31,22 @@ const commands: Record<string, Command> = {
         out: io.out,
         err: io.err,
       });
+    } finally {
+      db.$client.close();
+    }
+  },
+  enrich: async (args, io) => {
+    let limit: number | undefined;
+    try {
+      const { values } = parseArgs({ args, options: { limit: { type: "string" } } });
+      if (values.limit !== undefined) limit = Number(values.limit);
+    } catch (e) {
+      io.err(`enrich: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      return await runEnrich({ db, limit, out: io.out, err: io.err });
     } finally {
       db.$client.close();
     }

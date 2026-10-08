@@ -1,0 +1,21 @@
+{
+  "_handbuilt": true,
+  "id": "msg_fixture_extract",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"listedSalary\":{\"min\":90000,\"max\":130000,\"currency\":\"USD\",\"period\":\"year\"},\"listedSalaryScope\":\"all_locations\",\"hiringScope\":\"worldwide\",\"regions\":[],\"remoteRegions\":[\"UTC-3 to UTC+3\"],\"allowedCountries\":[],\"indonesiaExplicit\":null,\"companyHq\":\"DE\",\"companyType\":\"product\",\"payPolicy\":\"location_agnostic\",\"employment\":\"contractor\",\"eorProvider\":null,\"seniority\":\"senior\",\"contactChannels\":[\"ats\"],\"personalEmailDomain\":null,\"asksForPaymentOrId\":false,\"repoAssessmentEarly\":null,\"urgencyLanguage\":false,\"vagueDescription\":false}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 2000,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 300
+  }
+}
