@@ -1,15 +1,20 @@
-import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import {
+  analysis,
+  intel,
   PartialSourceError,
   SourceError,
   log,
   postings,
   source_runs,
   type Db,
+  type Posting,
   type RawPosting,
   type SourceAdapter,
 } from "@job-agent/core";
+import { normalizeTitle } from "./dedupe/index.ts";
+import { STALE_ANALYZED_AT } from "./stale.ts";
 
 export interface DiscoverOptions {
   db: Db;
@@ -36,17 +41,62 @@ function lastOkStart(db: Db, source: string): Date | undefined {
   return row ? new Date(row.started_at) : undefined;
 }
 
+/** Hash over the fields whose change makes a stored posting stale. */
+export function contentHash(p: RawPosting): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify([
+        p.title,
+        p.descriptionText ?? p.descriptionHtml ?? null,
+        p.locationText ?? null,
+        p.salaryText ?? null,
+        p.salary?.min ?? null,
+        p.salary?.max ?? null,
+        p.salary?.currency ?? null,
+        p.salary?.period ?? null,
+      ]),
+    )
+    .digest("hex");
+}
+
+function contentFields(p: RawPosting) {
+  return {
+    url: p.url,
+    apply_url: p.applyUrl ?? null,
+    title: p.title,
+    company_name: p.company,
+    description_text: p.descriptionText ?? p.descriptionHtml ?? null,
+    location_text: p.locationText ?? null,
+    remote: p.remote ?? null,
+    salary_text: p.salaryText ?? null,
+    salary_min: p.salary?.min ?? null,
+    salary_max: p.salary?.max ?? null,
+    salary_currency: p.salary?.currency ?? null,
+    salary_period: p.salary?.period ?? null,
+    posted_at: p.postedAt ?? null,
+  };
+}
+
 function storePostings(db: Db, items: RawPosting[], nowIso: string): number {
   let inserted = 0;
   db.transaction((tx) => {
     for (const p of items) {
+      const hash = contentHash(p);
       const existing = tx
-        .select({ id: postings.id })
+        .select()
         .from(postings)
         .where(and(eq(postings.source, p.source), eq(postings.external_id, p.externalId)))
         .get();
       if (existing) {
-        tx.update(postings).set({ last_seen_at: nowIso }).where(eq(postings.id, existing.id)).run();
+        // Rows stored before content_hash existed just get the hash; no mass re-analysis.
+        if (existing.content_hash === null || existing.content_hash === hash) {
+          tx.update(postings)
+            .set({ last_seen_at: nowIso, content_hash: hash })
+            .where(eq(postings.id, existing.id))
+            .run();
+          continue;
+        }
+        refreshPosting(tx as unknown as Db, existing, p, hash, nowIso);
         continue;
       }
       tx.insert(postings)
@@ -54,19 +104,8 @@ function storePostings(db: Db, items: RawPosting[], nowIso: string): number {
           id: randomUUID(),
           source: p.source,
           external_id: p.externalId,
-          url: p.url,
-          apply_url: p.applyUrl ?? null,
-          title: p.title,
-          company_name: p.company,
-          description_text: p.descriptionText ?? p.descriptionHtml ?? null,
-          location_text: p.locationText ?? null,
-          remote: p.remote ?? null,
-          salary_text: p.salaryText ?? null,
-          salary_min: p.salary?.min ?? null,
-          salary_max: p.salary?.max ?? null,
-          salary_currency: p.salary?.currency ?? null,
-          salary_period: p.salary?.period ?? null,
-          posted_at: p.postedAt ?? null,
+          ...contentFields(p),
+          content_hash: hash,
           first_seen_at: nowIso,
           last_seen_at: nowIso,
         })
@@ -75,6 +114,41 @@ function storePostings(db: Db, items: RawPosting[], nowIso: string): number {
     }
   });
   return inserted;
+}
+
+/**
+ * The employer edited the posting: take the new content and make `process` / `enrich` redo it.
+ * A digested posting keeps its analysis row as a stale tombstone so `digested_at` survives and it
+ * is not re-sent; a posting that was never digested (e.g. a reject) has its analysis deleted.
+ */
+function refreshPosting(db: Db, old: Posting, p: RawPosting, hash: string, nowIso: string): void {
+  const titleChanged = normalizeTitle(old.title) !== normalizeTitle(p.title);
+  db.update(postings)
+    .set({
+      ...contentFields(p),
+      content_hash: hash,
+      last_seen_at: nowIso,
+      updated_at: nowIso,
+      normalized_at: null,
+      ...(titleChanged ? { dedupe_hash: null, canonical_posting_id: null } : {}),
+    })
+    .where(eq(postings.id, old.id))
+    .run();
+  if (titleChanged) {
+    // Group members regroup under the new title key on the next dedupe pass.
+    db.update(postings)
+      .set({ dedupe_hash: null, canonical_posting_id: null })
+      .where(eq(postings.canonical_posting_id, old.id))
+      .run();
+  }
+  db.delete(intel).where(eq(intel.posting_id, old.id)).run();
+  db.delete(analysis)
+    .where(and(eq(analysis.posting_id, old.id), isNull(analysis.digested_at)))
+    .run();
+  db.update(analysis)
+    .set({ analyzed_at: STALE_ANALYZED_AT })
+    .where(and(eq(analysis.posting_id, old.id), isNotNull(analysis.digested_at)))
+    .run();
 }
 
 /** Runs due adapters one after another. Returns the exit code: 1 if any adapter errored or the source name is unknown. */

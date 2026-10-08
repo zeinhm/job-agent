@@ -10,6 +10,7 @@ import {
   type NewAnalysis,
   type Posting,
 } from "@job-agent/core";
+import { STALE_ANALYZED_AT } from "./stale.ts";
 import { dedupePending } from "./dedupe/index.ts";
 import { classifyIndonesia } from "./filters/indonesia.ts";
 import { classifyLocation } from "./filters/location.ts";
@@ -149,10 +150,13 @@ export function runProcess(opts: ProcessOptions): number {
         id: analysis.posting_id,
         status: analysis.salary_status,
         digested_at: analysis.digested_at,
+        analyzed_at: analysis.analyzed_at,
       })
       .from(analysis)
       .all()
+      // no_fx: redo once rates exist. Stale: the employer edited the posting (see discover).
       .filter((a) => !(a.status === "no_fx" && a.digested_at === null))
+      .filter((a) => a.analyzed_at !== STALE_ANALYZED_AT)
       .map((a) => a.id),
   );
   const todo = db
