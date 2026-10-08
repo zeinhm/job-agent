@@ -112,7 +112,10 @@ const routes: Record<Source, [url: string, respond: (req: Request) => Response][
     ],
   ],
   web3career: [
-    ["https://web3.career/api/v1", () => HttpResponse.json(json("web3career/docs-shape.json"))],
+    [
+      "https://web3.career/api/v1",
+      () => HttpResponse.json(json("web3career-live-2026-10-08.json")),
+    ],
   ],
   weworkremotely: Object.entries(WWR_FEEDS).map(([feed, file]) => [
     `${WWR}/${feed}.rss`,

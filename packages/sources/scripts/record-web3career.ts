@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { buildRequestUrl } from "../src/web3career/index.ts";
 
 const MAX_JOBS = 20;
-const OUT = new URL("../test/fixtures/web3career/recorded.json", import.meta.url);
+const OUT = new URL("../test/fixtures/web3career-live-recorded.json", import.meta.url);
 
 const token = process.env.WEB3_CAREER_TOKEN;
 if (!token) {

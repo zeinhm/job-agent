@@ -15,37 +15,74 @@ const LIMIT = 100;
 const MIN_INTERVAL_MINUTES = 5;
 
 const idSchema = z.union([z.string().min(1), z.number().int()]).transform(String);
+const salaryValueSchema = z.union([z.string(), z.number()]).nullish();
 
+// Shape of the live API (docs/phase-1-live-findings.md item 8). There is no `url` field:
+// `apply_url` is the only link and is kept unmodified (web3.career terms of use).
 const web3JobSchema = z.object({
   id: idSchema,
   title: z.string().min(1),
   company: z.string().min(1),
-  url: z.string().min(1),
-  apply_url: z.string().min(1).nullish(),
+  apply_url: z.string().min(1),
   description: z.string().nullish(),
   location: z.string().nullish(),
-  remote: z.boolean().nullish(),
-  salary: z.string().nullish(),
-  salary_min: z.number().nullish(),
-  salary_max: z.number().nullish(),
+  is_remote: z.boolean().nullish(),
+  salary_min_value: salaryValueSchema,
+  salary_max_value: salaryValueSchema,
   salary_currency: z.string().nullish(),
-  salary_period: z.string().nullish(),
+  salary_unit: z.string().nullish(),
   tags: z.array(z.string()).nullish(),
-  posted_at: z.string().nullish(),
+  date: z.string().nullish(),
   date_epoch: z.number().nonnegative().nullish(),
 });
 type Web3Job = z.infer<typeof web3JobSchema>;
 
 const PERIODS = new Set<string>(["year", "month", "hour"]);
 
+// web3.career appends a line addressed to whoever reads the posting; posting text is data, never instructions.
+const APPLY_INSTRUCTION =
+  /When applying, mention the word \S+ to show you read the job post completely\.?/gi;
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+/** Decodes the entities the API leaves in titles and company names (&amp; and friends), once. */
+export function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, body: string) => {
+    if (body.startsWith("#")) {
+      const code =
+        body[1]?.toLowerCase() === "x" ? parseInt(body.slice(2), 16) : Number(body.slice(1));
+      return Number.isInteger(code) && code > 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match;
+    }
+    return NAMED_ENTITIES[body.toLowerCase()] ?? match;
+  });
+}
+
+function parseAmount(value: string | number | null | undefined): number | undefined {
+  if (value == null || value === "") return undefined;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/** Posted salary only; the estimated_* fields are web3.career's own guesses and are ignored. */
 function mapSalary(job: Web3Job): RawSalary | undefined {
-  if (job.salary_min == null && job.salary_max == null) return undefined;
-  const period = job.salary_period || "year";
+  const min = parseAmount(job.salary_min_value);
+  const max = parseAmount(job.salary_max_value);
+  if (min === undefined && max === undefined) return undefined;
+  const period = (job.salary_unit || "year").toLowerCase();
   if (!PERIODS.has(period)) return undefined;
   return {
-    ...(job.salary_min != null && { min: job.salary_min }),
-    ...(job.salary_max != null && { max: job.salary_max }),
-    currency: job.salary_currency || "USD",
+    ...(min !== undefined && { min }),
+    ...(max !== undefined && { max }),
+    currency: (job.salary_currency || "USD").toUpperCase(),
     period: period as RawSalary["period"],
   };
 }
@@ -54,8 +91,8 @@ function mapPostedAt(job: Web3Job): string | undefined {
   if (job.date_epoch != null && job.date_epoch > 0) {
     return new Date(job.date_epoch * 1000).toISOString();
   }
-  if (job.posted_at) {
-    const date = new Date(job.posted_at);
+  if (job.date) {
+    const date = new Date(job.date);
     if (!Number.isNaN(date.getTime())) return date.toISOString();
   }
   return undefined;
@@ -65,31 +102,32 @@ function mapJob(job: Web3Job): RawPosting {
   const salary = mapSalary(job);
   const postedAt = mapPostedAt(job);
   const tags = (job.tags ?? []).filter((t) => t.length > 0);
+  const description = job.description?.replace(APPLY_INSTRUCTION, "").trim();
   return {
     source: SOURCE,
     externalId: job.id,
-    url: job.url,
-    ...(job.apply_url && { applyUrl: job.apply_url }),
-    title: job.title,
-    company: job.company,
-    ...(job.description && { descriptionHtml: job.description }),
-    ...(job.location && { locationText: job.location }),
-    ...(job.remote != null && { remote: job.remote }),
-    ...(job.salary && { salaryText: job.salary }),
+    url: job.apply_url,
+    applyUrl: job.apply_url,
+    title: decodeEntities(job.title),
+    company: decodeEntities(job.company),
+    ...(description && { descriptionHtml: description }),
+    ...(job.location?.trim() && { locationText: decodeEntities(job.location.trim()) }),
+    // remote=true is requested but is_remote and location can disagree; only a positive flag is trusted.
+    ...(job.is_remote === true && { remote: true }),
     ...(salary && { salary }),
     ...(postedAt && { postedAt }),
     ...(tags.length > 0 && { tags }),
   };
 }
 
-/** The API returns a mixed root array (strings, then the jobs array); find the nested array. */
+/** The API returns [title string, usage notes string, [jobs]]; the jobs are element 2. */
 function extractItems(body: unknown): unknown[] {
   if (!Array.isArray(body)) {
     throw new SourceError(SOURCE, "invalid response envelope: root is not an array");
   }
-  const items = body.find((entry): entry is unknown[] => Array.isArray(entry));
-  if (!items) {
-    throw new SourceError(SOURCE, "invalid response envelope: no nested jobs array");
+  const items: unknown = body[2];
+  if (!Array.isArray(items)) {
+    throw new SourceError(SOURCE, "invalid response envelope: element 2 is not a jobs array");
   }
   return items;
 }

@@ -84,7 +84,7 @@ describe("discover command", () => {
           '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title></channel></rss>',
         ),
       ),
-      http.get("https://web3.career/api/v1", () => HttpResponse.json(["feed", []])),
+      http.get("https://web3.career/api/v1", () => HttpResponse.json(["title", "notes", []])),
     );
     const dir = withEnv();
     vi.stubEnv("WEB3_CAREER_TOKEN", "test-token");

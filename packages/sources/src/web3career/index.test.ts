@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { createWeb3CareerAdapter } from "./index.ts";
 
 const fixtureText = readFileSync(
-  new URL("../../test/fixtures/web3career/docs-shape.json", import.meta.url),
+  new URL("../../test/fixtures/web3career-live-2026-10-08.json", import.meta.url),
   "utf-8",
 );
 const envelope = JSON.parse(fixtureText) as [string, string, Record<string, unknown>[]];
@@ -40,7 +40,7 @@ beforeEach(() => {
 });
 
 const serve = (body: JsonBodyType) => server.use(http.get(API, () => HttpResponse.json(body)));
-const wrap = (list: unknown[]) => ["feed", list];
+const wrap = (list: unknown[]) => ["title", "notes", list];
 
 describe("web3career adapter", () => {
   it("returns one RawPosting per fixture job", async () => {
@@ -65,52 +65,78 @@ describe("web3career adapter", () => {
     expect(seen?.searchParams.get("limit")).toBe("100");
   });
 
-  it("maps a job fully, including structured salary", async () => {
+  it("keeps apply_url unmodified as both url and applyUrl", async () => {
     serve(envelope);
     const postings = await adapter.fetch(new Date(0));
-    expect(postings[0]).toEqual({
+    expect(postings.map((p) => p.applyUrl)).toEqual(jobs.map((j) => j["apply_url"]));
+    expect(postings.map((p) => p.url)).toEqual(jobs.map((j) => j["apply_url"]));
+  });
+
+  it("maps a job with a posted string salary", async () => {
+    serve(envelope);
+    const posting = (await adapter.fetch(new Date(0))).find((p) => p.externalId === "155044");
+    expect(posting).toMatchObject({
       source: "web3career",
-      externalId: "150325",
-      url: "https://web3.career/senior-fullstack-engineer-backend-focus-example-labs/150325",
-      applyUrl:
-        "https://web3.career/senior-fullstack-engineer-backend-focus-example-labs/150325#apply",
-      title: "Senior Fullstack Engineer (Backend Focus)",
-      company: "Example Labs",
-      descriptionHtml: "<p>Build backend services. Contact jobs@example.com or +10000000000.</p>",
-      remote: true,
-      salaryText: "$90k - $150k/year",
-      salary: { min: 90000, max: 150000, currency: "USD", period: "year" },
-      postedAt: "2026-10-05T00:00:00.000Z",
-      tags: ["backend", "engineer", "full stack", "senior", "crypto"],
+      externalId: "155044",
+      title: "Machine Learning Engineer ($400k - $600k salary)",
+      company: "Baton Corporation",
+      salary: { min: 400000, max: 600000, currency: "USD", period: "year" },
     });
+    expect(posting?.postedAt).toBe(new Date(1791361925 * 1000).toISOString());
   });
 
-  it("omits salary when no numbers are given and maps other periods", async () => {
+  it("ignores estimated salaries", async () => {
+    serve(envelope);
+    const posting = (await adapter.fetch(new Date(0))).find((p) => p.externalId === "155045");
+    expect(jobs.find((j) => j["id"] === 155045)?.["estimated_min_salary"]).toBeTruthy();
+    expect(posting).not.toHaveProperty("salary");
+    expect(posting).not.toHaveProperty("salaryText");
+  });
+
+  it("decodes HTML entities in titles and company names", async () => {
+    serve(envelope);
+    const posting = (await adapter.fetch(new Date(0))).find((p) => p.externalId === "155026");
+    expect(posting?.title).toBe("Enterprise Blockchain Architect (Digital Assets & Tokenization)");
+  });
+
+  it("strips the web3.career apply instruction from every description", async () => {
+    serve(envelope);
+    const postings = await adapter.fetch(new Date(0));
+    expect(jobs.every((j) => String(j["description"]).includes("CANDYSHOP"))).toBe(true);
+    for (const p of postings) {
+      expect(p.descriptionHtml).toBeTruthy();
+      expect(p.descriptionHtml).not.toContain("CANDYSHOP");
+      expect(p.descriptionHtml).not.toContain("When applying");
+    }
+  });
+
+  it("trusts only a positive is_remote flag", async () => {
     serve(envelope);
     const byId = new Map((await adapter.fetch(new Date(0))).map((p) => [p.externalId, p]));
-    expect(byId.get("150301")).not.toHaveProperty("salary");
-    expect(byId.get("150301")).not.toHaveProperty("salaryText");
-    expect(byId.get("150301")?.locationText).toBe("Worldwide");
-    expect(byId.get("150288")?.salary).toEqual({
-      min: 30,
-      max: 45,
-      currency: "USD",
-      period: "hour",
-    });
+    expect(byId.get("155034")?.remote).toBe(true);
+    expect(byId.get("155045")).not.toHaveProperty("remote");
   });
 
-  it("falls back from epoch to posted_at and omits an unknown date", async () => {
-    serve(envelope);
+  it("maps month and hour units case-insensitively and drops unknown units", async () => {
+    const base = { ...jobs[0], salary_min_value: "30.0", salary_max_value: "45.0" };
+    serve(
+      wrap([
+        { ...base, id: 1, salary_unit: "HOUR" },
+        { ...base, id: 2, salary_unit: "MONTH" },
+        { ...base, id: 3, salary_unit: "WEEK" },
+      ]),
+    );
     const byId = new Map((await adapter.fetch(new Date(0))).map((p) => [p.externalId, p]));
-    expect(byId.get("150288")?.postedAt).toBe("2026-10-02T00:00:00.000Z");
-    expect(byId.get("150301")?.postedAt).toBe("2026-09-20T00:00:00.000Z");
-    expect(byId.get("150270")).not.toHaveProperty("postedAt");
+    expect(byId.get("1")?.salary).toEqual({ min: 30, max: 45, currency: "USD", period: "hour" });
+    expect(byId.get("2")?.salary?.period).toBe("month");
+    expect(byId.get("3")).not.toHaveProperty("salary");
   });
 
-  it("excludes jobs posted before since and keeps undated ones", async () => {
+  it("excludes jobs posted before since", async () => {
     serve(envelope);
-    const postings = await adapter.fetch(new Date("2026-10-03T00:00:00Z"));
-    expect(postings.map((p) => p.externalId).sort()).toEqual(["150270", "150325"]);
+    const cutoff = new Date(1791361848 * 1000);
+    const ids = (await adapter.fetch(cutoff)).map((p) => p.externalId).sort();
+    expect(ids).toEqual(["155034", "155043", "155044", "155045"]);
   });
 
   it("throws SourceError naming the variable when the token is missing", async () => {
@@ -152,17 +178,19 @@ describe("web3career adapter", () => {
     await expect(adapter.fetch(new Date(0))).rejects.toBeInstanceOf(SourceError);
     serve(["only", "strings"]);
     await expect(adapter.fetch(new Date(0))).rejects.toBeInstanceOf(SourceError);
+    serve([[jobs[0]], "strings", "x"]);
+    await expect(adapter.fetch(new Date(0))).rejects.toBeInstanceOf(SourceError);
   });
 
   it("skips one invalid job with a warn", async () => {
-    const bad = { ...jobs[0], id: "bad-1", url: undefined };
+    const bad = { ...jobs[0], id: "bad-1", apply_url: undefined };
     serve(wrap([...jobs, bad]));
     const postings = await adapter.fetch(new Date(0));
     expect(postings).toHaveLength(jobs.length);
     expect(postings.map((p) => p.externalId)).not.toContain("bad-1");
     expect(log.warn).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ source: "web3career", externalId: "bad-1", path: "url" }),
+      expect.objectContaining({ source: "web3career", externalId: "bad-1", path: "apply_url" }),
     );
   });
 

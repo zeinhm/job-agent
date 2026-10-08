@@ -190,3 +190,15 @@ describe("normalizePending", () => {
     );
   });
 });
+
+describe("cleanUrl web3.career", () => {
+  it("never modifies web3.career links (terms of use)", () => {
+    const url = "https://web3.career/r/1QDM1UTM__M9jY3A?ref=x&utm_source=y#apply";
+    expect(cleanUrl(url)).toBe(url);
+    expect(cleanUrl("https://www.web3.career/job?ref=z")).toBe("https://www.web3.career/job?ref=z");
+  });
+
+  it("still cleans look-alike hosts", () => {
+    expect(cleanUrl("https://notweb3.career/a?ref=z")).toBe("https://notweb3.career/a");
+  });
+});

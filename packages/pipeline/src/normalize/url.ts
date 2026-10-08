@@ -5,9 +5,20 @@ function isTracking(param: string): boolean {
   return key.startsWith("utm_") || TRACKING_KEYS.has(key);
 }
 
-/** Drops tracking params and the fragment; everything else is left byte-for-byte as given. */
+/** web3.career terms of use: its apply_url must be linked exactly as given. */
+function isWeb3Career(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "web3.career" || host.endsWith(".web3.career");
+  } catch {
+    return false;
+  }
+}
+
+/** Drops tracking params and the fragment; everything else is left byte-for-byte as given. web3.career links are never modified. */
 export function cleanUrl(url: string): string {
   const trimmed = url.trim();
+  if (isWeb3Career(trimmed)) return trimmed;
   const hashAt = trimmed.indexOf("#");
   const noHash = hashAt === -1 ? trimmed : trimmed.slice(0, hashAt);
   const queryAt = noHash.indexOf("?");
