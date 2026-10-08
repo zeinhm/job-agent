@@ -1,0 +1,148 @@
+{
+  "id": "744000103564710",
+  "name": "Azure Engineer III",
+  "uuid": "b19ae849-124e-49fa-8b38-3b77ffbb8c4f",
+  "jobId": "018dd7f1-2284-42fc-b3f0-9d36051d8433",
+  "jobAdId": "63ed4098-4513-4269-8e23-8b41b7e08198",
+  "defaultJobAd": true,
+  "refNumber": "REF9625U",
+  "company": { "name": "McDonald's Corporation", "identifier": "McDonaldsCorporation" },
+  "location": {
+    "city": "Ciudad de México",
+    "region": "CDMX",
+    "country": "mx",
+    "address": "Avenida Paseo de la Reforma 296",
+    "postalCode": "06600",
+    "remote": false,
+    "hybrid": true,
+    "latitude": "19.4275514",
+    "longitude": "-99.16539820000001",
+    "fullLocation": "Ciudad de México, CDMX, Mexico"
+  },
+  "customField": [
+    {
+      "fieldId": "5d2d0b32fef2c732566f5ea0",
+      "fieldLabel": "Brands",
+      "valueId": "default",
+      "valueLabel": "McDonald's Corporation"
+    },
+    {
+      "fieldId": "602be917fb68c634b5e90ab2",
+      "fieldLabel": "Employee Type",
+      "valueId": "b8173cc5-645e-4581-a0a0-231a344a4146",
+      "valueLabel": "Permanent"
+    },
+    {
+      "fieldId": "5ddc3352aafaf0098ab79b21",
+      "fieldLabel": "Role Type",
+      "valueId": "4aff5f81-5656-41d2-bb51-8e3c19fb8f38",
+      "valueLabel": "Full Time"
+    },
+    {
+      "fieldId": "5de706c4b51a2e69bb48bb36",
+      "fieldLabel": "Head Officer",
+      "valueId": "555d50b5-3dda-4900-b9e7-0875774c3699",
+      "valueLabel": "Brian Rice"
+    },
+    {
+      "fieldId": "65294852764bab6ad177be17",
+      "fieldLabel": "Governance Request ID",
+      "valueLabel": "3810"
+    },
+    {
+      "fieldId": "5d408e872c747155732d01cd",
+      "fieldLabel": "McD Segment",
+      "valueId": "300f2c57-125f-4349-9ae9-c28439d01bee",
+      "valueLabel": "Corporate"
+    },
+    {
+      "fieldId": "5d409074afc8f557e10b112c",
+      "fieldLabel": "Education Requirements",
+      "valueId": "5e888402-a409-49b9-979f-0f93aa507008",
+      "valueLabel": "Graduate"
+    },
+    {
+      "fieldId": "5ec6bfe8891ff45bd36fafac",
+      "fieldLabel": "Required Language(s)",
+      "valueId": "53bf1aa6-2172-4f7e-a9bc-d10ebbdaf564",
+      "valueLabel": "Bilingual - English & Spanish"
+    },
+    {
+      "fieldId": "5d52aee23b471871328e8030",
+      "fieldLabel": "Department Name",
+      "valueId": "0310",
+      "valueLabel": "GCS LEADERSHIP                                     - US"
+    },
+    {
+      "fieldId": "5d408f213a7b231c8f0ddd88",
+      "fieldLabel": "McD Function",
+      "valueId": "7cb53b52-082d-4a29-b5ec-3fbd197e4b80",
+      "valueLabel": "Global Technology: All Other"
+    },
+    {
+      "fieldId": "5d481866ccf0977b0dc257a9",
+      "fieldLabel": "Job Level Description",
+      "valueId": "MG",
+      "valueLabel": "MG"
+    },
+    {
+      "fieldId": "COUNTRY",
+      "fieldLabel": "Country/Region",
+      "valueId": "mx",
+      "valueLabel": "Mexico"
+    },
+    {
+      "fieldId": "5d408fee0c495b631de98b6f",
+      "fieldLabel": "Estimated Travel",
+      "valueId": "6b72dbdc-541c-4b01-a2ea-09074a578683",
+      "valueLabel": "None"
+    },
+    {
+      "fieldId": "5d408fbf2e4d0256f4f23a49",
+      "fieldLabel": "Relocation Assistance Available",
+      "valueId": "fe52459d-080c-444f-9f8c-fbb5728d1cdc",
+      "valueLabel": "Yes"
+    },
+    {
+      "fieldId": "5d5142c63917da1954a133c1",
+      "fieldLabel": "McDonald's Office Location",
+      "valueId": "c1f3b42f-7957-40b4-9171-1d026f7833d2",
+      "valueLabel": "Mexico"
+    },
+    {
+      "fieldId": "5ddc3a3eddd4bd0345f66017",
+      "fieldLabel": "Global Grade",
+      "valueId": "G4",
+      "valueLabel": "G4"
+    }
+  ],
+  "releasedDate": "2026-01-14T17:11:07.715Z",
+  "creator": { "name": "", "avatarUrl": "" },
+  "postingUrl": "https://jobs.smartrecruiters.com/McDonaldsCorporation/744000103564710-azure-engineer-iii",
+  "applyUrl": "https://jobs.smartrecruiters.com/McDonaldsCorporation/744000103564710-azure-engineer-iii?oga=true",
+  "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/McDonaldsCorporation/publication/b19ae849-124e-49fa-8b38-3b77ffbb8c4f?dcr_ci=McDonaldsCorporation",
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company Description",
+        "text": "<p>McDonald’s growth strategy, Accelerating the Arches, encompasses all aspects of our business as the leading global omni-channel restaurant brand. As the consumer landscape shifts we are using our competitive advantages to further strengthen our brand. One of our core growth strategies is to Double Down on the 3Ds (Delivery, Digital and Drive Thru). McDonald’s will accelerate technology innovation so 65M+ customers a day will experience a fast, easy experience, whether at one of our 25,000 and growing Drive thrus, through McDelivery, dine-in or takeaway.&#xa0;</p><p>McDonald’s Global Technology is here to power tomorrow’s feel-good moments.That’s why you’ll find us at the forefront of transformative technology, exploring new and innovative ways to serve our millions of customers and spread happiness one delicious Hot Fudge Sundae-dipped fry at a time. Using AI, robotics and emerging tech, we’re digitizing the Golden Arches. Combine that with our unparalleled global scale, and we’re reshaping all areas of the business, industry and every community that is home to a McDonald’s restaurant. We face complex tech challenges every day. But that’s where our diverse and talented teams come in. They’re made up of the best and brightest from all over the globe, and they thrive in the space where feel-good meets fast-paced. &#xa0;</p><p>Check out the McDonald’s  <a href=\"https://medium.com/mcdonalds-technical-blog\">Global Technology Technical Blog</a> to learn how technology and our global team are directly enabling the Accelerating the Arches strategy.&#xa0;</p>"
+      },
+      "jobDescription": {
+        "title": "Job Description",
+        "text": "<p>As a&#xa0;Senior&#xa0;FullStack&#xa0;Software&#xa0;Azure&#xa0;Engineer&#xa0;or Azure Architect&#xa0;on our Identity and Access Engineering team, you&#xa0;need to have a strong background in systems design and architecture to drive the development of scalable, resilient, and efficient&#xa0;applications.&#xa0;&#xa0;</p><p>The ideal candidate will lead the architectural transformation of our custom IAM solution from a monolithic structure to a modern microservices-based architecture. The ideal candidate will bring deep&#xa0;expertise&#xa0;in Azure cloud services, microservices design, and API integration—particularly with platforms like Saviynt—and will play a key role in designing scalable IAM solutions that support access governance, role-based access control (RBAC), and separation of duties (SOD).&#xa0;&#xa0;</p><p>This is a strategic and hands-on role that requires strong technical leadership, architectural vision, and the ability to collaborate across engineering, security, and business teams.&#xa0;&#xa0;This is a phenomenal opportunity to continue to evolve and improve the global identity and access management platform at the world’s largest restaurant company!&#xa0;</p><p>Responsibilities&#xa0;</p><ul><li><p>Lead the migration of our IAM application from monolithic architecture to microservices, ensuring scalability, resilience, and performance.&#xa0;&#xa0;</p></li><li><p>Design, implement, and&#xa0;maintain&#xa0;scalable IAM solutions, including access governance, RBAC, and SOD.&#xa0;</p></li><li><p>Architect and oversee the integration of Saviynt APIs into our IAM platform to enhance identity governance and automation capabilities.&#xa0;</p></li></ul><ul><li><p>Design and implement cloud-native solutions using Azure services including AKS, Azure Functions, Logic Apps, Event Grid, Service Bus, and API Management.&#xa0;</p></li></ul><ul><li><p>Define and document architecture standards, patterns, and best practices for microservices, API design, and cloud infrastructure.&#xa0;</p></li></ul><ul><li><p>Collaborate with software engineers,&#xa0;DevSecOps, and cybersecurity teams to ensure secure, compliant, and efficient solutions.&#xa0;</p></li></ul><ul><li><p>Provide technical leadership and mentorship to development teams.&#xa0;</p></li></ul><ul><li><p>Evaluate and recommend new Azure services and IAM technologies to improve platform capabilities.&#xa0;</p></li></ul><ul><li><p>Design, implement, and maintain secure CI/CD pipelines using GitHub Actions, Azure DevOps, and Jenkins.&#xa0;</p></li></ul><ul><li><p>Automate infrastructure provisioning using Terraform and ARM templates.&#xa0;</p></li></ul><ul><li><p>Integrate security tools into the SDLC, including SAST, DAST, and SCA (e.g.,&#xa0;Snyk).&#xa0;</p></li></ul><ul><li><p>Manage secrets securely using Azure Key Vault and enforce secure coding practices.&#xa0;</p></li></ul><ul><li><p>Support containerization using Docker and orchestration with Kubernetes.&#xa0;</p></li></ul><ul><li><p>Troubleshoot complex architectural and integration issues across distributed systems.&#xa0;</p></li></ul><ul><li><p>Stay current with emerging IAM technologies, Azure services, and&#xa0;DevSecOps&#xa0;tools.&#xa0;</p></li></ul>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<ul><li><p>8+ years of experience in software architecture and development, with at least 3 years focused on Azure cloud solutions.&#xa0;</p></li></ul><ul><li><p>Proven experience designing and migrating applications to&#xa0;microservices&#xa0;architecture.&#xa0;</p></li></ul><ul><li><p>Strong&#xa0;expertise&#xa0;in Azure services: AKS, Azure Functions, Logic Apps, Event Grid, Service Bus, Azure Data Factory, Azure Cosmos DB, API Management, Azure AD, and Entra ID&#xa0;</p></li></ul><ul><li><p>Strong hands-on experience with .NET Core/.NET Framework, C#, and web technologies (HTML, CSS, JavaScript,), SQL and NoSQL Databases.&#xa0;</p></li></ul><ul><li><p>Experience with containerization and orchestration using Docker and Kubernetes.&#xa0;</p></li></ul><ul><li><p>Experience integrating third-party IAM platforms such as Saviynt, SailPoint, or Okta via APIs.&#xa0;</p></li></ul><ul><li><p>Experience with CI/CD tools: GitHub Actions, Azure DevOps, Jenkins.&#xa0;</p></li></ul><ul><li><p>Experience with Git flow, branching strategies, and repository security configurations.&#xa0;</p></li></ul><ul><li><p>Experience with deployment strategies like&#xa0;Blue-Green&#xa0;and Canary.&#xa0;</p></li></ul><ul><li><p>Strong understanding of application security practices (Snyk, SAST, DAST and SCA)&#xa0;</p></li></ul><ul><li><p>Excellent communication and stakeholder management skills.&#xa0;</p></li></ul><p><u>Preferred Qualifications&#xa0;</u></p><ul><li><p>Deep understanding of IAM protocols and standards: OAuth 2.0, OpenID Connect, SAML, SCIM, LDAP.&#xa0;</p></li></ul><ul><li><p>Relevant certifications such as Azure Solutions Architect Expert, Azure Security Engineer Associate, Microsoft Identity and Access Administrator Associate, CISSP are highly desirable.&#xa0;</p></li></ul><ul><li><p>Experience with cybersecurity principles and best practices, including risk management, access controls, and secure coding principles.&#xa0;</p></li></ul>"
+      },
+      "additionalInformation": { "title": "Additional Information", "text": "" }
+    }
+  },
+  "active": true,
+  "visibility": "PUBLIC",
+  "industry": { "id": "restaurants", "label": "Restaurants" },
+  "function": { "id": "human_resources", "label": "Human Resources" },
+  "experienceLevel": { "id": "mid_senior_level", "label": "Mid-Senior Level" },
+  "typeOfEmployment": { "id": "permanent", "label": "Full-time" },
+  "language": { "code": "en", "label": "English", "labelNative": "English (US)" }
+}

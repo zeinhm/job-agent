@@ -67,3 +67,19 @@ describe("buildAdapters", () => {
     expect(adapters[0]?.minIntervalMinutes).toBe(5);
   });
 });
+
+describe("buildAdapters smartrecruiters", () => {
+  it("returns one smartrecruiters adapter (360 minute interval) only with smartrecruiters companies", () => {
+    expect(
+      buildAdapters(makeConfig([{ name: "A", ats: "lever", slug: "a" }])).map((a) => a.name),
+    ).not.toContain("smartrecruiters");
+    const adapters = buildAdapters(
+      makeConfig([
+        { name: "A", ats: "smartrecruiters", slug: "a" },
+        { name: "B", ats: "smartrecruiters", slug: "b" },
+      ]),
+    ).filter((a) => a.name === "smartrecruiters");
+    expect(adapters).toHaveLength(1);
+    expect(adapters[0]?.minIntervalMinutes).toBe(360);
+  });
+});

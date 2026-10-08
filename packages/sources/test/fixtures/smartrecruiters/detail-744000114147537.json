@@ -1,0 +1,148 @@
+{
+  "id": "744000114147537",
+  "name": "Sr. Engineer, Access Governance ",
+  "uuid": "bdea78df-a3ae-4c8e-90cd-ffdd1c443ebd",
+  "jobId": "ab03e296-e5b1-43d6-ac0b-a474a4dc5b65",
+  "jobAdId": "d09486be-0b0a-42c1-9fcf-7f20c3562e86",
+  "defaultJobAd": true,
+  "refNumber": "REF9549Q",
+  "company": { "name": "McDonald's Corporation", "identifier": "McDonaldsCorporation" },
+  "location": {
+    "city": "Ciudad de México",
+    "region": "CDMX",
+    "country": "mx",
+    "address": "Avenida Paseo de la Reforma 296",
+    "postalCode": "06600",
+    "remote": false,
+    "hybrid": false,
+    "latitude": "19.4272147",
+    "longitude": "-99.16569009999999",
+    "fullLocation": "Ciudad de México, CDMX, Mexico"
+  },
+  "customField": [
+    {
+      "fieldId": "5d2d0b32fef2c732566f5ea0",
+      "fieldLabel": "Brands",
+      "valueId": "default",
+      "valueLabel": "McDonald's Corporation"
+    },
+    {
+      "fieldId": "602be917fb68c634b5e90ab2",
+      "fieldLabel": "Employee Type",
+      "valueId": "b8173cc5-645e-4581-a0a0-231a344a4146",
+      "valueLabel": "Permanent"
+    },
+    {
+      "fieldId": "5ddc3352aafaf0098ab79b21",
+      "fieldLabel": "Role Type",
+      "valueId": "4aff5f81-5656-41d2-bb51-8e3c19fb8f38",
+      "valueLabel": "Full Time"
+    },
+    {
+      "fieldId": "5de706c4b51a2e69bb48bb36",
+      "fieldLabel": "Head Officer",
+      "valueId": "555d50b5-3dda-4900-b9e7-0875774c3699",
+      "valueLabel": "Brian Rice"
+    },
+    {
+      "fieldId": "65294852764bab6ad177be17",
+      "fieldLabel": "Governance Request ID",
+      "valueLabel": "3993"
+    },
+    {
+      "fieldId": "5d408e872c747155732d01cd",
+      "fieldLabel": "McD Segment",
+      "valueId": "300f2c57-125f-4349-9ae9-c28439d01bee",
+      "valueLabel": "Corporate"
+    },
+    {
+      "fieldId": "5d409074afc8f557e10b112c",
+      "fieldLabel": "Education Requirements",
+      "valueId": "5e888402-a409-49b9-979f-0f93aa507008",
+      "valueLabel": "Graduate"
+    },
+    {
+      "fieldId": "5ec6bfe8891ff45bd36fafac",
+      "fieldLabel": "Required Language(s)",
+      "valueId": "53bf1aa6-2172-4f7e-a9bc-d10ebbdaf564",
+      "valueLabel": "Bilingual - English & Spanish"
+    },
+    {
+      "fieldId": "5d52aee23b471871328e8030",
+      "fieldLabel": "Department Name",
+      "valueId": "0753",
+      "valueLabel": "IAMOPERATIONS                                      - US"
+    },
+    {
+      "fieldId": "5d408f213a7b231c8f0ddd88",
+      "fieldLabel": "McD Function",
+      "valueId": "7cb53b52-082d-4a29-b5ec-3fbd197e4b80",
+      "valueLabel": "Global Technology: All Other"
+    },
+    {
+      "fieldId": "5d481866ccf0977b0dc257a9",
+      "fieldLabel": "Job Level Description",
+      "valueId": "SU",
+      "valueLabel": "SU"
+    },
+    {
+      "fieldId": "COUNTRY",
+      "fieldLabel": "Country/Region",
+      "valueId": "mx",
+      "valueLabel": "Mexico"
+    },
+    {
+      "fieldId": "5d408fee0c495b631de98b6f",
+      "fieldLabel": "Estimated Travel",
+      "valueId": "6b72dbdc-541c-4b01-a2ea-09074a578683",
+      "valueLabel": "None"
+    },
+    {
+      "fieldId": "5d408fbf2e4d0256f4f23a49",
+      "fieldLabel": "Relocation Assistance Available",
+      "valueId": "fe52459d-080c-444f-9f8c-fbb5728d1cdc",
+      "valueLabel": "Yes"
+    },
+    {
+      "fieldId": "5d5142c63917da1954a133c1",
+      "fieldLabel": "McDonald's Office Location",
+      "valueId": "c1f3b42f-7957-40b4-9171-1d026f7833d2",
+      "valueLabel": "Mexico"
+    },
+    {
+      "fieldId": "5ddc3a3eddd4bd0345f66017",
+      "fieldLabel": "Global Grade",
+      "valueId": "G3",
+      "valueLabel": "G3"
+    }
+  ],
+  "releasedDate": "2026-03-11T20:52:54.488Z",
+  "creator": { "name": "", "avatarUrl": "" },
+  "postingUrl": "https://jobs.smartrecruiters.com/McDonaldsCorporation/744000114147537-sr-engineer-access-governance-",
+  "applyUrl": "https://jobs.smartrecruiters.com/McDonaldsCorporation/744000114147537-sr-engineer-access-governance-?oga=true",
+  "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/McDonaldsCorporation/publication/bdea78df-a3ae-4c8e-90cd-ffdd1c443ebd?dcr_ci=McDonaldsCorporation",
+  "jobAd": {
+    "sections": {
+      "companyDescription": {
+        "title": "Company Description",
+        "text": "<p>McDonald’s growth strategy, Accelerating the Arches, encompasses all aspects of our business as the leading global omni-channel restaurant brand. As the consumer landscape shifts we are using our competitive advantages to further strengthen our brand. One of our core growth strategies is to Double Down on the 3Ds (Delivery, Digital and Drive Thru). McDonald’s will accelerate technology innovation so 65M+ customers a day will experience a fast, easy experience, whether at one of our 25,000 and growing Drive Thrus, through McDelivery, dine-in or takeaway.&#xa0;</p><p>McDonald’s Global Technology is here to power tomorrow’s feel-good moments.&#xa0;&#xa0;</p><p>That’s why you’ll find us at the forefront of transformative technology, exploring new and innovative ways to serve our millions of customers and spread happiness one delicious Hot Fudge Sundae-dipped fry at a time. Using AI, robotics and emerging tech, we’re digitizing the Golden Arches. Combine that with our unparalleled global scale, and we’re reshaping all areas of the business, industry and every community that is home to a McDonald’s restaurant. We face complex tech challenges every day. But that’s where our diverse and talented teams come in. They’re made up of the best and brightest from all over the globe, and they thrive in the space where feel-good meets fast-paced. &#xa0;</p><p>We’re recruiting engineers to join our Global Technology team in Mexico City as we open our McDonald’s Capability Center (MCC). Our Mexico City MCC will be a hub for technology innovation and operational support to help us build the solutions that will improve our customer, crew and employee experience each and every day.&#xa0;</p><p>Check out the McDonald’s  <a href=\"https://medium.com/mcdonalds-technical-blog\">Global Technology Technical Blog</a> to learn how technology and our global team are directly enabling the Accelerating the Arches strategy.&#xa0;</p>"
+      },
+      "jobDescription": {
+        "title": "Job Description",
+        "text": "<p>Identity Goverance Administration (IGA) program encompasses the planning, design, implementation, maintenance, support, and continuous improvement of provisioning and identity governance services across the global enterprise. We are currently searching for an Analyst to join our team. A go-getter with a background of user administration or identity / access management would be ideal for this role. A background of cybersecurity operations, audit, or data analytics could also be good fit.</p><p>PRIMARY RESPONSIBILITIES</p><ul><li>Provide stellar IAM user and stakeholder support</li><li>Support project efforts through gathering requirements and assisting with build and validation of modernized IAM capabilities.</li><li>Ensure application team alignment of identity governance controls which leverage best practices and establish a solid scalable foundation.</li><li>Support implement through data analysis and clean-up and authoring proper project and audit required documentation.</li><li>Act as next-level escalation for IAM Operations</li><li>Conduct rootcause analysis, collaborating with Engineering leads to identify bug fixes and/or enhancements</li><li>Complete and/or coordinate IGA system maintenance and change controls processes for patching and upgrades</li><li>Conduct reporting and data clean-up activities</li><li>Pull and prepare audit artifacts</li><li>Build and maintain knowledge-based articles</li><li>Recommend product enhancements and bug fixes</li><li>Recommend process improvements</li><li>Continuously seek operations, product and IAM customer experience improvements</li><li>Collaborate closely with fellow IAM team members, as well as end-users and IAM stakeholders</li></ul>"
+      },
+      "qualifications": {
+        "title": "Qualifications",
+        "text": "<ul><li>3+ years of related hands-on engineering or analyst experience</li><li>2+ year experience with Identity Governance tools and/or processes is preferred</li><li>Good understanding of identity/access management and security best practices</li><li>Experience with IAM tools such as Saviynt, SailPoint, Active Directory, and/or Azure EntraID is preferred</li><li>Familiarity with workstream tools such as Service Now, Jira, Confluence is a plus</li><li>Ability to manage and complete multiple tasks in a fast-paced environment</li><li>Well organized, detail oriented, analytical thinker and problem-solver</li><li>Collaborative team player, who will work closely with IAM and other teams</li><li>Highly developed interpersonal, written and verbal skills with an ability to convey technical concepts in business terms</li><li>Knowledge of other IAM practices and systems’ interoperability is a plus</li><li>Great technical and process documentation skills</li><li>Enthusiastic about learning and incorporating new tools and processes to improve the user experience and build operational efficiencies</li></ul>"
+      },
+      "additionalInformation": { "title": "Additional Information", "text": "" }
+    }
+  },
+  "active": true,
+  "visibility": "PUBLIC",
+  "industry": { "id": "restaurants", "label": "Restaurants" },
+  "function": { "id": "accounting_auditing", "label": "Accounting/Auditing" },
+  "experienceLevel": { "id": "associate", "label": "Associate" },
+  "typeOfEmployment": { "id": "permanent", "label": "Full-time" },
+  "language": { "code": "en", "label": "English", "labelNative": "English (US)" }
+}

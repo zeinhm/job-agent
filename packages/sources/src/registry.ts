@@ -6,6 +6,7 @@ import { createHnAdapter } from "./hn/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
 import { createRemoteOkAdapter } from "./remoteok/index.ts";
 import { createRemotiveAdapter } from "./remotive/index.ts";
+import { createSmartRecruitersAdapter } from "./smartrecruiters/index.ts";
 import { createWeb3CareerAdapter } from "./web3career/index.ts";
 import { createWeWorkRemotelyAdapter } from "./weworkremotely/index.ts";
 
@@ -21,6 +22,9 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
 
   const ashby = config.companies.filter((c) => c.ats === "ashby");
   if (ashby.length > 0) adapters.push(createAshbyAdapter(ashby));
+
+  const smartrecruiters = config.companies.filter((c) => c.ats === "smartrecruiters");
+  if (smartrecruiters.length > 0) adapters.push(createSmartRecruitersAdapter(smartrecruiters));
 
   adapters.push(createHimalayasAdapter());
   adapters.push(createRemoteOkAdapter());
