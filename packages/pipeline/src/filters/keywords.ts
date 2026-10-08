@@ -403,3 +403,154 @@ export const ROLE_GENERIC_TITLES: readonly string[] = [
   "mts",
   "design engineer",
 ];
+
+/*
+ * Scam signals (R6, docs/research/t_080347c5-scam-signals.md). The *_PATTERNS lists hold regular-expression
+ * sources, matched case-insensitively against the posting text. `[^.!?\n]` keeps a match inside one sentence.
+ * Bare "Web3", "crypto", "token", "airdrop" and "join our Discord community" are deliberately not signals.
+ */
+
+/** Contact (or applying) happens in a chat app. */
+export const SCAM_CHAT_CONTACT_PATTERNS: readonly string[] = [
+  String.raw`\b(contact|message|dm|ping|text|reach|apply|reply|write)\b[^.!?\n]{0,60}\b(telegram|whats ?app|wa\.me|t\.me|wechat|discord|signal (app|messenger))`,
+  String.raw`\bjoin\b[^.!?\n]{0,60}\b(telegram|whats ?app|discord)\b[^.!?\n]{0,60}\b(interview|apply|application|hiring|onboarding|start)\b`,
+  String.raw`\b(telegram|whats ?app|discord)\b[^.!?\n]{0,40}\b(for|to) (the |your )?(interview|application|apply)\b`,
+];
+
+/** Interview held entirely over chat. */
+export const SCAM_CHAT_INTERVIEW_PATTERNS: readonly string[] = [
+  String.raw`interview[^.!?\n]{0,40}\b(via|on|through|over|by)\b[^.!?\n]{0,15}\b(telegram|whats ?app|skype|chat|text|discord)\b`,
+  String.raw`\b(text|chat)[- ]based interview`,
+  String.raw`\bno (video|camera)\b`,
+  String.raw`\bcamera not required\b`,
+];
+
+/** The applicant is asked to pay, or to move money. */
+export const SCAM_UPFRONT_PAYMENT_PATTERNS: readonly string[] = [
+  String.raw`\b(registration|training|equipment|processing|security|onboarding|starter[- ]kit|application) fee\b`,
+  String.raw`\bpay (for|to get) (the )?(training|equipment|software|job)`,
+  String.raw`\bdeposit (a |the )?check`,
+  String.raw`\bcheck to deposit\b`,
+  String.raw`\bsend (back|on) part of\b`,
+  String.raw`\b(buy|purchase) (your own )?(laptop|equipment|software)`,
+  String.raw`\b(usdt|trc-?20|bitcoin)\b[^.!?\n]{0,40}\b(deposit|unlock|activate)`,
+  String.raw`\b(deposit|unlock|activate)\b[^.!?\n]{0,40}\b(usdt|trc-?20|bitcoin)\b`,
+];
+
+/** ID or bank details requested before an offer. */
+export const SCAM_ID_EARLY_PATTERNS: readonly string[] = [
+  String.raw`\b(send|attach|provide|upload)\b[^.!?\n]{0,60}(passport|national id|id card|ssn|social security|bank (account|details)|routing number)[^.!?\n]{0,60}(with your application|before (the )?interview|to apply)`,
+];
+
+/** Wording that makes an ID request normal (after an offer): suppresses `id_early`. */
+export const SCAM_ID_EARLY_EXCLUDE_PATTERNS: readonly string[] = [
+  String.raw`\b(after|once|upon)\b[^.!?\n]{0,30}\b(offer|hired|background check)\b`,
+  String.raw`\bbackground check\b`,
+];
+
+/** Task-scam style roles (FTC "task scams", data entry, reshipping). */
+export const SCAM_TASK_ROLE_PATTERNS: readonly string[] = [
+  String.raw`\bdata entry\b`,
+  String.raw`\b(typist|click(ing)? (ads|links)|like (and|&) (share|subscribe)|(rate|review) products|product boosting|app optimi[sz]ation|order optimi[sz]ation|task[- ]based (job|work)|mystery shopp|re-?ship|package forwarding|payment processing agent|crypto (assistant|trader assistant)|(vip|bonus) tasks?)`,
+];
+
+/** "No experience" wording; high pay is checked separately. */
+export const SCAM_NO_EXPERIENCE_PATTERNS: readonly string[] = [
+  String.raw`\bno (prior )?(experience|skills?) (is |are )?(needed|required|necessary)\b`,
+  String.raw`\b(experience|skills?) (is |are )?not (needed|required|necessary)\b`,
+];
+
+/** Extreme urgency. Each distinct pattern that matches adds the weight, at most twice. Plain "apply now" is not one. */
+export const SCAM_URGENCY_PATTERNS: readonly string[] = [
+  String.raw`\burgent(ly)?\b`,
+  String.raw`\b(immediate(ly)? (start|hiring|joining)|hiring immediately|start (immediately|today|tomorrow))\b`,
+  String.raw`\blimited (spots|slots|positions)\b`,
+  String.raw`\basap\b`,
+];
+
+/** Candidate is told to clone, install or run a repository. */
+export const SCAM_REPO_ASSESSMENT_PATTERNS: readonly string[] = [
+  String.raw`\b(clone|fork|download)\b[^.!?\n]{0,30}\b(our|the|this)\b[^.!?\n]{0,15}\b(repo|repository|github|bitbucket|gitlab)\b`,
+  String.raw`\b(run|execute|then|first|next|start with)\b[^.!?\n]{0,20}\b(npm|yarn|pnpm) (install|i)\b`,
+  String.raw`\brun (it|the (project|app|code|demo)) locally\b`,
+  String.raw`\b(coding|technical) (assessment|challenge|test|task)[^.!?\n]{0,80}(github\.com|zip|attached)`,
+];
+
+/** Fake interview platform that asks for a download. */
+export const SCAM_INSTALL_REQUEST_PATTERNS: readonly string[] = [
+  String.raw`\b(install|download)\b[^.!?\n]{0,40}\b(driver|plugin|extension|update|app|software)\b[^.!?\n]{0,40}\b(interview|camera|video|meeting|microphone)`,
+  String.raw`\b(camera|microphone)\b[^.!?\n]{0,30}\b(not working|issue)\b[^.!?\n]{0,60}\b(install|download)\b`,
+];
+
+/** "Paid trial tasks". */
+export const SCAM_PAID_TRIAL_PATTERNS: readonly string[] = [
+  String.raw`\bpaid (trial|test|probation)( (task|project|day|period))?s?\b`,
+  String.raw`\btrial (task|period|week)[^.!?\n]{0,40}(paid|\$|usdt)`,
+];
+
+/** Employer cannot be identified. */
+export const SCAM_ANONYMOUS_EMPLOYER_PATTERNS: readonly string[] = [
+  String.raw`\b(our client|confidential (company|client)|stealth (startup|company)|undisclosed)\b`,
+];
+
+/** A description with none of these (or under 300 characters) counts as vague. */
+export const SCAM_CONCRETE_MARKERS: readonly string[] = [
+  "responsibilit",
+  "requirement",
+  "you will",
+  "we are looking",
+  "experience with",
+  "stack",
+];
+
+/** Free mail domains: a recruiter writing from one of these is a signal. */
+export const SCAM_PERSONAL_EMAIL_DOMAINS: readonly string[] = [
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "yahoo.com",
+  "proton.me",
+  "protonmail.com",
+  "icloud.com",
+  "qq.com",
+  "163.com",
+  "mail.com",
+  "gmx.com",
+];
+
+/** Apply links that are not an employer's own page (forms, shorteners, chat links). */
+export const SCAM_SHORTENER_HOSTS: readonly string[] = [
+  "bit.ly",
+  "tinyurl.com",
+  "t.ly",
+  "forms.gle",
+  "docs.google.com",
+  "typeform.com",
+  "linktr.ee",
+  "carrd.co",
+  "notion.site",
+  "wa.me",
+  "t.me",
+];
+
+/** Hosts of the ATS boards the adapters read. Anyone can open a board here, so a host alone verifies nothing. */
+export const ATS_APPLY_HOSTS: readonly string[] = [
+  "boards.greenhouse.io",
+  "job-boards.greenhouse.io",
+  "jobs.lever.co",
+  "jobs.ashbyhq.com",
+  "jobs.smartrecruiters.com",
+  "apply.workable.com",
+  "recruitee.com",
+];
+
+/** Source names that come straight from a company's ATS board. */
+export const ATS_SOURCE_NAMES: readonly string[] = [
+  "greenhouse",
+  "lever",
+  "ashby",
+  "smartrecruiters",
+  "workable",
+  "recruitee",
+];

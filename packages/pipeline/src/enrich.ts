@@ -22,7 +22,9 @@ import {
   extractFacts,
   type Extraction,
 } from "./intel/extract.ts";
+import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
 import { recordPostingPolicy } from "./intel/registry.ts";
+import { runScamStage } from "./intel/scam-stage.ts";
 
 export interface EnrichOptions {
   db: Db;
@@ -34,6 +36,8 @@ export interface EnrichOptions {
   baseURL?: string;
   out: (text: string) => void;
   err: (text: string) => void;
+  /** Stages appended after scam (tests; later cards add fit and tier). They never run for a suspicious posting. */
+  extraStages?: Stage[];
 }
 
 type IntelPatch = Partial<typeof intel.$inferInsert>;
@@ -44,11 +48,16 @@ type StageResult =
   /** Transient API failure: nothing is stored, the posting is retried on the next run. */
   | { kind: "retry" };
 
-/** A stage fills part of the `intel` row for one posting. Later cards add resolve, scam, fit, tier here. */
-interface Stage {
+/** What earlier stages of this posting already produced, and run-wide helpers. */
+interface StageContext {
+  patch: IntelPatch;
+  lookupDomainAge: DomainAgeLookup;
+}
+
+/** A stage fills part of the `intel` row for one posting. Later cards add resolve, fit, tier here. */
+export interface Stage {
   name: string;
-  /** `soFar` is the merged patch of the earlier stages for this posting. */
-  run: (posting: Posting, deps: LlmDeps, soFar: IntelPatch) => Promise<StageResult>;
+  run: (posting: Posting, deps: LlmDeps, ctx: StageContext) => Promise<StageResult>;
 }
 
 const extractStage: Stage = {
@@ -84,11 +93,34 @@ const extractStage: Stage = {
   },
 };
 
+/** No LLM call: rules + extracted signals + verification. Suspicious postings are never scored for fit. */
+const scamStage: Stage = {
+  name: "scam",
+  async run(p, deps, ctx) {
+    if (ctx.patch.final_decision === "reject") return { kind: "done", patch: {} };
+    const out = await runScamStage(
+      deps.db,
+      p,
+      ctx.patch.extraction,
+      ctx.lookupDomainAge,
+      deps.now?.() ?? new Date(),
+    );
+    return {
+      kind: "done",
+      patch: {
+        scam_score: out.scam_score,
+        scam_reasons: out.scam_reasons,
+        final_decision: out.suspicious ? "suspicious" : (ctx.patch.final_decision ?? "keep"),
+      },
+    };
+  },
+};
+
 /** Turns unclear flags into a decision from the extracted facts. Code only, no LLM call. */
 const resolveStage: Stage = {
   name: "resolve",
-  run(p, deps, soFar) {
-    const parsed = ExtractionSchema.safeParse(JSON.parse(soFar.extraction ?? "null"));
+  run(p, deps, ctx) {
+    const parsed = ExtractionSchema.safeParse(JSON.parse(ctx.patch.extraction ?? "null"));
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.code}`);
       return Promise.resolve({
@@ -113,10 +145,10 @@ const resolveStage: Stage = {
 /** Stores the company pay policy stated by the posting (once, never over manual / careers). */
 const registryStage: Stage = {
   name: "registry",
-  async run(p, deps, soFar) {
-    if (soFar.extraction === undefined || soFar.extraction === null)
-      return { kind: "done", patch: {} };
-    const extraction = ExtractionSchema.parse(JSON.parse(soFar.extraction));
+  async run(p, deps, ctx) {
+    const raw = ctx.patch.extraction;
+    if (raw === undefined || raw === null) return { kind: "done", patch: {} };
+    const extraction = ExtractionSchema.parse(JSON.parse(raw));
     const reasons = recordPostingPolicy(deps.db, { id: p.id, companyId: p.company_id }, extraction);
     return {
       kind: "done",
@@ -136,8 +168,6 @@ function mergePatch(a: IntelPatch, b: IntelPatch): IntelPatch {
   }
   return merged;
 }
-
-const STAGES: Stage[] = [extractStage, resolveStage, registryStage];
 
 function upsertIntel(
   db: Db,
@@ -203,6 +233,15 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     ...(opts.baseURL !== undefined ? { baseURL: opts.baseURL } : {}),
   };
 
+  const stages: Stage[] = [
+    extractStage,
+    resolveStage,
+    scamStage,
+    registryStage,
+    ...(opts.extraStages ?? []),
+  ];
+  const lookupDomainAge = createDomainAgeLookup(now);
+
   let enriched = 0;
   let budgetWait = 0;
   let failed = 0;
@@ -217,8 +256,8 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     let patch: IntelPatch = {};
     let outcome: "done" | "failed" | "retry" | "budget" = "done";
     try {
-      for (const stage of STAGES) {
-        const result = await stage.run(posting, deps, patch);
+      for (const stage of stages) {
+        const result = await stage.run(posting, deps, { patch, lookupDomainAge });
         if (result.kind === "retry") {
           outcome = "retry";
           break;
@@ -228,6 +267,8 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
           outcome = "failed";
           break;
         }
+        // Suspicious postings are listed, never fit-scored, never given an ask.
+        if (patch.final_decision === "suspicious") break;
       }
     } catch (e) {
       if (!(e instanceof BudgetExceededError)) throw e;

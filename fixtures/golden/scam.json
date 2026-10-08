@@ -1,0 +1,505 @@
+[
+  {
+    "id": "sc-01",
+    "label": "scam",
+    "excerptKind": "reconstructed",
+    "excerpt": "Senior protocol role, fully remote, $180k-$240k plus tokens. I'm barely on LinkedIn, ping me on Telegram and I'll drop the repo there. Clone our repo, run it locally, get the demo working, then hop on a call and walk us through it.",
+    "source": "https://academy.zealynx.io/blog/fake-job-crypto-scam (2026-07-27, quoted phrases)",
+    "signals": ["chat_contact", "repo_assessment"],
+    "scoreBand": [70, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-02",
+    "label": "scam",
+    "excerptKind": "reconstructed",
+    "excerpt": "Flexible online job, earn commission by completing product boosting tasks. Message us on WhatsApp. Deposit USDT to unlock VIP tasks and withdraw your earnings.",
+    "source": "https://www.pymnts.com/news/security-and-risk/2024/ftc-warns-of-massive-jump-in-certain-online-job-scams/ (FTC task scams)",
+    "signals": ["task_scam_role", "chat_contact", "upfront_payment"],
+    "scoreBand": [90, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-03",
+    "label": "scam",
+    "excerptKind": "reconstructed",
+    "excerpt": "Remote quality control manager. We will send you a check to deposit; send on part of the money to our supplier. Reshipping of goods from home.",
+    "source": "https://consumer.ftc.gov/articles/job-scams (March 2023)",
+    "signals": ["upfront_payment", "vague"],
+    "scoreBand": [60, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-04",
+    "label": "scam",
+    "excerptKind": "reconstructed",
+    "excerpt": "Guaranteed placement. A registration fee is required in advance to secure your position and training kit.",
+    "source": "https://consumer.ftc.gov/articles/job-scams (March 2023)",
+    "signals": ["upfront_payment"],
+    "scoreBand": [60, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-05",
+    "label": "scam",
+    "excerptKind": "reconstructed",
+    "excerpt": "Your camera is not working on our interview platform. Download the camera driver fix to continue the video interview.",
+    "source": "https://www.securityscientist.net/blog/12-questions-and-answers-about-contagious-interview-g1052/ (undated; 'camera driver fix' variant)",
+    "signals": ["install_request", "lookalike"],
+    "scoreBand": [60, 100],
+    "judgment": true,
+    "inputs": {
+      "companyName": "Acme Hire",
+      "companyDomain": "acmehire.com",
+      "applyUrl": "https://acmehire-careers.example/interview"
+    }
+  },
+  {
+    "id": "sc-06",
+    "label": "scam",
+    "excerptKind": "reconstructed",
+    "excerpt": "Loved your profile! No interview needed. Next step: take-home test, the repo is here, urgent, please finish today.",
+    "source": "https://dev.to/automate_ai/the-job-interview-that-quietly-drains-your-crypto-wallet-hgh (first-hand account, paraphrased by a search summary)",
+    "signals": ["repo_assessment", "vague", "urgency"],
+    "scoreBand": [40, 70],
+    "judgment": true,
+    "inputs": {
+      "extraction": {
+        "repoAssessmentEarly": true
+      }
+    }
+  },
+  {
+    "id": "sc-07",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Web3 Frontend Developer, $9,000/month, no experience required, start immediately. Send your CV to hr.example-careers@gmail.com.",
+    "source": "invented from PLAN 4 red flags",
+    "signals": ["personal_email", "no_experience_high_pay", "urgency", "vague"],
+    "scoreBand": [60, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-08",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Crypto data entry assistant, $300 per day, no experience needed. Apply on WhatsApp via wa.me/0000000000.",
+    "source": "invented from PLAN 4 and FTC task-scam wording",
+    "signals": ["task_scam_role", "chat_contact", "no_experience_high_pay"],
+    "scoreBand": [90, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-09",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Interview is conducted via Telegram text chat, camera not required. Paid trial task on day 1. Join @example_hr on Telegram to start.",
+    "source": "invented; domain registered 12 days ago supplied by the test",
+    "signals": ["chat_interview", "chat_contact", "paid_trial", "new_domain:12"],
+    "scoreBand": [80, 100],
+    "judgment": false,
+    "inputs": {
+      "domainAge": {
+        "domain": "example-hr.test",
+        "days": 12
+      }
+    }
+  },
+  {
+    "id": "sc-10",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "To process onboarding, send a photo of your passport and bank account details with your application to jobs.example@outlook.com.",
+    "source": "invented from PLAN 4 (ID/bank early)",
+    "signals": ["id_early", "personal_email", "vague"],
+    "scoreBand": [60, 100],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "sc-11",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Senior Engineer at Coinbase. Apply by emailing recruiting@coinbase-careers.example. Interviews start this week.",
+    "source": "invented; apply domain registered 9 days ago, configured company domain is coinbase.com",
+    "signals": ["domain_mismatch", "lookalike", "new_domain:9"],
+    "scoreBand": [60, 100],
+    "judgment": true,
+    "inputs": {
+      "companyName": "Coinbase",
+      "companyDomain": "coinbase.com",
+      "domainAge": {
+        "domain": "coinbase-careers.example",
+        "days": 9
+      }
+    }
+  },
+  {
+    "id": "sc-12",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Stealth Web3 startup, airdrop-backed team. Paid trial tasks for all applicants. Limited spots, apply today.",
+    "source": "invented from PLAN 4 Web3-specific list; domain 20 days old",
+    "signals": [
+      "paid_trial",
+      "new_domain:20",
+      "anonymous_employer",
+      "vague",
+      "urgency",
+      "placeholder_pay"
+    ],
+    "scoreBand": [60, 90],
+    "judgment": true,
+    "inputs": {
+      "domainAge": {
+        "domain": "stealth-web3.test",
+        "days": 20
+      }
+    }
+  },
+  {
+    "id": "sc-13",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Unlimited earning potential, limited spots. Fill https://forms.gle/EXAMPLE then join our Discord for the interview.",
+    "source": "invented",
+    "signals": ["shortener_apply", "chat_contact", "urgency", "vague"],
+    "scoreBand": [55, 80],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "un-01",
+    "label": "unclear",
+    "excerptKind": "synthetic",
+    "excerpt": "Senior Solidity Engineer, remote, $150k-$200k. Send your CV to talent.example@gmail.com. Company: (a configured company with a Greenhouse board).",
+    "source": "invented; board fetched today, no title match",
+    "signals": ["personal_email", "ats_missing"],
+    "scoreBand": [35, 59],
+    "judgment": true,
+    "inputs": {
+      "verification": "missing"
+    }
+  },
+  {
+    "id": "gs-011",
+    "label": "unclear",
+    "excerptKind": "verbatim",
+    "excerpt": "our vision of a more inclusive and transparent financial ecosystem. Let's embark on this transformative journey together! Salary: 100K - 999,999 USD a year",
+    "source": "https://himalayas.app/companies/ooga-booga/jobs/senior-frontend-developer",
+    "signals": ["placeholder_pay", "vague"],
+    "scoreBand": [10, 30],
+    "judgment": true,
+    "inputs": {
+      "extraction": {
+        "listedSalary": {
+          "min": 100000,
+          "max": 999999,
+          "currency": "USD",
+          "period": "year"
+        }
+      }
+    }
+  },
+  {
+    "id": "gs-020",
+    "label": "unclear",
+    "excerptKind": "verbatim",
+    "excerpt": "Benefits: Annual cash compensation of $170,000 USD, benchmarked to U.S. compensation levels regardless of location. Equity in the company, including ongoing refresh grants. 35 days of paid time off per year.",
+    "source": "https://jobs.lever.co/jobgether/094c508b-4bbd-4d1c-b555-aa06a60e33fa",
+    "signals": ["anonymous_employer"],
+    "scoreBand": [0, 15],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "gs-022",
+    "label": "unclear",
+    "excerptKind": "verbatim",
+    "excerpt": "Search Atlas | Product Engineer (Product Manager role, not a Full-stack role) | REMOTE (anywhere, EST hours) | Full-time contractor | $23-$34 USD/hour",
+    "source": "https://news.ycombinator.com/item?id=49931746",
+    "signals": [],
+    "scoreBand": [0, 20],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "gs-001",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "The salary range listed for this role applies to US-based candidates only. Compensation for candidates based outside the US will be determined based on location, experience, and skills during the interview process.",
+    "source": "https://himalayas.app/companies/consensys-io/jobs/senior-software-engineer-predict",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-002",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Remote-Global The base salary range for this role's listed level is currently for residents of the United States only. United States Salary Range $115,200 - $194,400 USD",
+    "source": "https://job-boards.greenhouse.io/gitlab/jobs/8698330002",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-004",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Pay Transparency Notice: Base salary varies by location (see range below). Annual base salary range (excluding equity and bonus): $186,065-$218,900 USD Application Limit: Candidates may submit a maximum of 3 applications within a 6-month period.",
+    "source": "https://himalayas.app/companies/coinbase/jobs/senior-software-engineer-stablecoins",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-006",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Seeq | https://seeq.com | Staff/Principal Software Engineer (Full-Stack, AI, Backend, Platform) | REMOTE (Some crossover w/ PST required) | Full-time | $170k-$205k + annual cash bonus + equity.",
+    "source": "https://news.ycombinator.com/item?id=49929522",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-007",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "The target base salary for this role will range between $180,000 to $220,000 with the addition of equity and benefits. #LI-DNP We strongly encourage candidates of all backgrounds to apply.",
+    "source": "https://jobs.ashbyhq.com/phantom/e7b83c02-55c2-4037-9209-93deb3b7492c",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-012",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "We benchmark our base salaries to local markets and target the 60th percentile of the peer market. The salary ranges for this role are: US: $123,000 - $144,000 USD",
+    "source": "https://job-boards.greenhouse.io/mozilla/jobs/8112211",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-017",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "In Singapore, the Base compensation range for this role is SGD 167,000 to SGD 209,000. *Compensation ranges are country specific.",
+    "source": "https://himalayas.app/companies/grafana-labs/jobs/staff-backend-software-engineer-loki-singapore-remote",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-018",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "SerpApi | Junior to Senior Fullstack Engineer multiple positions | Based in Austin, TX but remote-first structure | Full-time | ONSITE or FULLY REMOTE | $150K - 180K a year 1099 for US or local avg + 20% for outside the US",
+    "source": "https://news.ycombinator.com/item?id=49929200",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "gs-019",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Mozilla / Thunderbird / Thunderbolt | Staff Product Engineer, Enterprise AI | REMOTE (US or Canada) | Full-Time | $185K-$220K USD / $155K-$185K CAD | https://grnh.se/viz7vum71us",
+    "source": "https://news.ycombinator.com/item?id=49926511",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-025",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "a required location in APAC time zones. WHAT WE OFFER - Fully Remote We hire globally. There are no Supabase offices, but we provide a WeWork membership or co-working allowance you can use anywhere in the world.",
+    "source": "https://jobs.ashbyhq.com/supabase/142135ae-a15f-4ec7-90bb-cb4e7968bc09",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-026",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "We Offer - 100% remote, no location-based salary adjustments - Autonomous work environment - Comprehensive health, vision, and dental",
+    "source": "https://jobs.ashbyhq.com/supabase/f0f277ac-b96c-478a-81ca-7bd80612533f",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-030",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Country Hiring Guidelines: GitLab hires new team members in countries around the world. All of our roles are remote, however some roles may carry specific location-based eligibility requirements.",
+    "source": "https://job-boards.greenhouse.io/gitlab/jobs/8826920002",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-031",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Hands-on experience with React and React Native. Extensive experience with modern Javascript (ES6/TypeScript/etc.). Experience with blockchain fundamentals across multiple blockchain architectures",
+    "source": "https://job-boards.greenhouse.io/consensys/jobs/8138475",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-032",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Equipment of your choice. Flexible vacation time. Competitive Salary. Protocol Token Grants. 401k matching (US Employees)",
+    "source": "https://job-boards.greenhouse.io/aptoslabs/jobs/4650606005",
+    "signals": ["ats_verified"],
+    "scoreBand": [0, 0],
+    "judgment": true,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "gs-033",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Flexibits | Android Software Engineer | Remote | Full-time https://flexibits.com/jobs We are a small, fully-remote company spread across the US and Europe, and welcome anyone from around the world.",
+    "source": "https://news.ycombinator.com/item?id=49922803",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-034",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Descartes - Finale Inventory | Senior Software Engineer | REMOTE | Full-Time. Finale Inventory is a SaaS application that helps ecommerce sellers manage their operations efficiently.",
+    "source": "https://news.ycombinator.com/item?id=49925469",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "gs-035",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "*Terms of employment / engagement shall be subject to contract and local applicable laws. Responsibilities: Participate in end-to-end product development across frontend and backend under senior engineer guidance.",
+    "source": "https://himalayas.app/companies/binance/jobs/binance-accelerator-program-full-stack-engineer-ai-5771547680",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "gs-036",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Working Condition : WFA Location : Jakarta, Indonesia Pay Rate : IDR 58M to IDR 70M Sales Manager Indonesia Our client is seeking a Sales Manager to drive growth",
+    "source": "https://himalayas.app/companies/kate-worthington/jobs/sales-manager-indonesia",
+    "signals": ["anonymous_employer"],
+    "scoreBand": [0, 15],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "gs-014",
+    "label": "legit",
+    "excerptKind": "verbatim",
+    "excerpt": "Voltaiq is a remote-first company, and salaries are adjusted for cost of labor in each city. The salary range for this position is $120,000 - $180,000 + equity, depending on location and experience.",
+    "source": "https://himalayas.app/companies/voltaiq/jobs/sr-staff-principal-software-engineer-frontend-fullstack",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": false,
+    "inputs": {}
+  },
+  {
+    "id": "lg-19",
+    "label": "legit",
+    "excerptKind": "synthetic",
+    "excerpt": "Join our Discord community and follow us on Telegram for protocol news. Apply through our Greenhouse board. Web3 Solidity Engineer, $140k-$190k.",
+    "source": "invented: guards the rule that a bare Discord/Telegram mention is not a contact instruction",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "lg-20",
+    "label": "legit",
+    "excerptKind": "synthetic",
+    "excerpt": "After you accept an offer we will run a standard background check and ask for a government ID through our HR provider.",
+    "source": "invented: guards `id_early` against 'after offer' wording",
+    "signals": [],
+    "scoreBand": [0, 15],
+    "judgment": true,
+    "inputs": {}
+  },
+  {
+    "id": "sc-90",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Senior engineer, fully remote. Responsibilities: build the web app with React and TypeScript on a small product team shipping weekly, with clear requirements and a defined stack. Message us on Telegram @acmehr and send your CV to acme.hr@gmail.com. Send your passport and bank details with your application.",
+    "source": "invented: cloned legitimate listing with changed contact path (audit t_4941a83b finding 1)",
+    "signals": ["chat_contact", "personal_email", "id_early"],
+    "scoreBand": [60, 100],
+    "judgment": false,
+    "inputs": {
+      "verification": "verified"
+    }
+  },
+  {
+    "id": "sc-91",
+    "label": "scam",
+    "excerptKind": "synthetic",
+    "excerpt": "Senior engineer, fully remote. Responsibilities: build the web app with React and TypeScript on a small product team shipping weekly, with clear requirements and a defined stack. Interview via Telegram chat only. Message us on Telegram @acmehr.",
+    "source": "invented: verified title match with chat-only hiring (audit t_4941a83b finding 1)",
+    "signals": ["chat_contact", "chat_interview"],
+    "scoreBand": [50, 100],
+    "judgment": true,
+    "inputs": {
+      "verification": "verified"
+    }
+  }
+]
