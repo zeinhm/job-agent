@@ -56,7 +56,8 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | `fx` | Fetches today's USD exchange rates (IDR, EUR, GBP, SGD, AUD, CAD, CHF) and stores them. Salaries are converted with the latest stored rate on or before the analysis date, so run it daily. |
 | `discover [--source <name>] [--force]` | Polls every source that is due and stores new postings. Each source has a minimum poll interval enforced in code; a source polled too recently is recorded as `skipped` and gets no request. `--source` runs one source (`greenhouse`, `lever`, `ashby`, `himalayas`, `remoteok`, `remotive`, `web3career`, `weworkremotely`, `hn`); `--force` ignores the interval (manual use only). Exits 1 if any source errored. |
 | `process` | Normalizes and dedupes new postings, then applies the rule filters (location, Indonesia rule, salary floor) and records keep / reject with flags. Prints the counts. |
-| `digest [--date YYYY-MM-DD]` | Writes `data/digests/<date>.md` with the kept postings not yet sent in an earlier digest, plus Source health, and prints the file path. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
+| `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
+| `digest [--date YYYY-MM-DD] [--out-dir <dir>]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health, and prints the file path. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
 
 A first manual run:
 
@@ -66,6 +67,18 @@ pnpm job-agent discover --source remotive
 pnpm job-agent process
 pnpm job-agent digest
 ```
+
+## Smoke test
+
+`bin/smoke [dir]` runs the whole pipeline once against the live public feeds without touching `config/` or `data/`:
+it copies the `config/*.example.*` files, uses a temp DB (`<dir>/smoke.db`, default dir from `mktemp`), then runs
+`fx`, `discover --force --source <s>` for each keyless source one by one (`himalayas`, `remoteok`, `remotive`,
+`weworkremotely`, `hn`; `web3career` only if `WEB3_CAREER_TOKEN` is already in your environment), `process`,
+`enrich` (only once that command exists; it runs without a key and prints its skip line), and `digest` into
+`<dir>/digests/`. It ends with `status` (row counts and per-source result) and the smoke dir and digests paths.
+
+A failing source shows as `error` and does not stop the others. The script exits 0 when `process` and `digest`
+completed, 1 if either failed. It makes no LLM calls (`ANTHROPIC_API_KEY` is unset for the run).
 
 ## Schedule with cron
 

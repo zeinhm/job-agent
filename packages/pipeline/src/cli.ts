@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb } from "@job-agent/core";
+import { sql } from "drizzle-orm";
+import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb, source_runs } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
@@ -42,14 +43,48 @@ const commands: Record<string, Command> = {
     }
   },
   digest: (args, io) => {
-    const { values } = parseArgs({ args, options: { date: { type: "string" } } });
+    const { values } = parseArgs({
+      args,
+      options: { date: { type: "string" }, "out-dir": { type: "string" } },
+    });
     const db = openDb(defaultDbPath());
     try {
-      runDigest({ db, ...(values.date !== undefined ? { date: values.date } : {}), out: io.out });
+      runDigest({
+        db,
+        ...(values.date !== undefined ? { date: values.date } : {}),
+        ...(values["out-dir"] !== undefined ? { outDir: values["out-dir"] } : {}),
+        out: io.out,
+      });
       return 0;
     } catch (e) {
       io.err(`digest failed: ${e instanceof Error ? e.message : String(e)}\n`);
       return 1;
+    } finally {
+      db.$client.close();
+    }
+  },
+  status: (_args, io) => {
+    const db = openDb(defaultDbPath());
+    try {
+      const tables = db
+        .all<{ name: string }>(
+          sql`select name from sqlite_master where type = 'table' order by name`,
+        )
+        .filter(({ name }) => !name.startsWith("sqlite_") && !name.startsWith("__"));
+      io.out("row counts\n");
+      for (const { name } of tables) {
+        const row = db.get<{ n: number }>(sql.raw(`select count(*) as n from "${name}"`));
+        io.out(`  ${name}: ${row.n}\n`);
+      }
+      // Latest run per source; started_at is ISO so string order is time order.
+      const runs = db.select().from(source_runs).orderBy(source_runs.started_at).all();
+      const latest = new Map(runs.map((r) => [r.source, r]));
+      io.out("source status (latest run)\n");
+      for (const r of [...latest.values()].sort((a, b) => a.source.localeCompare(b.source))) {
+        const detail = r.error_message ? `, ${r.error_message}` : "";
+        io.out(`  ${r.source}: ${r.status}, found ${r.found}, new ${r.new}${detail}\n`);
+      }
+      return 0;
     } finally {
       db.$client.close();
     }

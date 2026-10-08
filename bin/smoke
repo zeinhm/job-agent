@@ -1,15 +1,31 @@
 #!/usr/bin/env bash
 # bin/smoke [dir]: live smoke run of the pipeline on a temp DB with the EXAMPLE configs.
-# Only reads public job feeds. Never touches config/ or data/.
-set -euo pipefail
+# Polls every public keyless source one by one (a failing source does not stop the others), then process + digest.
+# web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
+# Never touches config/ or data/. No LLM calls: if `enrich` exists it runs without a key and prints its skip line.
+# JOB_AGENT_CLI overrides the CLI command (used by tests).
+set -uo pipefail
 REPO="$(git rev-parse --show-toplevel)"; cd "$REPO"
 DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/job-agent-smoke.XXXXXX")}"
-mkdir -p "$DIR/config"
+mkdir -p "$DIR/config" "$DIR/digests"
 for f in config/*.example.*; do b="$(basename "$f")"; cp "$f" "$DIR/config/${b/.example/}"; done
 export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config"
-echo "== fx";                         pnpm -s job-agent fx
-echo "== discover --source remotive"; pnpm -s job-agent discover --source remotive
-echo "== process";                    pnpm -s job-agent process
-echo "== row counts"
-for t in $(sqlite3 "$JOB_AGENT_DB" ".tables"); do echo "$t: $(sqlite3 "$JOB_AGENT_DB" "select count(*) from $t")"; done
+unset ANTHROPIC_API_KEY
+read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
+
+SOURCES=(himalayas remoteok remotive weworkremotely hn)
+if [ -n "${WEB3_CAREER_TOKEN:-}" ]; then SOURCES+=(web3career); else echo "web3career: skipped (WEB3_CAREER_TOKEN not set)"; fi
+
+fail=0
+step() { echo "== $*"; "${CLI[@]}" "$@" || { echo "!! '$*' exited $?"; return 1; }; }
+
+step fx || true
+for s in "${SOURCES[@]}"; do step discover --force --source "$s" || true; done
+step process || fail=1
+if "${CLI[@]}" 2>&1 | grep -q '^  enrich$'; then step enrich || true; fi
+step digest --out-dir "$DIR/digests" || fail=1
+echo "== status"
+"${CLI[@]}" status || fail=1
 echo "smoke dir: $DIR"
+echo "digests: $DIR/digests"
+exit "$fail"

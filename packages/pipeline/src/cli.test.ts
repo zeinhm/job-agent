@@ -2,7 +2,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fx_rates, openDb } from "@job-agent/core";
+import { fx_rates, openDb, source_runs } from "@job-agent/core";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -143,6 +143,56 @@ describe("fx command", () => {
       expect(await main(["fx"], c.io)).toBe(1);
       expect(c.err.join("")).toContain("fx failed");
       expect(countRows(db)).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("status and digest --out-dir", () => {
+  it("digest --out-dir writes there; status prints row counts and the latest run per source", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "job-agent-status-"));
+    vi.stubEnv("JOB_AGENT_DB", join(dir, "t.db"));
+    try {
+      const db = openDb(join(dir, "t.db"));
+      db.insert(source_runs)
+        .values([
+          {
+            id: "1",
+            source: "remotive",
+            started_at: "2026-01-01T00:00:00Z",
+            finished_at: "2026-01-01T00:00:01Z",
+            status: "ok",
+            found: 3,
+            new: 3,
+          },
+          {
+            id: "2",
+            source: "remotive",
+            started_at: "2026-01-02T00:00:00Z",
+            finished_at: "2026-01-02T00:00:01Z",
+            status: "error",
+            found: 0,
+            new: 0,
+            error_message: "boom",
+          },
+        ])
+        .run();
+      db.$client.close();
+
+      const s = capture();
+      expect(await main(["status"], s.io)).toBe(0);
+      const text = s.out.join("");
+      expect(text).toContain("source_runs: 2");
+      expect(text).toContain("remotive: error, found 0, new 0, boom");
+      expect(text).not.toContain("remotive: ok");
+
+      const d = capture();
+      expect(
+        await main(["digest", "--date", "2026-01-03", "--out-dir", join(dir, "dg")], d.io),
+      ).toBe(0);
+      expect(d.out.join("").trim()).toBe(join(dir, "dg", "2026-01-03.md"));
+      expect(readFileSync(join(dir, "dg", "2026-01-03.md"), "utf-8")).toContain("2026-01-03");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
