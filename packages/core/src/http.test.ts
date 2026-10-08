@@ -45,6 +45,35 @@ describe("httpGet", () => {
     await expect(httpGet("https://example.com/notfound")).rejects.toThrow(HttpError);
   });
 
+  it("follows allowed redirects manually and reports the final url", async () => {
+    server.use(
+      http.get("https://example.com/a", () =>
+        HttpResponse.text("", { status: 302, headers: { location: "https://example.com/b" } }),
+      ),
+      http.get("https://example.com/b", () => HttpResponse.text("ok")),
+    );
+    const res = await httpGet("https://example.com/a", { allowRedirectTo: () => true });
+    expect(res.url).toBe("https://example.com/b");
+    expect(await res.text()).toBe("ok");
+  });
+
+  it("never requests a redirect target the guard refuses", async () => {
+    let hit = false;
+    server.use(
+      http.get("https://example.com/r", () =>
+        HttpResponse.text("", { status: 301, headers: { location: "https://blocked.test/x" } }),
+      ),
+      http.get("https://blocked.test/x", () => {
+        hit = true;
+        return HttpResponse.text("no");
+      }),
+    );
+    await expect(
+      httpGet("https://example.com/r", { allowRedirectTo: (u) => !u.includes("blocked.test") }),
+    ).rejects.toThrow(HttpError);
+    expect(hit).toBe(false);
+  });
+
   it("should respect User-Agent header", async () => {
     let capturedUserAgent: string | null = null;
     server.use(

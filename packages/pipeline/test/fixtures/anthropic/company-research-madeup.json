@@ -1,0 +1,21 @@
+{
+  "_handbuilt": true,
+  "id": "msg_fixture_research_madeup",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-haiku-5-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"quote\":\"Everyone earns San Francisco pay anywhere in the world.\",\"classification\":\"location_agnostic\"}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 800,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 40
+  }
+}

@@ -171,6 +171,33 @@ async function withRateLimit<T>(
 interface HttpGetOptions {
   minIntervalMs?: number;
   timeoutMs?: number;
+  /**
+   * When set, redirects are followed manually and a hop is only requested if this returns true.
+   * A refused hop is never fetched and makes the call throw HttpError.
+   */
+  allowRedirectTo?: (url: string) => boolean;
+}
+
+const MAX_REDIRECTS = 5;
+
+async function fetchGuarded(
+  url: string,
+  init: RequestInit,
+  allow: (url: string) => boolean,
+): Promise<Response> {
+  let current = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const res = await fetch(current, { ...init, redirect: "manual" });
+    const location = res.headers.get("location");
+    if (res.status < 300 || res.status >= 400 || !location) {
+      if (current !== url) Object.defineProperty(res, "url", { value: current });
+      return res;
+    }
+    const next = new URL(location, current).toString();
+    if (!allow(next)) throw new HttpError(url, null, url);
+    current = next;
+  }
+  throw new HttpError(url, null, url);
 }
 
 /** Perform an HTTP GET request with retries, rate limiting, and redaction */
@@ -192,10 +219,13 @@ async function httpGetInternal(url: string, options: HttpGetOptions = {}): Promi
 
         let response: Response;
         try {
-          response = await fetch(url, {
+          const init: RequestInit = {
             headers: { "User-Agent": USER_AGENT },
             signal: controller.signal,
-          });
+          };
+          response = options.allowRedirectTo
+            ? await fetchGuarded(url, init, options.allowRedirectTo)
+            : await fetch(url, init);
         } finally {
           clearTimeout(timeoutId);
         }
