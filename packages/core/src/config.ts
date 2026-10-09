@@ -62,6 +62,22 @@ function loadYamlFile<T>(dir: string, file: string, schema: z.ZodType<T>): T {
   return result.data;
 }
 
+/**
+ * Text of `cv.md`, needed only by the fit stage. A missing (or empty) file returns null so the caller can
+ * skip fit scoring with a message; any other read error throws. Errors never include the file content.
+ */
+export function loadCv(dir: string = process.env.JOB_AGENT_CONFIG_DIR ?? "config"): string | null {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, "cv.md"), "utf8");
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code ?? "unknown error";
+    if (code === "ENOENT") return null;
+    throw new Error(`Config file cv.md could not be read in ${dir} (${code})`, { cause: err });
+  }
+  return text.trim() === "" ? null : text;
+}
+
 export function loadConfig(dir: string = process.env.JOB_AGENT_CONFIG_DIR ?? "config"): AppConfig {
   return {
     salary: loadYamlFile(dir, "salary.yaml", salaryConfigSchema),

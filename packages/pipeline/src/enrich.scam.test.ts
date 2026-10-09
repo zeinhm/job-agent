@@ -108,6 +108,7 @@ function enrich() {
   return runEnrich({
     db,
     env: ENV,
+    cv: null,
     now: () => NOW,
     out: () => {},
     err: () => {},

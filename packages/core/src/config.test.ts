@@ -1,9 +1,9 @@
-import { copyFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadConfig } from "./config.ts";
+import { loadConfig, loadCv } from "./config.ts";
 
 const exampleDir = join(dirname(fileURLToPath(import.meta.url)), "../../../config");
 
@@ -129,5 +129,26 @@ describe("loadConfig", () => {
       "companies:\n  - { name: X, ats: lever, slug: x, extra: 1 }\n",
     );
     expect(() => loadConfig(dir)).toThrow(/companies\.yaml/);
+  });
+});
+
+describe("loadCv", () => {
+  it("returns the text of cv.md", () => {
+    copyFileSync(join(exampleDir, "cv.example.md"), join(dir, "cv.md"));
+    const text = loadCv(dir);
+    expect(text).toContain("#");
+    expect(text?.length).toBeGreaterThan(50);
+  });
+
+  it("returns null when cv.md is missing or empty, without needing the other config files", () => {
+    expect(loadCv(dir)).toBeNull();
+    writeFileSync(join(dir, "cv.md"), "  \n");
+    expect(loadCv(dir)).toBeNull();
+  });
+
+  it("throws a content-free error for other read failures", () => {
+    mkdirSync(join(dir, "cv.md"));
+    const err = catchError(() => loadCv(dir));
+    expect(err.message).toMatch(/cv\.md could not be read.*EISDIR/);
   });
 });

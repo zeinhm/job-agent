@@ -8,6 +8,7 @@ import {
   jakartaDay,
   LlmApiError,
   LlmOutputError,
+  loadCv,
   log,
   postings,
   spentOnDay,
@@ -24,6 +25,7 @@ import {
   extractFacts,
   type Extraction,
 } from "./intel/extract.ts";
+import { FIT_MODEL, FIT_PROMPT_VERSION, scoreFit } from "./intel/fit.ts";
 import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
 import { payPolicyFor, recordPostingPolicy } from "./intel/registry.ts";
 import { runScamStage } from "./intel/scam-stage.ts";
@@ -41,6 +43,8 @@ export interface EnrichOptions {
   baseURL?: string;
   out: (text: string) => void;
   err: (text: string) => void;
+  /** CV text for the fit stage. Default: `cv.md` from the config dir; null = missing, fit stage skipped. */
+  cv?: string | null;
   /** Stages appended after scam (tests; later cards add fit and tier). They never run for a suspicious posting. */
   extraStages?: Stage[];
 }
@@ -162,6 +166,48 @@ const registryStage: Stage = {
   },
 };
 
+/** Sonnet fit score against the CV; only for `final_decision = keep`. Without a CV it does nothing. */
+function makeFitStage(cv: string | null): Stage {
+  return {
+    name: "fit",
+    async run(p, deps, ctx) {
+      if (cv === null || ctx.patch.final_decision !== "keep") return { kind: "done", patch: {} };
+      try {
+        const fit = await scoreFit(
+          {
+            postingId: p.id,
+            title: p.title,
+            companyName: p.company_name,
+            locationText: p.location_text,
+            descriptionText: p.description_text,
+            extraction: ExtractionSchema.parse(JSON.parse(ctx.patch.extraction ?? "null")),
+          },
+          cv,
+          deps,
+        );
+        return {
+          kind: "done",
+          patch: {
+            fit_score: fit.score,
+            fit_reasons: JSON.stringify(fit.reasons),
+            fit_model: FIT_MODEL,
+            fit_prompt_version: FIT_PROMPT_VERSION,
+          },
+        };
+      } catch (e) {
+        if (e instanceof LlmOutputError) {
+          return {
+            kind: "failed",
+            patch: { resolved_reasons: JSON.stringify(e.issues.map((i) => `fit ${i}`)) },
+          };
+        }
+        if (e instanceof LlmApiError) return { kind: "retry" };
+        throw e;
+      }
+    },
+  };
+}
+
 /** Tier and ask for kept postings (PLAN 5.3). Pure code on the extraction, registry policy and stored FX. */
 function tierStage(salary: SalaryConfig, at: Date): Stage {
   return {
@@ -278,11 +324,17 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     ...(opts.baseURL !== undefined ? { baseURL: opts.baseURL } : {}),
   };
 
+  const cv = opts.cv !== undefined ? opts.cv : loadCv();
+  if (cv === null && todo.length > 0) {
+    err("cv.md not found in the config dir, fit scoring skipped (extraction still runs)\n");
+  }
+
   const stages: Stage[] = [
     extractStage,
     resolveStage,
     scamStage,
     registryStage,
+    makeFitStage(cv),
     tierStage(opts.salary, now()),
     ...(opts.extraStages ?? []),
   ];

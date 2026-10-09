@@ -95,6 +95,7 @@ async function enrich(over: { env?: Record<string, string | undefined>; limit?: 
     db,
     salary: SALARY,
     env: over.env ?? ENV,
+    cv: null,
     limit: over.limit,
     now: () => NOW,
     out: (t) => out.push(t),

@@ -1,4 +1,10 @@
-export { loadConfig, type AppConfig, type CompanyConfig, type SalaryConfig } from "./config.ts";
+export {
+  loadConfig,
+  loadCv,
+  type AppConfig,
+  type CompanyConfig,
+  type SalaryConfig,
+} from "./config.ts";
 export {
   defaultDbPath,
   openDb,

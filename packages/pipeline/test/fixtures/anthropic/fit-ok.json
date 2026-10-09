@@ -1,0 +1,21 @@
+{
+  "_handbuilt": true,
+  "id": "msg_fixture_fit-ok",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-5-5",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"score\":82,\"reasons\":[\"Strong React and TypeScript match for the core stack\",\"No evidence of GraphQL, which the role lists\"],\"matchedSkills\":[\"React\",\"TypeScript\"],\"missingSkills\":[\"GraphQL\"]}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 3000,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 2000,
+    "output_tokens": 300
+  }
+}
