@@ -120,6 +120,15 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
   reachable, API error, unusable answer) does not fail the posting: the policy stays unknown, the tier uses the
   unknown-policy ask, and `enrich` prints one warning line per company. Research costs one Haiku call per fetched page
   and is logged in `llm_calls` with purpose `company_research`.
+  The company's domain (`companies.domain`) is filled by `process` from the first company-owned host among a posting's
+  apply link and public link; ATS hosts, job boards (remoteok, remotive, himalayas, weworkremotely, arbeitnow,
+  web3.career, Hacker News ...), shorteners / form hosts and LinkedIn never count, and a domain that is already stored
+  is never overwritten. Each researched company writes one `company research` log line (stderr) with `company_id`,
+  `outcome` (`found`, `no_domain`, `fetch_failed`, `no_wording`) and `reason`: `no domain`, `fetch failed <url>: <HTTP
+  status or network error>`, `redirected off-site`, `redirected to linkedin`, `empty page`, `no pay wording` or
+  `found <policy>`; no page or posting text. A company checked while it had no domain is researched again as soon as it
+  has one; every other check still waits 90 days. `enrich` ends its summary with `research: checked N, found F, no
+  domain D, fetch failed X, no wording W` (companies researched in this run).
 - Invalid model output is retried once, then the posting is marked `failed` and shown under Waiting for scoring.
 - Logs hold counts, ids, model, tokens and cost only. Prompts, your CV, posting text and model output are never logged.
 
