@@ -29,10 +29,23 @@ const PROTECTED_SOURCE = /^manual/;
 /** Public pages the company itself publishes; tried in order, at most MAX_PAGES. */
 const CAREERS_PATHS = ["/careers", "/jobs"];
 
-export const CompanyResearchSchema = z.object({
-  quote: z.string().nullable(),
-  classification: z.enum(["location_agnostic", "location_adjusted"]).nullable(),
+/** Wire shape: "" and "unknown" instead of null (the API limits union-typed parameters). */
+export const CompanyResearchWireSchema = z.object({
+  quote: z.string(),
+  classification: z.enum(["location_agnostic", "location_adjusted", "unknown"]),
 });
+
+export interface CompanyResearch {
+  quote: string | null;
+  classification: "location_agnostic" | "location_adjusted" | null;
+}
+
+export function toCompanyResearch(w: z.infer<typeof CompanyResearchWireSchema>): CompanyResearch {
+  return {
+    quote: w.quote === "" ? null : w.quote,
+    classification: w.classification === "unknown" ? null : w.classification,
+  };
+}
 
 export type ResearchOutcome =
   | { kind: "skipped"; reason: string }
@@ -213,7 +226,7 @@ export async function researchCompanyPayPolicy(
   const unknownReasons: string[] = [];
   let outputFailed = false;
   for (const page of pages) {
-    let result: z.infer<typeof CompanyResearchSchema>;
+    let result: CompanyResearch;
     try {
       result = await callStructured(
         {
@@ -221,7 +234,8 @@ export async function researchCompanyPayPolicy(
           purpose: "company_research",
           system: COMPANY_RESEARCH_SYSTEM_PROMPT,
           input: `Page text:\n${page.text}`,
-          schema: CompanyResearchSchema,
+          schema: CompanyResearchWireSchema,
+          map: toCompanyResearch,
           maxTokens: MAX_TOKENS,
           companyId,
         },

@@ -51,8 +51,8 @@ function extraction(over: Record<string, unknown> = {}): Record<string, unknown>
   block.text = JSON.stringify({
     ...JSON.parse(block.text),
     listedSalary: null,
-    listedSalaryScope: null,
-    payPolicy: null,
+    listedSalaryScope: "unknown",
+    payPolicy: "unknown",
     ...over,
   });
   return msg;

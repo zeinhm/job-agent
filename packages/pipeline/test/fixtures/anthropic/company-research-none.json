@@ -7,7 +7,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\"quote\":null,\"classification\":null}"
+      "text": "{\"quote\":\"\",\"classification\":\"unknown\"}"
     }
   ],
   "stop_reason": "end_turn",

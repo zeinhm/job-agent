@@ -47,7 +47,7 @@ export class LlmApiError extends Error {
   }
 }
 
-export interface CallStructuredOptions<S extends z.ZodType> {
+export interface CallStructuredOptions<S extends z.ZodType, R = z.output<S>> {
   model: LlmModel;
   purpose: LlmPurpose;
   /** Instructions. Sent first. */
@@ -56,7 +56,10 @@ export interface CallStructuredOptions<S extends z.ZodType> {
   cacheablePrefix?: string;
   /** The variable part (posting text); sent as the user message. */
   input: string;
+  /** Sent to the API as the JSON schema and used to validate the output. */
   schema: S;
+  /** Maps the validated wire output to the caller's value (e.g. "unknown" back to null). */
+  map?: (parsed: z.output<S>) => R;
   maxTokens: number;
   postingId?: string;
   companyId?: string;
@@ -90,6 +93,21 @@ function isRetryable(err: InstanceType<typeof Anthropic.APIError>): boolean {
   return body?.error?.details?.error_code !== "enforced_spend_limit_reached";
 }
 
+/** The API's own error message with the key (and anything key-shaped) redacted, capped for the log. */
+function apiErrorMessage(
+  err: InstanceType<typeof Anthropic.APIError>,
+  apiKey: string,
+): string | null {
+  const body = err.error as { error?: { message?: unknown } } | undefined;
+  const msg = body?.error?.message;
+  if (typeof msg !== "string") return null;
+  return msg
+    .split(apiKey)
+    .join("[redacted]")
+    .replace(/sk-ant-[A-Za-z0-9_-]+/g, "[redacted]")
+    .slice(0, 500);
+}
+
 const NOT_SENT_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"]);
 
 /** True when the failure happened before any request bytes could reach the API. */
@@ -102,7 +120,7 @@ export function isNotSent(err: unknown): boolean {
   return false;
 }
 
-function outputConfigFor(schema: z.ZodType) {
+export function outputConfigFor(schema: z.ZodType) {
   const json = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<string, unknown>;
   delete json["$schema"];
   return { format: { type: "json_schema" as const, schema: json } };
@@ -119,10 +137,10 @@ function thinkingFor(model: LlmModel) {
  * The only way to call Claude. Reserves the worst case against the daily cap, records every call in
  * `llm_calls`, validates the output with Zod and retries invalid output once.
  */
-export async function callStructured<S extends z.ZodType>(
-  opts: CallStructuredOptions<S>,
+export async function callStructured<S extends z.ZodType, R = z.output<S>>(
+  opts: CallStructuredOptions<S, R>,
   deps: LlmDeps,
-): Promise<z.output<S>> {
+): Promise<R> {
   const env = deps.env ?? process.env;
   const logger = deps.logger ?? defaultLog;
   const now = deps.now ?? (() => new Date());
@@ -212,6 +230,12 @@ export async function callStructured<S extends z.ZodType>(
           // A status came back or the request timed out: it was sent, usage is unknown, so the cap counts the
           // worst case. A connection that failed before the request left (refused, DNS) cost nothing: $0.
           record("error", null, isNotSent(err) ? 0 : reserve);
+          logger.warn("llm call failed", {
+            purpose: opts.purpose,
+            status: err.status ?? null,
+            error_type: err.type ?? null,
+            error_message: apiErrorMessage(err, apiKey),
+          });
           throw new LlmApiError(err.status, err.type);
         }
         record("error", null, reserve);
@@ -240,7 +264,7 @@ export async function callStructured<S extends z.ZodType>(
       continue;
     }
     const parsed = opts.schema.safeParse(json);
-    if (parsed.success) return parsed.data;
+    if (parsed.success) return opts.map ? opts.map(parsed.data) : (parsed.data as R);
     issues = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.code}`);
   }
   throw new LlmOutputError(issues);

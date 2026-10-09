@@ -407,6 +407,26 @@ describe("secrets and content in logs", () => {
   });
 });
 
+describe("failed API call logging", () => {
+  it("logs status, error type and the API message", async () => {
+    const message = "Schemas contains too many parameters with union types (18 parameters)";
+    respond = () =>
+      HttpResponse.json(
+        { type: "error", error: { type: "invalid_request_error", message } },
+        { status: 400 },
+      );
+    await expect(callStructured(opts(), deps())).rejects.toBeInstanceOf(LlmApiError);
+    const failed = lines
+      .map((l) => JSON.parse(l) as Record<string, unknown>)
+      .find((l) => l["msg"] === "llm call failed");
+    expect(failed).toMatchObject({
+      status: 400,
+      error_type: "invalid_request_error",
+      error_message: message,
+    });
+  });
+});
+
 describe("single entry point", () => {
   it("no file other than llm/client.ts imports @anthropic-ai/sdk", () => {
     const root = resolve(here, "../../../..");

@@ -52,6 +52,95 @@ export const ExtractionSchema = z.object({
 });
 export type Extraction = z.infer<typeof ExtractionSchema>;
 
+const unknownEnum = <const T extends readonly [string, ...string[]]>(values: T) =>
+  z.enum([...values, "unknown"] as [...T, "unknown"]);
+/** A nullable boolean as a three-way enum: nullable fields count against the API's 16-union limit. */
+const triState = z.enum(["yes", "no", "unknown"]);
+const fromTri = (v: z.infer<typeof triState>): boolean | null =>
+  v === "unknown" ? null : v === "yes";
+const orNull = <T extends string>(v: T | "unknown"): T | null => (v === "unknown" ? null : v);
+
+/**
+ * What the model is asked for. The API rejects schemas with more than 16 union-typed parameters (nullable,
+ * type arrays, anyOf), so unknown is spelled "unknown" / "" / 0 here and mapped back to null by `toExtraction`;
+ * the stored `Extraction` is unchanged. Only listedSalary stays nullable.
+ */
+export const ExtractionWireSchema = z.object({
+  listedSalary: z
+    .object({
+      /** 0 = the posting gives no such bound. */
+      min: z.number(),
+      max: z.number(),
+      currency: z.string(),
+      period: z.enum(["year", "month", "hour"]),
+    })
+    .nullable(),
+  listedSalaryScope: unknownEnum([
+    "all_locations",
+    "location_dependent",
+    "us_only_or_legal_note",
+    "unspecified",
+  ]),
+  hiringScope: unknownEnum(["worldwide", "region", "countries"]),
+  regions: z.array(z.string()),
+  remoteRegions: z.array(z.string()),
+  allowedCountries: z.array(iso2),
+  indonesiaExplicit: triState,
+  /** "" = not stated. */
+  companyHq: z.string().regex(/^([A-Z]{2})?$/),
+  companyType: unknownEnum([
+    "product",
+    "enterprise",
+    "web3_protocol",
+    "agency",
+    "talent_marketplace",
+  ]),
+  payPolicy: unknownEnum(["location_agnostic", "location_adjusted"]),
+  employment: unknownEnum(["employee", "contractor", "eor"]),
+  /** "" = none named. */
+  eorProvider: z.string(),
+  seniority: unknownEnum(["mid", "senior", "lead"]),
+  roleFamily: unknownEnum(["engineering", "non_engineering"]),
+  contactChannels: ExtractionSchema.shape.contactChannels,
+  personalEmailDomain: triState,
+  asksForPaymentOrId: triState,
+  repoAssessmentEarly: triState,
+  urgencyLanguage: triState,
+  vagueDescription: triState,
+});
+export type ExtractionWire = z.infer<typeof ExtractionWireSchema>;
+
+/** Wire output to the stored shape; the only place "unknown" turns into null. */
+export function toExtraction(w: ExtractionWire): Extraction {
+  return {
+    listedSalary: w.listedSalary && {
+      min: w.listedSalary.min > 0 ? w.listedSalary.min : null,
+      max: w.listedSalary.max > 0 ? w.listedSalary.max : null,
+      currency: w.listedSalary.currency,
+      period: w.listedSalary.period,
+    },
+    listedSalaryScope: orNull(w.listedSalaryScope),
+    hiringScope: orNull(w.hiringScope),
+    regions: w.regions,
+    remoteRegions: w.remoteRegions,
+    allowedCountries: w.allowedCountries,
+    indonesiaExplicit: fromTri(w.indonesiaExplicit),
+    companyHq: w.companyHq === "" ? null : w.companyHq,
+    companyType: orNull(w.companyType),
+    payPolicy: orNull(w.payPolicy),
+    employment: orNull(w.employment),
+    eorProvider: w.eorProvider.trim() === "" ? null : w.eorProvider,
+    seniority: orNull(w.seniority),
+    roleFamily: orNull(w.roleFamily),
+    contactChannels: w.contactChannels,
+    personalEmailDomain: fromTri(w.personalEmailDomain),
+    asksForPaymentOrId: fromTri(w.asksForPaymentOrId),
+    repoAssessmentEarly: fromTri(w.repoAssessmentEarly),
+    urgencyLanguage: fromTri(w.urgencyLanguage),
+    vagueDescription: fromTri(w.vagueDescription),
+  };
+}
+
 export interface ExtractInput {
   postingId: string;
   title: string;
@@ -83,7 +172,8 @@ export function extractFacts(p: ExtractInput, deps: LlmDeps): Promise<Extraction
       purpose: "extract",
       system: EXTRACT_SYSTEM_PROMPT,
       input: buildExtractInput(p),
-      schema: ExtractionSchema,
+      schema: ExtractionWireSchema,
+      map: toExtraction,
       maxTokens: EXTRACT_MAX_TOKENS,
       postingId: p.postingId,
     },

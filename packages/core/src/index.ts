@@ -41,6 +41,7 @@ export type { RawPosting, RawSalary, SourceAdapter } from "./types.ts";
 export { httpGet, httpGetJson, httpGetText, HttpError, __testInjectTimeAndSleep } from "./http.ts";
 export {
   callStructured,
+  outputConfigFor,
   LlmApiError,
   LlmOutputError,
   MissingApiKeyError,
