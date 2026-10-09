@@ -477,7 +477,7 @@ describe("errors and retries", () => {
     const rows = db.select().from(llm_calls).all();
     expect(rows).toHaveLength(1);
     expect(Number(rows[0]?.cost_usd)).toBeGreaterThan(0);
-    expect(spentOnDay(db, jakartaDay(new Date()))).toBeGreaterThan(0);
+    expect(spentOnDay(db, jakartaDay(nowDate))).toBeGreaterThan(0);
   });
 
   it("isNotSent: refused / DNS failures (also as a cause) are not sent, others are", () => {
