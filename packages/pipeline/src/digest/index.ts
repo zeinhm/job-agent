@@ -19,7 +19,7 @@ import { resolveFlags } from "../intel/resolve.ts";
 import { TIER_SKIPPED_NO_FX } from "../intel/tier.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { groupPostings, joinLocations } from "./group.ts";
-import { compareRanked, rankScore } from "./rank.ts";
+import { compareRanked, rankScore, TOP_MATCH_MIN_FIT } from "./rank.ts";
 import { spendSection } from "./spend.ts";
 import { buildWhy } from "./why.ts";
 
@@ -49,7 +49,7 @@ export function isDigestDate(s: string): boolean {
   return new Date(`${s}T00:00:00Z`).toISOString().startsWith(s);
 }
 
-type Kind = "top" | "waiting" | "suspicious";
+type Kind = "top" | "not_a_fit" | "waiting" | "suspicious";
 
 interface Entry {
   kind: Kind;
@@ -58,6 +58,8 @@ interface Entry {
   line: string[];
   postedAt: string | null;
   rank: number;
+  /** Fit score, set for `not_a_fit` entries. */
+  fit?: number;
   /** Unclear flags still open, for the "Needs a look" section. */
   unclear: string[];
 }
@@ -221,6 +223,18 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
       askIdrMonth: i.ask_idr_month,
       scamScore: i.scam_score,
     });
+    if (i.fit_score < TOP_MATCH_MIN_FIT) {
+      const reason = fitReasons[0];
+      return {
+        ...base,
+        kind: "not_a_fit",
+        rank,
+        fit: i.fit_score,
+        line: [
+          `- ${p.title} — ${p.company_name} — fit ${i.fit_score}/100${reason !== undefined ? ` — ${reason}` : ""} — ${link}`,
+        ],
+      };
+    }
     const scamReason = parseList(i.scam_reasons)[0];
     return {
       ...base,
@@ -379,9 +393,18 @@ export function runDigest(opts: DigestOptions): string {
   });
 
   const top = entries.filter((e) => e.kind === "top").sort(byRank);
+  const notAFit = entries
+    .filter((e) => e.kind === "not_a_fit")
+    .sort(
+      (a, b) =>
+        compareRanked(
+          { rank: a.fit ?? 0, postedAt: a.postedAt },
+          { rank: b.fit ?? 0, postedAt: b.postedAt },
+        ) || byPostedDesc(a, b),
+    );
   const waiting = entries.filter((e) => e.kind === "waiting").sort(byPostedDesc);
   const suspicious = entries.filter((e) => e.kind === "suspicious").sort(byPostedDesc);
-  const kept = top.length + waiting.length;
+  const kept = top.length + notAFit.length + waiting.length;
 
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const rejectedRows = db
@@ -408,6 +431,7 @@ export function runDigest(opts: DigestOptions): string {
     `# Job digest ${date}`,
     "",
     `- Top matches: ${top.length}`,
+    `- Scored, not a fit: ${notAFit.length}`,
     `- Waiting for scoring: ${waiting.length}`,
     `- Suspicious: ${suspicious.length}`,
     `- Kept: ${kept}`,
@@ -415,6 +439,10 @@ export function runDigest(opts: DigestOptions): string {
       `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary}, language ${byReason.language})`,
     "",
     ...section("Top matches", top, "None scored yet."),
+    "## Scored, not a fit",
+    "",
+    ...(notAFit.length === 0 ? ["None."] : notAFit.flatMap((e) => e.line)),
+    "",
     ...section("Waiting for scoring", waiting),
     ...needsALook([...top, ...waiting]),
     ...section("Suspicious", suspicious),

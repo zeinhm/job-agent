@@ -1,5 +1,7 @@
 export const UNCLEAR_FLAG_PENALTY = 10;
 export const SALARY_BONUS = 5;
+/** Scored postings below this fit score are listed under "Scored, not a fit", not "Top matches". */
+export const TOP_MATCH_MIN_FIT = 60;
 
 export interface RankInput {
   /** 0-100 fit score. */
