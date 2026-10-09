@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import {
+  fx_rates,
   analysis,
   intel,
   llm_calls,
@@ -108,6 +109,17 @@ const fitRequests = () => requests.filter((r) => r["model"] === FIT_MODEL);
 
 beforeEach(() => {
   db = openDb(":memory:");
+  db.insert(fx_rates)
+    .values({
+      id: "fx-IDR",
+      date: "2026-10-08",
+      base: "USD",
+      quote: "IDR",
+      rate: "17900",
+      source: "test",
+      fetched_at: "2026-10-08T00:00:00Z",
+    })
+    .run();
   n = 0;
   requests = [];
   fitResponse = "fit-ok.json";

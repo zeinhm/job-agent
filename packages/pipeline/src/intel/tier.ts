@@ -192,3 +192,6 @@ export function decideTierAndAsk(
     askReason: `branch=${branch}; tier=${tier}; ${inputs.join(", ")}${notes.length > 0 ? `; ${notes.join("; ")}` : ""}`,
   };
 }
+
+/** Reason older runs stored when they finished a posting without a tier because no IDR rate existed. */
+export const TIER_SKIPPED_NO_FX = "tier skipped: no IDR FX rate stored";

@@ -139,7 +139,9 @@ export const intel = sqliteTable("intel", {
     .notNull()
     .unique()
     .references(() => postings.id),
-  status: text("status", { enum: ["pending", "done", "budget_wait", "failed"] }).notNull(),
+  status: text("status", {
+    enum: ["pending", "done", "budget_wait", "failed", "fx_wait"],
+  }).notNull(),
   extraction: text("extraction"), // JSON text, Zod-validated
   extract_model: text("extract_model"),
   extract_prompt_version: text("extract_prompt_version"),

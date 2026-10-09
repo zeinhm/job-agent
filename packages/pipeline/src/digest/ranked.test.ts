@@ -308,4 +308,27 @@ describe("ranked digest", () => {
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
+
+  it("lists a posting waiting for an FX rate under Waiting, never under Top matches", () => {
+    seed("w", {
+      title: "Waits For Rate",
+      intel: { status: "fx_wait", tier: null, ask_idr_month: null },
+    });
+    seed("legacy", {
+      title: "Legacy Skipped",
+      intel: {
+        tier: null,
+        ask_idr_month: null,
+        resolved_reasons: JSON.stringify(["tier skipped: no IDR FX rate stored"]),
+      },
+    });
+    const text = run();
+    const top = sectionOf(text, "Top matches");
+    const waiting = sectionOf(text, "Waiting for scoring");
+    expect(top).not.toContain("Waits For Rate");
+    expect(top).not.toContain("Legacy Skipped");
+    expect(waiting).toContain("Waits For Rate");
+    expect(waiting).toContain("Legacy Skipped");
+    expect(waiting).toContain("waiting for an FX rate: run fx");
+  });
 });

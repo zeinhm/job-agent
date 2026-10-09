@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import {
   analysis,
   BudgetExceededError,
@@ -13,6 +13,7 @@ import {
   postings,
   spentOnDay,
   type Db,
+  type Intel,
   type LlmDeps,
   type Posting,
   type SalaryConfig,
@@ -29,7 +30,7 @@ import { FIT_MODEL, FIT_PROMPT_VERSION, scoreFit } from "./intel/fit.ts";
 import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
 import { payPolicyFor, recordPostingPolicy } from "./intel/registry.ts";
 import { runScamStage } from "./intel/scam-stage.ts";
-import { decideTierAndAsk, type TierFx } from "./intel/tier.ts";
+import { decideTierAndAsk, TIER_SKIPPED_NO_FX, type TierFx } from "./intel/tier.ts";
 
 export interface EnrichOptions {
   db: Db;
@@ -55,7 +56,9 @@ type StageResult =
   | { kind: "done"; patch: IntelPatch }
   | { kind: "failed"; patch: IntelPatch }
   /** Transient API failure: nothing is stored, the posting is retried on the next run. */
-  | { kind: "retry" };
+  | { kind: "retry" }
+  /** No IDR FX rate yet: earlier results are saved, the posting waits for `fx` and is re-tiered later. */
+  | { kind: "fx_wait"; patch: IntelPatch };
 
 /** What earlier stages of this posting already produced, and run-wide helpers. */
 interface StageContext {
@@ -208,7 +211,38 @@ function makeFitStage(cv: string | null): Stage {
   };
 }
 
-/** Tier and ask for kept postings (PLAN 5.3). Pure code on the extraction, registry policy and stored FX. */
+/**
+ * Tier and ask from what is stored so far (PLAN 5.3). Pure code on the extraction, registry policy and stored FX.
+ * Returns null when no IDR rate is stored: a number is never guessed.
+ */
+function computeTier(
+  db: Db,
+  p: Posting,
+  extractionJson: string,
+  salary: SalaryConfig,
+  at: Date,
+): IntelPatch | null {
+  const extraction = ExtractionSchema.parse(JSON.parse(extractionJson));
+  const day = jakartaDay(at);
+  const idrPerUsd = getRate(db, "IDR", day);
+  if (idrPerUsd === null) return null;
+  const currency = extraction.listedSalary?.currency.toUpperCase();
+  const other = currency === undefined ? null : getRate(db, currency, day);
+  const fx: TierFx = {
+    idrPerUsd,
+    ...(currency !== undefined && other !== null ? { perUsd: { [currency]: other } } : {}),
+  };
+  const result = decideTierAndAsk(extraction, payPolicyFor(db, p.company_id), salary, fx);
+  return {
+    tier: result.tier,
+    ask_idr_month: result.askIdrMonth,
+    ask_usd_year: result.askUsdYear,
+    ask_text: result.askText,
+    ask_reason: result.askReason,
+  };
+}
+
+/** Tier and ask for kept postings. Without an FX rate the posting waits (`fx_wait`), it is never `done`. */
 function tierStage(salary: SalaryConfig, at: Date): Stage {
   return {
     name: "tier",
@@ -217,35 +251,66 @@ function tierStage(salary: SalaryConfig, at: Date): Stage {
       if (soFar.final_decision !== "keep" || !soFar.extraction) {
         return Promise.resolve({ kind: "done", patch: {} });
       }
-      const extraction = ExtractionSchema.parse(JSON.parse(soFar.extraction));
-      const day = jakartaDay(at);
-      const idrPerUsd = getRate(deps.db, "IDR", day);
-      if (idrPerUsd === null) {
-        // Never guess a number: no tier until the `fx` command has stored a rate.
-        return Promise.resolve({
-          kind: "done",
-          patch: { resolved_reasons: JSON.stringify(["tier skipped: no IDR FX rate stored"]) },
-        });
-      }
-      const currency = extraction.listedSalary?.currency.toUpperCase();
-      const other = currency === undefined ? null : getRate(deps.db, currency, day);
-      const fx: TierFx = {
-        idrPerUsd,
-        ...(currency !== undefined && other !== null ? { perUsd: { [currency]: other } } : {}),
-      };
-      const result = decideTierAndAsk(extraction, payPolicyFor(deps.db, p.company_id), salary, fx);
-      return Promise.resolve({
-        kind: "done",
-        patch: {
-          tier: result.tier,
-          ask_idr_month: result.askIdrMonth,
-          ask_usd_year: result.askUsdYear,
-          ask_text: result.askText,
-          ask_reason: result.askReason,
-        },
-      });
+      const patch = computeTier(deps.db, p, soFar.extraction, salary, at);
+      return Promise.resolve(
+        patch === null ? { kind: "fx_wait", patch: {} } : { kind: "done", patch },
+      );
     },
   };
+}
+
+/** Rows older versions finished as `done` without a tier because no rate was stored. */
+const LEGACY_TIER_SKIPPED_SQL = sql`${intel.resolved_reasons} like ${`%${TIER_SKIPPED_NO_FX}%`}`;
+
+/**
+ * Kept postings whose tier is missing only for lack of an FX rate: `fx_wait`, plus legacy `done` rows with the old
+ * "tier skipped" reason. Only `final_decision = keep` (suspicious and rejected are never tiered).
+ */
+function selectFxWaiting(db: Db): { posting: Posting; intel: Intel }[] {
+  return db
+    .select({ posting: postings, intel })
+    .from(intel)
+    .innerJoin(postings, eq(postings.id, intel.posting_id))
+    .where(
+      and(
+        eq(intel.final_decision, "keep"),
+        isNotNull(intel.extraction),
+        isNull(intel.tier),
+        or(eq(intel.status, "fx_wait"), and(eq(intel.status, "done"), LEGACY_TIER_SKIPPED_SQL)),
+      ),
+    )
+    .all();
+}
+
+/** Runs only the tier stage for postings waiting on a rate. No LLM call. Returns how many got a tier. */
+function retierWaiting(opts: EnrichOptions, at: Date): number {
+  const { db } = opts;
+  let tiered = 0;
+  for (const row of selectFxWaiting(db)) {
+    const tier = computeTier(db, row.posting, row.intel.extraction as string, opts.salary, at);
+    if (tier === null) {
+      if (row.intel.status !== "fx_wait") {
+        upsertIntel(db, row.posting.id, "fx_wait", withoutMarker(row.intel), at);
+      }
+      continue;
+    }
+    upsertIntel(db, row.posting.id, "done", { ...tier, ...withoutMarker(row.intel) }, at);
+    tiered += 1;
+  }
+  return tiered;
+}
+
+/** Drops the legacy "tier skipped" reason from a stored row. */
+function withoutMarker(row: Intel): IntelPatch {
+  const reasons = (JSON.parse(row.resolved_reasons ?? "[]") as unknown[]).filter(
+    (r) => r !== TIER_SKIPPED_NO_FX,
+  );
+  return { resolved_reasons: JSON.stringify(reasons) };
+}
+
+function waitLine(db: Db): string {
+  const n = db.select({ n: count() }).from(intel).where(eq(intel.status, "fx_wait")).get()?.n ?? 0;
+  return n > 0 ? `${n} postings wait for an FX rate: run fx\n` : "";
 }
 
 /** resolved_reasons are JSON arrays; stages append rather than overwrite. */
@@ -308,12 +373,17 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     return 1;
   }
 
+  // Tier-only pass for postings that waited on an FX rate; needs no API key and makes no LLM call.
+  const retiered = retierWaiting(opts, now());
+  if (retiered > 0) out(`tiered ${retiered} postings that waited for an FX rate\n`);
+
   const todo = selectPostings(db, opts.limit);
 
   if (!env["ANTHROPIC_API_KEY"]) {
     // Postings stay pending so the digest can list them as waiting for scoring.
     for (const p of todo) upsertIntel(db, p.id, "pending", {}, now());
     out("ANTHROPIC_API_KEY not set, LLM stages skipped\n");
+    out(waitLine(db));
     return 0;
   }
 
@@ -352,7 +422,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
       continue;
     }
     let patch: IntelPatch = {};
-    let outcome: "done" | "failed" | "retry" | "budget" = "done";
+    let outcome: "done" | "failed" | "retry" | "budget" | "fx_wait" = "done";
     try {
       for (const stage of stages) {
         const result = await stage.run(posting, deps, { patch, lookupDomainAge });
@@ -361,6 +431,10 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
           break;
         }
         patch = mergePatch(patch, result.patch);
+        if (result.kind === "fx_wait") {
+          outcome = "fx_wait";
+          break;
+        }
         if (result.kind === "failed") {
           outcome = "failed";
           break;
@@ -376,6 +450,8 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     if (outcome === "done") {
       upsertIntel(db, posting.id, "done", patch, now());
       enriched += 1;
+    } else if (outcome === "fx_wait") {
+      upsertIntel(db, posting.id, "fx_wait", patch, now());
     } else if (outcome === "failed") {
       upsertIntel(db, posting.id, "failed", patch, now());
       failed += 1;
@@ -396,5 +472,6 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   out(
     `enriched ${enriched}, budget_wait ${budgetWait}, failed ${failed}, spent $${spent.toFixed(2)} today\n`,
   );
+  out(waitLine(db));
   return 0;
 }

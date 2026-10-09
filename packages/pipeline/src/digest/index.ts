@@ -15,6 +15,7 @@ import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { ExtractionSchema } from "../intel/extract.ts";
 import { resolveFlags } from "../intel/resolve.ts";
+import { TIER_SKIPPED_NO_FX } from "../intel/tier.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { groupPostings, joinLocations } from "./group.ts";
 import { compareRanked, rankScore } from "./rank.ts";
@@ -99,10 +100,19 @@ function askLabel(i: Intel): string | null {
   return parts.length > 0 ? parts.join(" | ") : null;
 }
 
+/** A kept posting that has no tier only because no IDR rate was stored (waiting state or legacy `done` row). */
+function tierMissingForFx(i: Intel): boolean {
+  return (
+    i.status === "fx_wait" ||
+    (i.tier === null && parseList(i.resolved_reasons).includes(TIER_SKIPPED_NO_FX))
+  );
+}
+
 /** Why a kept posting has no fit score yet, in plain words. */
 function waitingReason(i: Intel | null): string {
   if (i === null) return "not enriched yet";
   if (i.status === "budget_wait") return "waiting for the daily LLM budget";
+  if (tierMissingForFx(i)) return "waiting for an FX rate: run fx";
   if (i.status === "failed") return "scoring failed, see `resolved_reasons` in the database";
   if (i.status === "pending") return "not enriched yet";
   return "no fit score (no CV configured or fit not run)";
@@ -168,7 +178,13 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     };
   }
 
-  if (i !== null && i.status === "done" && i.final_decision === "keep" && i.fit_score !== null) {
+  if (
+    i !== null &&
+    i.status === "done" &&
+    i.final_decision === "keep" &&
+    i.fit_score !== null &&
+    !tierMissingForFx(i)
+  ) {
     const fitReasons = parseList(i.fit_reasons).slice(0, MAX_REASONS);
     const label = askLabel(i);
     const rank = rankScore({

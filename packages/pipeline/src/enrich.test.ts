@@ -374,16 +374,96 @@ describe("enrich tier stage", () => {
     expect(row?.ask_reason).toContain("branch=listed_agnostic");
   });
 
-  it("no stored FX rate -> no tier, explicit reason, posting still done", async () => {
+  it("no stored FX rate -> not done, no tier, paid results stored", async () => {
+    db.delete(fx_rates).run();
+    addPosting("p1");
+    const r = await enrich();
+    const row = intelOf("p1");
+    expect(row?.status).toBe("fx_wait");
+    expect(row?.tier).toBeNull();
+    expect(row?.ask_idr_month).toBeNull();
+    expect(row?.extraction).not.toBeNull();
+    expect(row?.final_decision).toBe("keep");
+    expect(row?.extract_model).not.toBeNull();
+    expect(requests).toHaveLength(1);
+    expect(r.out).toContain("1 postings wait for an FX rate: run fx\n");
+  });
+
+  it("after fx stores a rate the next enrich tiers it with 0 Anthropic requests", async () => {
     db.delete(fx_rates).run();
     addPosting("p1");
     await enrich();
+    requests = [];
+    seedFx("IDR", "17900");
+    const r = await enrich();
     const row = intelOf("p1");
+    expect(requests).toHaveLength(0);
     expect(row?.status).toBe("done");
-    expect(row?.tier).toBeNull();
-    expect(row?.ask_idr_month).toBeNull();
-    expect(JSON.parse(row?.resolved_reasons ?? "[]")).toContain(
+    expect(row?.tier).toBe("global_flat");
+    expect(row?.ask_idr_month).toBe(Math.round((118_000 * 17_900) / 12));
+    expect(r.out).not.toContain("wait for an FX rate");
+  });
+
+  it("re-tiers a legacy done row with the old 'tier skipped' reason, even without an API key", async () => {
+    addPosting("p1");
+    await enrich();
+    db.update(intel)
+      .set({
+        tier: null,
+        ask_idr_month: null,
+        ask_usd_year: null,
+        ask_reason: null,
+        resolved_reasons: JSON.stringify(["tier skipped: no IDR FX rate stored"]),
+      })
+      .run();
+    requests = [];
+    const r = await enrich({ env: {} });
+    const row = intelOf("p1");
+    expect(requests).toHaveLength(0);
+    expect(row?.status).toBe("done");
+    expect(row?.tier).toBe("global_flat");
+    expect(JSON.parse(row?.resolved_reasons ?? "[]")).not.toContain(
       "tier skipped: no IDR FX rate stored",
     );
+    expect(r.out).toContain("tiered 1 postings");
+  });
+
+  it("legacy row with no rate stored becomes fx_wait and is counted", async () => {
+    addPosting("p1");
+    await enrich();
+    db.update(intel)
+      .set({
+        tier: null,
+        resolved_reasons: JSON.stringify(["tier skipped: no IDR FX rate stored"]),
+      })
+      .run();
+    db.delete(fx_rates).run();
+    const r = await enrich();
+    expect(intelOf("p1")?.status).toBe("fx_wait");
+    expect(r.out).toContain("1 postings wait for an FX rate: run fx\n");
+  });
+
+  it("never re-tiers suspicious or rejected postings", async () => {
+    addPosting("p1");
+    addPosting("p2");
+    await enrich();
+    for (const [id, decision] of [
+      ["p1", "suspicious"],
+      ["p2", "reject"],
+    ] as const) {
+      db.update(intel)
+        .set({
+          final_decision: decision,
+          tier: null,
+          status: "done",
+          resolved_reasons: JSON.stringify(["tier skipped: no IDR FX rate stored"]),
+        })
+        .where(eq(intel.posting_id, id))
+        .run();
+    }
+    await enrich();
+    expect(intelOf("p1")?.tier).toBeNull();
+    expect(intelOf("p2")?.tier).toBeNull();
+    expect(intelOf("p1")?.status).toBe("done");
   });
 });
