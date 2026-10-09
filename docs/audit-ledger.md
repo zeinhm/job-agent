@@ -52,3 +52,4 @@ Last audit tag: (none yet)
 | t_9dcff684 | Poll discovered companies from the database | medium | ebf037d | 2026-10-09 |
 | t_f6f3b14c | Implement company discovery via search API | medium | 07fe2c8 | 2026-10-09 |
 | t_a8d69efd | Extend end-to-end test to the Phase 2 pipeline | medium | 309bc4c | 2026-10-09 |
+| t_b7afa306 | Update run docs, cron example and env example for Phase 2 | low | 052e718 | 2026-10-09 |
