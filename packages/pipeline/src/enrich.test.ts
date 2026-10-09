@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import {
   analysis,
+  BudgetExceededError,
   companies,
   fx_rates,
   intel,
@@ -19,7 +20,8 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { main } from "./cli.ts";
-import { runEnrich } from "./enrich.ts";
+import { MAX_CONSECUTIVE_API_ERRORS, runEnrich, type Stage } from "./enrich.ts";
+import { runDigest } from "./digest/index.ts";
 import { ExtractionSchema } from "./intel/extract.ts";
 import { PROMPT_VERSION } from "./intel/prompts/extract.ts";
 
@@ -86,6 +88,22 @@ function addPosting(
       analyzed_at: NOW.toISOString(),
     })
     .run();
+}
+
+async function runEnrichWith(extraStages: Stage[]) {
+  const out: string[] = [];
+  const err: string[] = [];
+  const code = await runEnrich({
+    db,
+    salary: SALARY,
+    env: ENV,
+    cv: null,
+    now: () => NOW,
+    out: (t) => out.push(t),
+    err: (t) => err.push(t),
+    extraStages,
+  });
+  return { code, out: out.join(""), err: err.join("") };
 }
 
 async function enrich(over: { env?: Record<string, string | undefined>; limit?: number } = {}) {
@@ -256,7 +274,9 @@ describe("enrich", () => {
     addPosting("p2");
     const r = await enrich({ env: {} });
     expect(r.code).toBe(0);
-    expect(r.out).toBe("ANTHROPIC_API_KEY not set, LLM stages skipped\n");
+    expect(r.out).toBe(
+      "ANTHROPIC_API_KEY not set, LLM stages skipped\nscam rules checked 2 postings, suspicious 0\n",
+    );
     expect(requests).toHaveLength(0);
     expect(intelOf("p1")?.status).toBe("pending");
     expect(intelOf("p2")?.status).toBe("pending");
@@ -465,5 +485,155 @@ describe("enrich tier stage", () => {
     expect(intelOf("p1")?.tier).toBeNull();
     expect(intelOf("p2")?.tier).toBeNull();
     expect(intelOf("p1")?.status).toBe("done");
+  });
+});
+
+function sectionOf(md: string, heading: string): string {
+  const rest = md.slice(md.indexOf(`## ${heading}`) + 3);
+  const next = rest.search(/^## /m);
+  return next < 0 ? rest : rest.slice(0, next);
+}
+
+const SCAM_ROW = (
+  JSON.parse(readFileSync(resolve(here, "../../../fixtures/golden/scam.json"), "utf-8")) as {
+    id: string;
+    excerpt: string;
+  }[]
+).find((r) => r.id === "sc-01") as { excerpt: string };
+
+describe("enrich robustness", () => {
+  const apiError = () =>
+    HttpResponse.json(
+      { type: "error", error: { type: "authentication_error", message: "x" } },
+      { status: 401 },
+    );
+
+  it("keeps the paid extraction when a later stage asks for a retry: no second extraction request", async () => {
+    addPosting("p1");
+    const retryStage: Stage = { name: "later", run: () => Promise.resolve({ kind: "retry" }) };
+    const r1 = await runEnrichWith([retryStage]);
+    expect(requests).toHaveLength(1);
+    expect(intelOf("p1")?.status).toBe("pending");
+    expect(intelOf("p1")?.extraction).not.toBeNull();
+    expect(r1.code).toBe(0);
+    await enrich();
+    expect(requests).toHaveLength(1);
+    expect(intelOf("p1")?.status).toBe("done");
+    expect(intelOf("p1")?.extraction).not.toBeNull();
+  });
+
+  it("keeps the paid extraction when the budget is hit by a later stage", async () => {
+    addPosting("p1");
+    const budgetStage: Stage = {
+      name: "later",
+      run: () => Promise.reject(new BudgetExceededError(1, 1, 1)),
+    };
+    await runEnrichWith([budgetStage]);
+    expect(requests).toHaveLength(1);
+    expect(intelOf("p1")?.status).toBe("budget_wait");
+    expect(intelOf("p1")?.extraction).not.toBeNull();
+    await enrich();
+    expect(requests).toHaveLength(1);
+    expect(intelOf("p1")?.status).toBe("done");
+  });
+
+  it("re-extracts when the saved extraction has an older prompt version", async () => {
+    addPosting("p1");
+    db.insert(intel)
+      .values({
+        id: "i1",
+        posting_id: "p1",
+        status: "pending",
+        extraction: "{}",
+        extract_prompt_version: "extract-v0",
+        updated_at: NOW.toISOString(),
+      })
+      .run();
+    await enrich();
+    expect(requests).toHaveLength(1);
+    expect(intelOf("p1")?.extract_prompt_version).toBe(PROMPT_VERSION);
+  });
+
+  it("aborts after 3 consecutive API errors: exactly 3 requests, rest pending, exit 1, no key in output", async () => {
+    for (const id of ["p1", "p2", "p3", "p4", "p5"]) addPosting(id);
+    respond = apiError;
+    const r = await enrich();
+    expect(MAX_CONSECUTIVE_API_ERRORS).toBe(3);
+    expect(requests).toHaveLength(3);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("enrich aborted after 3 consecutive API errors");
+    expect(r.out + r.err).not.toContain(ENV.ANTHROPIC_API_KEY);
+    expect(r.out + r.err).not.toContain("authentication_error");
+    for (const id of ["p1", "p2", "p3", "p4", "p5"]) expect(intelOf(id)?.status).toBe("pending");
+    // The next run (key fixed) picks them all up again.
+    respond = () => HttpResponse.json(fixture("extract-ok.json"));
+    const r2 = await enrich();
+    expect(r2.code).toBe(0);
+    for (const id of ["p1", "p2", "p3", "p4", "p5"]) expect(intelOf(id)?.status).toBe("done");
+  });
+
+  it("a success resets the consecutive-error counter", async () => {
+    for (const id of ["p1", "p2", "p3", "p4", "p5"]) addPosting(id);
+    // newest first: p5, p4, p3, p2, p1 -> error, error, ok, error, error
+    const pattern = [true, true, false, true, true];
+    let i = 0;
+    respond = () => (pattern[i++] ? apiError() : HttpResponse.json(fixture("extract-ok.json")));
+    const r = await enrich();
+    expect(requests).toHaveLength(5);
+    expect(r.code).toBe(0);
+    expect(r.err).not.toContain("aborted");
+    expect(intelOf("p3")?.status).toBe("done");
+  });
+
+  it("failed API calls count against the cap at their reserved cost", async () => {
+    addPosting("p1");
+    respond = apiError;
+    await enrich();
+    const rows = db.select().from(llm_calls).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe("error");
+    expect(Number(rows[0]?.cost_usd)).toBeGreaterThan(0);
+  });
+
+  it("no key: text-only scam rules mark a golden scam row suspicious, not waiting", async () => {
+    addPosting("p1", "keep", { title: "Protocol Engineer", description_text: SCAM_ROW.excerpt });
+    addPosting("p2");
+    const r = await enrich({ env: {} });
+    expect(requests).toHaveLength(0);
+    expect(r.out).toContain("scam rules checked 2 postings, suspicious 1");
+    const bad = intelOf("p1");
+    expect(bad?.final_decision).toBe("suspicious");
+    expect(bad?.scam_score).toBeGreaterThanOrEqual(60);
+    expect(bad?.status).toBe("pending");
+    expect(intelOf("p2")?.final_decision).toBeNull();
+    const dir = mkdtempSync(join(tmpdir(), "job-agent-enrich-digest-"));
+    const text = readFileSync(
+      runDigest({ db, now: () => NOW, out: () => undefined, outDir: dir }),
+      "utf-8",
+    );
+    rmSync(dir, { recursive: true, force: true });
+    expect(sectionOf(text, "Suspicious")).toContain("Protocol Engineer");
+    expect(sectionOf(text, "Waiting for scoring")).not.toContain("Protocol Engineer");
+    expect(sectionOf(text, "Waiting for scoring")).toContain("Senior Frontend Engineer");
+  });
+
+  it("with a key later the full scam stage runs and its result wins over the rule-only one", async () => {
+    addPosting("p1");
+    db.insert(intel)
+      .values({
+        id: "i1",
+        posting_id: "p1",
+        status: "pending",
+        final_decision: "suspicious",
+        scam_score: 80,
+        scam_reasons: JSON.stringify(["old +80: stale"]),
+        updated_at: NOW.toISOString(),
+      })
+      .run();
+    await enrich();
+    const row = intelOf("p1");
+    expect(row?.status).toBe("done");
+    expect(row?.final_decision).toBe("keep");
+    expect(row?.scam_score).toBeLessThan(60);
   });
 });

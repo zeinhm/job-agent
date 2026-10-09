@@ -53,6 +53,9 @@ export interface EnrichOptions {
   fetchPage?: ResearchDeps["fetchPage"];
 }
 
+/** After this many API failures in a row `enrich` stops calling the API: the cause is systematic (key, outage). */
+export const MAX_CONSECUTIVE_API_ERRORS = 3;
+
 type IntelPatch = Partial<typeof intel.$inferInsert>;
 
 type StageResult =
@@ -77,7 +80,9 @@ export interface Stage {
 
 const extractStage: Stage = {
   name: "extract",
-  async run(p, deps) {
+  async run(p, deps, ctx) {
+    // Saved by an earlier run that stopped after this stage (retry / budget): never pay for it twice.
+    if (ctx.patch.extraction !== undefined) return { kind: "done", patch: {} };
     try {
       const extraction: Extraction = await extractFacts(
         {
@@ -210,6 +215,7 @@ function makeFitStage(cv: string | null): Stage {
     name: "fit",
     async run(p, deps, ctx) {
       if (cv === null || ctx.patch.final_decision !== "keep") return { kind: "done", patch: {} };
+      if (ctx.patch.fit_score !== undefined) return { kind: "done", patch: {} };
       try {
         const fit = await scoreFit(
           {
@@ -374,6 +380,42 @@ function upsertIntel(
     .run();
 }
 
+/** Columns written by a paid (LLM) stage: kept when a later stage ends the posting early. */
+const PAID_COLUMNS = [
+  "extraction",
+  "extract_model",
+  "extract_prompt_version",
+  "fit_score",
+  "fit_reasons",
+  "fit_model",
+  "fit_prompt_version",
+] as const satisfies readonly (keyof IntelPatch)[];
+
+function paidOnly(patch: IntelPatch): IntelPatch {
+  const kept: Record<string, unknown> = {};
+  for (const k of PAID_COLUMNS) if (patch[k] !== undefined) kept[k] = patch[k];
+  return kept as IntelPatch;
+}
+
+/** Paid results an earlier run saved for this posting, if they match the current prompt versions. */
+function savedPaidPatch(db: Db, postingId: string): IntelPatch {
+  const row = db.select().from(intel).where(eq(intel.posting_id, postingId)).get();
+  if (row === undefined) return {};
+  const patch: IntelPatch = {};
+  if (row.extraction !== null && row.extract_prompt_version === EXTRACT_PROMPT_VERSION) {
+    patch.extraction = row.extraction;
+    patch.extract_model = row.extract_model;
+    patch.extract_prompt_version = row.extract_prompt_version;
+  }
+  if (row.fit_score !== null && row.fit_prompt_version === FIT_PROMPT_VERSION) {
+    patch.fit_score = row.fit_score;
+    patch.fit_reasons = row.fit_reasons;
+    patch.fit_model = row.fit_model;
+    patch.fit_prompt_version = row.fit_prompt_version;
+  }
+  return patch;
+}
+
 /** Kept canonical postings with no intel row, or a pending / budget_wait one; newest first. */
 function selectPostings(db: Db, limit: number | undefined): Posting[] {
   const query = db
@@ -397,7 +439,10 @@ function selectPostings(db: Db, limit: number | undefined): Posting[] {
   return rows.map((r) => r.posting);
 }
 
-/** Runs the LLM stages on kept postings within the daily budget. Always exits 0 unless the input is invalid. */
+/** No-key scam check is text-only: no network lookup, the domain age stays unknown. */
+const noDomainLookup: DomainAgeLookup = () => Promise.resolve(null);
+
+/** Runs the LLM stages on kept postings within the daily budget. Exits 1 for invalid input or after repeated API errors (see MAX_CONSECUTIVE_API_ERRORS), else 0. */
 export async function runEnrich(opts: EnrichOptions): Promise<number> {
   const { db, out, err } = opts;
   const env = opts.env ?? process.env;
@@ -415,9 +460,28 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   const todo = selectPostings(db, opts.limit);
 
   if (!env["ANTHROPIC_API_KEY"]) {
-    // Postings stay pending so the digest can list them as waiting for scoring.
-    for (const p of todo) upsertIntel(db, p.id, "pending", {}, now());
+    // Postings stay pending so the digest can list them as waiting for scoring. The text-only scam rules need no
+    // key: a posting that scores suspicious on them is listed as suspicious, not as waiting. They run here (not in
+    // `process`) because the result belongs in `intel`; a later run with a key redoes the scam stage with the
+    // extraction and its result replaces this one.
+    let suspicious = 0;
+    for (const p of todo) {
+      const scam = await runScamStage(db, p, null, noDomainLookup, now());
+      if (scam.suspicious) suspicious += 1;
+      upsertIntel(
+        db,
+        p.id,
+        "pending",
+        {
+          scam_score: scam.scam_score,
+          scam_reasons: scam.scam_reasons,
+          ...(scam.suspicious ? { final_decision: "suspicious" as const } : {}),
+        },
+        now(),
+      );
+    }
     out("ANTHROPIC_API_KEY not set, LLM stages skipped\n");
+    out(`scam rules checked ${todo.length} postings, suspicious ${suspicious}\n`);
     out(waitLine(db));
     return 0;
   }
@@ -450,21 +514,35 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   let budgetWait = 0;
   let failed = 0;
   let budgetStopped = false;
+  let apiErrors = 0;
+  let aborted = false;
 
   for (const posting of todo) {
+    if (aborted) {
+      upsertIntel(db, posting.id, "pending", {}, now());
+      continue;
+    }
     if (budgetStopped) {
       upsertIntel(db, posting.id, "budget_wait", {}, now());
       budgetWait += 1;
       continue;
     }
-    let patch: IntelPatch = {};
+    let patch: IntelPatch = savedPaidPatch(db, posting.id);
     let outcome: "done" | "failed" | "retry" | "budget" | "fx_wait" = "done";
     try {
       for (const stage of stages) {
         const result = await stage.run(posting, deps, { patch, lookupDomainAge });
         if (result.kind === "retry") {
           outcome = "retry";
+          apiErrors += 1;
           break;
+        }
+        // A paid stage that ran (non-empty patch, even a failed output) means the API answered.
+        if (
+          (stage.name === "extract" || stage.name === "fit") &&
+          Object.keys(result.patch).length > 0
+        ) {
+          apiErrors = 0;
         }
         patch = mergePatch(patch, result.patch);
         if (result.kind === "fx_wait") {
@@ -492,14 +570,15 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
       upsertIntel(db, posting.id, "failed", patch, now());
       failed += 1;
     } else if (outcome === "retry") {
-      upsertIntel(db, posting.id, "pending", {}, now());
+      upsertIntel(db, posting.id, "pending", paidOnly(patch), now());
       failed += 1;
+      if (apiErrors >= MAX_CONSECUTIVE_API_ERRORS) aborted = true;
     } else {
       budgetStopped = true;
       log.warn("enrich: daily LLM budget reached, remaining postings wait", {
         posting_id: posting.id,
       });
-      upsertIntel(db, posting.id, "budget_wait", {}, now());
+      upsertIntel(db, posting.id, "budget_wait", paidOnly(patch), now());
       budgetWait += 1;
     }
   }
@@ -509,5 +588,9 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     `enriched ${enriched}, budget_wait ${budgetWait}, failed ${failed}, spent $${spent.toFixed(2)} today\n`,
   );
   out(waitLine(db));
+  if (aborted) {
+    err(`enrich aborted after ${MAX_CONSECUTIVE_API_ERRORS} consecutive API errors\n`);
+    return 1;
+  }
   return 0;
 }

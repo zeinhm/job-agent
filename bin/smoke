@@ -2,7 +2,7 @@
 # bin/smoke [dir]: live smoke run of the pipeline on a temp DB with the EXAMPLE configs.
 # Polls every public keyless source (incl. arbeitnow) and one public ATS board one by one (a failing source does not stop the others), then process + digest.
 # web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
-# Never touches config/ or data/. No LLM calls: if `enrich` exists it runs without a key and prints its skip line.
+# Never touches config/ or data/. No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
 # JOB_AGENT_CLI overrides the CLI command (used by tests).
 set -uo pipefail
 REPO="$(git rev-parse --show-toplevel)"; cd "$REPO"

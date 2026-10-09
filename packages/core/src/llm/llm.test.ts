@@ -15,6 +15,7 @@ import {
   MissingApiKeyError,
   type CallStructuredOptions,
 } from "./client.ts";
+import { isNotSent } from "./client.ts";
 import { MODEL_PRICES, costFromUsage } from "./prices.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -330,7 +331,27 @@ describe("errors and retries", () => {
     expect(requests).toHaveLength(3);
     const rows = db.select().from(llm_calls).all();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ status: "error", cost_usd: "0.00000000" });
+    // The request was sent and failed: the cap counts the reserved worst case, not $0.
+    expect(rows[0]?.status).toBe("error");
+    expect(Number(rows[0]?.cost_usd)).toBeGreaterThan(0);
+  });
+
+  it("a network failure after the send is recorded at the reserved cost, not $0", async () => {
+    respond = () => HttpResponse.error();
+    const err = await callStructured(opts(), deps()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LlmApiError);
+    const rows = db.select().from(llm_calls).all();
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0]?.cost_usd)).toBeGreaterThan(0);
+    expect(spentOnDay(db, jakartaDay(new Date()))).toBeGreaterThan(0);
+  });
+
+  it("isNotSent: refused / DNS failures (also as a cause) are not sent, others are", () => {
+    const refused = Object.assign(new Error("connect"), { code: "ECONNREFUSED" });
+    expect(isNotSent(refused)).toBe(true);
+    expect(isNotSent(new Error("fetch failed", { cause: refused }))).toBe(true);
+    expect(isNotSent(new Error("fetch failed"))).toBe(false);
+    expect(isNotSent(Object.assign(new Error("reset"), { code: "ECONNRESET" }))).toBe(false);
   });
 
   it("does not retry the monthly spend-cap 429 or a 400", async () => {

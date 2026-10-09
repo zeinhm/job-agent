@@ -419,8 +419,12 @@ describe("phase 2 pipeline end to end", () => {
     const md = digest();
     expect(section(md, "Top matches")).toContain("None scored yet.");
     expect(titles(section(md, "Waiting for scoring")).length).toBeGreaterThan(0);
-    // Without the LLM stages nothing can be called suspicious.
-    expect(section(md, "Suspicious")).toContain("None.");
+    // The text-only scam rules run without a key: the fee posting is suspicious, not "waiting".
+    expect(r.out).toContain("scam rules checked");
+    expect(titles(section(md, "Suspicious"))).toEqual(["Senior React Engineer — Fee Staffing Ltd"]);
+    expect(titles(section(md, "Waiting for scoring"))).not.toContain(
+      "Senior React Engineer — Fee Staffing Ltd",
+    );
     expect(section(md, "LLM spend")).toContain("No LLM calls.");
   });
 

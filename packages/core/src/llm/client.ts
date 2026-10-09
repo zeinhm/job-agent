@@ -90,6 +90,18 @@ function isRetryable(err: InstanceType<typeof Anthropic.APIError>): boolean {
   return body?.error?.details?.error_code !== "enforced_spend_limit_reached";
 }
 
+const NOT_SENT_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"]);
+
+/** True when the failure happened before any request bytes could reach the API. */
+export function isNotSent(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e instanceof Error && depth < 4; depth++) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && NOT_SENT_CODES.has(code)) return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 function outputConfigFor(schema: z.ZodType) {
   const json = z.toJSONSchema(schema, { target: "draft-2020-12" }) as Record<string, unknown>;
   delete json["$schema"];
@@ -145,8 +157,8 @@ export async function callStructured<S extends z.ZodType>(
     ...(deps.baseURL ? { baseURL: deps.baseURL } : {}),
   });
 
-  const record = (status: "ok" | "error", usage: Usage | null): number => {
-    const cost = usage ? costFromUsage(opts.model, usage) : 0;
+  const record = (status: "ok" | "error", usage: Usage | null, errorCost = 0): number => {
+    const cost = usage ? costFromUsage(opts.model, usage) : errorCost;
     const at = now();
     deps.db
       .insert(llm_calls)
@@ -197,10 +209,12 @@ export async function callStructured<S extends z.ZodType>(
             await sleep(backoffMs(attempt, err));
             continue;
           }
-          record("error", null);
+          // A status came back or the request timed out: it was sent, usage is unknown, so the cap counts the
+          // worst case. A connection that failed before the request left (refused, DNS) cost nothing: $0.
+          record("error", null, isNotSent(err) ? 0 : reserve);
           throw new LlmApiError(err.status, err.type);
         }
-        record("error", null);
+        record("error", null, reserve);
         // Connection/timeout errors: the message can carry request details, so report only the class.
         throw new LlmApiError(undefined, err instanceof Error ? err.name : "unknown");
       }
