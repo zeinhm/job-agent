@@ -230,3 +230,106 @@ describe("cleanUrl web3.career", () => {
     expect(row?.apply_url).toBe(url);
   });
 });
+
+describe("company domain from posting links", () => {
+  let db: Db;
+  const base = {
+    first_seen_at: "2026-10-06T00:00:00.000Z",
+    last_seen_at: "2026-10-06T00:00:00.000Z",
+  };
+  const NOW = new Date("2026-10-07T00:00:00.000Z");
+  const add = (n: number, name: string, url: string, apply_url: string | null = null) =>
+    db
+      .insert(postings)
+      .values({
+        id: `d${n}`,
+        source: "remoteok",
+        external_id: `e${n}`,
+        url,
+        apply_url,
+        title: "Engineer",
+        company_name: name,
+        ...base,
+      })
+      .run();
+  const domainOf = (key: string) =>
+    db
+      .select()
+      .from(companies)
+      .all()
+      .find((c) => c.normalized_name === key)?.domain ?? null;
+
+  beforeEach(() => {
+    db = openDb(":memory:");
+  });
+
+  it("takes a company-owned apply host; falls back to the public link; strips www and tracking", () => {
+    add(
+      1,
+      "Acme",
+      "https://remoteok.com/remote-jobs/1",
+      "https://www.acme.io/careers/7?utm_source=x",
+    );
+    add(2, "Globex", "https://globex.dev/jobs/2");
+    normalizePending(db, { now: () => NOW });
+    expect(domainOf("acme")).toBe("acme.io");
+    expect(domainOf("globex")).toBe("globex.dev");
+  });
+
+  it.each([
+    ["boards.greenhouse.io", "https://boards.greenhouse.io/acme/jobs/1"],
+    ["job-boards.greenhouse.io", "https://job-boards.greenhouse.io/acme/jobs/1"],
+    ["jobs.lever.co", "https://jobs.lever.co/acme/abc"],
+    ["jobs.ashbyhq.com", "https://jobs.ashbyhq.com/acme/abc"],
+    ["apply.workable.com", "https://apply.workable.com/acme/j/1"],
+    ["recruitee tenant", "https://acme.recruitee.com/o/x"],
+    ["smartrecruiters", "https://jobs.smartrecruiters.com/Acme/1"],
+    ["remoteok", "https://remoteok.com/remote-jobs/1"],
+    ["remotive", "https://remotive.com/remote-jobs/1"],
+    ["himalayas", "https://himalayas.app/companies/acme/jobs/1"],
+    ["weworkremotely", "https://weworkremotely.com/remote-jobs/1"],
+    ["arbeitnow", "https://www.arbeitnow.com/jobs/1"],
+    ["web3.career", "https://web3.career/acme/1"],
+    ["hacker news", "https://news.ycombinator.com/item?id=1"],
+    ["bit.ly shortener", "https://bit.ly/abc"],
+    ["linktr.ee", "https://linktr.ee/acme"],
+    ["linkedin", "https://www.linkedin.com/jobs/view/1"],
+    ["ip address", "https://203.0.113.5/jobs"],
+  ])("never uses %s as a company domain", (_n, url) => {
+    add(1, "Acme", url, url);
+    normalizePending(db, { now: () => NOW });
+    expect(domainOf("acme")).toBeNull();
+  });
+
+  it("never overwrites a stored (config) domain, also from a later posting", () => {
+    db.insert(companies)
+      .values({
+        id: "c-acme",
+        name: "Acme",
+        normalized_name: "acme",
+        domain: "acme-config.example",
+        created_at: NOW.toISOString(),
+      })
+      .run();
+    add(1, "Acme", "https://remoteok.com/1", "https://other-host.io/apply");
+    normalizePending(db, { now: () => NOW });
+    expect(domainOf("acme")).toBe("acme-config.example");
+  });
+
+  it("fills a missing domain on a later posting of an existing company", () => {
+    add(1, "Acme", "https://remoteok.com/1");
+    normalizePending(db, { now: () => NOW });
+    expect(domainOf("acme")).toBeNull();
+    add(2, "Acme", "https://remoteok.com/2", "https://acme.io/apply");
+    normalizePending(db, { now: () => NOW });
+    expect(domainOf("acme")).toBe("acme.io");
+  });
+
+  it("backfills companies of already normalized postings, oldest link first", () => {
+    add(1, "Acme", "https://remoteok.com/1", "https://old.acme.io/apply");
+    normalizePending(db, { now: () => NOW });
+    db.update(companies).set({ domain: null }).run();
+    expect(normalizePending(db, { now: () => NOW })).toBe(0);
+    expect(domainOf("acme")).toBe("old.acme.io");
+  });
+});

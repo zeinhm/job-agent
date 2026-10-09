@@ -3,6 +3,7 @@ import {
   callStructured,
   companies,
   httpGet,
+  HttpError,
   log,
   MissingApiKeyError,
   LlmApiError,
@@ -27,6 +28,8 @@ const DAY_MS = 86_400_000;
 /** The registry never replaces a human decision. */
 const PROTECTED_SOURCE = /^manual/;
 /** Public pages the company itself publishes; tried in order, at most MAX_PAGES. */
+/** `pay_policy_source` marker written by a check that had no domain to look at. */
+const NO_DOMAIN_SOURCE = "research:no domain";
 const CAREERS_PATHS = ["/careers", "/jobs"];
 
 /** Wire shape: "" and "unknown" instead of null (the API limits union-typed parameters). */
@@ -47,6 +50,9 @@ export function toCompanyResearch(w: z.infer<typeof CompanyResearchWireSchema>):
   };
 }
 
+/** How a lookup ended, for the `enrich` summary counts. */
+export type ResearchCategory = "found" | "no_domain" | "fetch_failed" | "no_wording";
+
 export type ResearchOutcome =
   | { kind: "skipped"; reason: string }
   | {
@@ -54,9 +60,18 @@ export type ResearchOutcome =
       policy: "location_agnostic" | "location_adjusted";
       source: string;
       reasons: string[];
+      category: "found";
+      reason: string;
     }
   /** `failed` is set when a fetch or the model output went wrong (as opposed to a page without pay wording). */
-  | { kind: "unknown"; reasons: string[]; failed?: true }
+  | {
+      kind: "unknown";
+      reasons: string[];
+      failed?: true;
+      category: Exclude<ResearchCategory, "found">;
+      /** Short logged reason: `no domain`, `fetch failed <url>: <status or error>`, `redirected off-site`, ... */
+      reason: string;
+    }
   /** Transient API problem: nothing stored, the company is retried on the next run. A spent budget throws instead. */
   | { kind: "retry"; reason: string };
 
@@ -110,12 +125,36 @@ export function isAllowedRedirect(startUrl: string, nextUrl: string): boolean {
   }
 }
 
+/** A redirect hop was refused (never requested). `linkedin` is true when the target was LinkedIn. */
+export class RedirectRefusedError extends Error {
+  constructor(public linkedin: boolean) {
+    super(linkedin ? "redirected to linkedin" : "redirected off-site");
+    this.name = "RedirectRefusedError";
+  }
+}
+
 export async function defaultFetchPage(url: string): Promise<{ finalUrl: string; body: string }> {
-  const res = await httpGet(url, {
-    minIntervalMs: MIN_INTERVAL_MS,
-    allowRedirectTo: (next) => isAllowedRedirect(url, next),
-  });
-  return { finalUrl: res.url || url, body: await res.text() };
+  let refused: string | null = null;
+  try {
+    const res = await httpGet(url, {
+      minIntervalMs: MIN_INTERVAL_MS,
+      allowRedirectTo: (next) => {
+        const ok = isAllowedRedirect(url, next);
+        if (!ok) refused = next;
+        return ok;
+      },
+    });
+    return { finalUrl: res.url || url, body: await res.text() };
+  } catch (e) {
+    if (refused !== null) throw new RedirectRefusedError(isLinkedInHost(refused));
+    throw e;
+  }
+}
+
+/** Status or error kind of a failed fetch; never the response body or the error text. */
+function describeFetchError(e: unknown): string {
+  if (e instanceof HttpError) return e.status === null ? "network error" : `HTTP ${e.status}`;
+  return e instanceof Error ? e.name : "error";
 }
 
 /** Visible text only: no scripts, styles or markup, whitespace collapsed. */
@@ -152,21 +191,29 @@ export function isDueForResearch(
     pay_policy: string | null;
     pay_policy_source: string | null;
     pay_policy_checked_at: string | null;
+    domain?: string | null;
   },
   now: Date,
 ): boolean {
   if (row.pay_policy !== null && row.pay_policy !== "unknown") return false;
   if (row.pay_policy_source !== null && PROTECTED_SOURCE.test(row.pay_policy_source)) return false;
   if (row.pay_policy_checked_at === null) return true;
+  // Checked while the company had no domain (marker, or an unmarked pre-fix check): due again once it has one.
+  if (
+    row.domain &&
+    (row.pay_policy_source === null || row.pay_policy_source === NO_DOMAIN_SOURCE)
+  ) {
+    return true;
+  }
   const checked = Date.parse(row.pay_policy_checked_at);
   return Number.isNaN(checked) || now.getTime() - checked >= RESEARCH_INTERVAL_DAYS * DAY_MS;
 }
 
 const squash = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
 
-function markChecked(db: Db, companyId: string, at: Date): void {
+function markChecked(db: Db, companyId: string, at: Date, source: string): void {
   db.update(companies)
-    .set({ pay_policy_checked_at: at.toISOString() })
+    .set({ pay_policy_checked_at: at.toISOString(), pay_policy_source: source })
     .where(eq(companies.id, companyId))
     .run();
 }
@@ -193,34 +240,57 @@ export async function researchCompanyPayPolicy(
 
   const fetchPage = deps.fetchPage ?? defaultFetchPage;
   const failures: string[] = [];
+  /** First failure, in the logged vocabulary. */
+  let firstFailure: string | null = null;
+  const fail = (short: string, long: string): void => {
+    failures.push(long);
+    firstFailure ??= short;
+  };
   const pages: { url: string; text: string }[] = [];
   for (const url of candidateUrls(row.domain)) {
     try {
       const page = await fetchPage(url);
       if (isLinkedInHost(page.finalUrl)) {
-        failures.push(`${url}: redirected to linkedin, discarded`);
+        fail("redirected to linkedin", `${url}: redirected to linkedin, discarded`);
         continue;
       }
       if (!isAllowedRedirect(url, page.finalUrl)) {
-        failures.push(`${url}: redirected to another site, discarded`);
+        fail("redirected off-site", `${url}: redirected to another site, discarded`);
         continue;
       }
       const text = htmlToText(page.body).slice(0, MAX_PAGE_CHARS);
       if (text) pages.push({ url, text });
-      else failures.push(`${url}: empty page`);
+      else fail("empty page", `${url}: empty page`);
     } catch (e) {
-      failures.push(`${url}: ${e instanceof Error ? e.message : "fetch failed"}`);
+      if (e instanceof RedirectRefusedError) {
+        fail(e.message, `${url}: ${e.message}, discarded`);
+      } else {
+        const why = describeFetchError(e);
+        fail(`fetch failed ${url}: ${why}`, `${url}: ${why}`);
+      }
     }
   }
   if (pages.length === 0) {
+    const noDomain = candidateUrls(row.domain).length === 0;
+    const short = noDomain ? "no domain" : (firstFailure ?? "empty page");
     const reason = row.domain
       ? `pay policy research: no page fetched (${failures.join("; ") || "no candidate url"})`
       : "pay policy research: no company domain";
-    log.info("company research: no page", { company_id: companyId, failures: failures.length });
-    markChecked(db, companyId, now);
-    return failures.length > 0
-      ? { kind: "unknown", reasons: [reason], failed: true }
-      : { kind: "unknown", reasons: [reason] };
+    log.info("company research", {
+      company_id: companyId,
+      outcome: noDomain ? "no_domain" : "fetch_failed",
+      reason: short,
+    });
+    markChecked(db, companyId, now, noDomain ? NO_DOMAIN_SOURCE : `research:${short}`);
+    return noDomain
+      ? { kind: "unknown", reasons: [reason], category: "no_domain", reason: short }
+      : {
+          kind: "unknown",
+          reasons: [reason],
+          failed: true,
+          category: "fetch_failed",
+          reason: short,
+        };
   }
 
   const unknownReasons: string[] = [];
@@ -270,8 +340,15 @@ export async function researchCompanyPayPolicy(
         })
         .where(eq(companies.id, companyId))
         .run();
+      log.info("company research", {
+        company_id: companyId,
+        outcome: "found",
+        reason: `found ${result.classification}`,
+      });
       return {
         kind: "found",
+        category: "found",
+        reason: `found ${result.classification}`,
         policy: result.classification,
         source,
         reasons: [`pay policy ${result.classification} from ${source}: "${quote}"`],
@@ -279,9 +356,15 @@ export async function researchCompanyPayPolicy(
     }
     unknownReasons.push(`pay policy research ${page.url}: no pay-policy wording`);
   }
-  markChecked(db, companyId, now);
+  markChecked(db, companyId, now, "research:no pay wording");
+  log.info("company research", {
+    company_id: companyId,
+    outcome: "no_wording",
+    reason: "no pay wording",
+  });
   const reasons = [...failures.map((f) => `pay policy research: ${f}`), ...unknownReasons];
+  const base = { reasons, category: "no_wording" as const, reason: "no pay wording" };
   return failures.length > 0 || outputFailed
-    ? { kind: "unknown", reasons, failed: true }
-    : { kind: "unknown", reasons };
+    ? { kind: "unknown", ...base, failed: true }
+    : { kind: "unknown", ...base };
 }

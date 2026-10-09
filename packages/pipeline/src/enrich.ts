@@ -162,6 +162,15 @@ const resolveStage: Stage = {
   },
 };
 
+/** Per-run research counts for the summary line. */
+interface ResearchCounts {
+  checked: number;
+  found: number;
+  no_domain: number;
+  fetch_failed: number;
+  no_wording: number;
+}
+
 /**
  * Looks up the pay policy on the company's careers pages (PLAN 5.2) for a kept posting, at most once per company and
  * run, and only when the company is due (unknown policy, not checked in 90 days). Runs before the registry and the tier
@@ -171,6 +180,7 @@ const resolveStage: Stage = {
 function makeResearchStage(
   fetchPage: ResearchDeps["fetchPage"],
   warn: (text: string) => void,
+  counts: ResearchCounts,
 ): Stage {
   const attempted = new Set<string>();
   return {
@@ -183,6 +193,10 @@ function makeResearchStage(
       attempted.add(p.company_id);
       const researchDeps: ResearchDeps = { ...deps, ...(fetchPage ? { fetchPage } : {}) };
       const outcome = await researchCompanyPayPolicy(p.company_id, researchDeps);
+      if (outcome.kind === "found" || outcome.kind === "unknown") {
+        counts.checked += 1;
+        counts[outcome.category] += 1;
+      }
       if (outcome.kind === "found") {
         return { kind: "done", patch: { resolved_reasons: JSON.stringify(outcome.reasons) } };
       }
@@ -498,11 +512,18 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     err("cv.md not found in the config dir, fit scoring skipped (extraction still runs)\n");
   }
 
+  const researchCounts: ResearchCounts = {
+    checked: 0,
+    found: 0,
+    no_domain: 0,
+    fetch_failed: 0,
+    no_wording: 0,
+  };
   const stages: Stage[] = [
     extractStage,
     resolveStage,
     scamStage,
-    makeResearchStage(opts.fetchPage, err),
+    makeResearchStage(opts.fetchPage, err, researchCounts),
     registryStage,
     makeFitStage(cv),
     tierStage(opts.salary, now()),
@@ -588,6 +609,9 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   const spent = spentOnDay(db, jakartaDay(now()));
   out(
     `enriched ${enriched}, budget_wait ${budgetWait}, failed ${failed}, spent $${spent.toFixed(2)} today\n`,
+  );
+  out(
+    `research: checked ${researchCounts.checked}, found ${researchCounts.found}, no domain ${researchCounts.no_domain}, fetch failed ${researchCounts.fetch_failed}, no wording ${researchCounts.no_wording}\n`,
   );
   out(waitLine(db));
   if (aborted) {

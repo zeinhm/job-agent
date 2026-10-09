@@ -6,6 +6,7 @@ import {
   __testInjectTimeAndSleep,
   BudgetExceededError,
   companies,
+  HttpError,
   llm_calls,
   MissingApiKeyError,
   openDb,
@@ -13,7 +14,7 @@ import {
 } from "@job-agent/core";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   candidateUrls,
   defaultFetchPage,
@@ -21,6 +22,7 @@ import {
   isAllowedRedirect,
   isDueForResearch,
   isLinkedInHost,
+  RedirectRefusedError,
   researchCompanyPayPolicy,
 } from "./company-research.ts";
 
@@ -91,6 +93,8 @@ describe("company pay-policy research", () => {
       kind: "found",
       policy: "location_agnostic",
       source: "careers:https://acme.example/careers",
+      category: "found",
+      reason: "found location_agnostic",
       reasons: [
         'pay policy location_agnostic from careers:https://acme.example/careers: "We pay the same salary regardless of where you live."',
       ],
@@ -138,7 +142,7 @@ describe("company pay-policy research", () => {
     if (out.kind === "unknown") expect(out.reasons[0]).toMatch(/no page fetched.*404/);
     expect(row()).toMatchObject({
       pay_policy: "unknown",
-      pay_policy_source: null,
+      pay_policy_source: "research:fetch failed https://acme.example/careers: HTTP 404",
       pay_policy_checked_at: NOW.toISOString(),
     });
     expect(apiCalls).toBe(0);
@@ -150,7 +154,7 @@ describe("company pay-policy research", () => {
     expect(out.kind).toBe("unknown");
     expect(row()).toMatchObject({
       pay_policy: "unknown",
-      pay_policy_source: null,
+      pay_policy_source: "research:no pay wording",
       pay_policy_checked_at: NOW.toISOString(),
     });
   });
@@ -268,6 +272,162 @@ describe("helpers", () => {
         NOW,
       ),
     ).toBe(false);
+  });
+});
+
+// Placed before the redirect-guard tests: those start and close their own msw servers.
+describe("per-company research log line and reasons", () => {
+  let lines: Record<string, unknown>[];
+  let spy: { mockRestore: () => void };
+  beforeEach(() => {
+    lines = [];
+    spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
+      for (const l of String(chunk).split("\n")) {
+        if (l.startsWith("{")) lines.push(JSON.parse(l));
+      }
+      return true;
+    });
+  });
+  afterEach(() => spy.mockRestore());
+  const research = () => lines.filter((l) => l["msg"] === "company research");
+
+  const cases: {
+    name: string;
+    domain: string | null;
+    fetchPage?: (url: string) => Promise<{ finalUrl: string; body: string }>;
+    respond?: () => Response;
+    outcome: string;
+    reason: string;
+  }[] = [
+    { name: "no domain", domain: null, outcome: "no_domain", reason: "no domain" },
+    {
+      name: "fetch failed (status)",
+      domain: "acme.example",
+      fetchPage: () => Promise.reject(new HttpError("https://acme.example/careers", 404)),
+      outcome: "fetch_failed",
+      reason: "fetch failed https://acme.example/careers: HTTP 404",
+    },
+    {
+      name: "fetch failed (network)",
+      domain: "acme.example",
+      fetchPage: () => Promise.reject(new HttpError("https://acme.example/careers", null)),
+      outcome: "fetch_failed",
+      reason: "fetch failed https://acme.example/careers: network error",
+    },
+    {
+      name: "redirected off-site",
+      domain: "acme.example",
+      fetchPage: () => Promise.reject(new RedirectRefusedError(false)),
+      outcome: "fetch_failed",
+      reason: "redirected off-site",
+    },
+    {
+      name: "redirected to linkedin",
+      domain: "acme.example",
+      fetchPage: () => Promise.reject(new RedirectRefusedError(true)),
+      outcome: "fetch_failed",
+      reason: "redirected to linkedin",
+    },
+    {
+      name: "empty page",
+      domain: "acme.example",
+      fetchPage: (url) => Promise.resolve({ finalUrl: url, body: "<script>x()</script>" }),
+      outcome: "fetch_failed",
+      reason: "empty page",
+    },
+    {
+      name: "no pay wording",
+      domain: "acme.example",
+      respond: () => HttpResponse.json(fixture("company-research-none.json")),
+      outcome: "no_wording",
+      reason: "no pay wording",
+    },
+    {
+      name: "found",
+      domain: "acme.example",
+      outcome: "found",
+      reason: "found location_agnostic",
+    },
+  ];
+
+  for (const c of cases) {
+    it(`logs one line with outcome and reason: ${c.name}`, async () => {
+      db.update(companies).set({ domain: c.domain }).run();
+      if (c.respond) respond = c.respond;
+      const out = await researchCompanyPayPolicy(
+        "c1",
+        deps(c.fetchPage ? { fetchPage: c.fetchPage } : {}),
+      );
+      expect(research()).toHaveLength(1);
+      expect(research()[0]).toMatchObject({
+        level: "info",
+        company_id: "c1",
+        outcome: c.outcome,
+        reason: c.reason,
+      });
+      expect(out).toMatchObject({ reason: c.reason });
+      // only ids and a short reason: no page or posting text
+      expect(Object.keys(research()[0] ?? {}).sort()).toEqual(
+        ["company_id", "level", "msg", "outcome", "reason", "ts"].sort(),
+      );
+      expect(JSON.stringify(lines)).not.toMatch(/regardless of where you live|Join us/);
+    });
+  }
+
+  it("a refused redirect hop from the real fetcher is reported as such and LinkedIn is not requested", async () => {
+    let linkedinHit = false;
+    server.use(
+      http.get("https://acme.example/*", () =>
+        HttpResponse.text("", { status: 302, headers: { location: "https://www.linkedin.com/x" } }),
+      ),
+      http.get("https://www.linkedin.com/*", () => {
+        linkedinHit = true;
+        return HttpResponse.text("x");
+      }),
+    );
+    await researchCompanyPayPolicy("c1", deps());
+    expect(linkedinHit).toBe(false);
+    expect(research()[0]).toMatchObject({
+      outcome: "fetch_failed",
+      reason: "redirected to linkedin",
+    });
+  });
+});
+
+describe("no-domain checks become due once a domain is stored", () => {
+  const checkedAt = new Date(NOW.getTime() - 5 * 86_400_000).toISOString();
+  it("no domain marker: due again as soon as a domain exists, not before", async () => {
+    db.update(companies).set({ domain: null }).run();
+    await researchCompanyPayPolicy("c1", deps());
+    expect(row()).toMatchObject({
+      pay_policy_source: "research:no domain",
+      pay_policy_checked_at: NOW.toISOString(),
+    });
+    expect((await researchCompanyPayPolicy("c1", deps())).kind).toBe("skipped");
+    db.update(companies).set({ domain: "acme.example" }).run();
+    expect((await researchCompanyPayPolicy("c1", deps())).kind).toBe("found");
+  });
+
+  it("an unmarked check from before the fix is due once a domain exists", () => {
+    const base = {
+      pay_policy: "unknown",
+      pay_policy_source: null,
+      pay_policy_checked_at: checkedAt,
+    };
+    expect(isDueForResearch(base, NOW)).toBe(false);
+    expect(isDueForResearch({ ...base, domain: "acme.example" }, NOW)).toBe(true);
+  });
+
+  it("no pay wording is not due before 90 days even with a domain", () => {
+    const base = {
+      pay_policy: "unknown",
+      pay_policy_source: "research:no pay wording",
+      pay_policy_checked_at: checkedAt,
+      domain: "acme.example",
+    };
+    expect(isDueForResearch(base, NOW)).toBe(false);
+    const old = new Date(NOW.getTime() - 90 * 86_400_000).toISOString();
+    expect(isDueForResearch({ ...base, pay_policy_checked_at: old }, NOW)).toBe(true);
   });
 });
 

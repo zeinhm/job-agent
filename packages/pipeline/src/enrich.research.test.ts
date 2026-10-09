@@ -210,6 +210,26 @@ describe("enrich company pay-policy research", () => {
     expect(r.err).toBe("");
   });
 
+  it("prints the research counts in the summary", async () => {
+    addCompany({ id: "c2", name: "Globex", normalized_name: "globex", domain: null });
+    addCompany({ id: "c3", name: "Initech", normalized_name: "initech", domain: "acme.example" });
+    addPosting("p1");
+    addPosting("p2", { company_id: "c2", company_name: "Globex" });
+    addPosting("p3", { company_id: "c3", company_name: "Initech" });
+    let page = 0;
+    pageHandler = () => {
+      page += 1;
+      // c1 (2 pages, found on the first); c3 pages fail
+      return page <= 1
+        ? new HttpResponse(PAGE, { status: 200 })
+        : new HttpResponse("x", { status: 500 });
+    };
+    const r = await enrich();
+    expect(r.out).toContain(
+      "research: checked 3, found 1, no domain 1, fetch failed 1, no wording 0\n",
+    );
+  });
+
   it("an unknown policy that research cannot resolve is still attempted only once per run", async () => {
     researchBody = () => fixture("company-research-none.json");
     addPosting("p1");
@@ -242,7 +262,10 @@ describe("enrich company pay-policy research", () => {
 
   it("does not research a company checked within 90 days", async () => {
     db.update(companies)
-      .set({ pay_policy_checked_at: new Date(NOW.getTime() - 89 * 86_400_000).toISOString() })
+      .set({
+        pay_policy_checked_at: new Date(NOW.getTime() - 89 * 86_400_000).toISOString(),
+        pay_policy_source: "research:no pay wording",
+      })
       .run();
     addPosting("p1");
     await enrich();
