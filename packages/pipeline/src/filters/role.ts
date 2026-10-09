@@ -1,16 +1,19 @@
 import {
   ROLE_ENGINEER_NOUNS,
   ROLE_GENERIC_TITLES,
+  ROLE_GERMAN_ENGINEER_NOUNS,
   ROLE_JUNIOR_PHRASES,
   ROLE_LEADERSHIP_PHRASES,
   ROLE_NON_ENGINEERING_DOMAIN_PHRASES,
+  ROLE_NON_ENGINEERING_GERMAN_DOMAIN_TERMS,
+  ROLE_NON_ENGINEERING_GERMAN_TERMS,
   ROLE_NON_ENGINEERING_PHRASES,
   ROLE_OUT_OF_TARGET_PHRASES,
   ROLE_SENIORITY_WORDS,
   ROLE_TARGET_EXCLUDED_PHRASES,
   ROLE_TARGET_PHRASES,
 } from "./keywords.ts";
-import { phrasePattern } from "./phrases.ts";
+import { compoundPattern, phrasePattern } from "./phrases.ts";
 
 export type RoleClass = "keep" | "reject" | "unclear";
 
@@ -24,6 +27,13 @@ export type RoleResult = { class: RoleClass; reason: string };
 function findPhrase(text: string, phrases: readonly string[]): string | undefined {
   return phrases.find((phrase) => phrasePattern(phrase).test(text));
 }
+
+/**
+ * French "Stage" (internship) is also an English word for company stage ("Early-Stage Startup", "Seed Stage").
+ * It only counts as the first word of the title ("Stage - Support IT", "Stage Développeur Web") or as the whole
+ * parenthetical "(Stage)"; "Early-Stage", "(Seed Stage)" and "Backstage" never match.
+ */
+const STAGE_INTERNSHIP = /^\s*stage(?![\p{L}\p{N}])|\(\s*stage\s*\)/iu;
 
 /** The title without parentheticals, "- Remote" style tails and seniority words, for exact generic-title matching. */
 function bareTitle(title: string): string {
@@ -43,7 +53,8 @@ function bareTitle(title: string): string {
 export function classifyRole(input: RoleInput): RoleResult {
   const title = input.title;
 
-  const junior = findPhrase(title, ROLE_JUNIOR_PHRASES);
+  const junior =
+    findPhrase(title, ROLE_JUNIOR_PHRASES) ?? (STAGE_INTERNSHIP.test(title) ? "Stage" : undefined);
   if (junior !== undefined)
     return { class: "reject", reason: `junior or intern role ("${junior}")` };
 
@@ -55,8 +66,23 @@ export function classifyRole(input: RoleInput): RoleResult {
   if (nonEngineering !== undefined) {
     return { class: "reject", reason: `non-engineering role ("${nonEngineering}")` };
   }
+  const german = ROLE_NON_ENGINEERING_GERMAN_TERMS.find((term) =>
+    compoundPattern(term).test(title),
+  );
+  if (german !== undefined) {
+    return { class: "reject", reason: `non-engineering role ("${german}")` };
+  }
+  const hasEngineerNoun =
+    findPhrase(title, ROLE_ENGINEER_NOUNS) !== undefined ||
+    ROLE_GERMAN_ENGINEER_NOUNS.some((noun) => compoundPattern(noun).test(title));
+  const germanDomain = ROLE_NON_ENGINEERING_GERMAN_DOMAIN_TERMS.find((term) =>
+    compoundPattern(term).test(title),
+  );
+  if (germanDomain !== undefined && !hasEngineerNoun) {
+    return { class: "reject", reason: `non-engineering role ("${germanDomain}")` };
+  }
   const domain = findPhrase(title, ROLE_NON_ENGINEERING_DOMAIN_PHRASES);
-  if (domain !== undefined && findPhrase(title, ROLE_ENGINEER_NOUNS) === undefined) {
+  if (domain !== undefined && !hasEngineerNoun) {
     return { class: "reject", reason: `non-engineering role ("${domain}")` };
   }
 

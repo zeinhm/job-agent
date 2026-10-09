@@ -17,3 +17,18 @@ export function phrasePattern(phrase: string): RegExp {
   }
   return re;
 }
+
+const compoundCache = new Map<string, RegExp>();
+
+/** Like phrasePattern, but the term may sit inside a German compound word ("Finanzbuchhalterin", "Vertriebsleiter", "IT-Berater"). */
+export function compoundPattern(term: string): RegExp {
+  let re = compoundCache.get(term);
+  if (!re) {
+    re = new RegExp(
+      `(?<![\\p{L}\\p{N}])\\p{L}*${term.trim().toLowerCase()}\\p{L}*(?![\\p{L}\\p{N}])`,
+      "ui",
+    );
+    compoundCache.set(term, re);
+  }
+  return re;
+}

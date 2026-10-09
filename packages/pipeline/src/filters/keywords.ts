@@ -233,6 +233,27 @@ export const ROLE_JUNIOR_PHRASES: readonly string[] = [
   "apprentice",
   "entry level",
   "entry-level",
+  // German / French student, intern and apprentice titles (owner live run 2026-10-09). "Stage" is not here: it is
+  // ambiguous in English ("Early-Stage") and has its own title-position rule in role.ts.
+  "Werkstudent",
+  "Werkstudentin",
+  "Praktikant",
+  "Praktikantin",
+  "Praktikum",
+  "Pflichtpraktikum",
+  "Ausbildung",
+  "Auszubildende",
+  "Auszubildender",
+  "Azubi",
+  "Studentische Hilfskraft",
+  "Duales Studium",
+  "Dualer Student",
+  "Stagiaire",
+  "Alternance",
+  "Alternant",
+  "Alternante",
+  "Apprenti",
+  "Apprentie",
 ];
 
 /** Target-role skills in the title. A hit keeps the posting, even next to a backend or data word ("Full-Stack (React/Node)"). */
@@ -317,7 +338,48 @@ export const ROLE_NON_ENGINEERING_PHRASES: readonly string[] = [
   "social media manager",
   "customer success manager",
   "marketing specialist",
+  // French (owner live run 2026-10-09)
+  "Technicien",
+  "Technicienne",
+  "Comptable",
+  "Chargé de clientèle",
+  "Chargée de clientèle",
+  "Chargé(e) de clientèle",
+  "Assistant de direction",
+  "Assistante de direction",
+  "Assistant(e) de direction",
+  "Responsable commercial",
+  "Responsable commerciale",
 ];
+
+/**
+ * German non-engineering terms (owner live run 2026-10-09). Matched inside compounds as well, as head or start
+ * ("Finanzbuchhalterin", "Vertriebsleiter", "IT-Berater"); see compoundPattern in phrases.ts.
+ */
+export const ROLE_NON_ENGINEERING_GERMAN_TERMS: readonly string[] = [
+  "Buchhalter",
+  "Berater",
+  "Verkäufer",
+  "Sachbearbeiter",
+  "Kaufmann",
+  "Kauffrau",
+  "Personalreferent",
+  "Steuerberater",
+];
+
+/**
+ * German domain words (sales, project lead): like the English domain words below they reject a non-engineering title
+ * but not an engineering one ("Software Engineer - Vertrieb Tools", "Softwareentwickler Vertriebssysteme").
+ * Matched inside compounds; only apply when the title has no engineer/developer noun (see ROLE_GERMAN_ENGINEER_NOUNS).
+ */
+export const ROLE_NON_ENGINEERING_GERMAN_DOMAIN_TERMS: readonly string[] = [
+  "Vertrieb",
+  "Projektleiter",
+  "Projektmanager",
+];
+
+/** German engineer/developer nouns, matched inside compounds ("Softwareentwickler", "Entwicklerin", "Wirtschaftsingenieur"). */
+export const ROLE_GERMAN_ENGINEER_NOUNS: readonly string[] = ["entwickler", "ingenieur"];
 
 /**
  * Domain words (product areas such as finance, HR, compliance, partnerships, support, social media, design, sales) that reject a non-engineering title but not an engineering one: "Backend Engineer, Talent Platform"
@@ -352,6 +414,9 @@ export const ROLE_NON_ENGINEERING_DOMAIN_PHRASES: readonly string[] = [
   "gtm",
   "go-to-market",
   "customer care",
+  // French "Commercial(e)" is also an English adjective ("Commercial Platform Engineer"): engineer nouns exempt it.
+  "commercial",
+  "commerciale",
 ];
 
 /** Role nouns that make a title an engineering role (used to exempt domain words). */

@@ -152,3 +152,103 @@ describe("classifyRole mobile frameworks", () => {
     expect(classifyRole({ title: "Front-End Flutter Developer" }).class).toBe("reject");
   });
 });
+
+describe("classifyRole German/French junior titles (owner live run 2026-10-09)", () => {
+  it("rejects student, intern and apprentice titles as junior", () => {
+    for (const t of [
+      "Werkstudent Softwareentwicklung (m/w/d)",
+      "Werkstudentin Marketing",
+      "Werkstudent*in Data",
+      "Werkstudent:in Frontend",
+      "Praktikum Data Analytics",
+      "Pflichtpraktikum Frontend",
+      "Ausbildung zum Fachinformatiker für Anwendungsentwicklung",
+      "Studentische Hilfskraft IT",
+      "Praktikant React (m/w/d)",
+      "Azubi Fachinformatiker",
+      "Duales Studium Informatik",
+      "Stage - Support IT",
+      "Stage Développeur Web",
+      "Stage de fin d'études - Frontend",
+      "Développeur Web (Stage)",
+      "Stagiaire Data Engineer",
+      "Alternance - Développeur Full Stack",
+      "Apprenti Développeur",
+    ]) {
+      const r = classifyRole({ title: t });
+      expect(r.class, t).toBe("reject");
+      expect(r.reason, t).toContain("junior or intern role");
+    }
+  });
+
+  it("does not read the English word Stage as an internship", () => {
+    for (const t of [
+      "Senior Engineer, Early-Stage Startup",
+      "Staff Engineer (Seed Stage)",
+      "Senior Platform Engineer - Backstage",
+      "Senior Frontend Engineer, Series A Stage Startup",
+    ])
+      expect(classifyRole({ title: t }).reason, t).not.toContain("junior or intern role");
+  });
+});
+
+describe("classifyRole German/French non-engineering titles (owner live run 2026-10-09)", () => {
+  it("rejects them, including German compounds", () => {
+    for (const t of [
+      "Buchhalter (m/w/d)",
+      "Finanzbuchhalterin",
+      "SAP Berater",
+      "IT-Berater (m/w/d)",
+      "Mitarbeiter Vertrieb",
+      "Vertriebsleiter DACH",
+      "Steuerberater",
+      "Projektleiter Bau",
+      "Projektmanager Digital",
+      "Technicien de maintenance",
+      "Comptable fournisseurs",
+      "Kaufmann für Büromanagement",
+      "Kauffrau im Einzelhandel",
+      "Sachbearbeiter Personal",
+      "Personalreferent (m/w/d)",
+      "Verkäufer im Außendienst",
+      "Chargé(e) de clientèle",
+      "Assistante de direction",
+      "Responsable commercial",
+      "Commercial B2B (H/F)",
+      "Vertriebsmitarbeiterin Innendienst",
+    ]) {
+      const r = classifyRole({ title: t });
+      expect(r.class, t).toBe("reject");
+      expect(r.reason, t).toContain("non-engineering role");
+    }
+  });
+
+  it("does not reject engineering titles that carry a German domain word", () => {
+    for (const t of [
+      "Senior Software Engineer - Vertrieb Tools",
+      "Software Engineer Vertrieb Tools",
+      "Softwareentwickler Vertriebssysteme",
+      "Senior Software Entwickler Vertriebssysteme",
+      "Senior Software Engineer, Projektmanager Tools",
+    ]) {
+      const r = classifyRole({ title: t });
+      expect(r.reason, t).not.toMatch(/non-engineering/);
+      expect(r.class, t).not.toBe("reject");
+    }
+  });
+
+  it("still rejects German domain titles without an engineer noun", () => {
+    for (const t of ["Mitarbeiter Vertrieb", "Projektleiter Bau", "Vertriebsleiter DACH"])
+      expect(classifyRole({ title: t })).toMatchObject({ class: "reject" });
+  });
+
+  it("keeps engineering titles away from the new terms", () => {
+    for (const t of [
+      "Senior Backend Engineer (m/w/d)",
+      "Lead Frontend Engineer",
+      "Senior Full Stack Developer (all genders)",
+      "Senior Frontend Engineer, Commercial Platform",
+    ])
+      expect(classifyRole({ title: t }).reason, t).not.toMatch(/junior or intern|non-engineering/);
+  });
+});

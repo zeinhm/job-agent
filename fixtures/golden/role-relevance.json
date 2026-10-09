@@ -1348,5 +1348,239 @@
     "reason": "Non-engineering role noun rejects regardless of skill words.",
     "judgment": false,
     "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-151",
+    "title": "Werkstudent Softwareentwicklung (m/w/d)",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-152",
+    "title": "Werkstudentin Marketing",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-153",
+    "title": "Praktikum Data Analytics",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-154",
+    "title": "Pflichtpraktikum Frontend",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-155",
+    "title": "Ausbildung zum Fachinformatiker für Anwendungsentwicklung",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-156",
+    "title": "Studentische Hilfskraft IT",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-157",
+    "title": "Stage - Support IT",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-158",
+    "title": "Stage Développeur Web",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-159",
+    "title": "Stagiaire Data Engineer",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-160",
+    "title": "Alternance - Développeur Full Stack",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French student, intern or apprentice title: junior.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-161",
+    "title": "Buchhalter (m/w/d)",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-162",
+    "title": "Finanzbuchhalterin",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-163",
+    "title": "SAP Berater",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-164",
+    "title": "IT-Berater (m/w/d)",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-165",
+    "title": "Mitarbeiter Vertrieb",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-166",
+    "title": "Vertriebsleiter DACH",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-167",
+    "title": "Projektleiter Bau",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-168",
+    "title": "Technicien de maintenance",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-169",
+    "title": "Comptable fournisseurs",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-170",
+    "title": "Kaufmann für Büromanagement",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "German/French non-engineering title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-171",
+    "title": "Senior Backend Engineer (m/w/d)",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "Backend engineering is outside the target; the new terms do not touch it.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-172",
+    "title": "Senior Engineer, Early-Stage Startup",
+    "snippet": "Live run 2026-10-09.",
+    "label": "unclear",
+    "reason": "English company-stage wording is not an internship; generic title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-173",
+    "title": "Staff Engineer (Seed Stage)",
+    "snippet": "Live run 2026-10-09.",
+    "label": "unclear",
+    "reason": "English company-stage wording is not an internship; generic title.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-174",
+    "title": "Senior Platform Engineer - Backstage",
+    "snippet": "Live run 2026-10-09.",
+    "label": "reject",
+    "reason": "Backstage is a platform tool, not a Stage internship; platform engineering is outside the target.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-175",
+    "title": "Lead Frontend Engineer",
+    "snippet": "Live run 2026-10-09.",
+    "label": "keep",
+    "reason": "Frontend target skill.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-176",
+    "title": "Senior Full Stack Developer (all genders)",
+    "snippet": "Live run 2026-10-09.",
+    "label": "keep",
+    "reason": "Full-stack target skill.",
+    "judgment": false,
+    "source": "owner live run 2026-10-09"
   }
 ]
