@@ -19,7 +19,16 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { runEnrich } from "./enrich.ts";
-import { FIT_MODEL, FIT_PROMPT_VERSION, FitSchema } from "./intel/fit.ts";
+import { runDigest } from "./digest/index.ts";
+import {
+  failedFitRuns,
+  FIT_MAX_TOKENS,
+  FIT_MODEL,
+  FIT_PROMPT_VERSION,
+  FitSchema,
+  normalizeFit,
+  truncateReason,
+} from "./intel/fit.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): Record<string, unknown> =>
@@ -106,6 +115,24 @@ async function enrich(cv: string | null = CV) {
 
 const intelOf = (id: string) => db.select().from(intel).where(eq(intel.posting_id, id)).get();
 const fitRequests = () => requests.filter((r) => r["model"] === FIT_MODEL);
+const extractRequests = () => requests.filter((r) => r["model"] !== FIT_MODEL);
+
+/** Everything written to stdout / stderr while `fn` runs (the logger writes JSON lines there). */
+async function captureLogs(fn: () => Promise<unknown>): Promise<string> {
+  const captured: string[] = [];
+  const stdout = process.stdout.write.bind(process.stdout);
+  const stderr = process.stderr.write.bind(process.stderr);
+  const grab = ((c: string | Uint8Array) => (captured.push(String(c)), true)) as never;
+  process.stdout.write = grab;
+  process.stderr.write = grab;
+  try {
+    await fn();
+  } finally {
+    process.stdout.write = stdout;
+    process.stderr.write = stderr;
+  }
+  return captured.join("");
+}
 
 beforeEach(() => {
   db = openDb(":memory:");
@@ -219,13 +246,9 @@ describe("enrich fit stage", () => {
     expect(schema).not.toContain("maxLength");
   });
 
-  it.each([
-    ["score out of range", "fit-score-out-of-range.json", "score"],
-    ["more than 3 reasons", "fit-too-many-reasons.json", "reasons"],
-    ["a reason over 140 chars", "fit-reason-too-long.json", "reasons"],
-  ])("%s -> retried once, then failed with issue paths", async (_name, file, path) => {
+  it("score out of range -> retried once in the run, then failed with issue paths and stop reason", async () => {
     addPosting("p1");
-    fitResponse = file;
+    fitResponse = "fit-score-out-of-range.json";
     const r = await enrich();
     expect(fitRequests()).toHaveLength(2);
     const row = intelOf("p1");
@@ -235,11 +258,156 @@ describe("enrich fit stage", () => {
     // Extraction is kept; the failure is recorded as Zod issue paths, never content.
     expect(row?.extraction).not.toBeNull();
     const reasons = JSON.parse(row?.resolved_reasons ?? "[]") as string[];
-    expect(reasons.some((x) => x.startsWith(`fit ${path}`))).toBe(true);
+    expect(reasons.some((x) => x.startsWith("fit score"))).toBe(true);
+    expect(reasons).toEqual(
+      expect.arrayContaining([
+        "fit stop_reason:end_turn",
+        "fit output_tokens:300",
+        "fit max_tokens:1536",
+      ]),
+    );
     expect(r.out).toContain("enriched 0, budget_wait 0, failed 1");
-    // Not retried on the next run.
+  });
+
+  it("stop_reason max_tokens: logged and stored with output_tokens and max_tokens, no second call", async () => {
+    addPosting("p1");
+    fitResponse = "fit-max-tokens.json";
+    const captured = await captureLogs(() => enrich());
+    expect(fitRequests()).toHaveLength(1);
+    expect(fitRequests()[0]?.["max_tokens"]).toBe(FIT_MAX_TOKENS);
+    expect(db.select().from(llm_calls).where(eq(llm_calls.purpose, "fit")).all()).toHaveLength(1);
+    const reasons = JSON.parse(intelOf("p1")?.resolved_reasons ?? "[]") as string[];
+    expect(reasons).toEqual(
+      expect.arrayContaining([
+        "fit stop_reason:max_tokens",
+        "fit output_tokens:1536",
+        `fit max_tokens:${FIT_MAX_TOKENS}`,
+      ]),
+    );
+    const lines = captured
+      .split("\n")
+      .filter((l) => l.includes("llm call") || l.includes("llm output invalid"));
+    const fitCall = lines.find(
+      (l) => l.includes('"msg":"llm call"') && l.includes('"purpose":"fit"'),
+    );
+    expect(fitCall).toContain('"stop_reason":"max_tokens"');
+    const invalid = lines.find((l) => l.includes("llm output invalid"));
+    expect(invalid).toContain('"output_tokens":1536');
+    expect(invalid).toContain(`"max_tokens":${FIT_MAX_TOKENS}`);
+    expect(invalid).not.toContain("Strong React");
+  });
+
+  it("a 180-character reason is stored cut to <= 140 characters on a word boundary, ending with …", async () => {
+    addPosting("p1");
+    fitResponse = "fit-reason-180-chars.json";
     await enrich();
-    expect(fitRequests()).toHaveLength(2);
+    expect(fitRequests()).toHaveLength(1);
+    const row = intelOf("p1");
+    expect(row?.status).toBe("done");
+    const [reason] = JSON.parse(row?.fit_reasons ?? "[]") as string[];
+    expect(reason?.length).toBeLessThanOrEqual(140);
+    expect(reason?.endsWith("…")).toBe(true);
+    expect(reason).toMatch(
+      /^Strong React and TypeScript match for the core stack, but the posting also asks/,
+    );
+    // Cut on a word boundary: the text before "…" is a whole-word prefix of the original.
+    const original = (
+      JSON.parse(
+        (fixture("fit-reason-180-chars.json") as { content: { text: string }[] }).content[0]
+          ?.text ?? "{}",
+      ) as { reasons: string[] }
+    ).reasons[0] as string;
+    const head = (reason as string).slice(0, -1);
+    expect(original.startsWith(head)).toBe(true);
+    expect(original[head.length]).toBe(" ");
+  });
+
+  it("a 141-character reason without spaces is cut to 140 ending with …; four reasons keep the first three", async () => {
+    addPosting("p1");
+    fitResponse = "fit-reason-too-long.json";
+    await enrich();
+    const [reason] = JSON.parse(intelOf("p1")?.fit_reasons ?? "[]") as string[];
+    expect(reason).toHaveLength(140);
+    expect(reason?.endsWith("…")).toBe(true);
+
+    addPosting("p2");
+    fitResponse = "fit-too-many-reasons.json";
+    await enrich();
+    expect(JSON.parse(intelOf("p2")?.fit_reasons ?? "[]")).toEqual(["a", "b", "c"]);
+    expect(intelOf("p2")?.status).toBe("done");
+  });
+
+  it("a failed fit is scored in the next run with zero extract calls", async () => {
+    addPosting("p1");
+    fitResponse = "fit-score-out-of-range.json";
+    await enrich();
+    expect(intelOf("p1")?.status).toBe("failed");
+    const extractBefore = extractRequests().length;
+    expect(extractBefore).toBe(1);
+
+    fitResponse = "fit-ok.json";
+    const r2 = await enrich();
+    expect(extractRequests()).toHaveLength(extractBefore);
+    expect(fitRequests()).toHaveLength(3);
+    const row = intelOf("p1");
+    expect(row?.status).toBe("done");
+    expect(row?.fit_score).toBe(82);
+    expect(r2.out).toContain("enriched 1");
+  });
+
+  it("after 3 failed runs the posting stays failed and run 4 does not select it", async () => {
+    addPosting("p1");
+    fitResponse = "fit-score-out-of-range.json";
+    for (let run = 1; run <= 3; run++) {
+      await enrich();
+      expect(fitRequests()).toHaveLength(run * 2);
+      expect(failedFitRuns(intelOf("p1")?.resolved_reasons ?? null)).toBe(run);
+    }
+    expect(intelOf("p1")?.status).toBe("failed");
+    const r4 = await enrich();
+    expect(fitRequests()).toHaveLength(6);
+    expect(extractRequests()).toHaveLength(1);
+    expect(intelOf("p1")?.status).toBe("failed");
+    expect(r4.out).toContain("enriched 0, budget_wait 0, failed 0");
+  });
+
+  it("an extract-stage failure is not selected again", async () => {
+    addPosting("p1");
+    extractResponse = "extract-invalid.json";
+    await enrich();
+    expect(intelOf("p1")?.status).toBe("failed");
+    expect(intelOf("p1")?.extraction).toBeNull();
+    const before = requests.length;
+    await enrich();
+    expect(requests).toHaveLength(before);
+  });
+
+  it("the digest shows the retry text, then the 3-times text", async () => {
+    addPosting("p1");
+    fitResponse = "fit-score-out-of-range.json";
+    const digestText = () => {
+      const dir = mkdtempSync(join(tmpdir(), "job-agent-digest-fit-"));
+      try {
+        const path = runDigest({
+          db,
+          date: "2026-10-09",
+          outDir: dir,
+          now: () => NOW,
+          out: () => {},
+        });
+        return readFileSync(path, "utf-8");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    };
+    await enrich();
+    expect(digestText()).toContain("scoring failed (score: custom), retried next run");
+    // Second and third failed runs.
+    db.update(analysis).set({ digested_at: null }).run();
+    await enrich();
+    await enrich();
+    expect(failedFitRuns(intelOf("p1")?.resolved_reasons ?? null)).toBe(3);
+    expect(digestText()).toContain("scoring failed 3 times");
   });
 
   it("missing cv.md -> fit skipped with a message, extraction still runs", async () => {
@@ -332,17 +500,25 @@ describe("FitSchema", () => {
     ["fractional score", { ...base, score: 70.5 }],
     ["score above 100", { ...base, score: 101 }],
     ["no reasons", { ...base, reasons: [] }],
-    ["four reasons", { ...base, reasons: ["a", "b", "c", "d"] }],
     ["empty reason", { ...base, reasons: [" "] }],
-    ["141-char reason", { ...base, reasons: ["x".repeat(141)] }],
   ])("rejects %s", (_name, value) => {
     expect(FitSchema.safeParse(value).success).toBe(false);
   });
 
-  it("accepts the boundaries", () => {
+  it("accepts the boundaries; length and count are normalized in code, not rejected", () => {
     expect(FitSchema.safeParse({ ...base, score: 0 }).success).toBe(true);
-    expect(
-      FitSchema.safeParse({ ...base, score: 100, reasons: ["x".repeat(140), "b", "c"] }).success,
-    ).toBe(true);
+    expect(FitSchema.safeParse({ ...base, score: 100 }).success).toBe(true);
+    const wide = { ...base, reasons: ["x".repeat(300), "b", "c", "d"] };
+    expect(FitSchema.safeParse(wide).success).toBe(true);
+    const fit = normalizeFit(wide);
+    expect(fit.reasons).toHaveLength(3);
+    expect(fit.reasons[0]).toHaveLength(140);
+  });
+
+  it("truncateReason keeps short text and cuts on a word boundary", () => {
+    expect(truncateReason("x".repeat(140))).toBe("x".repeat(140));
+    const cut = truncateReason("word ".repeat(40));
+    expect(cut.length).toBeLessThanOrEqual(140);
+    expect(cut.endsWith("word…")).toBe(true);
   });
 });

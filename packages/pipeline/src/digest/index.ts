@@ -15,6 +15,7 @@ import { classifyLanguage } from "../filters/language.ts";
 import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { ExtractionSchema } from "../intel/extract.ts";
+import { failedFitRuns, MAX_FIT_ATTEMPTS } from "../intel/fit.ts";
 import { resolveFlags } from "../intel/resolve.ts";
 import { TIER_SKIPPED_NO_FX } from "../intel/tier.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
@@ -109,6 +110,18 @@ function tierMissingForFx(i: Intel): boolean {
   );
 }
 
+/** A failed fit shows its short cause and whether the next run tries again; other failures point to the database. */
+function failedText(i: Intel): string {
+  const runs = failedFitRuns(i.resolved_reasons);
+  if (runs === 0) return "scoring failed, see `resolved_reasons` in the database";
+  if (runs >= MAX_FIT_ATTEMPTS) return `scoring failed ${MAX_FIT_ATTEMPTS} times`;
+  const cause = parseList(i.resolved_reasons).find(
+    (r) => r.startsWith("fit ") && !r.startsWith("fit_attempt"),
+  );
+  const short = cause === undefined ? "unknown" : cause.slice("fit ".length);
+  return `scoring failed (${short}), retried next run`;
+}
+
 /** Why a kept posting has no fit score yet, in plain words. */
 function waitingReason(i: Intel | null): string {
   if (i?.status === "done" && i.final_decision === "keep" && i.fit_score !== null)
@@ -116,7 +129,7 @@ function waitingReason(i: Intel | null): string {
   if (i === null) return "not enriched yet";
   if (i.status === "budget_wait") return "waiting for the daily LLM budget";
   if (tierMissingForFx(i)) return "waiting for an FX rate: run fx";
-  if (i.status === "failed") return "scoring failed, see `resolved_reasons` in the database";
+  if (i.status === "failed") return failedText(i);
   if (i.status === "pending") return "not enriched yet";
   return "no fit score (no CV configured or fit not run)";
 }

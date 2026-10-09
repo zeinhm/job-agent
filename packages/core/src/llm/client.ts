@@ -25,12 +25,15 @@ export class MissingApiKeyError extends Error {
   }
 }
 
-/** Model output stayed invalid after the one retry. `issues` are Zod issue paths, never content. */
+/**
+ * Model output stayed invalid (after the one retry, or at once when the answer was cut off at `max_tokens`).
+ * `issues` are Zod issue paths plus `stop_reason:<x>`, `output_tokens:<n>` and `max_tokens:<n>`, never content.
+ */
 export class LlmOutputError extends Error {
   readonly issues: string[];
 
   constructor(issues: string[]) {
-    super(`LLM output invalid after retry: ${issues.join("; ") || "unknown"}`);
+    super(`LLM output invalid: ${issues.join("; ") || "unknown"}`);
     this.name = "LlmOutputError";
     this.issues = issues;
   }
@@ -196,7 +199,12 @@ export async function callStructured<S extends z.ZodType, R = z.output<S>>(
     ...(deps.baseURL ? { baseURL: deps.baseURL } : {}),
   });
 
-  const record = (status: "ok" | "error", usage: Usage | null, errorCost = 0): number => {
+  const record = (
+    status: "ok" | "error",
+    usage: Usage | null,
+    errorCost = 0,
+    stopReason?: string | null,
+  ): number => {
     const cost = usage ? costFromUsage(opts.model, usage) : errorCost;
     const at = now();
     deps.db
@@ -224,6 +232,7 @@ export async function callStructured<S extends z.ZodType, R = z.output<S>>(
       output_tokens: usage?.output_tokens ?? 0,
       cache_read_tokens: usage?.cache_read_input_tokens ?? 0,
       cost_usd: formatUsd(cost),
+      ...(status === "ok" ? { stop_reason: stopReason ?? "none" } : {}),
       posting_id: opts.postingId ?? null,
       company_id: opts.companyId ?? null,
     });
@@ -284,23 +293,44 @@ export async function callStructured<S extends z.ZodType, R = z.output<S>>(
   for (let attempt = 0; attempt < 2; attempt++) {
     assertWithinBudget(spentOnDay(deps.db, jakartaDay(now())), reserve, cap);
     const message = await send();
-    record("ok", message.usage);
+    const stopReason = message.stop_reason ?? "none";
+    record("ok", message.usage, 0, stopReason);
+    const outputTokens = message.usage.output_tokens;
+    const tail = [
+      `stop_reason:${stopReason}`,
+      `output_tokens:${outputTokens}`,
+      `max_tokens:${opts.maxTokens}`,
+    ];
 
     const text = message.content.find((b) => b.type === "text");
+    let problems: string[] | null = null;
     if (message.stop_reason === "refusal" || message.stop_reason === "max_tokens" || !text) {
-      issues = [`stop_reason:${message.stop_reason ?? "none"}`];
-      continue;
+      problems = [];
+    } else {
+      let json: unknown;
+      try {
+        json = JSON.parse(text.text);
+      } catch {
+        problems = ["json: not parseable"];
+      }
+      if (problems === null) {
+        const parsed = opts.schema.safeParse(json);
+        if (parsed.success) return opts.map ? opts.map(parsed.data) : (parsed.data as R);
+        problems = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.code}`);
+      }
     }
-    let json: unknown;
-    try {
-      json = JSON.parse(text.text);
-    } catch {
-      issues = ["json: not parseable"];
-      continue;
-    }
-    const parsed = opts.schema.safeParse(json);
-    if (parsed.success) return opts.map ? opts.map(parsed.data) : (parsed.data as R);
-    issues = parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.code}`);
+    issues = [...problems, ...tail];
+    logger.warn("llm output invalid", {
+      model: opts.model,
+      purpose: opts.purpose,
+      posting_id: opts.postingId ?? null,
+      stop_reason: stopReason,
+      output_tokens: outputTokens,
+      max_tokens: opts.maxTokens,
+      issues: problems,
+    });
+    // A cut-off answer would be cut off again at the same limit: no identical second call.
+    if (message.stop_reason === "max_tokens") break;
   }
   throw new LlmOutputError(issues);
 }

@@ -99,6 +99,11 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
 - **Failed calls are logged**: each failed attempt writes an `llm call failed` log line with `status`, `error_type` and
   `error_message` (key redacted, 300 characters at most). When `enrich` stops after 3 API errors in a row, the stderr
   line ends with the last error, e.g. `enrich aborted after 3 consecutive API errors: status 400 invalid_request_error: Your credit balance is too low ...`.
+- **Every answered call logs its stop reason**: the `llm call` line has `status`, `input_tokens`, `output_tokens`,
+  `cache_read_tokens`, `cost_usd` and `stop_reason` (`end_turn`, `max_tokens`, `refusal`, ...). Invalid output adds one
+  `llm output invalid` warn line with `model`, `purpose`, `posting_id`, `stop_reason`, `output_tokens`, `max_tokens` and
+  `issues` (Zod paths and codes, never the model's text). The same facts end up in `intel.resolved_reasons`, e.g.
+  `fit stop_reason:max_tokens`, `fit output_tokens:1536`, `fit max_tokens:1536`.
 - **Lower the cap** with `JOB_AGENT_LLM_CAP_USD`, e.g. `JOB_AGENT_LLM_CAP_USD=0.25 pnpm job-agent enrich`, or
   `JOB_AGENT_LLM_CAP_USD=0.25` in your crontab environment lines. The variable can only lower the cap: a value above 1
   is ignored with a warning and the cap stays at $1.00; a value that is not a number is ignored too. `0` makes no
@@ -120,7 +125,14 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
   reachable, API error, unusable answer) does not fail the posting: the policy stays unknown, the tier uses the
   unknown-policy ask, and `enrich` prints one warning line per company. Research costs one Haiku call per fetched page
   and is logged in `llm_calls` with purpose `company_research`.
-- Invalid model output is retried once, then the posting is marked `failed` and shown under Waiting for scoring.
+- Invalid model output is retried once inside the run (not when the answer was cut off at `max_tokens`: the same
+  limit would cut it off again, so that call fails at once), then the posting is marked `failed` and shown under
+  Waiting for scoring. A reason longer than 140 characters is cut on a word boundary and ends with "…", and more than
+  3 reasons keep the first 3; neither fails the score. A score outside 0-100 or not a whole number still does.
+- **A failed fit is tried again on the next `enrich`** (the stored extraction is reused, no Haiku call), at most 3 runs
+  per posting. Each failed run adds `fit_attempt:<n>` to `resolved_reasons`. The digest shows
+  `scoring failed (<short reason>), retried next run`, and `scoring failed 3 times` once the third run failed; after
+  that the posting is not selected again. Postings that failed in the extract stage are not retried.
 - Logs hold counts, ids, model, tokens and cost only. Prompts, your CV, posting text and model output are never logged.
 
 ## Eval scripts
