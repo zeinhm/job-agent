@@ -1,11 +1,25 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { and, eq, gte, inArray, isNull } from "drizzle-orm";
-import { analysis, postings, source_runs, type Db } from "@job-agent/core";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import {
+  analysis,
+  effectiveCapUsd,
+  intel,
+  log,
+  postings,
+  source_runs,
+  type Db,
+  type Intel,
+} from "@job-agent/core";
 import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
+import { ExtractionSchema } from "../intel/extract.ts";
+import { resolveFlags } from "../intel/resolve.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { groupPostings, joinLocations } from "./group.ts";
+import { compareRanked, rankScore } from "./rank.ts";
+import { spendSection } from "./spend.ts";
+import { buildWhy } from "./why.ts";
 
 export { formatSalary } from "./format.ts";
 
@@ -16,6 +30,8 @@ export interface DigestOptions {
   /** Default `data/digests`. */
   outDir?: string;
   now?: () => Date;
+  /** LLM cap shown in the spend section; default from `JOB_AGENT_LLM_CAP_USD` / the $1 hard cap. */
+  capUsd?: number;
   out: (text: string) => void;
 }
 
@@ -31,20 +47,76 @@ export function isDigestDate(s: string): boolean {
   return new Date(`${s}T00:00:00Z`).toISOString().startsWith(s);
 }
 
+type Kind = "top" | "waiting" | "suspicious";
+
 interface Entry {
+  kind: Kind;
   title: string;
   company: string;
   line: string[];
   postedAt: string | null;
-  flagged: boolean;
+  rank: number;
+  /** Unclear flags still open, for the "Needs a look" section. */
+  unclear: string[];
 }
 
-type Row = { p: typeof postings.$inferSelect; a: typeof analysis.$inferSelect };
+type Row = {
+  p: typeof postings.$inferSelect;
+  a: typeof analysis.$inferSelect;
+  i: Intel | null;
+};
+
+const UNCLEAR_FLAGS = ["location_unclear", "indonesia_unclear", "role_unclear"];
+const MAX_REASONS = 3;
+
+/** Unclear flags the resolve stage could not settle; all of them when there is no usable extraction. */
+function remainingUnclear(flags: string[], i: Intel | null): string[] {
+  const present = flags.filter((f) => UNCLEAR_FLAGS.includes(f));
+  if (i?.extraction == null) return present;
+  try {
+    const parsed = ExtractionSchema.safeParse(JSON.parse(i.extraction));
+    if (!parsed.success) return present;
+    return resolveFlags({ ruleDecision: "keep", flags, extraction: parsed.data }).remainingFlags;
+  } catch {
+    return present;
+  }
+}
+
+function askLabel(i: Intel): string | null {
+  const parts: string[] = [];
+  if (i.ask_idr_month !== null) {
+    parts.push(
+      formatSalary({
+        status: "listed",
+        idrMonthMin: i.ask_idr_month,
+        idrMonthMax: i.ask_idr_month,
+      }),
+    );
+  }
+  if (i.ask_usd_year !== null) parts.push(`USD ${i.ask_usd_year.toLocaleString("en-US")} / year`);
+  if (i.ask_text !== null && i.ask_text.trim() !== "")
+    parts.push(`text answer: ${i.ask_text.trim()}`);
+  return parts.length > 0 ? parts.join(" | ") : null;
+}
+
+/** Why a kept posting has no fit score yet, in plain words. */
+function waitingReason(i: Intel | null): string {
+  if (i === null) return "not enriched yet";
+  if (i.status === "budget_wait") return "waiting for the daily LLM budget";
+  if (i.status === "failed") return "scoring failed, see `resolved_reasons` in the database";
+  if (i.status === "pending") return "not enriched yet";
+  return "no fit score (no CV configured or fit not run)";
+}
 
 /** One entry for a group of same company + title postings; the best member (ATS first) leads. */
-function buildEntry(db: Db, group: Row[]): Entry {
-  const { p, a } = group[0] as Row;
+function buildEntry(db: Db, group: Row[]): Entry | null {
+  const lead = group[0] as Row;
+  const { p, a } = lead;
+  const i = group.find((r) => r.i?.fit_score != null)?.i ?? group.find((r) => r.i)?.i ?? null;
+  if (i?.final_decision === "reject") return null;
+
   const flags = [...new Set(group.flatMap((r) => parseList(r.a.flags)))];
+  const unclear = remainingUnclear(flags, i);
   const sources: string[] = [];
   for (const r of group) {
     const dups = db
@@ -62,45 +134,114 @@ function buildEntry(db: Db, group: Row[]): Entry {
   const location = [a.location_class, locations].filter((x) => x).join(" — ");
   const dates = group.map((r) => r.p.posted_at).filter((d): d is string => d !== null);
   const posted = dates.length > 0 ? dates.reduce((x, y) => (x > y ? x : y)) : null;
-  const lines = [
-    `### ${p.title} — ${p.company_name}`,
-    "",
+  const salary = formatSalary({
+    status: a.salary_status,
+    idrMonthMin: a.salary_idr_month_min,
+    idrMonthMax: a.salary_idr_month_max,
+  });
+  const head = [`### ${p.title} — ${p.company_name}`, ""];
+  const common = [
     `- Location: ${location}`,
-    `- Salary: ${formatSalary({
-      status: a.salary_status,
-      idrMonthMin: a.salary_idr_month_min,
-      idrMonthMax: a.salary_idr_month_max,
-    })}`,
+    `- Salary: ${salary}`,
     `- Flags: ${flags.length > 0 ? flags.join(", ") : "none"}`,
     `- Link: ${link}`,
     `- Sources: ${sources.join(", ")}`,
     `- Posted: ${posted !== null ? posted.slice(0, 10) : "unknown"}`,
     "",
   ];
+  const base = { title: p.title, company: p.company_name, postedAt: posted, unclear };
+
+  if (i?.final_decision === "suspicious") {
+    const reasons = parseList(i.scam_reasons).slice(0, MAX_REASONS);
+    return {
+      ...base,
+      kind: "suspicious",
+      rank: 0,
+      line: [
+        ...head,
+        `- Scam score: ${i.scam_score ?? 0}`,
+        ...reasons.map((r) => `- Reason: ${r}`),
+        `- Link: ${link}`,
+        `- Sources: ${sources.join(", ")}`,
+        "",
+      ],
+    };
+  }
+
+  if (i !== null && i.status === "done" && i.final_decision === "keep" && i.fit_score !== null) {
+    const fitReasons = parseList(i.fit_reasons).slice(0, MAX_REASONS);
+    const label = askLabel(i);
+    const rank = rankScore({
+      fitScore: i.fit_score,
+      remainingUnclearFlags: unclear.length,
+      listedMaxIdrMonth: a.salary_idr_month_max,
+      askIdrMonth: i.ask_idr_month,
+    });
+    const why = buildWhy({
+      fitScore: i.fit_score,
+      fitReasons,
+      tier: i.tier,
+      askLabel: label,
+      remainingUnclearFlags: unclear,
+      listedMaxIdrMonth: a.salary_idr_month_max,
+      askIdrMonth: i.ask_idr_month,
+      scamScore: i.scam_score,
+    });
+    const scamReason = parseList(i.scam_reasons)[0];
+    return {
+      ...base,
+      kind: "top",
+      rank,
+      line: [
+        ...head,
+        `- Fit: ${i.fit_score}/100 (rank ${rank})${fitReasons.length > 0 ? ` — ${fitReasons.join("; ")}` : ""}`,
+        `- Tier / ask: ${i.tier ?? "no tier"} — ${label ?? "no ask decided"}`,
+        ...(i.scam_score !== null && i.scam_score > 0
+          ? [`- Scam score: ${i.scam_score}${scamReason !== undefined ? ` — ${scamReason}` : ""}`]
+          : []),
+        `- Why: ${why}`,
+        ...common,
+      ],
+    };
+  }
+
   return {
-    title: p.title,
-    company: p.company_name,
-    line: lines,
-    postedAt: posted,
-    flagged: flags.length > 0,
+    ...base,
+    kind: "waiting",
+    rank: 0,
+    line: [...head, `- Status: ${waitingReason(i)}`, ...common],
   };
 }
 
 /** posted_at descending, nulls last; ties by title then company so output is stable. */
 function byPostedDesc(a: Entry, b: Entry): number {
-  if (a.postedAt !== b.postedAt) {
-    if (a.postedAt === null) return 1;
-    if (b.postedAt === null) return -1;
-    return a.postedAt < b.postedAt ? 1 : -1;
-  }
-  return a.title.localeCompare(b.title) || a.company.localeCompare(b.company);
+  return (
+    compareRanked({ rank: 0, postedAt: a.postedAt }, { rank: 0, postedAt: b.postedAt }) ||
+    a.title.localeCompare(b.title) ||
+    a.company.localeCompare(b.company)
+  );
 }
 
-function section(heading: string, entries: Entry[]): string[] {
+function byRank(a: Entry, b: Entry): number {
+  return compareRanked(a, b) || byPostedDesc(a, b);
+}
+
+function section(heading: string, entries: Entry[], empty = "None."): string[] {
   return [
     `## ${heading}`,
     "",
-    ...(entries.length === 0 ? ["None.", ""] : entries.flatMap((e) => e.line)),
+    ...(entries.length === 0 ? [empty, ""] : entries.flatMap((e) => e.line)),
+  ];
+}
+
+function needsALook(entries: Entry[]): string[] {
+  const flagged = entries.filter((e) => e.unclear.length > 0);
+  return [
+    "## Needs a look",
+    "",
+    ...(flagged.length === 0
+      ? ["None.", ""]
+      : [...flagged.map((e) => `- ${e.title} — ${e.company}: ${e.unclear.join(", ")}`), ""]),
   ];
 }
 
@@ -153,15 +294,34 @@ export function runDigest(opts: DigestOptions): string {
     if (fresh.length > 0) {
       t.update(analysis).set({ digested_at: date }).where(inArray(analysis.id, fresh)).run();
     }
+    // Today's stamped postings, plus earlier ones that have an intel row and are still unscored
+    // or were scored today, so enrichment results are not stuck in the digest of the first day.
+    // Earlier postings with no intel row at all are not re-sent (Phase 1 rule).
+    const dayStart = new Date(`${date}T00:00:00+07:00`);
+    const dayEnd = new Date(dayStart.getTime() + DAY_MS);
     const rows: Row[] = t
-      .select({ p: postings, a: analysis })
+      .select({ p: postings, a: analysis, i: intel })
       .from(analysis)
       .innerJoin(postings, eq(postings.id, analysis.posting_id))
+      .leftJoin(intel, eq(intel.posting_id, postings.id))
       .where(
         and(
           eq(analysis.decision, "keep"),
-          eq(analysis.digested_at, date),
           isNull(postings.canonical_posting_id),
+          or(
+            eq(analysis.digested_at, date),
+            and(
+              lt(analysis.digested_at, date),
+              isNotNull(intel.id),
+              or(
+                ne(intel.status, "done"),
+                and(
+                  gte(intel.updated_at, dayStart.toISOString()),
+                  lt(intel.updated_at, dayEnd.toISOString()),
+                ),
+              ),
+            ),
+          ),
         ),
       )
       .all();
@@ -175,16 +335,19 @@ export function runDigest(opts: DigestOptions): string {
         postedAt: r.p.posted_at,
       })),
     );
-    return groups.map((g) =>
-      buildEntry(
+    return groups.flatMap((g) => {
+      const e = buildEntry(
         t,
         g.map((x) => x.row),
-      ),
-    );
+      );
+      return e === null ? [] : [e];
+    });
   });
 
-  const matches = entries.filter((e) => !e.flagged).sort(byPostedDesc);
-  const looks = entries.filter((e) => e.flagged).sort(byPostedDesc);
+  const top = entries.filter((e) => e.kind === "top").sort(byRank);
+  const waiting = entries.filter((e) => e.kind === "waiting").sort(byPostedDesc);
+  const suspicious = entries.filter((e) => e.kind === "suspicious").sort(byPostedDesc);
+  const kept = top.length + waiting.length;
 
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const rejectedRows = db
@@ -206,15 +369,19 @@ export function runDigest(opts: DigestOptions): string {
   const body = [
     `# Job digest ${date}`,
     "",
-    `- Kept today: ${entries.length}`,
-    `- Flagged (needs a look): ${looks.length}`,
+    `- Top matches: ${top.length}`,
+    `- Waiting for scoring: ${waiting.length}`,
+    `- Suspicious: ${suspicious.length}`,
+    `- Kept: ${kept}`,
     `- Rejected in the last 24h: ${rejected.length} ` +
       `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary})`,
     "",
-    ...(entries.length === 0 ? ["No new matches.", ""] : []),
-    ...(entries.length === 0 ? [] : section("Matches", matches)),
-    ...(entries.length === 0 ? [] : section("Needs a look", looks)),
+    ...section("Top matches", top, "None scored yet."),
+    ...section("Waiting for scoring", waiting),
+    ...needsALook([...top, ...waiting]),
+    ...section("Suspicious", suspicious),
     ...sourceHealth(db, now),
+    ...spendSection(db, date, opts.capUsd ?? effectiveCapUsd(process.env, (m) => log.warn(m))),
   ].join("\n");
 
   const dir = opts.outDir ?? join("data", "digests");

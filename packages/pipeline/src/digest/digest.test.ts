@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { analysis, openDb, postings, source_runs, type Db } from "@job-agent/core";
+import { analysis, intel, openDb, postings, source_runs, type Db } from "@job-agent/core";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main } from "../cli.ts";
@@ -183,13 +183,17 @@ describe("runDigest", () => {
     expect(path).toBe(join(dir, `${DATE}.md`));
     expect(out).toBe(`${path}\n`);
 
-    const matches = text.slice(text.indexOf("## Matches"), text.indexOf("## Needs a look"));
-    const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Source health"));
-    expect(matches.match(/^### /gm)).toHaveLength(3);
-    expect(looks.match(/^### /gm)).toHaveLength(2);
-    expect(matches.indexOf("Newest Match")).toBeLessThan(matches.indexOf("Older Match"));
-    expect(matches.indexOf("Older Match")).toBeLessThan(matches.indexOf("Undated Match"));
-    expect(looks.indexOf("New Flagged")).toBeLessThan(looks.indexOf("Old Flagged"));
+    // No intel yet: every kept posting is listed under Waiting for scoring, newest first.
+    const waiting = text.slice(
+      text.indexOf("## Waiting for scoring"),
+      text.indexOf("## Needs a look"),
+    );
+    const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Suspicious"));
+    expect(waiting.match(/^### /gm)).toHaveLength(5);
+    expect(waiting.indexOf("Newest Match")).toBeLessThan(waiting.indexOf("Older Match"));
+    expect(waiting.indexOf("Older Match")).toBeLessThan(waiting.indexOf("Undated Match"));
+    expect(looks).toContain("- New Flagged — Acme Inc: location_unclear");
+    expect(looks).not.toContain("Old Flagged");
 
     // Duplicates are not separate entries.
     expect(text).not.toContain("### Job d1");
@@ -199,8 +203,8 @@ describe("runDigest", () => {
     expect(text).toContain("- Flags: location_unclear");
     expect(text).toContain("- Location: unclear — Worldwide");
     expect(text).toContain("- Posted: unknown");
-    expect(text).toContain("- Kept today: 5");
-    expect(text).toContain("- Flagged (needs a look): 2");
+    expect(text).toContain("- Kept: 5");
+    expect(text).toContain("- Waiting for scoring: 5");
     expect(text).toContain(
       "- Rejected in the last 24h: 2 (location 1, indonesia 0, role 0, salary 1)",
     );
@@ -216,9 +220,9 @@ describe("runDigest", () => {
       reasons: ["role: non-engineering"],
     });
     const { text } = run();
-    const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Source health"));
-    expect(looks).toContain("### Staff Engineer");
-    expect(looks).toContain("- Flags: role_unclear");
+    const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Suspicious"));
+    expect(looks).toContain("- Staff Engineer — Acme Inc: role_unclear");
+    expect(text).toContain("- Flags: role_unclear");
     expect(text).toContain(
       "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0)",
     );
@@ -262,7 +266,7 @@ describe("runDigest", () => {
     expect(text.match(/^### /gm)).toHaveLength(2);
     expect(text).toContain("- Location: worldwide — Austin; Berlin; Lisbon");
     expect(text).toContain("- Link: https://apply.example.com/g2");
-    expect(text).toContain("- Kept today: 2");
+    expect(text).toContain("- Kept: 2");
     for (const id of ["g1", "g2", "g3", "g4"]) {
       expect(db.select().from(analysis).where(eq(analysis.posting_id, id)).get()?.digested_at).toBe(
         DATE,
@@ -280,6 +284,17 @@ describe("runDigest", () => {
   it("does not show a posting stamped on an earlier day", () => {
     seed("old", { title: "Yesterday Match", digestedAt: "2026-10-06" });
     seed("new", { title: "Today Match" });
+    // Scored on an earlier day: done, nothing left to wait for.
+    db.insert(intel)
+      .values({
+        id: "i-old",
+        posting_id: "old",
+        status: "done",
+        final_decision: "keep",
+        fit_score: 70,
+        updated_at: "2026-10-06T01:00:00Z",
+      })
+      .run();
     const { text } = run();
     expect(text).toContain("Today Match");
     expect(text).not.toContain("Yesterday Match");
@@ -324,9 +339,9 @@ describe("runDigest", () => {
   it("writes an empty day with the source health section", () => {
     run1("1", "greenhouse", "ok", "2026-10-07T01:00:00Z");
     const { text } = run();
-    expect(text).toContain("No new matches.");
-    expect(text).not.toContain("## Matches");
-    expect(text).toContain("- Kept today: 0");
+    expect(text).toContain("None scored yet.");
+    expect(text).not.toContain("### ");
+    expect(text).toContain("- Kept: 0");
     expect(text).toContain("## Source health");
     expect(text).toContain("- **greenhouse**: ok");
   });
