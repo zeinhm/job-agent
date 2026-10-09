@@ -6,6 +6,7 @@ import { buildAdapters } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
+import { runDiscoverCompanies } from "./discover-companies.ts";
 import { runEnrich } from "./enrich.ts";
 import { runProcess } from "./process.ts";
 
@@ -34,6 +35,14 @@ const commands: Record<string, Command> = {
         out: io.out,
         err: io.err,
       });
+    } finally {
+      db.$client.close();
+    }
+  },
+  "discover-companies": async (_args, io) => {
+    const db = openDb(defaultDbPath());
+    try {
+      return await runDiscoverCompanies({ db, out: io.out, err: io.err });
     } finally {
       db.$client.close();
     }

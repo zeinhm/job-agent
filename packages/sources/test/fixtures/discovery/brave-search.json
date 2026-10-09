@@ -1,0 +1,26 @@
+{
+  "_handbuilt": true,
+  "type": "search",
+  "query": { "original": "placeholder", "more_results_available": false },
+  "web": {
+    "results": [
+      { "url": "https://boards.greenhouse.io/gh-alpha/jobs/1" },
+      { "url": "https://job-boards.greenhouse.io/gh-beta" },
+      { "url": "https://job-boards.eu.greenhouse.io/gh-gamma/jobs/9" },
+      { "url": "https://boards.greenhouse.io/embed/job_app?for=gh-embed&token=1" },
+      { "url": "https://boards.greenhouse.io/embed/job_board?for=gh-embed2" },
+      { "url": "https://jobs.lever.co/lv-alpha/00000000-0000-0000-0000-000000000000" },
+      { "url": "https://jobs.eu.lever.co/lv-eu" },
+      { "url": "https://jobs.ashbyhq.com/Ab.Corp/abc" },
+      { "url": "https://jobs.ashbyhq.com/ab%20x" },
+      { "url": "https://jobs.smartrecruiters.com/sr-alpha/123-role" },
+      { "url": "https://careers.smartrecruiters.com/sr-beta" },
+      { "url": "https://apply.workable.com/wk-alpha/j/ABC123/" },
+      { "url": "https://apply.workable.com/api/v1/widget/accounts/x" },
+      { "url": "https://rc-alpha.recruitee.com/o/frontend-engineer" },
+      { "url": "https://careers.recruitee.com/o/x" },
+      { "url": "https://example.com/not-a-board" },
+      { "title": "no url here" }
+    ]
+  }
+}

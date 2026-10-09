@@ -171,6 +171,8 @@ async function withRateLimit<T>(
 interface HttpGetOptions {
   minIntervalMs?: number;
   timeoutMs?: number;
+  /** Extra request headers (e.g. an API key). Never put them in the URL. */
+  headers?: Record<string, string>;
   /**
    * When set, redirects are followed manually and a hop is only requested if this returns true.
    * A refused hop is never fetched and makes the call throw HttpError.
@@ -220,7 +222,7 @@ async function httpGetInternal(url: string, options: HttpGetOptions = {}): Promi
         let response: Response;
         try {
           const init: RequestInit = {
-            headers: { "User-Agent": USER_AGENT },
+            headers: { "User-Agent": USER_AGENT, ...options.headers },
             signal: controller.signal,
           };
           response = options.allowRedirectTo

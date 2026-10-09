@@ -7,3 +7,5 @@ export const adapters: readonly SourceAdapter[] = [];
 export function findAdapter(name: string): SourceAdapter | undefined {
   return adapters.find((a) => a.name === name);
 }
+
+export * from "./discovery/index.ts";
