@@ -50,3 +50,4 @@ Last audit tag: (none yet)
 | t_e239af67 | Implement Recruitee source adapter | medium | c593b5c | 2026-10-09 |
 | t_3f99932a | Implement Arbeitnow source adapter | medium | 4d624ce | 2026-10-09 |
 | t_9dcff684 | Poll discovered companies from the database | medium | ebf037d | 2026-10-09 |
+| t_f6f3b14c | Implement company discovery via search API | medium | 07fe2c8 | 2026-10-09 |
