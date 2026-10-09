@@ -1,5 +1,5 @@
 /** Bump on every change to the prompt or the extraction schema. */
-export const PROMPT_VERSION = "extract-v1";
+export const PROMPT_VERSION = "extract-v2";
 
 /**
  * Static instructions (sent first, cacheable). The model only reports facts found in the posting;
@@ -27,6 +27,7 @@ Fields:
 - employment: "employee", "contractor", "eor" (employer of record, for example Deel, Remote.com, Oyster) or null.
 - eorProvider: name of the employer-of-record provider if one is named, else null.
 - seniority: "mid", "senior", "lead" or null, from the title and requirements.
+- roleFamily: "engineering" if the job is writing or running software (software, web, data, platform or infrastructure engineering, including engineering leadership), "non_engineering" if it is another kind of job (sales, marketing, content, recruiting, operations, support, design, finance, legal and similar), null if the text does not say. State the fact only; do not judge whether the job suits the candidate.
 - contactChannels: how applicants are told to make contact, from this set: "email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat". Empty list if not stated.
 - personalEmailDomain: true if the contact email uses a free personal domain (gmail, yahoo, outlook, proton and similar) instead of a company domain, false if it uses a company domain, null if no email is given.
 - asksForPaymentOrId: true if the posting asks applicants for payment, bank details or identity documents, false if it clearly does not, null if not mentioned.

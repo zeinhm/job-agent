@@ -7,7 +7,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\"listedSalary\":{\"min\":90000,\"max\":130000,\"currency\":\"USD\",\"period\":\"year\"},\"listedSalaryScope\":\"all_locations\",\"hiringScope\":\"worldwide\",\"regions\":[],\"remoteRegions\":[\"UTC-3 to UTC+3\"],\"allowedCountries\":[],\"indonesiaExplicit\":null,\"companyHq\":\"DE\",\"companyType\":\"product\",\"payPolicy\":\"location_agnostic\",\"employment\":\"contractor\",\"eorProvider\":null,\"seniority\":\"senior\",\"contactChannels\":[\"ats\"],\"personalEmailDomain\":null,\"asksForPaymentOrId\":false,\"repoAssessmentEarly\":null,\"urgencyLanguage\":false,\"vagueDescription\":false}"
+      "text": "{\"listedSalary\":{\"min\":90000,\"max\":130000,\"currency\":\"USD\",\"period\":\"year\"},\"listedSalaryScope\":\"all_locations\",\"hiringScope\":\"worldwide\",\"regions\":[],\"remoteRegions\":[\"UTC-3 to UTC+3\"],\"allowedCountries\":[],\"indonesiaExplicit\":null,\"companyHq\":\"DE\",\"companyType\":\"product\",\"payPolicy\":\"location_agnostic\",\"employment\":\"contractor\",\"eorProvider\":null,\"seniority\":\"senior\",\"roleFamily\":\"engineering\",\"contactChannels\":[\"ats\"],\"personalEmailDomain\":null,\"asksForPaymentOrId\":false,\"repoAssessmentEarly\":null,\"urgencyLanguage\":false,\"vagueDescription\":false}"
     }
   ],
   "stop_reason": "end_turn",

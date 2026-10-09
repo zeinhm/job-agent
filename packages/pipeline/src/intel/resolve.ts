@@ -117,15 +117,21 @@ function resolveIndonesia(x: Extraction): Outcome {
 }
 
 function resolveRole(x: Extraction): Outcome {
+  if (x.roleFamily === "non_engineering")
+    return {
+      decision: "reject",
+      reason: "Role: the posting's role family is non-engineering, not the engineering target.",
+    };
+  if (x.roleFamily !== "engineering") return null;
   if (x.seniority === "senior" || x.seniority === "lead")
     return {
       decision: "keep",
-      reason: `Role: the posting asks for ${x.seniority} level, which matches the target.`,
+      reason: `Role: engineering role at ${x.seniority} level.`,
     };
   if (x.seniority === "mid")
     return {
       decision: "reject",
-      reason: "Role: the posting asks for mid level, below the senior target.",
+      reason: "Role: engineering role at mid level, below the senior target.",
     };
   return null;
 }

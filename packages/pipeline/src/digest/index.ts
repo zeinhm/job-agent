@@ -196,6 +196,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     const why = buildWhy({
       fitScore: i.fit_score,
       fitReasons,
+      resolvedReasons: parseList(i.resolved_reasons),
       tier: i.tier,
       askLabel: label,
       remainingUnclearFlags: unclear,

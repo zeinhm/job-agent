@@ -154,6 +154,7 @@ describe("ranked digest", () => {
       employment: null,
       eorProvider: null,
       seniority: null,
+      roleFamily: null,
       contactChannels: [],
       personalEmailDomain: null,
       asksForPaymentOrId: null,
@@ -198,6 +199,24 @@ describe("ranked digest", () => {
     expect(why).toBe(
       "- Why: fit 82 — React and TypeScript lead roles; Next.js in the stack — tier global_adjusted, ask IDR 28.0M / month | USD 21,000 / year — listed max covers the ask (+5) — scam score 15",
     );
+  });
+
+  it("shows the role reason resolved from facts in the Why line", () => {
+    seed("res", {
+      title: "Resolved Role",
+      intel: {
+        fit_score: 70,
+        resolved_reasons: JSON.stringify([
+          "Location: the posting hires worldwide.",
+          "Role: engineering role at senior level.",
+        ]),
+      },
+    });
+    const top = sectionOf(run(), "Top matches");
+    const why = top.split("\n").find((l) => l.startsWith("- Why: "));
+    expect(why).toContain("Role: engineering role at senior level");
+    expect(why).not.toContain("matches the target");
+    expect(why).not.toContain("worldwide");
   });
 
   it("shows the ask text when the policy is unknown", () => {

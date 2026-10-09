@@ -1042,5 +1042,311 @@
     "reason": "AI engineering with TypeScript; could be product or ML.",
     "judgment": true,
     "source": "hn:49995549"
+  },
+  {
+    "id": "rl-117",
+    "title": "Senior Global Content Manager",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Content role, not engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-118",
+    "title": "Director, Global GTM Strategy & Operations",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Go-to-market, not engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-119",
+    "title": "Head of Operations",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Operations leadership, not engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-120",
+    "title": "Account Executive, Web3",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Sales role; the Web3 word must not keep it.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-121",
+    "title": "Technical Recruiter - React Engineers",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Recruiter; React names the people it hires, not the role.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-122",
+    "title": "Customer Care Executive",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Customer care, not engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-123",
+    "title": "CRM Manager",
+    "snippet": "",
+    "label": "reject",
+    "reason": "CRM management, not engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-124",
+    "title": "Web Designer",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Designer, not an engineer.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-125",
+    "title": "Senior React Engineer",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Senior React engineer.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-126",
+    "title": "Backend Engineer (TypeScript)",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target skill beside a backend word keeps (decision 2026-10-08).",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-127",
+    "title": "DevOps Engineer",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Engineering role outside the target.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-128",
+    "title": "Head of Engineering",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Engineering leadership kept (owner decision).",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-129",
+    "title": "Design Engineer",
+    "snippet": "",
+    "label": "unclear",
+    "reason": "Generic engineering title without a skill.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-130",
+    "title": "Backend Engineer, Talent Platform",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Engineering role outside the target (backend); the domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-131",
+    "title": "Senior Content Platform Engineer",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Engineering role outside the target (platform engineer); the domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-132",
+    "title": "Staff Engineer, GTM Systems",
+    "snippet": "",
+    "label": "unclear",
+    "reason": "Engineering title without a skill; the domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-133",
+    "title": "Senior Backend Engineer - Customer Care Platform",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Engineering role outside the target (backend); the domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-134",
+    "title": "Senior Software Engineer (Recruiting Tech)",
+    "snippet": "",
+    "label": "unclear",
+    "reason": "Generic engineering title without a skill; the domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit M1/M7"
+  },
+  {
+    "id": "rl-135",
+    "title": "Senior React Engineer, Compliance Platform",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-136",
+    "title": "Senior Frontend Engineer - Finance",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-137",
+    "title": "Senior Frontend Engineer, Partnerships",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-138",
+    "title": "Senior Frontend Developer (HR Tech)",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-139",
+    "title": "Senior React Developer - Designer Tools",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-140",
+    "title": "Senior Frontend Engineer, Customer Support Tools",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-141",
+    "title": "Senior Frontend Engineer - Social Media",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-142",
+    "title": "UI Designer / Frontend Developer",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-143",
+    "title": "Senior React Engineer, Sales Tools",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-144",
+    "title": "Senior Frontend Engineer, Legal Tech",
+    "snippet": "",
+    "label": "keep",
+    "reason": "Target engineering title; the product-domain word does not make it non-engineering.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-145",
+    "title": "Marketing Manager",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Non-engineering role noun rejects regardless of skill words.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-146",
+    "title": "Sales Manager, Web3",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Non-engineering role noun rejects regardless of skill words.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-147",
+    "title": "Compliance Officer",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Non-engineering role noun rejects regardless of skill words.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-148",
+    "title": "Customer Success Manager",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Non-engineering role noun rejects regardless of skill words.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-149",
+    "title": "Finance Manager",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Non-engineering role noun rejects regardless of skill words.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
+  },
+  {
+    "id": "rl-150",
+    "title": "Social Media Manager",
+    "snippet": "",
+    "label": "reject",
+    "reason": "Non-engineering role noun rejects regardless of skill words.",
+    "judgment": false,
+    "source": "phase-2 audit rework"
   }
 ]

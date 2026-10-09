@@ -39,6 +39,8 @@ export const ExtractionSchema = z.object({
   employment: z.enum(["employee", "contractor", "eor"]).nullable(),
   eorProvider: z.string().nullable(),
   seniority: z.enum(["mid", "senior", "lead"]).nullable(),
+  /** Old intel rows predate this fact: a missing field parses as null (the text does not say). */
+  roleFamily: z.enum(["engineering", "non_engineering"]).nullable().default(null),
   contactChannels: z.array(
     z.enum(["email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat"]),
   ),

@@ -3,6 +3,8 @@ import { SALARY_BONUS, UNCLEAR_FLAG_PENALTY, salaryBonusApplies } from "./rank.t
 export interface WhyInput {
   fitScore: number;
   fitReasons: string[];
+  /** Stored resolve reasons; only the role line is shown. */
+  resolvedReasons?: string[];
   tier: string | null;
   askLabel: string | null;
   remainingUnclearFlags: string[];
@@ -22,6 +24,8 @@ export function buildWhy(i: WhyInput): string {
   const parts = [`fit ${i.fitScore}`];
   const reasons = i.fitReasons.map(oneLine).filter((r) => r !== "");
   parts.push(reasons.length > 0 ? reasons.slice(0, 3).join("; ") : "no reasons recorded");
+  const role = (i.resolvedReasons ?? []).map(oneLine).find((r) => r.startsWith("Role:"));
+  if (role !== undefined) parts.push(role);
   if (i.tier !== null && i.askLabel !== null) parts.push(`tier ${i.tier}, ask ${i.askLabel}`);
   if (salaryBonusApplies(i.listedMaxIdrMonth, i.askIdrMonth))
     parts.push(`listed max covers the ask (+${SALARY_BONUS})`);

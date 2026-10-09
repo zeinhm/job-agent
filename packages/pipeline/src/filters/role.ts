@@ -1,7 +1,9 @@
 import {
+  ROLE_ENGINEER_NOUNS,
   ROLE_GENERIC_TITLES,
   ROLE_JUNIOR_PHRASES,
   ROLE_LEADERSHIP_PHRASES,
+  ROLE_NON_ENGINEERING_DOMAIN_PHRASES,
   ROLE_NON_ENGINEERING_PHRASES,
   ROLE_OUT_OF_TARGET_PHRASES,
   ROLE_SENIORITY_WORDS,
@@ -34,8 +36,8 @@ function bareTitle(title: string): string {
 }
 
 /**
- * Role relevance from the title. Order: junior wording rejects; a target skill keeps; non-engineering and
- * out-of-target roles reject; leadership keeps; everything else (generic or unknown titles) is unclear.
+ * Role relevance from the title. Order: junior wording rejects; mobile frameworks and non-engineering titles reject;
+ * a target skill keeps; out-of-target roles reject; leadership keeps; everything else (generic or unknown titles) is unclear.
  * The description only adds a hint to the reason of a generic title, it never changes the class.
  */
 export function classifyRole(input: RoleInput): RoleResult {
@@ -49,14 +51,17 @@ export function classifyRole(input: RoleInput): RoleResult {
   if (mobileFramework !== undefined) {
     return { class: "reject", reason: `mobile framework role ("${mobileFramework}")` };
   }
-  const targetText = title;
-  const target = findPhrase(targetText, ROLE_TARGET_PHRASES);
-  if (target !== undefined) return { class: "keep", reason: `target role ("${target}")` };
-
   const nonEngineering = findPhrase(title, ROLE_NON_ENGINEERING_PHRASES);
   if (nonEngineering !== undefined) {
     return { class: "reject", reason: `non-engineering role ("${nonEngineering}")` };
   }
+  const domain = findPhrase(title, ROLE_NON_ENGINEERING_DOMAIN_PHRASES);
+  if (domain !== undefined && findPhrase(title, ROLE_ENGINEER_NOUNS) === undefined) {
+    return { class: "reject", reason: `non-engineering role ("${domain}")` };
+  }
+
+  const target = findPhrase(title, ROLE_TARGET_PHRASES);
+  if (target !== undefined) return { class: "keep", reason: `target role ("${target}")` };
 
   const outOfTarget = findPhrase(title, ROLE_OUT_OF_TARGET_PHRASES);
   if (outOfTarget !== undefined) {

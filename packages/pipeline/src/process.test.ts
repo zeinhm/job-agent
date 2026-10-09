@@ -197,7 +197,7 @@ describe("runProcess", () => {
     );
     expect(byPosting("sales")).toMatchObject({ decision: "reject" });
     expect(JSON.parse(byPosting("sales").reasons ?? "[]")).toContain(
-      'role: non-engineering role ("sales")',
+      'role: non-engineering role ("sales manager")',
     );
     expect(byPosting("junior").decision).toBe("reject");
     expect(byPosting("generic")).toMatchObject({ decision: "keep" });

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { ExtractionSchema, type Extraction } from "./extract.ts";
+import { EXTRACT_SYSTEM_PROMPT } from "./prompts/extract.ts";
 import { resolveFlags, type ResolveInput } from "./resolve.ts";
 
 const BLANK: Extraction = ExtractionSchema.parse({
@@ -18,6 +19,7 @@ const BLANK: Extraction = ExtractionSchema.parse({
   employment: null,
   eorProvider: null,
   seniority: null,
+  roleFamily: null,
   contactChannels: [],
   personalEmailDomain: null,
   asksForPaymentOrId: null,
@@ -113,19 +115,62 @@ describe("resolve: indonesia", () => {
 
 describe("resolve: role", () => {
   const f = ["role_unclear"];
-  it("senior and lead -> keep", () => {
-    expect(run(f, { seniority: "senior" }).reasons[0]).toContain("senior");
-    expect(run(f, { seniority: "lead" }).decision).toBe("keep");
+  const unresolved = { decision: "keep", reasons: [], remainingFlags: f };
+  it("engineering + senior or lead -> keep, reason names the family and level", () => {
+    const senior = run(f, { roleFamily: "engineering", seniority: "senior" });
+    expect(senior.decision).toBe("keep");
+    expect(senior.reasons).toEqual(["Role: engineering role at senior level."]);
+    expect(senior.remainingFlags).toEqual([]);
+    const lead = run(f, { roleFamily: "engineering", seniority: "lead" });
+    expect(lead.decision).toBe("keep");
+    expect(lead.reasons).toEqual(["Role: engineering role at lead level."]);
   });
-  it("mid -> reject", () => {
-    expect(run(f, { seniority: "mid" }).decision).toBe("reject");
+  it("engineering + mid -> reject", () => {
+    const r = run(f, { roleFamily: "engineering", seniority: "mid" });
+    expect(r.decision).toBe("reject");
+    expect(r.reasons[0]).toContain("mid level");
   });
-  it("no seniority fact -> stays unclear", () => {
-    expect(run(f, { companyType: "product" })).toEqual({
-      decision: "keep",
-      reasons: [],
-      remainingFlags: f,
-    });
+  it("non-engineering -> reject, whatever the seniority", () => {
+    for (const seniority of ["senior", "lead", "mid", null] as const) {
+      const r = run(f, { roleFamily: "non_engineering", seniority });
+      expect(r.decision, String(seniority)).toBe("reject");
+      expect(r.reasons[0]).toContain("non-engineering");
+      expect(r.remainingFlags).toEqual([]);
+    }
+  });
+  it("seniority alone never keeps: unknown or null family stays unresolved", () => {
+    for (const seniority of ["senior", "lead", "mid"] as const)
+      expect(run(f, { roleFamily: null, seniority }), seniority).toEqual(unresolved);
+    expect(run(f, { roleFamily: "engineering", seniority: null })).toEqual(unresolved);
+    expect(run(f, { companyType: "product" })).toEqual(unresolved);
+  });
+  it("no reason says 'matches the target' on any branch", () => {
+    const families = ["engineering", "non_engineering", null] as const;
+    const levels = ["senior", "lead", "mid", null] as const;
+    for (const roleFamily of families)
+      for (const seniority of levels) {
+        const r = run(f, { roleFamily, seniority });
+        for (const reason of r.reasons)
+          expect(reason, `${roleFamily}/${seniority}`).not.toContain("matches the target");
+      }
+  });
+});
+
+describe("extraction schema: roleFamily", () => {
+  it("old intel rows without the field parse as null", () => {
+    const old: Record<string, unknown> = { ...BLANK };
+    delete old["roleFamily"];
+    expect("roleFamily" in old).toBe(false);
+    expect(ExtractionSchema.parse(old).roleFamily).toBeNull();
+  });
+  it("accepts the two families and rejects anything else", () => {
+    expect(ExtractionSchema.parse({ ...BLANK, roleFamily: "engineering" }).roleFamily).toBe(
+      "engineering",
+    );
+    expect(() => ExtractionSchema.parse({ ...BLANK, roleFamily: "sales" })).toThrow();
+  });
+  it("the extraction prompt asks for the fact", () => {
+    expect(EXTRACT_SYSTEM_PROMPT).toContain("roleFamily");
   });
 });
 
@@ -135,6 +180,7 @@ describe("resolve: combination and guards", () => {
       hiringScope: "worldwide",
       companyHq: "ID",
       seniority: "senior",
+      roleFamily: "engineering",
     });
     expect(r.decision).toBe("reject");
     expect(r.reasons).toHaveLength(3);

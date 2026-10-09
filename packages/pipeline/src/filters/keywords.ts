@@ -259,28 +259,24 @@ export const ROLE_TARGET_PHRASES: readonly string[] = [
 /** Mobile-framework phrases: a title containing one is rejected even next to "Front-End" or "React". */
 export const ROLE_TARGET_EXCLUDED_PHRASES: readonly string[] = ["react native", "flutter"];
 
-/** Non-engineering roles: rejected unless the title has a target skill. */
+/**
+ * Non-engineering roles: rejected before the target-skill check, so "Technical Recruiter - React Engineers"
+ * and "Account Executive, Web3" do not keep on a skill word (decision 2026-10-09).
+ */
 export const ROLE_NON_ENGINEERING_PHRASES: readonly string[] = [
   "attorney",
   "lawyer",
   "counsel",
   "paralegal",
-  "legal",
-  "medical",
   "physician",
   "nurse",
-  "clinical",
   "pharmacist",
-  "sales",
   "account executive",
   "account manager",
   "business development",
-  "marketing",
-  "seo",
   "copywriter",
   "content writer",
   "technical writer",
-  "writer",
   "service desk",
   "help desk",
   "helpdesk",
@@ -288,17 +284,11 @@ export const ROLE_NON_ENGINEERING_PHRASES: readonly string[] = [
   "therapist",
   "recruiter",
   "talent acquisition",
-  "human resources",
-  "hr",
-  "people operations",
-  "customer success",
-  "customer support",
   "support specialist",
   "support engineer",
   "solutions engineer",
   "customer engineer",
   "accountant",
-  "finance",
   "bookkeeper",
   "operations manager",
   "office manager",
@@ -306,18 +296,70 @@ export const ROLE_NON_ENGINEERING_PHRASES: readonly string[] = [
   "product manager",
   "project manager",
   "program manager",
+  "community manager",
+  "developer advocate",
+  "developer relations",
+  "data entry",
+  "head of operations",
+  "operations lead",
+  "crm manager",
+  "marketing manager",
+  "sales manager",
+  "sales representative",
+  "sales development",
+  "finance manager",
+  "hr manager",
+  "hr business partner",
+  "partnerships manager",
+  "compliance officer",
+  "compliance manager",
+  "legal counsel",
+  "social media manager",
+  "customer success manager",
+  "marketing specialist",
+];
+
+/**
+ * Domain words (product areas such as finance, HR, compliance, partnerships, support, social media, design, sales) that reject a non-engineering title but not an engineering one: "Backend Engineer, Talent Platform"
+ * keeps, "Talent Partner" rejects. They only apply when the title has no engineer/developer noun.
+ */
+export const ROLE_NON_ENGINEERING_DOMAIN_PHRASES: readonly string[] = [
+  "legal",
+  "medical",
+  "clinical",
+  "sales",
+  "marketing",
+  "seo",
+  "writer",
+  "human resources",
+  "hr",
+  "people operations",
+  "customer success",
+  "customer support",
+  "finance",
+  "social media",
+  "compliance",
+  "partnerships",
+  "designer",
   "product designer",
   "ux designer",
   "ui designer",
   "graphic designer",
   "website designer",
-  "community manager",
-  "social media",
-  "developer advocate",
-  "developer relations",
-  "data entry",
-  "compliance",
-  "partnerships",
+  "recruiting",
+  "talent",
+  "content",
+  "gtm",
+  "go-to-market",
+  "customer care",
+];
+
+/** Role nouns that make a title an engineering role (used to exempt domain words). */
+export const ROLE_ENGINEER_NOUNS: readonly string[] = [
+  "engineer",
+  "engineers",
+  "developer",
+  "developers",
 ];
 
 /** Engineering roles outside the target: rejected unless the title has a target skill. */

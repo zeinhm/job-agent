@@ -35,6 +35,7 @@ const BLANK: Extraction = ExtractionSchema.parse({
   employment: null,
   eorProvider: null,
   seniority: null,
+  roleFamily: null,
   contactChannels: [],
   personalEmailDomain: null,
   asksForPaymentOrId: null,
