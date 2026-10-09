@@ -45,3 +45,4 @@ Last audit tag: (none yet)
 | t_63f270d0 | Implement company pay-policy research from careers pages (Haiku) | medium | 6760618 | 2026-10-09 |
 | t_5bac0f79 | Implement SmartRecruiters source adapter | medium | 69ce348 | 2026-10-09 |
 | t_766d6b7c | Implement fit scoring against the CV (Sonnet) | medium | 4400da8 | 2026-10-09 |
+| t_73f6affa | Implement ranked digest with a 'why' line per posting | medium | 16b388b | 2026-10-09 |
