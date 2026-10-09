@@ -42,6 +42,14 @@ export function firstLineOf(html: string): string {
     .trim();
 }
 
+/** Link targets (`href`) in the first line of an HN comment, entities decoded, in order. */
+export function firstLineLinks(html: string): string[] {
+  const raw = html.split(/<p>|\r?\n/i, 1)[0] ?? "";
+  return [...raw.matchAll(/href=\\?"([^"\\]+)\\?"/gi)]
+    .map((m) => decodeEntities(m[1] ?? ""))
+    .filter((u) => /^https?:\/\//i.test(u));
+}
+
 function unknownPosting(line: string): ParsedFirstLine {
   return { company: "unknown", title: line.slice(0, MAX_TITLE_LENGTH) };
 }

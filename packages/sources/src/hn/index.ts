@@ -6,7 +6,7 @@ import {
   type SourceAdapter,
 } from "@job-agent/core";
 import { z } from "zod";
-import { parseFirstLine } from "./parse.ts";
+import { firstLineLinks, parseFirstLine } from "./parse.ts";
 
 const SOURCE = "hn";
 const API = "https://hn.algolia.com/api/v1";
@@ -56,12 +56,15 @@ async function findLatestThreadId(): Promise<string> {
 function mapComment(comment: Comment, text: string): RawPosting {
   const parsed = parseFirstLine(text);
   const postedAt = new Date(comment.created_at);
+  // First link of the first line (usually the company site or its careers page); the pipeline decides if it is company-owned.
+  const link = firstLineLinks(text).find((u) => !/^https?:\/\/news\.ycombinator\.com\//i.test(u));
   return {
     source: SOURCE,
     externalId: String(comment.id),
     url: `https://news.ycombinator.com/item?id=${comment.id}`,
     title: parsed.title,
     company: parsed.company,
+    ...(link !== undefined && { applyUrl: link }),
     descriptionHtml: text,
     ...(parsed.locationText && { locationText: parsed.locationText }),
     ...(parsed.salaryText && { salaryText: parsed.salaryText }),

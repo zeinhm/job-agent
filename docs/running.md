@@ -121,7 +121,7 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
   unknown-policy ask, and `enrich` prints one warning line per company. Research costs one Haiku call per fetched page
   and is logged in `llm_calls` with purpose `company_research`.
   The company's domain (`companies.domain`) is filled by `process` from the first company-owned host among a posting's
-  apply link and public link; ATS hosts, job boards (remoteok, remotive, himalayas, weworkremotely, arbeitnow,
+  apply link and public link; ATS hosts, job boards (remoteok, remotive, himalayas, weworkremotely, arbeitnow (any TLD),
   web3.career, Hacker News ...), shorteners / form hosts and LinkedIn never count, and a domain that is already stored
   is never overwritten. Each researched company writes one `company research` log line (stderr) with `company_id`,
   `outcome` (`found`, `no_domain`, `fetch_failed`, `no_wording`) and `reason`: `no domain`, `fetch failed <url>: <HTTP

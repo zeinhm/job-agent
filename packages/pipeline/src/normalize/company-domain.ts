@@ -16,6 +16,17 @@ export const JOB_BOARD_HOSTS: readonly string[] = [
   "glassdoor.com",
   "jobstreet.com",
   "linkedin.com",
+  // code, social and doc hosts a first-line link may point at
+  "github.com",
+  "gitlab.com",
+  "twitter.com",
+  "x.com",
+  "medium.com",
+  "youtube.com",
+  "notion.so",
+  "discord.com",
+  "calendly.com",
+  "google.com",
   "lnkd.in",
 ];
 
