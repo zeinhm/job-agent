@@ -79,6 +79,9 @@ describe("discover command", () => {
       http.get("https://hn.algolia.com/api/v1/items/1", () => HttpResponse.json({ children: [] })),
       http.get("https://remoteok.com/api", () => HttpResponse.json([{ legal: "terms" }])),
       http.get("https://remotive.com/api/remote-jobs", () => HttpResponse.json({ jobs: [] })),
+      http.get("https://www.arbeitnow.com/api/job-board-api", () =>
+        HttpResponse.json({ data: [], links: { next: null } }),
+      ),
       http.get(/^https:\/\/weworkremotely\.com\/categories\/.*\.rss$/, () =>
         HttpResponse.xml(
           '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title></channel></rss>',

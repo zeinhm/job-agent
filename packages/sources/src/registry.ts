@@ -1,4 +1,5 @@
 import type { AppConfig, SourceAdapter } from "@job-agent/core";
+import { createArbeitnowAdapter } from "./arbeitnow/index.ts";
 import { createAshbyAdapter } from "./ashby/index.ts";
 import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
@@ -40,6 +41,7 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
   adapters.push(createWeb3CareerAdapter());
   adapters.push(createWeWorkRemotelyAdapter());
   adapters.push(createHnAdapter());
+  adapters.push(createArbeitnowAdapter());
 
   return adapters;
 };

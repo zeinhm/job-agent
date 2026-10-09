@@ -45,6 +45,7 @@ const SOURCES = [
   "web3career",
   "weworkremotely",
   "hn",
+  "arbeitnow",
 ] as const;
 type Source = (typeof SOURCES)[number];
 
@@ -124,6 +125,12 @@ const routes: Record<Source, [url: string, respond: (req: Request) => Response][
   hn: [
     [`${HN}/search_by_date`, () => HttpResponse.json(json("hn/search.json"))],
     [`${HN}/items/:id`, () => HttpResponse.json(json("hn/items.json"))],
+  ],
+  arbeitnow: [
+    [
+      "https://www.arbeitnow.com/api/job-board-api",
+      () => HttpResponse.json(json("arbeitnow/page1.json")),
+    ],
   ],
 };
 

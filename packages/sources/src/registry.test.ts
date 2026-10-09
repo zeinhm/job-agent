@@ -37,6 +37,12 @@ describe("buildAdapters", () => {
     expect(himalayas[0]?.minIntervalMinutes).toBe(60);
   });
 
+  it("always includes exactly one arbeitnow adapter with a 360 minute interval", () => {
+    const arbeitnow = buildAdapters(makeConfig()).filter((a) => a.name === "arbeitnow");
+    expect(arbeitnow).toHaveLength(1);
+    expect(arbeitnow[0]?.minIntervalMinutes).toBe(360);
+  });
+
   it("returns exactly one lever adapter when the config has lever companies", () => {
     const adapters = buildAdapters(
       makeConfig([
