@@ -27,6 +27,7 @@ import {
   type Extraction,
 } from "./intel/extract.ts";
 import { FIT_MODEL, FIT_PROMPT_VERSION, scoreFit } from "./intel/fit.ts";
+import { researchCompanyPayPolicy, type ResearchDeps } from "./intel/company-research.ts";
 import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
 import { payPolicyFor, recordPostingPolicy } from "./intel/registry.ts";
 import { runScamStage } from "./intel/scam-stage.ts";
@@ -48,6 +49,8 @@ export interface EnrichOptions {
   cv?: string | null;
   /** Stages appended after scam (tests; later cards add fit and tier). They never run for a suspicious posting. */
   extraStages?: Stage[];
+  /** Careers-page fetcher for the pay-policy research step (tests). Default: the shared HTTP client. */
+  fetchPage?: ResearchDeps["fetchPage"];
 }
 
 type IntelPatch = Partial<typeof intel.$inferInsert>;
@@ -153,6 +156,38 @@ const resolveStage: Stage = {
     });
   },
 };
+
+/**
+ * Looks up the pay policy on the company's careers pages (PLAN 5.2) for a kept posting, at most once per company and
+ * run, and only when the company is due (unknown policy, not checked in 90 days). Runs before the registry and the tier
+ * so they see a careers policy in the same run. A spent budget reaches the loop (`budget_wait`); every other failure
+ * leaves the policy unknown and prints one warning line per company (no posting or page text).
+ */
+function makeResearchStage(
+  fetchPage: ResearchDeps["fetchPage"],
+  warn: (text: string) => void,
+): Stage {
+  const attempted = new Set<string>();
+  return {
+    name: "research",
+    async run(p, deps, ctx) {
+      if (ctx.patch.final_decision !== "keep" || p.company_id === null) {
+        return { kind: "done", patch: {} };
+      }
+      if (attempted.has(p.company_id)) return { kind: "done", patch: {} };
+      attempted.add(p.company_id);
+      const researchDeps: ResearchDeps = { ...deps, ...(fetchPage ? { fetchPage } : {}) };
+      const outcome = await researchCompanyPayPolicy(p.company_id, researchDeps);
+      if (outcome.kind === "found") {
+        return { kind: "done", patch: { resolved_reasons: JSON.stringify(outcome.reasons) } };
+      }
+      if (outcome.kind === "retry" || (outcome.kind === "unknown" && outcome.failed)) {
+        warn(`pay-policy research failed for ${p.company_name}, policy stays unknown\n`);
+      }
+      return { kind: "done", patch: {} };
+    },
+  };
+}
 
 /** Stores the company pay policy stated by the posting (once, never over manual / careers). */
 const registryStage: Stage = {
@@ -403,6 +438,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     extractStage,
     resolveStage,
     scamStage,
+    makeResearchStage(opts.fetchPage, err),
     registryStage,
     makeFitStage(cv),
     tierStage(opts.salary, now()),

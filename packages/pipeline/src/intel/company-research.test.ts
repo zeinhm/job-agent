@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
 import {
   __testInjectTimeAndSleep,
+  BudgetExceededError,
   companies,
   llm_calls,
   MissingApiKeyError,
@@ -17,6 +18,7 @@ import {
   candidateUrls,
   defaultFetchPage,
   htmlToText,
+  isAllowedRedirect,
   isDueForResearch,
   isLinkedInHost,
   researchCompanyPayPolicy,
@@ -168,11 +170,9 @@ describe("company pay-policy research", () => {
   });
 
   it("budget exceeded stores nothing so the company is retried", async () => {
-    const out = await researchCompanyPayPolicy(
-      "c1",
-      deps({ env: { ...ENV, JOB_AGENT_LLM_CAP_USD: "0" } }),
-    );
-    expect(out.kind).toBe("retry");
+    await expect(
+      researchCompanyPayPolicy("c1", deps({ env: { ...ENV, JOB_AGENT_LLM_CAP_USD: "0" } })),
+    ).rejects.toBeInstanceOf(BudgetExceededError);
     expect(row()?.pay_policy_checked_at).toBeNull();
     expect(apiCalls).toBe(0);
   });
@@ -293,5 +293,48 @@ describe("defaultFetchPage redirect guard", () => {
     } finally {
       s.close();
     }
+  });
+});
+
+describe("redirect policy", () => {
+  it("allows the same registrable domain and known ATS hosts, refuses everything else", () => {
+    const start = "https://acme.example/careers";
+    expect(isAllowedRedirect(start, "https://www.acme.example/jobs")).toBe(true);
+    expect(isAllowedRedirect(start, "https://jobs.lever.co/acme")).toBe(true);
+    expect(isAllowedRedirect(start, "https://other.example/careers")).toBe(false);
+    expect(isAllowedRedirect(start, "https://acme.example.evil.test/")).toBe(false);
+    expect(isAllowedRedirect(start, "https://www.linkedin.com/company/acme")).toBe(false);
+    expect(isAllowedRedirect(start, "http://acme.example/careers")).toBe(false);
+    expect(isAllowedRedirect("https://acme.co.id/careers", "https://other.co.id/")).toBe(false);
+    expect(isAllowedRedirect("https://acme.co.id/careers", "https://jobs.acme.co.id/")).toBe(true);
+  });
+
+  it("defaultFetchPage refuses a redirect to another host without requesting it", async () => {
+    let hit = false;
+    const s = setupServer(
+      http.get("https://acme.example/careers", () =>
+        HttpResponse.text("", { status: 302, headers: { location: "https://other.example/x" } }),
+      ),
+      http.get("https://other.example/x", () => {
+        hit = true;
+        return HttpResponse.text("page");
+      }),
+    );
+    s.listen({ onUnhandledRequest: "error" });
+    try {
+      await expect(defaultFetchPage("https://acme.example/careers")).rejects.toThrow();
+      expect(hit).toBe(false);
+    } finally {
+      s.close();
+    }
+  });
+
+  it("discards a page whose final url is another host (injected fetcher)", async () => {
+    const out = await researchCompanyPayPolicy("c1", {
+      ...deps(),
+      fetchPage: () => Promise.resolve({ finalUrl: "https://other.example/careers", body: PAGE }),
+    });
+    expect(out.kind).toBe("unknown");
+    expect(apiCalls).toBe(0);
   });
 });

@@ -105,6 +105,17 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
   newest postings rather than half-scoring all of them.
 - To spend less per run, use `enrich --limit <n>` or lower the cap. The digest's LLM spend section shows today's cost
   against the cap and the calls per model.
+- **Company pay-policy research** runs inside `enrich`, after the scam check and before the registry, fit and tier
+  stages, and only for postings that are kept (suspicious and rejected postings never trigger it). It looks at the
+  company's own `/careers` and `/jobs` pages (at most 2 pages, never LinkedIn) for wording about location-based pay, at
+  most once per company per run, and only when the company's policy is unknown and was not checked in the last 90
+  days. A company with a policy set by a posting, a careers page or by you is never researched. The result is stored in
+  the company registry (`careers:<url>`), so the tier of the posting being enriched uses it in the same run. A page
+  fetch redirect is followed only within the company's own domain or to a known ATS host; any other host is refused.
+  If the budget is reached during research the posting waits (`budget_wait`); any other research failure (page not
+  reachable, API error, unusable answer) does not fail the posting: the policy stays unknown, the tier uses the
+  unknown-policy ask, and `enrich` prints one warning line per company. Research costs one Haiku call per fetched page
+  and is logged in `llm_calls` with purpose `company_research`.
 - Invalid model output is retried once, then the posting is marked `failed` and shown under Waiting for scoring.
 - Logs hold counts, ids, model, tokens and cost only. Prompts, your CV, posting text and model output are never logged.
 

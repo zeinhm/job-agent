@@ -1,6 +1,5 @@
 import { eq } from "drizzle-orm";
 import {
-  BudgetExceededError,
   callStructured,
   companies,
   httpGet,
@@ -12,6 +11,7 @@ import {
   type LlmDeps,
 } from "@job-agent/core";
 import { z } from "zod";
+import { ATS_APPLY_HOSTS } from "../filters/keywords.ts";
 import { COMPANY_RESEARCH_SYSTEM_PROMPT } from "./prompts/company-research.ts";
 
 export { PROMPT_VERSION as COMPANY_RESEARCH_PROMPT_VERSION } from "./prompts/company-research.ts";
@@ -42,8 +42,9 @@ export type ResearchOutcome =
       source: string;
       reasons: string[];
     }
-  | { kind: "unknown"; reasons: string[] }
-  /** Budget or transient API problem: nothing stored, the company is retried on the next run. */
+  /** `failed` is set when a fetch or the model output went wrong (as opposed to a page without pay wording). */
+  | { kind: "unknown"; reasons: string[]; failed?: true }
+  /** Transient API problem: nothing stored, the company is retried on the next run. A spent budget throws instead. */
   | { kind: "retry"; reason: string };
 
 export interface ResearchDeps extends LlmDeps {
@@ -61,10 +62,45 @@ export function isLinkedInHost(url: string): boolean {
   }
 }
 
+/** Second-level labels that make a two-letter TLD a public suffix (`co.id`, `com.au`, ...). */
+const SECOND_LEVEL = new Set(["co", "com", "org", "net", "gov", "edu", "ac", "or", "go"]);
+
+/** Registrable domain, approximated without a public-suffix list: last two labels, three under `co.xx`. */
+export function registrableDomain(host: string): string {
+  const labels = host.toLowerCase().replace(/\.$/, "").split(".");
+  const [sld, tld] = [labels.at(-2), labels.at(-1)];
+  const take = sld !== undefined && tld?.length === 2 && SECOND_LEVEL.has(sld) ? 3 : 2;
+  return labels.slice(-take).join(".");
+}
+
+function isAtsHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return ATS_APPLY_HOSTS.some((a) => h === a || h.endsWith(`.${a}`));
+}
+
+/**
+ * A careers-page redirect is followed only within the starting URL's registrable domain or to a known ATS host.
+ * LinkedIn, other hosts and non-https targets are refused.
+ */
+export function isAllowedRedirect(startUrl: string, nextUrl: string): boolean {
+  if (isLinkedInHost(nextUrl)) return false;
+  try {
+    const start = new URL(startUrl);
+    const next = new URL(nextUrl);
+    if (next.protocol !== "https:") return false;
+    return (
+      registrableDomain(next.hostname) === registrableDomain(start.hostname) ||
+      isAtsHost(next.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function defaultFetchPage(url: string): Promise<{ finalUrl: string; body: string }> {
   const res = await httpGet(url, {
     minIntervalMs: MIN_INTERVAL_MS,
-    allowRedirectTo: (next) => !isLinkedInHost(next),
+    allowRedirectTo: (next) => isAllowedRedirect(url, next),
   });
   return { finalUrl: res.url || url, body: await res.text() };
 }
@@ -125,7 +161,8 @@ function markChecked(db: Db, companyId: string, at: Date): void {
 /**
  * One cheap lookup of the company's careers pages for its pay policy. Runs only when the policy is unknown and
  * `pay_policy_checked_at` is null or older than 90 days. Fetch failure or no wording: policy stays unknown and
- * `pay_policy_checked_at` is set. Budget / API failures store nothing so the company is retried later.
+ * `pay_policy_checked_at` is set. An API failure stores nothing so the company is retried later; a spent budget
+ * throws BudgetExceededError (nothing stored).
  * Throws MissingApiKeyError before any request is made.
  */
 export async function researchCompanyPayPolicy(
@@ -151,6 +188,10 @@ export async function researchCompanyPayPolicy(
         failures.push(`${url}: redirected to linkedin, discarded`);
         continue;
       }
+      if (!isAllowedRedirect(url, page.finalUrl)) {
+        failures.push(`${url}: redirected to another site, discarded`);
+        continue;
+      }
       const text = htmlToText(page.body).slice(0, MAX_PAGE_CHARS);
       if (text) pages.push({ url, text });
       else failures.push(`${url}: empty page`);
@@ -164,10 +205,13 @@ export async function researchCompanyPayPolicy(
       : "pay policy research: no company domain";
     log.info("company research: no page", { company_id: companyId, failures: failures.length });
     markChecked(db, companyId, now);
-    return { kind: "unknown", reasons: [reason] };
+    return failures.length > 0
+      ? { kind: "unknown", reasons: [reason], failed: true }
+      : { kind: "unknown", reasons: [reason] };
   }
 
   const unknownReasons: string[] = [];
+  let outputFailed = false;
   for (const page of pages) {
     let result: z.infer<typeof CompanyResearchSchema>;
     try {
@@ -185,15 +229,14 @@ export async function researchCompanyPayPolicy(
       );
     } catch (e) {
       if (e instanceof LlmOutputError) {
+        outputFailed = true;
         unknownReasons.push(
           `pay policy research ${page.url}: invalid model output (${e.issues.join("; ")})`,
         );
         continue;
       }
       if (e instanceof LlmApiError) return { kind: "retry", reason: e.message };
-      if (e instanceof BudgetExceededError) {
-        return { kind: "retry", reason: e.message };
-      }
+      // BudgetExceededError and anything unexpected go to the caller; nothing is stored.
       throw e;
     }
     // Code decides: the quote must really be on the page and the classification must come with it.
@@ -223,8 +266,8 @@ export async function researchCompanyPayPolicy(
     unknownReasons.push(`pay policy research ${page.url}: no pay-policy wording`);
   }
   markChecked(db, companyId, now);
-  return {
-    kind: "unknown",
-    reasons: [...failures.map((f) => `pay policy research: ${f}`), ...unknownReasons],
-  };
+  const reasons = [...failures.map((f) => `pay policy research: ${f}`), ...unknownReasons];
+  return failures.length > 0 || outputFailed
+    ? { kind: "unknown", reasons, failed: true }
+    : { kind: "unknown", reasons };
 }
