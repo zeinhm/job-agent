@@ -1,0 +1,8 @@
+{
+  "_handbuilt": true,
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "Number of request tokens has exceeded your per-minute rate limit."
+  }
+}

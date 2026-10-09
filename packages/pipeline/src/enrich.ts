@@ -62,7 +62,7 @@ type StageResult =
   | { kind: "done"; patch: IntelPatch }
   | { kind: "failed"; patch: IntelPatch }
   /** Transient API failure: nothing is stored, the posting is retried on the next run. */
-  | { kind: "retry" }
+  | { kind: "retry"; error?: LlmApiError }
   /** No IDR FX rate yet: earlier results are saved, the posting waits for `fx` and is re-tiered later. */
   | { kind: "fx_wait"; patch: IntelPatch };
 
@@ -107,7 +107,7 @@ const extractStage: Stage = {
       if (e instanceof LlmOutputError) {
         return { kind: "failed", patch: { resolved_reasons: JSON.stringify(e.issues) } };
       }
-      if (e instanceof LlmApiError) return { kind: "retry" };
+      if (e instanceof LlmApiError) return { kind: "retry", error: e };
       throw e;
     }
   },
@@ -245,7 +245,7 @@ function makeFitStage(cv: string | null): Stage {
             patch: { resolved_reasons: JSON.stringify(e.issues.map((i) => `fit ${i}`)) },
           };
         }
-        if (e instanceof LlmApiError) return { kind: "retry" };
+        if (e instanceof LlmApiError) return { kind: "retry", error: e };
         throw e;
       }
     },
@@ -516,6 +516,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   let budgetStopped = false;
   let apiErrors = 0;
   let aborted = false;
+  let lastApiError: LlmApiError | undefined;
 
   for (const posting of todo) {
     if (aborted) {
@@ -535,6 +536,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
         if (result.kind === "retry") {
           outcome = "retry";
           apiErrors += 1;
+          lastApiError = result.error;
           break;
         }
         // A paid stage that ran (non-empty patch, even a failed output) means the API answered.
@@ -589,7 +591,10 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   );
   out(waitLine(db));
   if (aborted) {
-    err(`enrich aborted after ${MAX_CONSECUTIVE_API_ERRORS} consecutive API errors\n`);
+    const cause = lastApiError
+      ? `: status ${lastApiError.status ?? "none"} ${lastApiError.errorType}${lastApiError.errorMessage ? `: ${lastApiError.errorMessage}` : ""}`
+      : "";
+    err(`enrich aborted after ${MAX_CONSECUTIVE_API_ERRORS} consecutive API errors${cause}\n`);
     return 1;
   }
   return 0;

@@ -9,10 +9,12 @@ import {
   companies,
   fx_rates,
   intel,
+  jakartaDay,
   llm_calls,
   loadConfig,
   openDb,
   postings,
+  spentOnDay,
   type Db,
   type NewPosting,
 } from "@job-agent/core";
@@ -502,10 +504,17 @@ const SCAM_ROW = (
 ).find((r) => r.id === "sc-01") as { excerpt: string };
 
 describe("enrich robustness", () => {
+  const KEY_ECHO = ENV.ANTHROPIC_API_KEY;
   const apiError = () =>
     HttpResponse.json(
-      { type: "error", error: { type: "authentication_error", message: "x" } },
-      { status: 401 },
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: `Your credit balance is too low ${KEY_ECHO}`,
+        },
+      },
+      { status: 400 },
     );
 
   it("keeps the paid extraction when a later stage asks for a retry: no second extraction request", async () => {
@@ -563,7 +572,10 @@ describe("enrich robustness", () => {
     expect(r.code).toBe(1);
     expect(r.err).toContain("enrich aborted after 3 consecutive API errors");
     expect(r.out + r.err).not.toContain(ENV.ANTHROPIC_API_KEY);
-    expect(r.out + r.err).not.toContain("authentication_error");
+    // The abort line names the last error's status, type and sanitized message.
+    expect(r.err).toContain(
+      "enrich aborted after 3 consecutive API errors: status 400 invalid_request_error: Your credit balance is too low [redacted]",
+    );
     for (const id of ["p1", "p2", "p3", "p4", "p5"]) expect(intelOf(id)?.status).toBe("pending");
     // The next run (key fixed) picks them all up again.
     respond = () => HttpResponse.json(fixture("extract-ok.json"));
@@ -585,14 +597,15 @@ describe("enrich robustness", () => {
     expect(intelOf("p3")?.status).toBe("done");
   });
 
-  it("failed API calls count against the cap at their reserved cost", async () => {
+  it("an API error response is recorded at $0 and does not count against the cap", async () => {
     addPosting("p1");
     respond = apiError;
     await enrich();
     const rows = db.select().from(llm_calls).all();
     expect(rows).toHaveLength(1);
     expect(rows[0]?.status).toBe("error");
-    expect(Number(rows[0]?.cost_usd)).toBeGreaterThan(0);
+    expect(Number(rows[0]?.cost_usd)).toBe(0);
+    expect(spentOnDay(db, jakartaDay(NOW))).toBe(0);
   });
 
   it("no key: text-only scam rules mark a golden scam row suspicious, not waiting", async () => {

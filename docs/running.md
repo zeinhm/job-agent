@@ -94,7 +94,11 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
 
 - **Hard cap: $1.00 per day** (Asia/Jakarta day). Before every call the client reserves the worst-case cost; if
   today's spend plus that reserve would pass the cap, the call is not made. The real cost of every call is recorded in
-  the `llm_calls` table.
+  the `llm_calls` table. A call that failed with an API error response (400, 401, 429, 529, ...) is billed nothing and
+  is recorded at $0; a timeout (request sent, tokens unknown) is recorded at the reserved worst case so the cap holds.
+- **Failed calls are logged**: each failed attempt writes an `llm call failed` log line with `status`, `error_type` and
+  `error_message` (key redacted, 300 characters at most). When `enrich` stops after 3 API errors in a row, the stderr
+  line ends with the last error, e.g. `enrich aborted after 3 consecutive API errors: status 400 invalid_request_error: Your credit balance is too low ...`.
 - **Lower the cap** with `JOB_AGENT_LLM_CAP_USD`, e.g. `JOB_AGENT_LLM_CAP_USD=0.25 pnpm job-agent enrich`, or
   `JOB_AGENT_LLM_CAP_USD=0.25` in your crontab environment lines. The variable can only lower the cap: a value above 1
   is ignored with a warning and the cap stays at $1.00; a value that is not a number is ignored too. `0` makes no

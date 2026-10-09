@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { openDb, type Db } from "../db/index.ts";
 import { llm_calls } from "../db/schema.ts";
@@ -316,7 +316,12 @@ describe("errors and retries", () => {
     };
     await expect(callStructured(opts(), deps())).resolves.toBeDefined();
     expect(requests).toHaveLength(3);
-    expect(db.select().from(llm_calls).all()).toHaveLength(1);
+    // Each failed attempt is recorded at $0; the answer is the third row.
+    const rows = db.select().from(llm_calls).all();
+    expect(rows.map((r) => r.status).sort()).toEqual(["error", "error", "ok"]);
+    expect(rows.filter((r) => r.status === "error").every((r) => Number(r.cost_usd) === 0)).toBe(
+      true,
+    );
   });
 
   it("gives up after 2 retries and records an error row", async () => {
@@ -330,10 +335,96 @@ describe("errors and retries", () => {
     expect((err as LlmApiError).status).toBe(529);
     expect(requests).toHaveLength(3);
     const rows = db.select().from(llm_calls).all();
+    // Every attempt is an error response: no tokens billed, $0.
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row.status).toBe("error");
+      expect(row.input_tokens).toBe(0);
+      expect(row.output_tokens).toBe(0);
+      expect(Number(row.cost_usd)).toBe(0);
+    }
+  });
+
+  it.each([
+    [400, "error-400.json", "invalid_request_error"],
+    [401, "error-401.json", "authentication_error"],
+    [429, "error-429.json", "rate_limit_error"],
+    [529, "error-529.json", "overloaded_error"],
+  ])(
+    "a %i error response is recorded at $0 and logs its type and message",
+    async (status, file, type) => {
+      respond = () => HttpResponse.json(fixture(file), { status });
+      const err = await callStructured(opts(), deps()).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(LlmApiError);
+      expect((err as LlmApiError).status).toBe(status);
+      expect((err as LlmApiError).errorType).toBe(type);
+      const rows = db.select().from(llm_calls).all();
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.status).toBe("error");
+        expect(Number(row.cost_usd)).toBe(0);
+      }
+      expect(spentOnDay(db, jakartaDay(nowDate))).toBe(0);
+      const failed = lines.filter((l) => l.includes("llm call failed"));
+      expect(failed).toHaveLength(rows.length);
+      const parsed = JSON.parse(failed[0] ?? "{}") as Record<string, unknown>;
+      expect(parsed).toMatchObject({
+        model: "claude-haiku-5-5",
+        purpose: "extract",
+        status,
+        error_type: type,
+        posting_id: null,
+        company_id: null,
+      });
+      expect(parsed["error_message"]).toBe((fixture(file)["error"] as { message: string }).message);
+    },
+  );
+
+  it("a timeout keeps the reserved worst-case cost and logs the error class", async () => {
+    respond = async () => {
+      await new Promise((r) => setTimeout(r, 200));
+      return HttpResponse.json(fixture("ok-haiku.json"));
+    };
+    const err = await callStructured(opts(), { ...deps(), requestTimeoutMs: 20 }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(LlmApiError);
+    expect((err as LlmApiError).status).toBeUndefined();
+    expect((err as LlmApiError).errorType).toBe("APIConnectionTimeoutError");
+    const rows = db.select().from(llm_calls).all();
     expect(rows).toHaveLength(1);
-    // The request was sent and failed: the cap counts the reserved worst case, not $0.
     expect(rows[0]?.status).toBe("error");
     expect(Number(rows[0]?.cost_usd)).toBeGreaterThan(0);
+    const failed = JSON.parse(lines.find((l) => l.includes("llm call failed")) ?? "{}");
+    expect(failed.error_type).toBe("APIConnectionTimeoutError");
+  });
+
+  it("a refused connection (never sent) is recorded at $0", async () => {
+    const refused = Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new TypeError("fetch failed", { cause: refused }));
+    const err = await callStructured(opts(), deps()).catch((e: unknown) => e);
+    fetchSpy.mockRestore();
+    expect(err).toBeInstanceOf(LlmApiError);
+    const rows = db.select().from(llm_calls).all();
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0]?.cost_usd)).toBe(0);
+  });
+
+  it("redacts the key and sk-ant strings and caps the message at 300 characters", async () => {
+    respond = () => HttpResponse.json(fixture("error-leaky.json"), { status: 401 });
+    const err = await callStructured(opts(), deps()).catch((e: unknown) => e);
+    const line = lines.find((l) => l.includes("llm call failed")) ?? "";
+    const parsed = JSON.parse(line) as { error_message: string };
+    expect(line).not.toContain(KEY);
+    expect(line).not.toContain("sk-ant");
+    expect(line).not.toContain("ABCdef");
+    expect(parsed.error_message).toContain("[redacted]");
+    expect(parsed.error_message.length).toBeLessThanOrEqual(300);
+    const apiErr = err as LlmApiError;
+    expect(apiErr.errorMessage).toBe(parsed.error_message);
+    expect(`${apiErr.message}${apiErr.errorMessage}`).not.toContain("sk-ant");
   });
 
   it("a network failure after the send is recorded at the reserved cost, not $0", async () => {

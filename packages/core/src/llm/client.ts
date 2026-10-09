@@ -36,15 +36,49 @@ export class LlmOutputError extends Error {
   }
 }
 
-/** The API call failed (after 429/529 retries). Message holds status and error type only. */
+/**
+ * The API call failed (after 429/529 retries). `message` holds status and error type only; `errorType` and
+ * `errorMessage` are the sanitized cause (key redacted, capped), safe to print.
+ */
 export class LlmApiError extends Error {
   readonly status: number | undefined;
+  readonly errorType: string;
+  readonly errorMessage: string;
 
-  constructor(status: number | undefined, type: string | null | undefined) {
+  constructor(status: number | undefined, type: string | null | undefined, errorMessage = "") {
     super(`Anthropic API call failed: status ${status ?? "none"}${type ? ` (${type})` : ""}`);
     this.name = "LlmApiError";
     this.status = status;
+    this.errorType = type || "unknown";
+    this.errorMessage = errorMessage;
   }
+}
+
+const MAX_ERROR_MESSAGE_CHARS = 300;
+
+/** Redacts the configured key and anything shaped like an Anthropic key, then caps the length. */
+export function sanitizeErrorText(text: string, apiKey: string): string {
+  let out = text;
+  if (apiKey) out = out.split(apiKey).join("[redacted]");
+  out = out.replace(/sk-ant-[A-Za-z0-9_-]+/g, "[redacted]");
+  return out.length > MAX_ERROR_MESSAGE_CHARS ? out.slice(0, MAX_ERROR_MESSAGE_CHARS) : out;
+}
+
+/**
+ * Type and message of a failed call. API errors use the error body (`error.type`, `error.message`); connection and
+ * timeout errors use the class name and message. Request headers are never read.
+ */
+function describeError(err: unknown, apiKey: string): { type: string; message: string } {
+  // SDK error classes do not set `name`, so use the constructor name (e.g. APIConnectionTimeoutError).
+  let type = err instanceof Error ? err.constructor.name : "unknown";
+  let message = err instanceof Error ? err.message : "";
+  if (err instanceof Anthropic.APIError && err.status !== undefined) {
+    const body = (err.error as { error?: { type?: unknown; message?: unknown } } | undefined)
+      ?.error;
+    type = typeof body?.type === "string" ? body.type : (err.type ?? type);
+    message = typeof body?.message === "string" ? body.message : "";
+  }
+  return { type: sanitizeErrorText(type, apiKey), message: sanitizeErrorText(message, apiKey) };
 }
 
 export interface CallStructuredOptions<S extends z.ZodType, R = z.output<S>> {
@@ -73,6 +107,8 @@ export interface LlmDeps {
   sleep?: (ms: number) => Promise<void>;
   /** Override the API base URL (tests). */
   baseURL?: string;
+  /** Override the per-request timeout (tests). */
+  requestTimeoutMs?: number;
 }
 
 const MAX_RETRIES_429_529 = 2;
@@ -91,21 +127,6 @@ function isRetryable(err: InstanceType<typeof Anthropic.APIError>): boolean {
   // The monthly tier spend cap is fatal: retrying cannot succeed.
   const body = err.error as { error?: { details?: { error_code?: string } } } | undefined;
   return body?.error?.details?.error_code !== "enforced_spend_limit_reached";
-}
-
-/** The API's own error message with the key (and anything key-shaped) redacted, capped for the log. */
-function apiErrorMessage(
-  err: InstanceType<typeof Anthropic.APIError>,
-  apiKey: string,
-): string | null {
-  const body = err.error as { error?: { message?: unknown } } | undefined;
-  const msg = body?.error?.message;
-  if (typeof msg !== "string") return null;
-  return msg
-    .split(apiKey)
-    .join("[redacted]")
-    .replace(/sk-ant-[A-Za-z0-9_-]+/g, "[redacted]")
-    .slice(0, 500);
 }
 
 const NOT_SENT_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"]);
@@ -171,7 +192,7 @@ export async function callStructured<S extends z.ZodType, R = z.output<S>>(
   const client = new Anthropic({
     apiKey,
     maxRetries: 0,
-    timeout: REQUEST_TIMEOUT_MS,
+    timeout: deps.requestTimeoutMs ?? REQUEST_TIMEOUT_MS,
     ...(deps.baseURL ? { baseURL: deps.baseURL } : {}),
   });
 
@@ -209,6 +230,26 @@ export async function callStructured<S extends z.ZodType, R = z.output<S>>(
     return cost;
   };
 
+  /**
+   * Logs and records one failed attempt. An error response (HTTP status) bills no tokens: $0. A connection that failed
+   * before sending is $0 too. A timeout or a connection lost after sending has unknown usage: the reserved worst case,
+   * so the cap can never be exceeded.
+   */
+  const fail = (err: unknown, status: number | undefined): { type: string; message: string } => {
+    const described = describeError(err, apiKey);
+    logger.warn("llm call failed", {
+      model: opts.model,
+      purpose: opts.purpose,
+      status: status ?? null,
+      error_type: described.type,
+      error_message: described.message,
+      posting_id: opts.postingId ?? null,
+      company_id: opts.companyId ?? null,
+    });
+    record("error", null, status !== undefined || isNotSent(err) ? 0 : reserve);
+    return described;
+  };
+
   const send = async (): Promise<Anthropic.Message> => {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -221,26 +262,20 @@ export async function callStructured<S extends z.ZodType, R = z.output<S>>(
           output_config: outputConfig,
         });
       } catch (err) {
-        if (err instanceof Anthropic.APIError) {
-          if (attempt < MAX_RETRIES_429_529 && isRetryable(err)) {
-            logger.warn("llm call retry", { status: err.status, attempt: attempt + 1 });
-            await sleep(backoffMs(attempt, err));
-            continue;
-          }
-          // A status came back or the request timed out: it was sent, usage is unknown, so the cap counts the
-          // worst case. A connection that failed before the request left (refused, DNS) cost nothing: $0.
-          record("error", null, isNotSent(err) ? 0 : reserve);
-          logger.warn("llm call failed", {
-            purpose: opts.purpose,
-            status: err.status ?? null,
-            error_type: err.type ?? null,
-            error_message: apiErrorMessage(err, apiKey),
-          });
-          throw new LlmApiError(err.status, err.type);
+        const status = err instanceof Anthropic.APIError ? err.status : undefined;
+        if (
+          err instanceof Anthropic.APIError &&
+          attempt < MAX_RETRIES_429_529 &&
+          isRetryable(err)
+        ) {
+          logger.warn("llm call retry", { status, attempt: attempt + 1 });
+          // The retried attempt is itself a failed call: log it and record it like the final one.
+          fail(err, status);
+          await sleep(backoffMs(attempt, err));
+          continue;
         }
-        record("error", null, reserve);
-        // Connection/timeout errors: the message can carry request details, so report only the class.
-        throw new LlmApiError(undefined, err instanceof Error ? err.name : "unknown");
+        const { type, message } = fail(err, status);
+        throw new LlmApiError(status, type, message);
       }
     }
   };
