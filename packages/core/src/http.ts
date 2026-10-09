@@ -178,6 +178,8 @@ interface HttpGetOptions {
    * A refused hop is never fetched and makes the call throw HttpError.
    */
   allowRedirectTo?: (url: string) => boolean;
+  /** false: redirects are not followed; the 3xx response is returned (and httpGet throws HttpError with its status). */
+  followRedirects?: boolean;
 }
 
 const MAX_REDIRECTS = 5;
@@ -227,7 +229,10 @@ async function httpGetInternal(url: string, options: HttpGetOptions = {}): Promi
           };
           response = options.allowRedirectTo
             ? await fetchGuarded(url, init, options.allowRedirectTo)
-            : await fetch(url, init);
+            : await fetch(
+                url,
+                options.followRedirects === false ? { ...init, redirect: "manual" } : init,
+              );
         } finally {
           clearTimeout(timeoutId);
         }

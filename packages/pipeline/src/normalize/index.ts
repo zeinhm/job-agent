@@ -44,8 +44,8 @@ export function normalizePending(db: Db, opts: NormalizeOptions = {}): number {
           company_id: companyId,
           description_text: p.description_text === null ? null : htmlToText(p.description_text),
           location_text: p.location_text === null ? null : cleanLine(p.location_text),
-          url: cleanUrl(p.url),
-          apply_url: p.apply_url === null ? null : cleanUrl(p.apply_url),
+          url: cleanUrl(p.url, p.source),
+          apply_url: p.apply_url === null ? null : cleanUrl(p.apply_url, p.source),
           normalized_at: nowIso,
         })
         .where(eq(postings.id, p.id))

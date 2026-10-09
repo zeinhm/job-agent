@@ -192,13 +192,41 @@ describe("normalizePending", () => {
 });
 
 describe("cleanUrl web3.career", () => {
-  it("never modifies web3.career links (terms of use)", () => {
-    const url = "https://web3.career/r/1QDM1UTM__M9jY3A?ref=x&utm_source=y#apply";
-    expect(cleanUrl(url)).toBe(url);
-    expect(cleanUrl("https://www.web3.career/job?ref=z")).toBe("https://www.web3.career/job?ref=z");
+  it("returns links of source web3career byte-for-byte, whatever the host", () => {
+    for (const url of [
+      "https://web3.career/r/1QDM1UTM__M9jY3A?ref=x&utm_source=y#apply",
+      "https://other.example/job?id=1&utm_source=w3c#top",
+    ]) {
+      expect(cleanUrl(url, "web3career")).toBe(url);
+    }
   });
 
-  it("still cleans look-alike hosts", () => {
-    expect(cleanUrl("https://notweb3.career/a?ref=z")).toBe("https://notweb3.career/a");
+  it("still cleans other sources, including on the web3.career host", () => {
+    expect(cleanUrl("https://notweb3.career/a?ref=z", "greenhouse")).toBe(
+      "https://notweb3.career/a",
+    );
+    expect(cleanUrl("https://other.example/a?utm_source=x")).toBe("https://other.example/a");
+  });
+
+  it("normalizePending leaves web3career urls untouched", () => {
+    const db = openDb(":memory:");
+    const url = "https://other.example/job?id=1&utm_source=w3c#top";
+    db.insert(postings)
+      .values({
+        id: "w1",
+        source: "web3career",
+        external_id: "w1",
+        url,
+        apply_url: url,
+        title: "T",
+        company_name: "Acme",
+        first_seen_at: "2026-10-06T00:00:00.000Z",
+        last_seen_at: "2026-10-06T00:00:00.000Z",
+      })
+      .run();
+    normalizePending(db, { now: () => new Date("2026-10-07T00:00:00.000Z") });
+    const row = db.select().from(postings).where(eq(postings.id, "w1")).get();
+    expect(row?.url).toBe(url);
+    expect(row?.apply_url).toBe(url);
   });
 });

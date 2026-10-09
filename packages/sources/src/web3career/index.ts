@@ -26,6 +26,11 @@ const web3JobSchema = z.object({
   apply_url: z.string().min(1),
   description: z.string().nullish(),
   location: z.string().nullish(),
+  country: z.string().nullish(),
+  city: z.string().nullish(),
+  estimated_min_salary: salaryValueSchema,
+  estimated_max_salary: salaryValueSchema,
+  estimated_avg_salary: salaryValueSchema,
   is_remote: z.boolean().nullish(),
   salary_min_value: salaryValueSchema,
   salary_max_value: salaryValueSchema,
@@ -41,7 +46,7 @@ const PERIODS = new Set<string>(["year", "month", "hour"]);
 
 // web3.career appends a line addressed to whoever reads the posting; posting text is data, never instructions.
 const APPLY_INSTRUCTION =
-  /When applying, mention the word \S+ to show you read the job post completely\.?/gi;
+  /when applying,?\s+mention the word[^.<\n]+?to show you read the job post completely\.?/gi;
 
 const NAMED_ENTITIES: Record<string, string> = {
   amp: "&",
@@ -176,10 +181,17 @@ export function createWeb3CareerAdapter(): SourceAdapter {
 
       let body: unknown;
       try {
-        body = await httpGetJson(buildRequestUrl(token));
+        body = await httpGetJson(buildRequestUrl(token), { followRedirects: false });
       } catch (err) {
         // No cause: HttpError keeps the raw URL (with the token) in its fields.
         const status = (err as { status?: number | null }).status;
+        // An invalid token is answered with a 302; it is not a redirect to follow.
+        if (
+          status != null &&
+          (status === 401 || status === 403 || (status >= 300 && status < 400))
+        ) {
+          throw new SourceError(SOURCE, `token rejected (HTTP ${status})`);
+        }
         throw new SourceError(SOURCE, `request failed (HTTP ${status ?? "network error"})`);
       }
 

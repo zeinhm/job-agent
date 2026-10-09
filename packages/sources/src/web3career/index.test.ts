@@ -159,6 +159,91 @@ describe("web3career adapter", () => {
     expect(lines.join("\n")).not.toContain(TOKEN);
   });
 
+  it("treats 302 as a rejected token without following it", async () => {
+    let calls = 0;
+    let followed = false;
+    server.use(
+      http.get(API, () => {
+        calls++;
+        return new HttpResponse(null, {
+          status: 302,
+          headers: { location: "https://web3.career/login?token=" + TOKEN },
+        });
+      }),
+      http.get("https://web3.career/login", () => {
+        followed = true;
+        return HttpResponse.json(envelope);
+      }),
+    );
+    const lines: string[] = [];
+    vi.mocked(log.warn).mockImplementation((msg, fields) => {
+      lines.push(JSON.stringify({ msg, fields }));
+    });
+    const err = await adapter.fetch(new Date(0)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceError);
+    expect((err as SourceError).message).toContain("token rejected (HTTP 302)");
+    expect(inspect(err, { depth: 10, showHidden: true })).not.toContain(TOKEN);
+    expect(lines.join("\n")).not.toContain(TOKEN);
+    expect(followed).toBe(false);
+    expect(calls).toBe(1);
+  });
+
+  it.each([401, 403])("treats %i as a rejected token", async (status) => {
+    server.use(http.get(API, () => new HttpResponse(null, { status })));
+    const err = await adapter.fetch(new Date(0)).catch((e: unknown) => e);
+    expect((err as SourceError).message).toContain(`token rejected (HTTP ${status})`);
+    expect(inspect(err, { depth: 10, showHidden: true })).not.toContain(TOKEN);
+  });
+
+  it("parses salary strings and keeps null salary null", async () => {
+    serve(envelope);
+    const byId = new Map((await adapter.fetch(new Date(0))).map((p) => [p.externalId, p]));
+    expect(byId.get("155044")?.salary).toEqual({
+      min: 400000,
+      max: 600000,
+      currency: "USD",
+      period: "year",
+    });
+    for (const id of ["155045", "155043", "155034", "155026"]) {
+      expect(byId.get(id)).not.toHaveProperty("salary");
+    }
+  });
+
+  it("strips the apply instruction whatever the code word or case", async () => {
+    const variants = [
+      "<p>x</p>\n When applying, mention the word BANANA to show you read the job post completely.",
+      "<p>x</p> WHEN APPLYING, MENTION THE WORD pear TO SHOW YOU READ THE JOB POST COMPLETELY.",
+    ];
+    serve(wrap(variants.map((description, i) => ({ ...jobs[0], id: 900 + i, description }))));
+    for (const p of await adapter.fetch(new Date(0))) {
+      expect(p.descriptionHtml?.toLowerCase()).not.toContain("mention the word");
+      expect(p.descriptionHtml).toBe("<p>x</p>");
+    }
+  });
+
+  it("no description from the fixture contains the instruction", async () => {
+    serve(envelope);
+    for (const p of await adapter.fetch(new Date(0))) {
+      expect(p.descriptionHtml?.toLowerCase()).not.toContain("mention the word");
+    }
+  });
+
+  it("takes the location from location, never from country", async () => {
+    serve(envelope);
+    const byId = new Map((await adapter.fetch(new Date(0))).map((p) => [p.externalId, p]));
+    // Fixture row 155026: country "united-states" but location names New Jersey.
+    expect(jobs.find((j) => j["id"] === 155026)?.["country"]).toBe("united-states");
+    expect(byId.get("155026")?.locationText).toBe("United States New Jersey US");
+    expect(byId.get("155045")?.locationText).toBe("Hong Kong");
+  });
+
+  it("parses the fixture into 5 valid postings with none rejected", async () => {
+    serve(envelope);
+    const postings = await adapter.fetch(new Date(0));
+    expect(postings).toHaveLength(5);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
   it("rejects with SourceError on 500 after retries", async () => {
     let calls = 0;
     server.use(
