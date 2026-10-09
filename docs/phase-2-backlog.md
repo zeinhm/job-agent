@@ -92,3 +92,34 @@ Audits: 3 individual (LLM cap, scam, tier/ask). 20 medium + 2 low merges -> abou
 5. Confirm the scam threshold (60/100) and the careers-page lookup (max 2 pages per company per 90 days).
 6. Say if you want the phase-end audit to run one live `enrich` (default: no, you run it in the owner review).
 7. Confirm out of scope: salary observations / outcome learning (Phase 6), digest channel, instant alerts, YC (Phase 3).
+
+## Fix round (planned 2026-10-09, card t_aed4e964)
+
+Owner decided on a fix round before Phase 3 (`docs/phase-2-report.md` "Before you approve" item 1). Not a new phase: no
+gate, no report. Every dev card is **high** risk (fix tasks from audit findings): dev -> QA -> individual audit, the
+auditor merges. Sources: `docs/audits/phase-2.md` (M1-M7) and `docs/phase-2-report.md` (F1).
+
+| # | Dev | QA | Audit | Fixes | Waits for |
+|---|---|---|---|---|---|
+| 1 | t_2ea07d88 Tier stage never finishes a posting without an FX rate; re-tier after fx | t_18e8fc88 | t_5471fbf5 | F1 | - |
+| 2 | t_779c41f7 Wire company pay-policy research into enrich | t_4c60bc2e | t_4640dff9 | M2 (+ F2 redirects) | audit 1 |
+| 3 | t_9a476254 Fix role_unclear resolution and extend non-engineering role rules | t_16944f49 | t_49564d95 | M1, M7 roles | - |
+| 4 | t_2613b8f2 Arbeitnow and one ATS board in bin/smoke; all ATS sources in dedupe and digest | t_0b972077 | t_99d39580 | M3, M4 | - |
+| 5 | t_4e64c74f Digest groups take link and intel from the same member | t_f3288b92 | t_6a6d97d1 | M5 | - |
+| 6 | t_183be927 Enrich robustness: keep paid extraction, abort after API errors, scam rules without a key | t_2d941577 | t_d714cb0f | M6, M7 scam | audits 2 and 5 |
+| 7 | t_d5a087e1 Rebuild the web3.career adapter against the real API response | t_05c7f51f | t_ed537729 | live-findings 7-8 | - |
+
+Then **t_9f75ddd4 Phase-end audit #2b: re-audit Phase 2** (auditor, waits for all 7 audits): re-audit, save the batch #2
+report to `docs/audits/batch-2.md`, clean `docs/audit-ledger.md`, tag `audit-5` on PASS. The owner review t_a2206a16
+now waits for it.
+
+Ordering: cards 1 -> 2 -> 6 run in sequence because all three edit `enrich.ts`; 6 also waits for 5 (digest sections).
+Cards 3, 4, 5 and 7 run in parallel. Design choices made in the cards (dev records them in decisions.md):
+- M1: a `roleFamily` fact (engineering / non_engineering / null) in the extraction; seniority alone never keeps;
+  non-engineering title phrases are checked before the target skill.
+- F1: a waiting intel state instead of `done`; the next `enrich` with a rate runs only the tier stage (0 LLM calls).
+- M6: abort after 3 consecutive API errors with a non-zero exit; failed/timed-out calls count at their reserved cost.
+- web3.career: HTTP 302 = token rejected (the t_08e114f8 redirect-follow fix is removed); URL cleanup skipped by source.
+
+Left open on purpose (minor, not in this round): M7 RemoteOK mojibake, UTC-offset location lines, prompt-injection
+hardening; F2 stale-FX warning; F3; F4; F5 overlap lock, `failed` retry, `max_tokens` retry cost, volatile `contentHash`.
