@@ -124,7 +124,8 @@ and cost. No eval script is shipped yet, so there is nothing to run. Until then:
 `bin/smoke [dir]` runs the whole pipeline once against the live public feeds without touching `config/` or `data/`:
 it copies the `config/*.example.*` files, uses a temp DB (`<dir>/smoke.db`, default dir from `mktemp`), then runs
 `fx`, `discover --force --source <s>` for each keyless source one by one (`himalayas`, `remoteok`, `remotive`,
-`weworkremotely`, `hn`; `web3career` only if `WEB3_CAREER_TOKEN` is already in your environment), `process`,
+`weworkremotely`, `hn`, `arbeitnow`, plus one public ATS board: Greenhouse `gitlab`, written into the
+temp `companies.yaml`; `web3career` only if `WEB3_CAREER_TOKEN` is already in your environment), `process`,
 `enrich` (it runs without a key and prints its skip line), and `digest` into
 `<dir>/digests/`. It ends with `status` (row counts and per-source result) and the smoke dir and digests paths.
 

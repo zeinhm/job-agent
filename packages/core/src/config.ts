@@ -3,6 +3,16 @@ import { join } from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
 
+/** ATS boards the adapters read; also the source names of their postings. Single source of truth. */
+export const ATS_TYPES = [
+  "greenhouse",
+  "lever",
+  "ashby",
+  "smartrecruiters",
+  "workable",
+  "recruitee",
+] as const;
+
 const salaryConfigSchema = z.strictObject({
   floor_idr_month: z.number().positive(),
   position_in_listed_range: z.number().min(0).max(1),
@@ -21,7 +31,7 @@ const companiesConfigSchema = z.strictObject({
   companies: z.array(
     z.strictObject({
       name: z.string().min(1),
-      ats: z.enum(["greenhouse", "lever", "ashby", "smartrecruiters", "workable", "recruitee"]),
+      ats: z.enum(ATS_TYPES),
       slug: z.string().min(1),
     }),
   ),

@@ -1,4 +1,4 @@
-const ATS_SOURCES = new Set(["greenhouse", "lever", "ashby"]);
+import { ATS_SOURCE_NAMES } from "../filters/keywords.ts";
 
 const M = 1_000_000;
 
@@ -28,7 +28,7 @@ export function formatSalary(s: SalaryView): string {
 }
 
 export function isAtsSource(source: string): boolean {
-  return ATS_SOURCES.has(source);
+  return ATS_SOURCE_NAMES.includes(source);
 }
 
 /** Parses a JSON text array column; anything else is an empty list. */

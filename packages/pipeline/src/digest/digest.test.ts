@@ -237,6 +237,14 @@ describe("runDigest", () => {
     expect(text).not.toContain("apply.example.com/api");
   });
 
+  it.each(["smartrecruiters", "workable", "recruitee"])(
+    "links the ATS apply url for a %s posting",
+    (source) => {
+      seed("ats", { source, applyUrl: "https://apply.example.com/ats" });
+      expect(run().text).toContain("- Link: https://apply.example.com/ats");
+    },
+  );
+
   it("is idempotent and picks up newly kept postings under the same date", () => {
     seedDay();
     const first = run();

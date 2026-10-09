@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { companies, postings, type Db, type Posting } from "@job-agent/core";
+import { ATS_SOURCE_NAMES } from "../filters/keywords.ts";
 import { normalizeCompanyName } from "../normalize/index.ts";
 
 const MERGE_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
-const ATS_SOURCES = new Set(["greenhouse", "lever", "ashby"]);
 
 /** Comparable title key: lowercase, no punctuation, no standalone remote / full time / contract tokens. */
 export function normalizeTitle(title: string): string {
@@ -25,7 +25,7 @@ export function dedupeHash(normalizedCompany: string, title: string): string {
 
 /** Lower is better: ATS < other API sources < hn. */
 function sourceRank(source: string): number {
-  if (ATS_SOURCES.has(source)) return 0;
+  if (ATS_SOURCE_NAMES.includes(source)) return 0;
   return source === "hn" ? 2 : 1;
 }
 

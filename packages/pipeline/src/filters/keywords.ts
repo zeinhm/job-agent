@@ -3,6 +3,7 @@
  * Phrases are matched case-insensitively on word boundaries, except those in CASE_SENSITIVE_PHRASES.
  * Timezone ranges are not listed here: they are parsed in location.ts.
  */
+import { ATS_TYPES } from "@job-agent/core";
 
 /** Phrases that only count when written exactly like this (short tokens that are also ordinary words). */
 export const CASE_SENSITIVE_PHRASES: readonly string[] = ["SEA"];
@@ -545,12 +546,5 @@ export const ATS_APPLY_HOSTS: readonly string[] = [
   "recruitee.com",
 ];
 
-/** Source names that come straight from a company's ATS board. */
-export const ATS_SOURCE_NAMES: readonly string[] = [
-  "greenhouse",
-  "lever",
-  "ashby",
-  "smartrecruiters",
-  "workable",
-  "recruitee",
-];
+/** Source names that come straight from a company's ATS board (derived from the config enum, never copied). */
+export const ATS_SOURCE_NAMES: readonly string[] = ATS_TYPES;

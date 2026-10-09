@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # bin/smoke [dir]: live smoke run of the pipeline on a temp DB with the EXAMPLE configs.
-# Polls every public keyless source one by one (a failing source does not stop the others), then process + digest.
+# Polls every public keyless source (incl. arbeitnow) and one public ATS board one by one (a failing source does not stop the others), then process + digest.
 # web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
 # Never touches config/ or data/. No LLM calls: if `enrich` exists it runs without a key and prints its skip line.
 # JOB_AGENT_CLI overrides the CLI command (used by tests).
@@ -13,7 +13,11 @@ export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config"
 unset ANTHROPIC_API_KEY
 read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
 
-SOURCES=(himalayas remoteok remotive weworkremotely hn)
+# Exactly one ATS board is polled: Greenhouse "gitlab" (a large public board, many postings from a single request;
+# the Greenhouse adapter paces its own requests). It is written into the temp companies.yaml below, never read from config/.
+printf 'companies:\n  - { name: GitLab, ats: greenhouse, slug: gitlab }\n' > "$DIR/config/companies.yaml"
+
+SOURCES=(himalayas remoteok remotive weworkremotely hn arbeitnow greenhouse)
 if [ -n "${WEB3_CAREER_TOKEN:-}" ]; then SOURCES+=(web3career); else echo "web3career: skipped (WEB3_CAREER_TOKEN not set)"; fi
 
 fail=0

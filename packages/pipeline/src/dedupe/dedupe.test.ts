@@ -70,6 +70,16 @@ describe("dedupePending", () => {
     expect(hashes[0]).toBe(hashes[1]);
   });
 
+  it.each(["smartrecruiters", "workable", "recruitee"])(
+    "%s posting wins canonical over an aggregator copy",
+    (source) => {
+      const r = add("remotive", "Acme Inc", "Senior Frontend Engineer (Remote)", 0, "r");
+      const a = add(source, "Acme", "Senior Frontend Engineer", 1, "a");
+      expect(run()).toBe(2);
+      expect(state()).toEqual({ [r]: a, [a]: null });
+    },
+  );
+
   it("does not merge same-source postings", () => {
     const a = add("greenhouse", "Acme", "Backend Engineer", 0, "a");
     const b = add("greenhouse", "Acme", "Backend Engineer", 0, "b");

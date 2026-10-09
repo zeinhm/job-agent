@@ -50,7 +50,15 @@ describe("bin/smoke", () => {
     const { res, calls } = run();
     expect(res.status).toBe(0);
     const discovered = calls.filter((c) => c.startsWith("discover")).map((c) => c.split(" ")[3]);
-    expect(discovered).toEqual(["himalayas", "remoteok", "remotive", "weworkremotely", "hn"]);
+    expect(discovered).toEqual([
+      "himalayas",
+      "remoteok",
+      "remotive",
+      "weworkremotely",
+      "hn",
+      "arbeitnow",
+      "greenhouse",
+    ]);
     for (const c of calls.filter((c) => c.startsWith("discover"))) expect(c).toContain("--force");
     const order = calls.map((c) => c.split(" ")[0]);
     expect(order.slice(-3)).toEqual(["process", "digest", "status"]);
@@ -69,6 +77,9 @@ describe("bin/smoke", () => {
       expect(c).not.toContain("KEY=sk-x");
     }
     expect(existsSync(join(smokeDir, "config", "salary.yaml"))).toBe(true);
+    expect(readFileSync(join(smokeDir, "config", "companies.yaml"), "utf-8")).toBe(
+      "companies:\n  - { name: GitLab, ats: greenhouse, slug: gitlab }\n",
+    );
   });
 
   it("polls web3career only when its token is already set", () => {
