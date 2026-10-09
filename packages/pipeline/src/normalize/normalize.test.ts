@@ -289,6 +289,8 @@ describe("company domain from posting links", () => {
     ["himalayas", "https://himalayas.app/companies/acme/jobs/1"],
     ["weworkremotely", "https://weworkremotely.com/remote-jobs/1"],
     ["arbeitnow", "https://www.arbeitnow.com/jobs/1"],
+    ["arbeitnow.ch", "https://www.arbeitnow.ch/jobs/1"],
+    ["arbeitnow.co.uk", "https://arbeitnow.co.uk/jobs/1"],
     ["web3.career", "https://web3.career/acme/1"],
     ["hacker news", "https://news.ycombinator.com/item?id=1"],
     ["bit.ly shortener", "https://bit.ly/abc"],

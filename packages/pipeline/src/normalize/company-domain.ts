@@ -40,6 +40,15 @@ const ATS_VENDOR_DOMAINS: readonly string[] = [
   "welcometothejungle.com",
 ];
 
+/** Board brand names: excluded on every TLD (smoke: Arbeitnow links to arbeitnow.ch / .fr / .co.uk). */
+const JOB_BOARD_BRANDS: readonly string[] = [
+  "arbeitnow",
+  "remoteok",
+  "remotive",
+  "himalayas",
+  "weworkremotely",
+];
+
 function matches(host: string, list: readonly string[]): boolean {
   return list.some((h) => host === h || host.endsWith(`.${h}`));
 }
@@ -59,7 +68,9 @@ export function companyDomainFromUrl(url: string | null | undefined): string | n
     return null;
   }
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) || /^\d+(\.\d+){3}$/.test(host)) return null;
+  const labels = host.split(".");
   if (
+    labels.some((l) => JOB_BOARD_BRANDS.includes(l)) ||
     matches(host, JOB_BOARD_HOSTS) ||
     matches(host, ATS_APPLY_HOSTS) ||
     matches(host, ATS_VENDOR_DOMAINS) ||
