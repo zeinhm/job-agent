@@ -183,6 +183,42 @@ describe("enrich fit stage", () => {
     }
   });
 
+  it("a posting extracted as design is rejected before fit; a fullstack posting is fit-scored", async () => {
+    const withFamily = (roleFamily: string) => {
+      const msg = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
+      const block = msg.content[msg.content.length - 1];
+      if (block?.text === undefined) throw new Error("fixture shape");
+      block.text = JSON.stringify({ ...JSON.parse(block.text), roleFamily });
+      return msg;
+    };
+    const design = withFamily("design");
+    const fullstack = withFamily("fullstack");
+    addPosting("anim", { title: "Senior Gameplay Animator" });
+    addPosting("dev", { title: "Senior Full-Stack Engineer" });
+    server.use(
+      http.post(URL, async ({ request }) => {
+        const body = (await request.json()) as Req;
+        requests.push(body);
+        if (body["model"] === FIT_MODEL) return HttpResponse.json(fixture(fitResponse));
+        const text = String((body["messages"] as { content: string }[])[0]?.content);
+        return HttpResponse.json(text.includes("Gameplay Animator") ? design : fullstack);
+      }),
+    );
+    const r = await enrich();
+    expect(r.code).toBe(0);
+    const anim = intelOf("anim");
+    expect(anim?.final_decision).toBe("reject");
+    expect(JSON.parse(anim?.resolved_reasons ?? "[]")).toEqual([
+      "Role: the posting is a design role, outside the target (frontend, fullstack).",
+    ]);
+    expect(anim?.fit_score).toBeNull();
+    const fitCalls = db.select().from(llm_calls).where(eq(llm_calls.purpose, "fit")).all();
+    expect(fitCalls.map((c) => c.posting_id)).toEqual(["dev"]);
+    expect(fitRequests()).toHaveLength(1);
+    expect(intelOf("dev")?.final_decision).toBe("keep");
+    expect(intelOf("dev")?.fit_score).toBe(82);
+  });
+
   it("sends the CV as the cacheable prefix, ahead of the posting; posting text stays out of it", async () => {
     addPosting("p1", { description_text: "UNIQUE-POSTING-MARKER React role. ".repeat(8) });
     await enrich();

@@ -7,7 +7,7 @@
   "content": [
     {
       "type": "text",
-      "text": "{\"listedSalary\":{\"min\":90000,\"max\":130000,\"currency\":\"USD\",\"period\":\"year\"},\"listedSalaryScope\":\"all_locations\",\"hiringScope\":\"worldwide\",\"regions\":[],\"remoteRegions\":[\"UTC-3 to UTC+3\"],\"allowedCountries\":[],\"indonesiaExplicit\":\"unknown\",\"companyHq\":\"DE\",\"companyType\":\"product\",\"payPolicy\":\"location_agnostic\",\"employment\":\"contractor\",\"eorProvider\":\"\",\"seniority\":\"senior\",\"roleFamily\":\"engineering\",\"contactChannels\":[\"ats\"],\"personalEmailDomain\":\"unknown\",\"asksForPaymentOrId\":\"no\",\"repoAssessmentEarly\":\"unknown\",\"urgencyLanguage\":\"no\",\"vagueDescription\":\"no\"}"
+      "text": "{\"listedSalary\":{\"min\":90000,\"max\":130000,\"currency\":\"USD\",\"period\":\"year\"},\"listedSalaryScope\":\"all_locations\",\"hiringScope\":\"worldwide\",\"regions\":[],\"remoteRegions\":[\"UTC-3 to UTC+3\"],\"allowedCountries\":[],\"indonesiaExplicit\":\"unknown\",\"companyHq\":\"DE\",\"companyType\":\"product\",\"payPolicy\":\"location_agnostic\",\"employment\":\"contractor\",\"eorProvider\":\"\",\"seniority\":\"senior\",\"roleFamily\":\"fullstack\",\"contactChannels\":[\"ats\"],\"personalEmailDomain\":\"unknown\",\"asksForPaymentOrId\":\"no\",\"repoAssessmentEarly\":\"unknown\",\"urgencyLanguage\":\"no\",\"vagueDescription\":\"no\"}"
     }
   ],
   "stop_reason": "end_turn",

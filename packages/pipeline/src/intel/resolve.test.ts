@@ -1,9 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { ExtractionSchema, type Extraction } from "./extract.ts";
+import {
+  EXTRACT_PROMPT_VERSION,
+  ExtractionSchema,
+  ROLE_FAMILIES,
+  type Extraction,
+} from "./extract.ts";
 import { EXTRACT_SYSTEM_PROMPT } from "./prompts/extract.ts";
-import { resolveFlags, type ResolveInput } from "./resolve.ts";
+import { resolveFlags, TARGET_ROLE_FAMILIES, type ResolveInput } from "./resolve.ts";
 
 const BLANK: Extraction = ExtractionSchema.parse({
   listedSalary: null,
@@ -113,41 +118,115 @@ describe("resolve: indonesia", () => {
   });
 });
 
-describe("resolve: role", () => {
+describe("resolve: role family, no flags", () => {
+  it.each([
+    [
+      "design",
+      "reject",
+      "Role: the posting is a design role, outside the target (frontend, fullstack).",
+    ],
+    [
+      "backend",
+      "reject",
+      "Role: the posting is a backend role, outside the target (frontend, fullstack).",
+    ],
+    [
+      "mobile",
+      "reject",
+      "Role: the posting is a mobile role, outside the target (frontend, fullstack).",
+    ],
+    [
+      "data_ml",
+      "reject",
+      "Role: the posting is a data_ml role, outside the target (frontend, fullstack).",
+    ],
+    [
+      "devops_sre",
+      "reject",
+      "Role: the posting is a devops_sre role, outside the target (frontend, fullstack).",
+    ],
+    [
+      "security",
+      "reject",
+      "Role: the posting is a security role, outside the target (frontend, fullstack).",
+    ],
+    [
+      "non_engineering",
+      "reject",
+      "Role: the posting is a non_engineering role, outside the target (frontend, fullstack).",
+    ],
+    ["not_a_job", "reject", "Role: the text is not a job posting."],
+  ] as const)("%s -> %s", (roleFamily, decision, reason) => {
+    expect(run([], { roleFamily })).toEqual({ decision, reasons: [reason], remainingFlags: [] });
+  });
+  it.each(["frontend", "fullstack"] as const)("%s -> keep, no reason", (roleFamily) => {
+    expect(run([], { roleFamily })).toEqual({ decision: "keep", reasons: [], remainingFlags: [] });
+  });
+  it("null family -> keep, no reason added", () => {
+    expect(run([], { roleFamily: null })).toEqual({
+      decision: "keep",
+      reasons: [],
+      remainingFlags: [],
+    });
+  });
+  it("a rule reject stays untouched", () => {
+    expect(run([], { roleFamily: "design" }, "reject").reasons).toEqual([]);
+  });
+  it("another flag settling to keep does not rescue an out-of-target family", () => {
+    const r = run(["location_unclear"], { hiringScope: "worldwide", roleFamily: "backend" });
+    expect(r.decision).toBe("reject");
+    expect(r.remainingFlags).toEqual([]);
+    expect(r.reasons).toHaveLength(2);
+  });
+  it("target constant", () => {
+    expect(TARGET_ROLE_FAMILIES).toEqual(["frontend", "fullstack"]);
+  });
+});
+
+describe("resolve: role_unclear", () => {
   const f = ["role_unclear"];
   const unresolved = { decision: "keep", reasons: [], remainingFlags: f };
-  it("engineering + senior or lead -> keep, reason names the family and level", () => {
-    const senior = run(f, { roleFamily: "engineering", seniority: "senior" });
+  it("target family + senior or lead -> keep, flag settled, reason names family and level", () => {
+    const senior = run(f, { roleFamily: "fullstack", seniority: "senior" });
     expect(senior.decision).toBe("keep");
-    expect(senior.reasons).toEqual(["Role: engineering role at senior level."]);
+    expect(senior.reasons).toEqual(["Role: fullstack role at senior level."]);
     expect(senior.remainingFlags).toEqual([]);
-    const lead = run(f, { roleFamily: "engineering", seniority: "lead" });
+    const lead = run(f, { roleFamily: "frontend", seniority: "lead" });
     expect(lead.decision).toBe("keep");
-    expect(lead.reasons).toEqual(["Role: engineering role at lead level."]);
+    expect(lead.reasons).toEqual(["Role: frontend role at lead level."]);
   });
-  it("engineering + mid -> reject", () => {
-    const r = run(f, { roleFamily: "engineering", seniority: "mid" });
+  it("target family + mid -> reject", () => {
+    const r = run(f, { roleFamily: "fullstack", seniority: "mid" });
     expect(r.decision).toBe("reject");
     expect(r.reasons[0]).toContain("mid level");
   });
-  it("non-engineering -> reject, whatever the seniority", () => {
-    for (const seniority of ["senior", "lead", "mid", null] as const) {
-      const r = run(f, { roleFamily: "non_engineering", seniority });
-      expect(r.decision, String(seniority)).toBe("reject");
-      expect(r.reasons[0]).toContain("non-engineering");
-      expect(r.remainingFlags).toEqual([]);
-    }
+  it("backend + senior -> reject with the family reason once", () => {
+    const r = run(f, { roleFamily: "backend", seniority: "senior" });
+    expect(r.decision).toBe("reject");
+    expect(r.reasons).toEqual([
+      "Role: the posting is a backend role, outside the target (frontend, fullstack).",
+    ]);
+    expect(r.remainingFlags).toEqual([]);
   });
-  it("seniority alone never keeps: unknown or null family stays unresolved", () => {
+  it("non-engineering and not_a_job -> reject, whatever the seniority", () => {
+    for (const roleFamily of ["non_engineering", "not_a_job"] as const)
+      for (const seniority of ["senior", "lead", "mid", null] as const) {
+        const r = run(f, { roleFamily, seniority });
+        expect(r.decision, `${roleFamily}/${seniority}`).toBe("reject");
+        expect(r.remainingFlags).toEqual([]);
+      }
+  });
+  it("target family + null seniority -> flag stays", () => {
+    expect(run(f, { roleFamily: "fullstack", seniority: null })).toEqual(unresolved);
+  });
+  it("seniority alone never keeps: null family stays unresolved", () => {
     for (const seniority of ["senior", "lead", "mid"] as const)
       expect(run(f, { roleFamily: null, seniority }), seniority).toEqual(unresolved);
-    expect(run(f, { roleFamily: "engineering", seniority: null })).toEqual(unresolved);
     expect(run(f, { companyType: "product" })).toEqual(unresolved);
   });
   it("no reason says 'matches the target' on any branch", () => {
-    const families = ["engineering", "non_engineering", null] as const;
     const levels = ["senior", "lead", "mid", null] as const;
-    for (const roleFamily of families)
+    for (const roleFamily of [...ROLE_FAMILIES, null])
       for (const seniority of levels) {
         const r = run(f, { roleFamily, seniority });
         for (const reason of r.reasons)
@@ -163,14 +242,25 @@ describe("extraction schema: roleFamily", () => {
     expect("roleFamily" in old).toBe(false);
     expect(ExtractionSchema.parse(old).roleFamily).toBeNull();
   });
-  it("accepts the two families and rejects anything else", () => {
-    expect(ExtractionSchema.parse({ ...BLANK, roleFamily: "engineering" }).roleFamily).toBe(
-      "engineering",
-    );
+  it("accepts the ten families and rejects anything else", () => {
+    for (const roleFamily of ROLE_FAMILIES)
+      expect(ExtractionSchema.parse({ ...BLANK, roleFamily }).roleFamily).toBe(roleFamily);
     expect(() => ExtractionSchema.parse({ ...BLANK, roleFamily: "sales" })).toThrow();
   });
-  it("the extraction prompt asks for the fact", () => {
+  it("an extract-v3 row with 'engineering' parses as null and resolves with no family reject", () => {
+    const old = ExtractionSchema.parse({ ...BLANK, roleFamily: "engineering" });
+    expect(old.roleFamily).toBeNull();
+    expect(resolveFlags({ ruleDecision: "keep", flags: [], extraction: old })).toEqual({
+      decision: "keep",
+      reasons: [],
+      remainingFlags: [],
+    });
+  });
+  it("the prompt defines the families and the Gameplay Animator example", () => {
     expect(EXTRACT_SYSTEM_PROMPT).toContain("roleFamily");
+    for (const family of ROLE_FAMILIES) expect(EXTRACT_SYSTEM_PROMPT).toContain(`"${family}"`);
+    expect(EXTRACT_SYSTEM_PROMPT).toMatch(/"Gameplay Animator"[^.]*"design"/);
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v4");
   });
 });
 
@@ -180,7 +270,7 @@ describe("resolve: combination and guards", () => {
       hiringScope: "worldwide",
       companyHq: "ID",
       seniority: "senior",
-      roleFamily: "engineering",
+      roleFamily: "fullstack",
     });
     expect(r.decision).toBe("reject");
     expect(r.reasons).toHaveLength(3);

@@ -172,6 +172,39 @@ describe("ranked digest", () => {
     expect(sectionOf(text, "Needs a look")).not.toContain("Settled Location");
   });
 
+  it("renders a stored extract-v3 row whose roleFamily is 'engineering' (parses as unknown, no reject)", () => {
+    const extraction = {
+      listedSalary: null,
+      listedSalaryScope: null,
+      hiringScope: "worldwide",
+      regions: [],
+      remoteRegions: [],
+      allowedCountries: [],
+      indonesiaExplicit: null,
+      companyHq: null,
+      companyType: null,
+      payPolicy: null,
+      employment: null,
+      eorProvider: null,
+      seniority: null,
+      roleFamily: "engineering",
+      contactChannels: [],
+      personalEmailDomain: null,
+      asksForPaymentOrId: null,
+      repoAssessmentEarly: null,
+      urgencyLanguage: null,
+      vagueDescription: null,
+    };
+    seed("v3", {
+      title: "Legacy Engineer",
+      flags: ["location_unclear"],
+      intel: { fit_score: 77, extraction: JSON.stringify(extraction) },
+    });
+    const text = run();
+    expect(sectionOf(text, "Top matches")).toContain("Legacy Engineer");
+    expect(sectionOf(text, "Top matches")).toContain("(rank 77)");
+  });
+
   it("gives every top match fit score, reasons, tier and ask, and a why line", () => {
     seed("t1", {
       title: "Senior Frontend Engineer",

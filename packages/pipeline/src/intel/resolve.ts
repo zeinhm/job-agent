@@ -1,4 +1,7 @@
-import type { Extraction } from "./extract.ts";
+import type { Extraction, RoleFamily } from "./extract.ts";
+
+/** The families the owner applies to (PLAN 1 Target). Changing the target is an edit of this line. */
+export const TARGET_ROLE_FAMILIES: readonly RoleFamily[] = ["frontend", "fullstack"];
 
 export type ResolvableFlag = "location_unclear" | "indonesia_unclear" | "role_unclear";
 const RESOLVABLE: readonly ResolvableFlag[] = [
@@ -116,22 +119,32 @@ function resolveIndonesia(x: Extraction): Outcome {
   };
 }
 
+/** A known family outside the target rejects every kept posting; a null family settles nothing. */
+function familyReject(x: Extraction): { decision: "reject"; reason: string } | null {
+  const family = x.roleFamily;
+  if (family === null || TARGET_ROLE_FAMILIES.includes(family)) return null;
+  return {
+    decision: "reject",
+    reason:
+      family === "not_a_job"
+        ? "Role: the text is not a job posting."
+        : `Role: the posting is a ${family} role, outside the target (${TARGET_ROLE_FAMILIES.join(", ")}).`,
+  };
+}
+
 function resolveRole(x: Extraction): Outcome {
-  if (x.roleFamily === "non_engineering")
-    return {
-      decision: "reject",
-      reason: "Role: the posting's role family is non-engineering, not the engineering target.",
-    };
-  if (x.roleFamily !== "engineering") return null;
+  const outside = familyReject(x);
+  if (outside !== null) return outside;
+  if (x.roleFamily === null) return null;
   if (x.seniority === "senior" || x.seniority === "lead")
     return {
       decision: "keep",
-      reason: `Role: engineering role at ${x.seniority} level.`,
+      reason: `Role: ${x.roleFamily} role at ${x.seniority} level.`,
     };
   if (x.seniority === "mid")
     return {
       decision: "reject",
-      reason: "Role: engineering role at mid level, below the senior target.",
+      reason: `Role: ${x.roleFamily} role at mid level, below the senior target.`,
     };
   return null;
 }
@@ -144,7 +157,7 @@ const RESOLVERS: Record<ResolvableFlag, (x: Extraction) => Outcome> = {
 
 /**
  * Settles unclear flags from extracted facts. Pure; the LLM extracted the facts, this code decides.
- * Never overturns a rule reject. A flag whose facts are unknown stays in `remainingFlags`.
+ * Never overturns a rule reject; a known role family outside `TARGET_ROLE_FAMILIES` rejects a kept posting. A flag whose facts are unknown stays in `remainingFlags`.
  */
 export function resolveFlags(input: ResolveInput): ResolveResult {
   const present = RESOLVABLE.filter((f) => input.flags.includes(f));
@@ -161,6 +174,12 @@ export function resolveFlags(input: ResolveInput): ResolveResult {
     }
     reasons.push(outcome.reason);
     if (outcome.decision === "reject") decision = "reject";
+  }
+  // A family outside the target rejects even when no flag asked for it.
+  const outside = familyReject(input.extraction);
+  if (outside !== null) {
+    decision = "reject";
+    if (!reasons.includes(outside.reason)) reasons.push(outside.reason);
   }
   return { decision, reasons, remainingFlags };
 }
