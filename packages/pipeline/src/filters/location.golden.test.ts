@@ -9,6 +9,7 @@ const GoldenCase = z.object({
   id: z.string(),
   locationText: z.string(),
   descriptionSnippet: z.string(),
+  remote: z.boolean().optional(),
   expected: z.enum(CLASSES),
   source: z.string(),
   added: z.literal("phase2").optional(),
@@ -37,6 +38,7 @@ function run(): Row[] {
     const result = classifyLocation({
       locationText: c.locationText,
       descriptionText: c.descriptionSnippet,
+      ...(c.remote !== undefined && { remote: c.remote }),
     });
     return {
       id: c.id,

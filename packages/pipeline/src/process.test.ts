@@ -238,6 +238,18 @@ describe("runProcess", () => {
     expect(JSON.parse(byPosting("target").flags ?? "[]")).toEqual(["salary_unknown"]);
   });
 
+  it("rejects an Arbeitnow posting with remote=false and a place-only location, keeps remote=true", () => {
+    const base = { source: "arbeitnow", title: "Senior Frontend Engineer" } as const;
+    add({ id: "an-onsite", location_text: "Munich", remote: false, ...base });
+    add({ id: "an-remote", location_text: "Remote, Berlin", remote: true, ...base });
+    run();
+    expect(byPosting("an-onsite").decision).toBe("reject");
+    expect(JSON.parse(byPosting("an-onsite").reasons ?? "[]")).toContain(
+      "location: step 2 source marks the posting as not remote",
+    );
+    expect(byPosting("an-remote").decision).toBe("keep");
+  });
+
   it("re-analyses a no_fx posting once rates exist, but not a digested one", () => {
     db.delete(fx_rates).run();
     const pay = {

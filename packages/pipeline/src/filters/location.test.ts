@@ -162,8 +162,12 @@ describe("step 5: unclear", () => {
     check({ locationText: null, descriptionText: null, tags: null }, "unclear");
   });
 
-  it("an unrelated location stays unclear", () => {
-    check({ locationText: "Berlin, Germany" }, "unclear");
+  it("remote wording only in the description does not rescue a place-only location", () => {
+    check(
+      { locationText: "Berlin", descriptionText: "remote-friendly team" },
+      "restricted",
+      "step 5 onsite",
+    );
   });
 });
 
@@ -202,5 +206,122 @@ describe("step 2: country-restricted remote", () => {
     ["Remote, Berlin", "unclear"],
   ] as const)("%s -> %s", (locationText, expected) => {
     check({ locationText }, expected);
+  });
+});
+
+describe("step 5 onsite: a place-only location", () => {
+  it.each([
+    "Berlin",
+    "München",
+    "Paris, France",
+    "London Office",
+    "Munich, Bavaria, Germany",
+    "New York, NY",
+  ])("%s -> restricted", (locationText) => {
+    check(
+      { locationText },
+      "restricted",
+      `step 5 onsite: location names a place without remote wording "${locationText}"`,
+    );
+  });
+
+  it.each([
+    ["Berlin with remote: true", { locationText: "Berlin", remote: true }],
+    ["Berlin, Germany or Remote", { locationText: "Berlin, Germany or Remote" }],
+    ["Berlin + tag Remote", { locationText: "Berlin", tags: ["Remote"] }],
+  ] as const)("%s is not restricted by the onsite rule", (_n, input) => {
+    expect(classifyLocation(input).reason).not.toContain("step 5 onsite");
+    expect(classifyLocation(input).class).toBe("unclear");
+  });
+
+  it("worldwide and APAC signals still win", () => {
+    check({ locationText: "San Francisco", descriptionText: "work from anywhere" }, "worldwide");
+    check({ locationText: "Singapore, APAC office" }, "apac_ok");
+  });
+
+  it("empty and bare Remote stay unclear", () => {
+    check({ locationText: null }, "unclear", "no location information");
+    check({ locationText: "Remote" }, "unclear");
+  });
+});
+
+describe("step 5 whitelist: unknown text stays unclear", () => {
+  const NON_PLACES = [
+    "Weltweit",
+    "Fernarbeit",
+    "Telearbeit",
+    "Télétravail",
+    "Ortsunabhängig",
+    "Work-from-home",
+    "Work from home",
+    "Digital nomad",
+    "Nationwide",
+    "Deutschlandweit",
+    "Germany-wide",
+    "Landesweit",
+    "TBD",
+    "N/A",
+    "n/a",
+    "-",
+    "--",
+    "Not specified",
+    "Other",
+    "See description",
+    "To be determined",
+    "Mobile",
+    "Home",
+    "Anywhere in Europe",
+    "Europe",
+    "Asia",
+    "Location flexible",
+    "Multiple locations",
+    "Various",
+    "Several offices?",
+    "Nomade digital",
+    "Trabajo remoto",
+    "???",
+  ];
+  it.each(NON_PLACES)("%j is not restricted", (locationText) => {
+    expect(classifyLocation({ locationText }).class).not.toBe("restricted");
+  });
+
+  it("matches accent-insensitively and whole-word", () => {
+    check({ locationText: "Koln" }, "restricted");
+    check({ locationText: "Zürich" }, "restricted");
+    check({ locationText: "Parisian vibes" }, "unclear");
+  });
+
+  it("a place token never overrides remote wording", () => {
+    for (const locationText of [
+      "Berlin or Remote",
+      "Remote, Berlin",
+      "Berlin / Homeoffice",
+      "Munich Telearbeit",
+    ]) {
+      expect(classifyLocation({ locationText }).class).not.toBe("restricted");
+    }
+  });
+});
+
+describe("step 2: source says remote: false", () => {
+  it.each(["Berlin", ""])("remote:false + %j -> restricted", (locationText) => {
+    check(
+      { locationText, remote: false },
+      "restricted",
+      "step 2 source marks the posting as not remote",
+    );
+  });
+
+  it("remote:false + Remote is not rejected by that rule", () => {
+    const r = classifyLocation({ locationText: "Remote", remote: false });
+    expect(r.reason).not.toContain("not remote");
+    expect(r.class).toBe("unclear");
+  });
+
+  it("remote:false + remote tag or worldwide location is not rejected", () => {
+    expect(
+      classifyLocation({ locationText: "Berlin", tags: ["Remote"], remote: false }).class,
+    ).toBe("unclear");
+    expect(classifyLocation({ locationText: "Worldwide", remote: false }).class).toBe("worldwide");
   });
 });

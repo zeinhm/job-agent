@@ -52,6 +52,7 @@ function mapJob(job: ArbeitnowJob): RawPosting {
     company: job.company_name,
     ...(job.description && { descriptionHtml: job.description }),
     ...(location && { locationText: location }),
+    ...(job.remote != null && { remote: job.remote }),
     ...(job.created_at != null && { postedAt: new Date(job.created_at * 1000).toISOString() }),
     ...(tags.length > 0 && { tags }),
   };

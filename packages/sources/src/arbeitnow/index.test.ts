@@ -71,10 +71,12 @@ describe("arbeitnow adapter", () => {
       company: first.company_name,
       descriptionHtml: first.description,
       locationText: "Remote, Berlin",
+      remote: true,
       postedAt: "2026-10-08T12:00:00.000Z",
       tags: ["Remote", "Software Development", "Full time", "Permanent"],
     });
     expect(postings[1]?.locationText).toBe("Munich");
+    expect(postings[1]?.remote).toBe(false);
   });
 
   it("drops jobs created before since", async () => {
@@ -165,6 +167,7 @@ describe("arbeitnow adapter", () => {
         url: bare.url,
         title: "Engineer",
         company: "Example Company",
+        remote: false,
       },
     ]);
   });

@@ -543,5 +543,420 @@
     "expected": "worldwide",
     "source": "https://remoteok.com / https://weworkremotely.com public listing location strings",
     "added": "phase2"
+  },
+  {
+    "id": "loc-76",
+    "locationText": "Berlin",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-77",
+    "locationText": "München",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-78",
+    "locationText": "Paris, France",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-79",
+    "locationText": "London Office",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-80",
+    "locationText": "Munich, Bavaria, Germany",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-81",
+    "locationText": "New York, NY",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-82",
+    "locationText": "Berlin",
+    "descriptionSnippet": "Hybrid-friendly team, remote-friendly culture",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-83",
+    "locationText": "Berlin",
+    "descriptionSnippet": "Source marks the posting remote",
+    "expected": "unclear",
+    "source": "owner live run 2026-10-09",
+    "remote": true
+  },
+  {
+    "id": "loc-84",
+    "locationText": "Berlin, Germany or Remote",
+    "descriptionSnippet": "Team in Berlin",
+    "expected": "unclear",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-85",
+    "locationText": "San Francisco",
+    "descriptionSnippet": "Work from anywhere in the world",
+    "expected": "worldwide",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-86",
+    "locationText": "Singapore, APAC office",
+    "descriptionSnippet": "Regional office",
+    "expected": "apac_ok",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-87",
+    "locationText": "Berlin",
+    "descriptionSnippet": "Source marks the posting not remote",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09",
+    "remote": false
+  },
+  {
+    "id": "loc-88",
+    "locationText": "",
+    "descriptionSnippet": "No location given",
+    "expected": "unclear",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-89",
+    "locationText": "Remote",
+    "descriptionSnippet": "No restriction stated by the source",
+    "expected": "unclear",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-90",
+    "locationText": "Singapore",
+    "descriptionSnippet": "Regional office",
+    "expected": "restricted",
+    "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "loc-91",
+    "locationText": "Distributed",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-92",
+    "locationText": "Everywhere",
+    "descriptionSnippet": "Engineering role",
+    "expected": "worldwide",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-93",
+    "locationText": "Telecommute",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-94",
+    "locationText": "Virtual",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-95",
+    "locationText": "Online",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-96",
+    "locationText": "Home Office",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-97",
+    "locationText": "Flexible",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-98",
+    "locationText": "Multiple locations",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-99",
+    "locationText": "Various",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-100",
+    "locationText": "Jakarta",
+    "descriptionSnippet": "Engineering role",
+    "expected": "apac_ok",
+    "source": "audit t_79c79356 finding 1"
+  },
+  {
+    "id": "loc-101",
+    "locationText": "Work remotely",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-102",
+    "locationText": "Remotely",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-103",
+    "locationText": "Telework",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-104",
+    "locationText": "Home-office",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-105",
+    "locationText": "Homeoffice",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-106",
+    "locationText": "Remoto",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-107",
+    "locationText": "Télétravail",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-108",
+    "locationText": "Teletrabajo",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-109",
+    "locationText": "Multi-location",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-110",
+    "locationText": "Nationwide",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "audit t_79c79356 pass 2 finding 1"
+  },
+  {
+    "id": "loc-111",
+    "locationText": "Weltweit",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-112",
+    "locationText": "Fernarbeit",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-113",
+    "locationText": "Telearbeit",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-114",
+    "locationText": "Ortsunabhängig",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-115",
+    "locationText": "Work-from-home",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-116",
+    "locationText": "Digital nomad",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-117",
+    "locationText": "Deutschlandweit",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-118",
+    "locationText": "Germany-wide",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-119",
+    "locationText": "Télétravail",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-120",
+    "locationText": "Nationwide",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-121",
+    "locationText": "TBD",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-122",
+    "locationText": "N/A",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-123",
+    "locationText": "-",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-124",
+    "locationText": "Not specified",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-125",
+    "locationText": "Other",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-126",
+    "locationText": "See description",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-127",
+    "locationText": "Mobile",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-128",
+    "locationText": "Home",
+    "descriptionSnippet": "Engineering role",
+    "expected": "unclear",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-129",
+    "locationText": "Berlin",
+    "descriptionSnippet": "Engineering role",
+    "expected": "restricted",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-130",
+    "locationText": "Köln",
+    "descriptionSnippet": "Engineering role",
+    "expected": "restricted",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-131",
+    "locationText": "Cologne, Germany",
+    "descriptionSnippet": "Engineering role",
+    "expected": "restricted",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-132",
+    "locationText": "Koeln",
+    "descriptionSnippet": "Engineering role",
+    "expected": "restricted",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-133",
+    "locationText": "Office",
+    "descriptionSnippet": "Engineering role",
+    "expected": "restricted",
+    "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-134",
+    "locationText": "Hamburg (Hybrid)",
+    "descriptionSnippet": "Engineering role",
+    "expected": "restricted",
+    "source": "t_649b6dca whitelist rework"
   }
 ]

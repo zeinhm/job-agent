@@ -1,5 +1,7 @@
 import {
   APAC_PHRASES,
+  KNOWN_PLACES,
+  MULTI_PLACE_PHRASES,
   NO_REMOTE_PHRASES,
   ONSITE_PHRASES,
   REMOTE_PHRASES,
@@ -107,6 +109,29 @@ function timezoneHits(field: Field): TimezoneHit[] {
   return hits;
 }
 
+function stripAccents(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+const PLACE_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${[...KNOWN_PLACES]
+    .map((p) =>
+      stripAccents(p)
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+        .replace(/\s+/g, "\\s+"),
+    )
+    .sort((a, b) => b.length - a.length)
+    .join("|")})(?![\\p{L}\\p{N}])(?!\\s*-?\\s*(?:wide|weit)(?![\\p{L}\\p{N}]))`,
+  "u",
+);
+
+/** A place from KNOWN_PLACES (whole word, accent-insensitive; "Germany-wide" is not a place) or an on-site word. */
+function findPlace(locationText: string): Hit | undefined {
+  const match = PLACE_RE.exec(stripAccents(locationText));
+  if (match) return { phrase: match[0], field: "location" };
+  return findPhrase([{ name: "location", text: locationText }], [...ONSITE_PHRASES, "office"]);
+}
+
 function trimmed(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
@@ -121,7 +146,10 @@ function cite(hit: Hit): string {
  * 2. restriction in location, tags or description -> restricted
  * 3. worldwide signal -> worldwide
  * 4. APAC signal in the description only -> apac_ok
- * 5. anything else (bare "Remote", empty) -> unclear
+ * 5. a location that positively names a place (KNOWN_PLACES whitelist or an on-site word), no remote
+ *    wording in location or tags -> restricted (onsite)
+ * 5 (fallback). anything else (unknown text, placeholders, bare "Remote", empty) -> unclear
+ * Step 2 also rejects a source that says `remote: false` (unless the location or tags say otherwise).
  */
 export function classifyLocation(input: LocationInput): LocationResult {
   const locationText = trimmed(input.locationText);
@@ -185,6 +213,15 @@ export function classifyLocation(input: LocationInput): LocationResult {
     }
   }
 
+  const remoteWording = findPhrase(locationFields, REMOTE_PHRASES);
+  if (
+    input.remote === false &&
+    !remoteWording &&
+    !findPhrase(locationFields, WORLDWIDE_LOCATION_PHRASES)
+  ) {
+    return { class: "restricted", reason: "step 2 source marks the posting as not remote" };
+  }
+
   // 3. worldwide signal
   const worldwide =
     findPhrase(locationFields, WORLDWIDE_LOCATION_PHRASES) ??
@@ -201,7 +238,21 @@ export function classifyLocation(input: LocationInput): LocationResult {
     return { class: "apac_ok", reason: `step 4 APAC signal ${cite(apacInDescription)}` };
   }
 
-  // 5. nothing conclusive
+  // 5. a place with no remote wording is onsite. Description wording does not count (hybrid, "remote-friendly").
+  if (
+    locationText &&
+    input.remote !== true &&
+    !remoteWording &&
+    !findPhrase([locationField], MULTI_PLACE_PHRASES) &&
+    findPlace(locationText)
+  ) {
+    return {
+      class: "restricted",
+      reason: `step 5 onsite: location names a place without remote wording "${locationText}"`,
+    };
+  }
+
+  // 5 (fallback). nothing conclusive
   return {
     class: "unclear",
     reason: locationText
