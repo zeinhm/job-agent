@@ -1,7 +1,8 @@
-# Running Phase 1
+# Running the pipeline (Phase 1 + Phase 2)
 
-How to run the Phase 1 pipeline (find remote postings, filter them, write a daily digest) on your Mac.
-Phase 1 only reads public job feeds and writes local files. It never applies anywhere.
+How to run the pipeline on your Mac: find remote postings, filter them with rules (Phase 1), then score them with
+the LLM stages and write a ranked daily digest (Phase 2). It only reads public job feeds, calls the Anthropic API
+for the LLM stages, and writes local files. It never applies anywhere.
 
 ## Prerequisites
 
@@ -21,21 +22,28 @@ pnpm install
 
 ## Config files
 
-`config/` is private and gitignored. Phase 1 reads two files from it. Start from the example files and put your own
+`config/` is private and gitignored. The pipeline reads three files from it. Start from the example files and put your own
 values in the copies; never commit them:
 
 ```sh
 cp config/salary.example.yaml config/salary.yaml
 cp config/companies.example.yaml config/companies.yaml
+cp config/cv.example.md config/cv.md
 ```
 
 | File | Used by | What it holds |
 |---|---|---|
 | `config/salary.yaml` | `process` | `floor_idr_month`: postings whose listed max is below it are rejected (plus later-phase fields) |
-| `config/companies.yaml` | `discover` | companies whose Greenhouse / Lever / Ashby boards are polled (`name`, `ats`, `slug`) |
+| `config/companies.yaml` | `discover` | companies whose ATS boards are polled (`name`, `ats`, `slug`) |
+| `config/cv.md` | `enrich` | your CV in Markdown, used by the fit-scoring stage |
 
-`config/README.md` lists every example file. The other examples (`cv`, `answers`, `private-patterns`) are not read by
-Phase 1 commands; `private-patterns.txt` is used by the pre-commit hook.
+`config/cv.example.md` is a fake persona; replace the copy's content with your own CV. `cv.md` is **sent to the
+Anthropic API** for fit scoring (that is what the stage is for). It is never logged or committed. If it is missing,
+`enrich` prints `cv.md not found in the config dir, fit scoring skipped (extraction still runs)` and carries on
+without fit scores.
+
+`config/README.md` lists every example file. The other examples (`answers`, `private-patterns`) are not read by the
+pipeline commands; `private-patterns.txt` is used by the pre-commit hook.
 
 ## Environment variables
 
@@ -44,8 +52,12 @@ Phase 1 commands; `private-patterns.txt` is used by the pre-commit hook.
 | `JOB_AGENT_DB` | `data/job-agent.db` | SQLite database file |
 | `JOB_AGENT_CONFIG_DIR` | `config` | Folder holding `salary.yaml` and `companies.yaml` |
 | `WEB3_CAREER_TOKEN` | (none) | API token for the web3.career source. Without it, that source shows `error` in Source health; the other sources still run |
+| `ANTHROPIC_API_KEY` | (none) | Anthropic API key for the LLM stages of `enrich`. Without it `enrich` prints `ANTHROPIC_API_KEY not set, LLM stages skipped`, makes no calls and exits 0; postings stay `pending` and the digest lists them under Waiting for scoring |
+| `BRAVE_API_KEY` | (none) | Brave Search API key for `discover-companies`. Without it the command prints `BRAVE_API_KEY not set, company discovery skipped` and exits 0 |
+| `JOB_AGENT_LLM_CAP_USD` | `1` | Daily LLM spend cap in USD. It can only **lower** the cap (see "LLM cost cap") |
 
-Never put the token in a committed file. Set it in your shell profile or in your local crontab's environment lines.
+Never put a key or token in a committed file. Set them in your shell profile or in your local crontab's environment
+lines. `.env.example` lists the names with empty values.
 
 ## Commands
 
@@ -55,9 +67,11 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 |---|---|
 | `fx` | Fetches today's USD exchange rates (IDR, EUR, GBP, SGD, AUD, CAD, CHF) and stores them. Salaries are converted with the latest stored rate on or before the analysis date, so run it daily. |
 | `discover [--source <name>] [--force]` | Polls every source that is due and stores new postings. Each source has a minimum poll interval enforced in code; a source polled too recently is recorded as `skipped` and gets no request. `--source` runs one source (`greenhouse`, `lever`, `ashby`, `himalayas`, `remoteok`, `remotive`, `web3career`, `weworkremotely`, `hn`, `arbeitnow`); `--force` ignores the interval (manual use only). Exits 1 if any source errored. |
+| `discover-companies` | Finds new companies to poll: runs a fixed list of 12 web searches (Brave Search API, at most 20 requests per run, one every 2 seconds) for Greenhouse, Lever, Ashby, SmartRecruiters, Workable and Recruitee board URLs, checks each new board with one request and stores it in the database (`verified` only if the board answered). Companies already known are skipped. Needs `BRAVE_API_KEY`. Prints `discover-companies: <q> queries (<n> failed), <c> candidates, <v> new verified, <n> not found, <k> known, <e> verify errors`. Exits 1 only if every search query failed. Run it once a day; the next `discover` polls the verified companies. |
 | `process` | Normalizes and dedupes new postings, then applies the rule filters (location, Indonesia rule, salary floor) and records keep / reject with flags. Prints the counts. |
+| `enrich [--limit <n>]` | Runs the LLM stages on kept postings, newest first, one posting at a time: extract facts (Haiku) -> resolve unclear flags -> scam score -> pay-policy registry -> fit score against `config/cv.md` (Sonnet, only for postings that were kept) -> tier and salary ask. Postings already done are not redone. `--limit` caps how many postings this run handles. Prints `enriched <n>, budget_wait <n>, failed <n>, spent $<x> today`. Exits 0 except for an invalid `--limit`. Details below. |
 | `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
-| `digest [--date YYYY-MM-DD] [--out-dir <dir>]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored, ranked, each with a one-line why), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
+| `digest [--date YYYY-MM-DD] [--out-dir <dir>]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored, ranked, each with a one-line why; see "Reading the ranked digest"), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
 
 A first manual run:
 
@@ -65,8 +79,45 @@ A first manual run:
 pnpm job-agent fx
 pnpm job-agent discover --source remotive
 pnpm job-agent process
+pnpm job-agent enrich      # needs ANTHROPIC_API_KEY, otherwise it only prints a skip line
 pnpm job-agent digest
 ```
+
+Optional, once a day, to grow the company list (needs `BRAVE_API_KEY`): `pnpm job-agent discover-companies`, before
+`discover`.
+
+## LLM stages and cost cap
+
+`enrich` is the only command that calls the Anthropic API. It uses `claude-haiku-5-5` for extraction and company
+research and `claude-sonnet-5-5` for fit scoring only. The model only extracts facts and gives the fit score with its
+reasons; keep / reject, scam score, tier and ask are decided by plain code.
+
+- **Hard cap: $1.00 per day** (Asia/Jakarta day). Before every call the client reserves the worst-case cost; if
+  today's spend plus that reserve would pass the cap, the call is not made. The real cost of every call is recorded in
+  the `llm_calls` table.
+- **Lower the cap** with `JOB_AGENT_LLM_CAP_USD`, e.g. `JOB_AGENT_LLM_CAP_USD=0.25 pnpm job-agent enrich`, or
+  `JOB_AGENT_LLM_CAP_USD=0.25` in your crontab environment lines. The variable can only lower the cap: a value above 1
+  is ignored with a warning and the cap stays at $1.00; a value that is not a number is ignored too. `0` makes no
+  calls. Raising the cap means changing `DAILY_LLM_CAP_USD` in the code, which is the owner's decision.
+- **When the cap is reached**, `enrich` stops calling the API. The postings it did not reach are marked `budget_wait`
+  (shown under Waiting for scoring in the digest) and are picked up by the next day's run. Nothing is skipped silently.
+- Because postings are handled newest first and each is scored completely before the next, a small cap fully scores the
+  newest postings rather than half-scoring all of them.
+- To spend less per run, use `enrich --limit <n>` or lower the cap. The digest's LLM spend section shows today's cost
+  against the cap and the calls per model.
+- Invalid model output is retried once, then the posting is marked `failed` and shown under Waiting for scoring.
+- Logs hold counts, ids, model, tokens and cost only. Prompts, your CV, posting text and model output are never logged.
+
+## Eval scripts
+
+Every LLM stage is meant to have an optional eval script (`pnpm --filter @job-agent/pipeline eval:<stage>`) that runs
+the real model on a golden set, only with an explicit `--live` flag and `ANTHROPIC_API_KEY` set, and prints accuracy
+and cost. No eval script is shipped yet, so there is nothing to run. Until then:
+
+- `pnpm test` checks the rule and decision code (resolve, scam score, tier and ask) against the golden sets in
+  `fixtures/golden/*.json`. These never call the model.
+- All tests mock the Anthropic API; no test makes a live call.
+- Evals cost real money and are run by you, not by the agents. When one exists it counts against the same daily cap.
 
 ## Smoke test
 
@@ -74,7 +125,7 @@ pnpm job-agent digest
 it copies the `config/*.example.*` files, uses a temp DB (`<dir>/smoke.db`, default dir from `mktemp`), then runs
 `fx`, `discover --force --source <s>` for each keyless source one by one (`himalayas`, `remoteok`, `remotive`,
 `weworkremotely`, `hn`; `web3career` only if `WEB3_CAREER_TOKEN` is already in your environment), `process`,
-`enrich` (only once that command exists; it runs without a key and prints its skip line), and `digest` into
+`enrich` (it runs without a key and prints its skip line), and `digest` into
 `<dir>/digests/`. It ends with `status` (row counts and per-source result) and the smoke dir and digests paths.
 
 A failing source shows as `error` and does not stop the others. The script exits 0 when `process` and `digest`
@@ -84,9 +135,12 @@ completed, 1 if either failed. It makes no LLM calls (`ANTHROPIC_API_KEY` is uns
 
 `scripts/crontab.example` runs:
 
-- `fx` daily at 07:00 Asia/Jakarta
-- `discover` then `process` every 2 hours (at :30)
-- `discover`, `process`, then `digest` daily at 08:00 Asia/Jakarta
+- `fx` daily at 06:50 Asia/Jakarta
+- `discover-companies` daily at 07:00 Asia/Jakarta (before the first `discover` of the day)
+- `discover`, `process`, then `enrich` every 2 hours (at :30)
+- `discover`, `process`, `enrich`, then `digest` daily at 08:00 Asia/Jakarta
+
+So the order in a day is `fx` -> `discover-companies` -> `discover` -> `process` -> `enrich` -> `digest`.
 
 Cron uses the Mac's local time. The example assumes the clock is set to Asia/Jakarta; otherwise convert the hours.
 
@@ -94,8 +148,9 @@ To install:
 
 1. Copy it: `cp scripts/crontab.example data/crontab` (`data/` is gitignored).
 2. In the copy, replace `/ABSOLUTE/PATH/TO/job-agent` with the repo root (`pwd`) and `/ABSOLUTE/PATH/TO/node/bin` with
-   `dirname "$(command -v pnpm)"` (cron has a minimal `PATH`). Add `WEB3_CAREER_TOKEN=<token>` under the `PATH` line
-   if you use web3.career.
+   `dirname "$(command -v pnpm)"` (cron has a minimal `PATH`). Add `ANTHROPIC_API_KEY=<key>`, `BRAVE_API_KEY=<key>`,
+   `JOB_AGENT_LLM_CAP_USD=<lower cap, optional>` and `WEB3_CAREER_TOKEN=<token>` (if you use web3.career) under the
+   `PATH` line. Keep the copy in `data/`, never commit it.
 3. Check what is already installed: `crontab -l`. `crontab <file>` **replaces** your whole crontab, so merge any
    existing lines into the copy first.
 4. Install: `crontab data/crontab`, then `crontab -l` to confirm.
@@ -108,11 +163,27 @@ your cron jobs) or edit with `crontab -e`.
 
 | Path | Contents |
 |---|---|
-| `data/digests/YYYY-MM-DD.md` | The daily digest |
-| `data/logs/<command>.log` | Cron output per command (`fx`, `discover`, `process`, `digest`): plain lines plus JSON log lines |
+| `data/digests/YYYY-MM-DD.md` | The daily ranked digest |
+| `data/logs/<command>.log` | Cron output per command (`fx`, `discover-companies`, `discover`, `process`, `enrich`, `digest`): plain lines plus JSON log lines |
 | `data/job-agent.db` | The SQLite database |
 
 Everything under `data/` is gitignored and may contain personal data. Never commit it.
+
+## Reading the ranked digest
+
+Open `data/digests/YYYY-MM-DD.md`. Sections, in order:
+
+- **Top matches**: kept, fit-scored postings, best first. Each shows title, company, link, fit score with up to 3
+  reasons, the pay tier and your ask (or the text answer to use when the posting has no numeric field), the listed
+  salary if any, the scam score with its top reason if above 0, and a one-line **why**. The rank is the fit score, minus
+  10 per unresolved flag, plus 5 when the listed salary max is at or above your ask; ties go to the newer posting. The
+  same company and title listed in several places is one entry with the locations joined.
+- **Waiting for scoring**: kept postings without a fit score yet: not enriched (no `ANTHROPIC_API_KEY`), `budget_wait`
+  (daily cap reached, retried tomorrow), or `failed`.
+- **Needs a look**: postings with a flag the rules and the LLM could not settle (location, Indonesia rule, role).
+- **Suspicious**: scam score at or above 60. Listed only; never fit-scored and never acted on. Each has its reason lines.
+- **Source health**: see below.
+- **LLM spend**: today's cost against the cap, and calls per model.
 
 ## Reading Source health
 

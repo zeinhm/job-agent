@@ -1,15 +1,24 @@
-# job-agent Phase 1 schedule (system cron). Copy, replace the placeholders, then `crontab <file>`.
+# job-agent schedule (Phase 1 + Phase 2) (system cron). Copy, replace the placeholders, then `crontab <file>`.
 # See docs/running.md.
 #
 # Cron frequency can't exceed source limits: every adapter has a minimum poll interval enforced in
 # code (discover records a `skipped` run for a source polled too recently), so running discover
 # more often than a source allows never sends it extra requests.
 #
-# Times are the Mac's local time and assume its clock is set to Asia/Jakarta (WIB, UTC+7).
-# Otherwise convert 07:00 / 08:00 WIB to local time.
+# Order within a day: fx -> discover-companies (daily) -> discover -> process -> enrich -> digest.
 #
-# `discover` exits 1 when any source errors. Process and digest still run after it (`;`, not `&&`):
+# Times are the Mac's local time and assume its clock is set to Asia/Jakarta (WIB, UTC+7).
+# Otherwise convert 06:50 / 07:00 / 08:00 WIB to local time.
+#
+# `discover` exits 1 when any source errors. The later steps still run after it (`;`, not `&&`):
 # the other sources' postings still need processing, and the digest reports the error in Source health.
+#
+# `enrich` calls the Anthropic API (daily cap $1.00 in code). Set the secrets as environment lines
+# below the PATH line, never in a committed file:
+#   ANTHROPIC_API_KEY=...        (enrich; without it enrich only prints a skip line)
+#   BRAVE_API_KEY=...            (discover-companies; without it that command is skipped)
+#   JOB_AGENT_LLM_CAP_USD=0.5    (optional: can only LOWER the cap, never raise it)
+#   WEB3_CAREER_TOKEN=...        (web3.career source)
 #
 # Placeholders: /ABSOLUTE/PATH/TO/job-agent = the repo root, /ABSOLUTE/PATH/TO/node/bin = the folder
 # holding `node` and `pnpm` (`dirname "$(command -v pnpm)"`). Output is appended to data/logs/<command>.log.
@@ -17,11 +26,14 @@
 SHELL=/bin/bash
 PATH=/ABSOLUTE/PATH/TO/node/bin:/usr/bin:/bin
 
-# fx: daily 07:00 WIB
-0 7 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent fx >> data/logs/fx.log 2>&1
+# fx: daily 06:50 WIB
+50 6 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent fx >> data/logs/fx.log 2>&1
 
-# discover then process: every 2 hours, at :30 so it never overlaps the 08:00 digest run
-30 */2 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && { pnpm -s job-agent discover >> data/logs/discover.log 2>&1; pnpm -s job-agent process >> data/logs/process.log 2>&1; }
+# discover-companies: daily 07:00 WIB, before the first discover of the day
+0 7 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent discover-companies >> data/logs/discover-companies.log 2>&1
 
-# digest: daily 08:00 WIB, after a fresh discover and process
-0 8 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && { pnpm -s job-agent discover >> data/logs/discover.log 2>&1; pnpm -s job-agent process >> data/logs/process.log 2>&1; pnpm -s job-agent digest >> data/logs/digest.log 2>&1; }
+# discover, process, enrich: every 2 hours, at :30 so it never overlaps the 08:00 digest run
+30 */2 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && { pnpm -s job-agent discover >> data/logs/discover.log 2>&1; pnpm -s job-agent process >> data/logs/process.log 2>&1; pnpm -s job-agent enrich >> data/logs/enrich.log 2>&1; }
+
+# digest: daily 08:00 WIB, after a fresh discover, process and enrich
+0 8 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && { pnpm -s job-agent discover >> data/logs/discover.log 2>&1; pnpm -s job-agent process >> data/logs/process.log 2>&1; pnpm -s job-agent enrich >> data/logs/enrich.log 2>&1; pnpm -s job-agent digest >> data/logs/digest.log 2>&1; }
