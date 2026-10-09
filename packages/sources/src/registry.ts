@@ -9,6 +9,7 @@ import { createRemotiveAdapter } from "./remotive/index.ts";
 import { createSmartRecruitersAdapter } from "./smartrecruiters/index.ts";
 import { createWeb3CareerAdapter } from "./web3career/index.ts";
 import { createWeWorkRemotelyAdapter } from "./weworkremotely/index.ts";
+import { createWorkableAdapter } from "./workable/index.ts";
 
 /** Builds every enabled adapter. Each adapter task adds one entry here and starts using `config`. */
 export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
@@ -22,6 +23,9 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
 
   const ashby = config.companies.filter((c) => c.ats === "ashby");
   if (ashby.length > 0) adapters.push(createAshbyAdapter(ashby));
+
+  const workable = config.companies.filter((c) => c.ats === "workable");
+  if (workable.length > 0) adapters.push(createWorkableAdapter(workable));
 
   const smartrecruiters = config.companies.filter((c) => c.ats === "smartrecruiters");
   if (smartrecruiters.length > 0) adapters.push(createSmartRecruitersAdapter(smartrecruiters));

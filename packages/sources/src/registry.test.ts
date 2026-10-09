@@ -68,6 +68,20 @@ describe("buildAdapters", () => {
   });
 });
 
+describe("buildAdapters workable", () => {
+  it("returns exactly one workable adapter only when the config has workable companies", () => {
+    const names = (c: ReturnType<typeof makeConfig>) => buildAdapters(c).map((a) => a.name);
+    expect(names(makeConfig())).not.toContain("workable");
+    const list = names(
+      makeConfig([
+        { name: "A", ats: "workable", slug: "a" },
+        { name: "B", ats: "workable", slug: "b" },
+      ]),
+    );
+    expect(list.filter((n) => n === "workable")).toHaveLength(1);
+  });
+});
+
 describe("buildAdapters smartrecruiters", () => {
   it("returns one smartrecruiters adapter (360 minute interval) only with smartrecruiters companies", () => {
     expect(

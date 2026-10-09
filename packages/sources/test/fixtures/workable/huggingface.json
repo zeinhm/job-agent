@@ -1,0 +1,76 @@
+{
+  "_handbuilt": true,
+  "name": "Hugging Face",
+  "jobs": [
+    {
+      "title": "Open-Source Machine Learning Engineer - EMEA Remote",
+      "shortcode": "81B46579FE",
+      "code": "",
+      "employment_type": "Full-time",
+      "telecommuting": true,
+      "department": "Open Source",
+      "url": "https://apply.workable.com/j/81B46579FE",
+      "shortlink": "https://apply.workable.com/j/81B46579FE",
+      "application_url": "https://apply.workable.com/j/81B46579FE/apply",
+      "published_on": "2026-05-29",
+      "created_at": "2026-05-29",
+      "country": "France",
+      "city": "Paris",
+      "state": "Île-de-France",
+      "education": "",
+      "experience": "",
+      "function": "Engineering",
+      "industry": "Computer Software",
+      "locations": [
+        {
+          "country": "France",
+          "countryCode": "FR",
+          "city": "Paris",
+          "region": "Île-de-France",
+          "hidden": false
+        },
+        {
+          "country": "Germany",
+          "countryCode": "DE",
+          "city": "Berlin",
+          "region": "Berlin",
+          "hidden": false
+        },
+        {
+          "country": "Spain",
+          "countryCode": "ES",
+          "city": "Madrid",
+          "region": "Madrid",
+          "hidden": true
+        }
+      ],
+      "description": "<p>At Hugging Face, we're on a journey to democratize good AI.</p>"
+    },
+    {
+      "title": "Senior Frontend Engineer",
+      "shortcode": "A1B2C3D4E5",
+      "code": "",
+      "employment_type": "Full-time",
+      "telecommuting": false,
+      "department": "Product",
+      "url": "https://apply.workable.com/j/A1B2C3D4E5",
+      "shortlink": "https://apply.workable.com/j/A1B2C3D4E5",
+      "application_url": "https://apply.workable.com/j/A1B2C3D4E5/apply",
+      "published_on": "2026-09-15",
+      "created_at": "2026-09-10",
+      "country": "United States",
+      "city": "New York",
+      "state": "New York",
+      "function": "Engineering",
+      "industry": "Computer Software",
+      "locations": [],
+      "description": "<p>Build the web app.</p>"
+    },
+    {
+      "title": "Minimal Posting",
+      "shortcode": "ZZ00000001",
+      "telecommuting": null,
+      "description": ""
+    }
+  ]
+}
