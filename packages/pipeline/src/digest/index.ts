@@ -110,6 +110,8 @@ function tierMissingForFx(i: Intel): boolean {
 
 /** Why a kept posting has no fit score yet, in plain words. */
 function waitingReason(i: Intel | null): string {
+  if (i?.status === "done" && i.final_decision === "keep" && i.fit_score !== null)
+    return "scored, but no ask decided yet";
   if (i === null) return "not enriched yet";
   if (i.status === "budget_wait") return "waiting for the daily LLM budget";
   if (tierMissingForFx(i)) return "waiting for an FX rate: run fx";
@@ -118,11 +120,29 @@ function waitingReason(i: Intel | null): string {
   return "no fit score (no CV configured or fit not run)";
 }
 
-/** One entry for a group of same company + title postings; the best member (ATS first) leads. */
+const isScored = (r: Row) =>
+  r.i !== null && r.i.status === "done" && r.i.final_decision === "keep" && r.i.fit_score !== null;
+
+/**
+ * The one member whose posting, analysis and intel the entry shows, so title, link, salary, fit,
+ * scam score and why never mix members. A suspicious member wins (scam conventions: such a group
+ * is never Top), then a scored member with an ask, then any scored member, then any member with
+ * intel, then the group's best member.
+ */
+function pickLead(group: Row[]): Row {
+  return (
+    group.find((r) => r.i?.final_decision === "suspicious") ??
+    group.find((r) => isScored(r) && r.i !== null && askLabel(r.i) !== null) ??
+    group.find(isScored) ??
+    group.find((r) => r.i !== null) ??
+    (group[0] as Row)
+  );
+}
+
+/** One entry for a group of same company + title postings; sources and locations span the group. */
 function buildEntry(db: Db, group: Row[]): Entry | null {
-  const lead = group[0] as Row;
-  const { p, a } = lead;
-  const i = group.find((r) => r.i?.fit_score != null)?.i ?? group.find((r) => r.i)?.i ?? null;
+  const lead = pickLead(group);
+  const { p, a, i } = lead;
   if (i?.final_decision === "reject") return null;
 
   const flags = [...new Set(group.flatMap((r) => parseList(r.a.flags)))];
@@ -178,13 +198,9 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     };
   }
 
-  if (
-    i !== null &&
-    i.status === "done" &&
-    i.final_decision === "keep" &&
-    i.fit_score !== null &&
-    !tierMissingForFx(i)
-  ) {
+  // A group (several postings) with no member that has an ask is not a Top match without one.
+  const askless = group.length > 1 && i !== null && askLabel(i) === null;
+  if (isScored(lead) && i !== null && i.fit_score !== null && !askless && !tierMissingForFx(i)) {
     const fitReasons = parseList(i.fit_reasons).slice(0, MAX_REASONS);
     const label = askLabel(i);
     const rank = rankScore({

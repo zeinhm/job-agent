@@ -283,6 +283,92 @@ describe("runDigest", () => {
     expect(run().text).toBe(text);
   });
 
+  describe("groups take everything from one member", () => {
+    function score(id: string, over: Partial<typeof intel.$inferInsert> = {}) {
+      db.insert(intel)
+        .values({
+          id: `i-${id}`,
+          posting_id: id,
+          status: "done",
+          final_decision: "keep",
+          scam_score: 0,
+          scam_reasons: "[]",
+          fit_score: 80,
+          fit_reasons: JSON.stringify(["Strong TypeScript match"]),
+          tier: "regional",
+          ask_idr_month: 35_000_000,
+          updated_at: "2026-10-07T02:00:00Z",
+          ...over,
+        })
+        .run();
+    }
+
+    it("takes link, title, salary, fit and why from the fit-scored member, not group[0]", () => {
+      // g1 is the ATS member (group[0]) but unscored; g2 is scored with its own salary.
+      seed("g1", {
+        title: "Data Engineer",
+        source: "greenhouse",
+        applyUrl: "https://apply.example.com/g1",
+        min: 10_000_000,
+        max: 11_000_000,
+      });
+      seed("g2", { title: "data engineer", min: 40_000_000, max: 45_000_000 });
+      score("g2");
+      const { text } = run();
+      const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
+      expect(top).toContain("### data engineer — Acme Inc");
+      expect(top).toContain("- Link: https://example.com/jobs/g2");
+      expect(top).not.toContain("apply.example.com/g1");
+      expect(top).toContain("- Fit: 80/100");
+      expect(top).toContain("Strong TypeScript match");
+      expect(top).toContain("45");
+      expect(top).not.toContain("- Salary: IDR 10");
+      expect(text).toContain("- Top matches: 1");
+    });
+
+    it("never puts a group with a suspicious member in Top; shows the suspicious link", () => {
+      seed("s1", { title: "Ops Lead" });
+      seed("s2", { title: "Ops Lead" });
+      score("s1");
+      score("s2", {
+        final_decision: "suspicious",
+        scam_score: 9,
+        scam_reasons: JSON.stringify(["asks for a deposit"]),
+        fit_score: null,
+      });
+      const { text } = run();
+      const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
+      const susp = text.slice(text.indexOf("## Suspicious"), text.indexOf("## Source health"));
+      expect(top).not.toContain("Ops Lead");
+      expect(susp).toContain("- Link: https://example.com/jobs/s2");
+      expect(susp).toContain("asks for a deposit");
+      expect(text).toContain("- Top matches: 0");
+      expect(text).toContain("- Suspicious: 1");
+    });
+
+    it("does not show a group as Top when the chosen member has no ask", () => {
+      seed("w1", { title: "QA Lead" });
+      seed("w2", { title: "QA Lead" });
+      score("w1", { tier: null, ask_idr_month: null });
+      const { text } = run();
+      const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
+      const waiting = text.slice(text.indexOf("## Waiting"), text.indexOf("## Needs a look"));
+      expect(top).not.toContain("QA Lead");
+      expect(waiting).toContain("QA Lead");
+      expect(waiting).toContain("- Link: https://example.com/jobs/w1");
+    });
+
+    it("prefers a scored member that has an ask over one that has none", () => {
+      seed("a1", { title: "SRE" });
+      seed("a2", { title: "SRE" });
+      score("a1", { tier: null, ask_idr_month: null });
+      score("a2");
+      const { text } = run();
+      const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
+      expect(top).toContain("- Link: https://example.com/jobs/a2");
+    });
+  });
+
   it("caps joined locations at 5 with +N more", () => {
     for (const c of "abcdefg") seed(`l${c}`, { title: "Same", location: `City ${c}` });
     const { text } = run();
