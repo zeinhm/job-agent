@@ -655,3 +655,89 @@ export const ATS_APPLY_HOSTS: readonly string[] = [
 
 /** Source names that come straight from a company's ATS board (derived from the config enum, never copied). */
 export const ATS_SOURCE_NAMES: readonly string[] = ATS_TYPES;
+
+/**
+ * Language rule (owner live run 2026-10-09): the owner works in English and Indonesian only. English and Indonesian /
+ * Bahasa are deliberately absent from every list below.
+ */
+export const LANGUAGE_NAMES: readonly string[] = [
+  "German",
+  "French",
+  "Dutch",
+  "Spanish",
+  "Portuguese",
+  "Italian",
+  "Polish",
+  "Swedish",
+  "Danish",
+  "Norwegian",
+  "Finnish",
+  "Czech",
+  "Japanese",
+  "Korean",
+  "Mandarin",
+  "Chinese",
+];
+
+/** German / French job words in a title, matched inside compounds ("Softwareentwickler", "Fachinformatiker"). */
+export const LANGUAGE_TITLE_TERMS: readonly string[] = [
+  "entwickler",
+  "ingenieur",
+  "ingénieur",
+  "informatiker",
+  "mitarbeiter",
+  "leiter",
+  "développeur",
+  "développeuse",
+  "developpeur",
+  "developpeuse",
+  "concepteur",
+  "conceptrice",
+  "responsable",
+];
+
+/** Multi-word French title phrases. */
+export const LANGUAGE_TITLE_PHRASES: readonly string[] = ["Chef de projet", "Cheffe de projet"];
+
+/** Title words meaning "German/French speaking" (matched inside compounds). */
+export const LANGUAGE_TITLE_SPEAKING_TERMS: readonly string[] = [
+  "deutschsprachig",
+  "französischsprachig",
+  "francophone",
+];
+
+/** A clause containing one of these says the language is optional, so it is not a requirement. */
+export const LANGUAGE_OPTIONAL_PHRASES: readonly string[] = [
+  "a plus",
+  "plus",
+  "nice to have",
+  "nice-to-have",
+  "bonus",
+  "an advantage",
+  "advantage",
+  "beneficial",
+  "preferred",
+  "helpful",
+  "not required",
+  "optional",
+  "desirable",
+  "von Vorteil",
+  "wünschenswert",
+  "ein Plus",
+  "nicht erforderlich",
+  "un plus",
+  "un atout",
+  "apprécié",
+  "souhaité",
+  "serait un plus",
+];
+
+/** German / French requirement forms in the description (the language is part of the phrase). */
+export const LANGUAGE_NATIVE_REQUIREMENT_PATTERNS: readonly string[] = [
+  "(?:deutsch|französisch|spanisch|niederländisch|italienisch|polnisch)kenntnisse",
+  "flie(?:ß|ss)end(?:es|e|er)?\\s+(?:deutsch|französisch|spanisch)",
+  "verhandlungssicher(?:es|e|er)?\\s+(?:deutsch|französisch)",
+  "deutsch\\s*[(:]?\\s*(?:c1|c2|muttersprache|muttersprachlich)",
+  "fran[cç]ais\\s+courant",
+  "ma[iî]trise\\s+(?:du|de la langue)\\s+fran[cç]ais",
+];

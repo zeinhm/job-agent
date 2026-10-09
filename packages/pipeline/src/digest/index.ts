@@ -11,6 +11,7 @@ import {
   type Db,
   type Intel,
 } from "@job-agent/core";
+import { classifyLanguage } from "../filters/language.ts";
 import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { ExtractionSchema } from "../intel/extract.ts";
@@ -390,10 +391,14 @@ export function runDigest(opts: DigestOptions): string {
     .where(and(eq(analysis.decision, "reject"), gte(analysis.analyzed_at, since)))
     .all();
   const rejected = rejectedRows.map((x) => x.r);
-  const byReason = { location: 0, indonesia: 0, role: 0, salary: 0 };
+  const byReason = { location: 0, indonesia: 0, role: 0, salary: 0, language: 0 };
   for (const { r, p } of rejectedRows) {
     if (classifyRole({ title: p.title, descriptionText: p.description_text }).class === "reject")
       byReason.role += 1;
+    if (
+      classifyLanguage({ title: p.title, descriptionText: p.description_text }).class === "reject"
+    )
+      byReason.language += 1;
     if (r.location_class === "restricted") byReason.location += 1;
     if (r.indonesia_rule === "domestic") byReason.indonesia += 1;
     if (parseList(r.reasons).includes(`salary: ${SALARY_BELOW_FLOOR_REASON}`)) byReason.salary += 1;
@@ -407,7 +412,7 @@ export function runDigest(opts: DigestOptions): string {
     `- Suspicious: ${suspicious.length}`,
     `- Kept: ${kept}`,
     `- Rejected in the last 24h: ${rejected.length} ` +
-      `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary})`,
+      `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary}, language ${byReason.language})`,
     "",
     ...section("Top matches", top, "None scored yet."),
     ...section("Waiting for scoring", waiting),

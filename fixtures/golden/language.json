@@ -1,0 +1,274 @@
+[
+  {
+    "id": "lg-001",
+    "title": "Senior Softwareentwickler (m/w/d)",
+    "snippet": "Wir suchen Verstärkung.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-002",
+    "title": "Backend Entwickler (m/w/d)",
+    "snippet": "Remote, Germany.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-003",
+    "title": "Développeur Full Stack Senior (H/F)",
+    "snippet": "Rejoignez notre équipe.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "welcome-to-the-jungle-style feed"
+  },
+  {
+    "id": "lg-004",
+    "title": "Ingénieur DevOps",
+    "snippet": "CDI, télétravail partiel.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-005",
+    "title": "Senior Frontend Engineer (German speaking)",
+    "snippet": "Remote within Europe.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "remotive"
+  },
+  {
+    "id": "lg-006",
+    "title": "Full Stack Developer - French-speaking",
+    "snippet": "Support our French customers.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "remotive"
+  },
+  {
+    "id": "lg-007",
+    "title": "Backend Engineer",
+    "snippet": "Fluent German (C1) required.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "himalayas"
+  },
+  {
+    "id": "lg-008",
+    "title": "Backend Engineer",
+    "snippet": "Sehr gute Deutschkenntnisse in Wort und Schrift.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-009",
+    "title": "Backend Engineer",
+    "snippet": "You speak fluent French and English.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "remoteok"
+  },
+  {
+    "id": "lg-010",
+    "title": "Backend Engineer",
+    "snippet": "Native Dutch speaker.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "weworkremotely"
+  },
+  {
+    "id": "lg-011",
+    "title": "Fachinformatiker für Anwendungsentwicklung (m/w/d)",
+    "snippet": "Ausbildung abgeschlossen.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-012",
+    "title": "Chef de projet technique",
+    "snippet": "Pilotage des équipes.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-013",
+    "title": "Staff Engineer",
+    "snippet": "Strong Portuguese skills and fluent English.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "hn"
+  },
+  {
+    "id": "lg-014",
+    "title": "Platform Engineer",
+    "snippet": "Fluency in Japanese is required for stakeholder calls.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "hn"
+  },
+  {
+    "id": "lg-015",
+    "title": "Software Engineer",
+    "snippet": "Mandarin (business fluent) required for hours overlap with China team.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "himalayas"
+  },
+  {
+    "id": "lg-016",
+    "title": "Entwicklerin Java (w/m/d)",
+    "snippet": "Remote möglich.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-017",
+    "title": "Senior Backend Engineer (m/w/d)",
+    "snippet": "We are a Berlin company; the team works in English.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-018",
+    "title": "Senior Frontend Engineer (all genders)",
+    "snippet": "Our working language is English.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-019",
+    "title": "Senior Backend Engineer",
+    "snippet": "German is a plus.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "remotive"
+  },
+  {
+    "id": "lg-020",
+    "title": "Senior Backend Engineer",
+    "snippet": "French is nice to have.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "remotive"
+  },
+  {
+    "id": "lg-021",
+    "title": "Senior Backend Engineer",
+    "snippet": "Spanish preferred.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "himalayas"
+  },
+  {
+    "id": "lg-022",
+    "title": "Senior Backend Engineer",
+    "snippet": "You will support our German-speaking customers.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "remoteok"
+  },
+  {
+    "id": "lg-023",
+    "title": "Senior Backend Engineer",
+    "snippet": "Fluent English required.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "remoteok"
+  },
+  {
+    "id": "lg-024",
+    "title": "Senior Backend Engineer",
+    "snippet": "Bahasa Indonesia is a plus.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "himalayas"
+  },
+  {
+    "id": "lg-025",
+    "title": "Senior Backend Engineer",
+    "snippet": "Fluent in Indonesian and English.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "himalayas"
+  },
+  {
+    "id": "lg-026",
+    "title": "Senior Full Stack Engineer (f/m/x)",
+    "snippet": "Excellent written and spoken English.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "weworkremotely"
+  },
+  {
+    "id": "lg-027",
+    "title": "Platform Engineer (H/F)",
+    "snippet": "Our engineering language is English; French is a bonus.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "greenhouse"
+  },
+  {
+    "id": "lg-028",
+    "title": "Senior DevOps Engineer",
+    "snippet": "We operate in the DACH market. Deutschkenntnisse von Vorteil.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-029",
+    "title": "Staff Software Engineer",
+    "snippet": "Fluent German is an advantage but not required.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "hn"
+  },
+  {
+    "id": "lg-030",
+    "title": "Tech Lead",
+    "snippet": "We sell to the French-speaking market; the role is fully English-speaking.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "hn"
+  },
+  {
+    "id": "lg-031",
+    "title": "Senior Data Engineer",
+    "snippet": "Native Spanish speaker is beneficial.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "remotive"
+  },
+  {
+    "id": "lg-032",
+    "title": "Backend Engineer",
+    "snippet": "Fluent in English or German.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-033",
+    "title": "Backend Engineer",
+    "snippet": "Must be able to speak French or English.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "arbeitnow"
+  },
+  {
+    "id": "lg-034",
+    "title": "Backend Engineer",
+    "snippet": "Fluent English, French or German welcome.",
+    "label": "ok",
+    "reason": "no language other than English or Indonesian required",
+    "source": "arbeitnow"
+  }
+]

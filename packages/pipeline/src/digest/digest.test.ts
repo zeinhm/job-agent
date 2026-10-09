@@ -206,7 +206,7 @@ describe("runDigest", () => {
     expect(text).toContain("- Kept: 5");
     expect(text).toContain("- Waiting for scoring: 5");
     expect(text).toContain(
-      "- Rejected in the last 24h: 2 (location 1, indonesia 0, role 0, salary 1)",
+      "- Rejected in the last 24h: 2 (location 1, indonesia 0, role 0, salary 1, language 0)",
     );
     expect(text).not.toContain("Job r1");
   });
@@ -224,7 +224,7 @@ describe("runDigest", () => {
     expect(looks).toContain("- Staff Engineer — Acme Inc: role_unclear");
     expect(text).toContain("- Flags: role_unclear");
     expect(text).toContain(
-      "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0)",
+      "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0, language 0)",
     );
   });
 

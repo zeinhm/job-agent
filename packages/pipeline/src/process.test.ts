@@ -173,7 +173,7 @@ describe("runProcess", () => {
     });
     for (const a of rows()) {
       const reasons = JSON.parse(a.reasons ?? "[]") as string[];
-      expect(reasons).toHaveLength(4);
+      expect(reasons).toHaveLength(5);
       expect(reasons[0]).toMatch(/^location: /);
       expect(reasons[1]).toMatch(/^indonesia: /);
       expect(reasons[2]).toMatch(/^role: /);
@@ -181,7 +181,37 @@ describe("runProcess", () => {
     }
     expect(byPosting("low-pay").reasons).toContain("salary: max below floor");
     expect(result.out).toMatch(
-      /^processed 5, kept 2, rejected 3 \(location 1, indonesia 1, role 0, salary 1\), flagged 3\n$/,
+      /^processed 5, kept 2, rejected 3 \(location 1, indonesia 1, role 0, salary 1, language 0\), flagged 3\n$/,
+    );
+  });
+
+  it("rejects postings that need another language with `language: ...` and counts them", () => {
+    const base = { source: "remotive", location_text: "Worldwide", remote: true } as const;
+    add({ id: "de-title", title: "Senior Softwareentwickler (m/w/d)", ...base });
+    add({
+      id: "de-desc",
+      title: "Senior Frontend Engineer",
+      description_text: "Fluent German (C1) required.",
+      ...base,
+    });
+    add({
+      id: "plus",
+      title: "Senior Frontend Engineer (m/w/d)",
+      description_text: "German is a plus.",
+      ...base,
+    });
+    const result = run();
+    expect(result.out).toMatch(
+      /^processed 3, kept 1, rejected 2 \(location 0, indonesia 0, role 0, salary 0, language 2\), flagged \d+\n$/,
+    );
+    expect(byPosting("de-title")).toMatchObject({ decision: "reject" });
+    expect(JSON.parse(byPosting("de-title").reasons ?? "[]")).toContain(
+      'language: title written in German or French ("entwickler")',
+    );
+    expect(byPosting("de-desc")).toMatchObject({ decision: "reject" });
+    expect(byPosting("plus")).toMatchObject({ decision: "keep" });
+    expect(JSON.parse(byPosting("plus").reasons ?? "[]")).toContain(
+      "language: no language other than English or Indonesian required",
     );
   });
 
@@ -193,7 +223,7 @@ describe("runProcess", () => {
     add({ id: "target", title: "Senior Frontend Engineer", ...base });
     const result = run();
     expect(result.out).toMatch(
-      /^processed 4, kept 2, rejected 2 \(location 0, indonesia 0, role 2, salary 0\), flagged 4\n$/,
+      /^processed 4, kept 2, rejected 2 \(location 0, indonesia 0, role 2, salary 0, language 0\), flagged 4\n$/,
     );
     expect(byPosting("sales")).toMatchObject({ decision: "reject" });
     expect(JSON.parse(byPosting("sales").reasons ?? "[]")).toContain(
@@ -336,7 +366,7 @@ describe("process command", () => {
     const code = await main(["process"], { out: (t) => out.push(t), err: () => undefined });
     expect(code).toBe(0);
     expect(out.join("")).toBe(
-      "processed 0, kept 0, rejected 0 (location 0, indonesia 0, role 0, salary 0), flagged 0\n",
+      "processed 0, kept 0, rejected 0 (location 0, indonesia 0, role 0, salary 0, language 0), flagged 0\n",
     );
   });
 

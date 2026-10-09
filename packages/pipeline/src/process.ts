@@ -13,6 +13,7 @@ import {
 import { STALE_ANALYZED_AT } from "./stale.ts";
 import { dedupePending } from "./dedupe/index.ts";
 import { classifyIndonesia } from "./filters/indonesia.ts";
+import { classifyLanguage } from "./filters/language.ts";
 import { classifyLocation } from "./filters/location.ts";
 import { classifyRole } from "./filters/role.ts";
 import { applySalaryFloor } from "./filters/salary-floor.ts";
@@ -36,7 +37,7 @@ const FLAG_ORDER = [
   "salary_no_fx",
 ] as const;
 
-type RejectRule = "location" | "indonesia" | "role" | "salary";
+type RejectRule = "location" | "indonesia" | "role" | "salary" | "language";
 
 /** Today in Asia/Jakarta as YYYY-MM-DD. */
 function jakartaDate(now: Date): string {
@@ -77,6 +78,7 @@ function analyze(db: Db, p: Posting, floor: number, now: Date) {
     salaryCurrency: "currency" in parsed ? parsed.currency : null,
   });
   const role = classifyRole({ title: p.title, descriptionText: p.description_text });
+  const language = classifyLanguage({ title: p.title, descriptionText: p.description_text });
   const floorResult = applySalaryFloor(idr, floor);
 
   const rejectedBy: RejectRule[] = [];
@@ -84,6 +86,7 @@ function analyze(db: Db, p: Posting, floor: number, now: Date) {
   if (indonesia.value === "domestic") rejectedBy.push("indonesia");
   if (role.class === "reject") rejectedBy.push("role");
   if (floorResult.reject) rejectedBy.push("salary");
+  if (language.class === "reject") rejectedBy.push("language");
 
   const flags = new Set<string>();
   if (location.class === "unclear") flags.add("location_unclear");
@@ -126,6 +129,7 @@ function analyze(db: Db, p: Posting, floor: number, now: Date) {
       `indonesia: ${indonesia.reason}`,
       `role: ${role.reason}`,
       `salary: ${floorResult.reason}`,
+      `language: ${language.reason}`,
     ]),
     analyzed_at: now.toISOString(),
     digested_at: digestedAt,
@@ -171,7 +175,13 @@ export function runProcess(opts: ProcessOptions): number {
   let rejectedTotal = 0;
   let flagged = 0;
   let failed = 0;
-  const rejected: Record<RejectRule, number> = { location: 0, indonesia: 0, role: 0, salary: 0 };
+  const rejected: Record<RejectRule, number> = {
+    location: 0,
+    indonesia: 0,
+    role: 0,
+    salary: 0,
+    language: 0,
+  };
 
   for (const p of todo) {
     try {
@@ -198,7 +208,7 @@ export function runProcess(opts: ProcessOptions): number {
 
   out(
     `processed ${processed}, kept ${kept}, rejected ${rejectedTotal} ` +
-      `(location ${rejected.location}, indonesia ${rejected.indonesia}, role ${rejected.role}, salary ${rejected.salary}), ` +
+      `(location ${rejected.location}, indonesia ${rejected.indonesia}, role ${rejected.role}, salary ${rejected.salary}, language ${rejected.language}), ` +
       `flagged ${flagged}${failed > 0 ? `, failed ${failed}` : ""}\n`,
   );
   return failed > 0 ? 1 : 0;
