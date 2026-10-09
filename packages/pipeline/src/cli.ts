@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
 import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb, source_runs } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
+import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
 import { runEnrich } from "./enrich.ts";
@@ -23,9 +24,11 @@ const commands: Record<string, Command> = {
     });
     const db = openDb(defaultDbPath());
     try {
+      const config = loadConfig();
+      syncConfigCompanies(db, config);
       return await runDiscover({
         db,
-        adapters: buildAdapters(loadConfig()),
+        adapters: buildAdapters(config, loadPollableCompanies(db)),
         source: values.source,
         force: values.force,
         out: io.out,
