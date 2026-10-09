@@ -4,6 +4,7 @@ import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
 import { createHnAdapter } from "./hn/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
+import { createRecruiteeAdapter } from "./recruitee/index.ts";
 import { createRemoteOkAdapter } from "./remoteok/index.ts";
 import { createRemotiveAdapter } from "./remotive/index.ts";
 import { createSmartRecruitersAdapter } from "./smartrecruiters/index.ts";
@@ -23,6 +24,9 @@ export const buildAdapters = (config: AppConfig): SourceAdapter[] => {
 
   const ashby = config.companies.filter((c) => c.ats === "ashby");
   if (ashby.length > 0) adapters.push(createAshbyAdapter(ashby));
+
+  const recruitee = config.companies.filter((c) => c.ats === "recruitee");
+  if (recruitee.length > 0) adapters.push(createRecruiteeAdapter(recruitee));
 
   const workable = config.companies.filter((c) => c.ats === "workable");
   if (workable.length > 0) adapters.push(createWorkableAdapter(workable));

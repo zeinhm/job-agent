@@ -23,6 +23,14 @@ describe("buildAdapters", () => {
     expect(list.filter((n) => n === "ashby")).toHaveLength(1);
   });
 
+  it("returns a recruitee adapter only when the config has a recruitee company", () => {
+    expect(names(makeConfig())).not.toContain("recruitee");
+    const adapters = buildAdapters(makeConfig([{ name: "R", ats: "recruitee", slug: "r" }]));
+    const recruitee = adapters.filter((a) => a.name === "recruitee");
+    expect(recruitee).toHaveLength(1);
+    expect(recruitee[0]?.minIntervalMinutes).toBe(360);
+  });
+
   it("always includes exactly one himalayas adapter with a 60 minute interval", () => {
     const himalayas = buildAdapters(makeConfig()).filter((a) => a.name === "himalayas");
     expect(himalayas).toHaveLength(1);
