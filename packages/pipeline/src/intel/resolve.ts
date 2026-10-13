@@ -119,6 +119,16 @@ function resolveIndonesia(x: Extraction): Outcome {
   };
 }
 
+/** The reason stored (and counted by the digest) for an unpaid or equity-only posting. */
+export const UNPAID_REASON = "unpaid";
+
+/** Unpaid, volunteer and equity-only postings are never scored; an unknown or paid type settles nothing. */
+function unpaidReject(x: Extraction): { decision: "reject"; reason: string } | null {
+  return x.payType === "unpaid" || x.payType === "equity_only"
+    ? { decision: "reject", reason: UNPAID_REASON }
+    : null;
+}
+
 /** A known family outside the target rejects every kept posting; a null family settles nothing. */
 function familyReject(x: Extraction): { decision: "reject"; reason: string } | null {
   const family = x.roleFamily;
@@ -157,7 +167,7 @@ const RESOLVERS: Record<ResolvableFlag, (x: Extraction) => Outcome> = {
 
 /**
  * Settles unclear flags from extracted facts. Pure; the LLM extracted the facts, this code decides.
- * Never overturns a rule reject; a known role family outside `TARGET_ROLE_FAMILIES` rejects a kept posting. A flag whose facts are unknown stays in `remainingFlags`.
+ * Never overturns a rule reject; a known role family outside `TARGET_ROLE_FAMILIES`, or an unpaid / equity-only pay type, rejects a kept posting. A flag whose facts are unknown stays in `remainingFlags`.
  */
 export function resolveFlags(input: ResolveInput): ResolveResult {
   const present = RESOLVABLE.filter((f) => input.flags.includes(f));
@@ -180,6 +190,11 @@ export function resolveFlags(input: ResolveInput): ResolveResult {
   if (outside !== null) {
     decision = "reject";
     if (!reasons.includes(outside.reason)) reasons.push(outside.reason);
+  }
+  const unpaid = unpaidReject(input.extraction);
+  if (unpaid !== null) {
+    decision = "reject";
+    if (!reasons.includes(unpaid.reason)) reasons.push(unpaid.reason);
   }
   return { decision, reasons, remainingFlags };
 }

@@ -246,6 +246,32 @@ describe("enrich fit stage", () => {
     expect(intelOf("dev")?.fit_score).toBe(82);
   });
 
+  it("a volunteer posting extracted as unpaid is rejected as unpaid and gets no fit call", async () => {
+    const msg = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
+    const block = msg.content[msg.content.length - 1];
+    if (block?.text === undefined) throw new Error("fixture shape");
+    block.text = JSON.stringify({ ...JSON.parse(block.text), payType: "unpaid" });
+    addPosting("vol", { title: "AI Full Stack Engineer (Volunteer, unpaid)" });
+    addPosting("paid");
+    server.use(
+      http.post(URL, async ({ request }) => {
+        const body = (await request.json()) as Req;
+        requests.push(body);
+        if (body["model"] === FIT_MODEL) return HttpResponse.json(fixture(fitResponse));
+        const text = String((body["messages"] as { content: string }[])[0]?.content);
+        return HttpResponse.json(text.includes("Volunteer") ? msg : fixture("extract-ok.json"));
+      }),
+    );
+    expect((await enrich()).code).toBe(0);
+    const vol = intelOf("vol");
+    expect(vol?.final_decision).toBe("reject");
+    expect(JSON.parse(vol?.resolved_reasons ?? "[]")).toEqual(["unpaid"]);
+    expect(vol?.fit_score).toBeNull();
+    expect(intelOf("paid")?.final_decision).toBe("keep");
+    expect(intelOf("paid")?.fit_score).not.toBeNull();
+    expect(fitRequests()).toHaveLength(1);
+  });
+
   it("an hn applicant reply extracted as not_a_job is rejected and gets no fit call", async () => {
     const msg = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
     const block = msg.content[msg.content.length - 1];

@@ -28,6 +28,9 @@ export const ROLE_FAMILIES = [
 ] as const;
 export type RoleFamily = (typeof ROLE_FAMILIES)[number];
 
+export const PAY_TYPES = ["paid", "unpaid", "equity_only"] as const;
+export type PayType = (typeof PAY_TYPES)[number];
+
 export const ExtractionSchema = z.object({
   listedSalary: z
     .object({
@@ -63,6 +66,8 @@ export const ExtractionSchema = z.object({
   ),
   /** The job title the posting hires for, in its words. Old rows predate it: missing parses as null. */
   roleTitle: z.string().nullable().default(null),
+  /** Old rows predate this fact: a missing field parses as null (the text does not say). */
+  payType: z.enum(PAY_TYPES).nullable().default(null),
   contactChannels: z.array(
     z.enum(["email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat"]),
   ),
@@ -125,6 +130,8 @@ export const ExtractionWireSchema = z.object({
   roleFamily: unknownEnum(ROLE_FAMILIES),
   /** "" = not a job, or no title stated. A plain string, so the union count does not grow. */
   roleTitle: z.string(),
+  /** A plain enum with "unknown", so the union count does not grow. */
+  payType: unknownEnum(PAY_TYPES),
   contactChannels: ExtractionSchema.shape.contactChannels,
   personalEmailDomain: triState,
   asksForPaymentOrId: triState,
@@ -157,6 +164,7 @@ export function toExtraction(w: ExtractionWire): Extraction {
     seniority: orNull(w.seniority),
     roleFamily: orNull(w.roleFamily),
     roleTitle: w.roleTitle.trim() === "" ? null : w.roleTitle.trim(),
+    payType: orNull(w.payType),
     contactChannels: w.contactChannels,
     personalEmailDomain: fromTri(w.personalEmailDomain),
     asksForPaymentOrId: fromTri(w.asksForPaymentOrId),

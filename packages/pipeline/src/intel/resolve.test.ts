@@ -8,7 +8,7 @@ import {
   type Extraction,
 } from "./extract.ts";
 import { EXTRACT_SYSTEM_PROMPT } from "./prompts/extract.ts";
-import { resolveFlags, TARGET_ROLE_FAMILIES, type ResolveInput } from "./resolve.ts";
+import { resolveFlags, TARGET_ROLE_FAMILIES, UNPAID_REASON, type ResolveInput } from "./resolve.ts";
 
 const BLANK: Extraction = ExtractionSchema.parse({
   listedSalary: null,
@@ -25,6 +25,7 @@ const BLANK: Extraction = ExtractionSchema.parse({
   eorProvider: null,
   seniority: null,
   roleFamily: null,
+  payType: null,
   contactChannels: [],
   personalEmailDomain: null,
   asksForPaymentOrId: null,
@@ -35,6 +36,30 @@ const BLANK: Extraction = ExtractionSchema.parse({
 
 const run = (flags: string[], x: Partial<Extraction>, ruleDecision: "keep" | "reject" = "keep") =>
   resolveFlags({ ruleDecision, flags, extraction: { ...BLANK, ...x } } satisfies ResolveInput);
+
+describe("resolve: pay type", () => {
+  it.each(["unpaid", "equity_only"] as const)(
+    "%s rejects a kept posting with no flags",
+    (payType) => {
+      const r = run([], { payType });
+      expect(r.decision).toBe("reject");
+      expect(r.reasons).toEqual([UNPAID_REASON]);
+      expect(UNPAID_REASON).toBe("unpaid");
+    },
+  );
+  it("unpaid rejects next to a settled flag and does not duplicate its reason", () => {
+    const r = run(["location_unclear"], { payType: "unpaid", hiringScope: "worldwide" });
+    expect(r.decision).toBe("reject");
+    expect(r.reasons.filter((x) => x === UNPAID_REASON)).toHaveLength(1);
+  });
+  it.each(["paid", null] as const)("%s changes nothing", (payType) => {
+    const r = run([], { payType });
+    expect(r).toEqual({ decision: "keep", reasons: [], remainingFlags: [] });
+  });
+  it("a rule reject stays untouched", () => {
+    expect(run([], { payType: "unpaid" }, "reject").reasons).toEqual([]);
+  });
+});
 
 describe("resolve: location", () => {
   const f = ["location_unclear"];
@@ -260,7 +285,7 @@ describe("extraction schema: roleFamily", () => {
     expect(EXTRACT_SYSTEM_PROMPT).toContain("roleFamily");
     for (const family of ROLE_FAMILIES) expect(EXTRACT_SYSTEM_PROMPT).toContain(`"${family}"`);
     expect(EXTRACT_SYSTEM_PROMPT).toMatch(/"Gameplay Animator"[^.]*"design"/);
-    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v5");
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v6");
   });
 });
 

@@ -16,7 +16,7 @@ import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { ExtractionSchema } from "../intel/extract.ts";
 import { failedFitRuns, MAX_FIT_ATTEMPTS } from "../intel/fit.ts";
-import { resolveFlags } from "../intel/resolve.ts";
+import { resolveFlags, UNPAID_REASON } from "../intel/resolve.ts";
 import { TIER_SKIPPED_NO_FX } from "../intel/tier.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { groupPostings, joinLocations } from "./group.ts";
@@ -456,6 +456,14 @@ export function runDigest(opts: DigestOptions): string {
     if (parseList(r.reasons).includes(`salary: ${SALARY_BELOW_FLOOR_REASON}`)) byReason.salary += 1;
   }
 
+  // Resolve-stage rejects are not in `analysis`: count the unpaid ones from intel.
+  const unpaidCount = db
+    .select({ reasons: intel.resolved_reasons })
+    .from(intel)
+    .where(and(eq(intel.final_decision, "reject"), gte(intel.updated_at, since)))
+    .all()
+    .filter((x) => parseList(x.reasons).includes(UNPAID_REASON)).length;
+
   const body = [
     `# Job digest ${date}`,
     "",
@@ -464,8 +472,8 @@ export function runDigest(opts: DigestOptions): string {
     `- Waiting for scoring: ${waiting.length}`,
     `- Suspicious: ${suspicious.length}`,
     `- Kept: ${kept}`,
-    `- Rejected in the last 24h: ${rejected.length} ` +
-      `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary}, language ${byReason.language})`,
+    `- Rejected in the last 24h: ${rejected.length + unpaidCount} ` +
+      `(location ${byReason.location}, indonesia ${byReason.indonesia}, role ${byReason.role}, salary ${byReason.salary}, language ${byReason.language}, unpaid ${unpaidCount})`,
     "",
     ...section("Top matches", top, "None scored yet."),
     "## Scored, not a fit",

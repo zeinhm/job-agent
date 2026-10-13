@@ -238,6 +238,7 @@ describe("ranked digest", () => {
       seniority: null,
       roleFamily: null,
       roleTitle: null,
+      payType: null,
       contactChannels: [],
       personalEmailDomain: null,
       asksForPaymentOrId: null,

@@ -207,7 +207,7 @@ describe("runDigest", () => {
     expect(text).toContain("- Kept: 5");
     expect(text).toContain("- Waiting for scoring: 5");
     expect(text).toContain(
-      "- Rejected in the last 24h: 2 (location 1, indonesia 0, role 0, salary 1, language 0)",
+      "- Rejected in the last 24h: 2 (location 1, indonesia 0, role 0, salary 1, language 0, unpaid 0)",
     );
     expect(text).not.toContain("Job r1");
   });
@@ -225,8 +225,34 @@ describe("runDigest", () => {
     expect(looks).toContain("- Staff Engineer — Acme Inc: role_unclear");
     expect(text).toContain("- Flags: role_unclear");
     expect(text).toContain(
-      "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0, language 0)",
+      "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0, language 0, unpaid 0)",
     );
+  });
+
+  it("counts unpaid resolve rejects in the rejected line and keeps them out of the sections", () => {
+    seed("ok", { title: "Senior Frontend Engineer" });
+    seed("vol", { title: "AI Full Stack Engineer (Volunteer, unpaid)" });
+    seed("old", { title: "Old Unpaid Role" });
+    const row = (id: string, updated: string) =>
+      db
+        .insert(intel)
+        .values({
+          id: `i-${id}`,
+          posting_id: id,
+          status: "done",
+          final_decision: "reject",
+          resolved_reasons: JSON.stringify(["unpaid"]),
+          updated_at: updated,
+        })
+        .run();
+    row("vol", NOW.toISOString());
+    row("old", "2026-10-01T00:00:00Z");
+    const { text } = run();
+    expect(text).toContain(
+      "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 0, salary 0, language 0, unpaid 1)",
+    );
+    expect(text).not.toContain("Volunteer");
+    expect(text).toContain("Senior Frontend Engineer");
   });
 
   it("links the apply url for ATS canonicals and the posting url otherwise", () => {
