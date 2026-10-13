@@ -37,14 +37,14 @@ const FLAG_ORDER = [
   "salary_no_fx",
 ] as const;
 
-type RejectRule = "location" | "indonesia" | "role" | "salary" | "language";
+export type RejectRule = "location" | "indonesia" | "role" | "salary" | "language";
 
 /** Today in Asia/Jakarta as YYYY-MM-DD. */
 function jakartaDate(now: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(now);
 }
 
-function analyze(db: Db, p: Posting, floor: number, now: Date) {
+export function analyze(db: Db, p: Posting, floor: number, now: Date) {
   const hasNumbers = p.salary_min !== null || p.salary_max !== null;
   const parsed = parseSalary({
     ...(hasNumbers && p.salary_currency !== null && p.salary_period !== null

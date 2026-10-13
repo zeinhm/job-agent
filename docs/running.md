@@ -68,10 +68,26 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | `fx` | Fetches today's USD exchange rates (IDR, EUR, GBP, SGD, AUD, CAD, CHF) and stores them. Salaries are converted with the latest stored rate on or before the analysis date, so run it daily. Without a stored IDR rate, `enrich` parks kept postings as `fx_wait` (digest: "Waiting for scoring"); after `fx` the next `enrich` tiers them without any LLM call. |
 | `discover [--source <name>] [--force]` | Polls every source that is due and stores new postings. Each source has a minimum poll interval enforced in code; a source polled too recently is recorded as `skipped` and gets no request. `--source` runs one source (`greenhouse`, `lever`, `ashby`, `himalayas`, `remoteok`, `remotive`, `web3career`, `weworkremotely`, `hn`, `arbeitnow`); `--force` ignores the interval (manual use only). Exits 1 if any source errored. |
 | `discover-companies` | Finds new companies to poll: runs a fixed list of 12 web searches (Brave Search API, at most 20 requests per run, one every 2 seconds) for Greenhouse, Lever, Ashby, SmartRecruiters, Workable and Recruitee board URLs, checks each new board with one request and stores it in the database (`verified` only if the board answered). Companies already known are skipped. Needs `BRAVE_API_KEY`. Prints `discover-companies: <q> queries (<n> failed), <c> candidates, <v> new verified, <n> not found, <k> known, <e> verify errors`. Exits 1 only if every search query failed. Run it once a day; the next `discover` polls the verified companies. |
-| `process` | Normalizes and dedupes new postings, then applies the rule filters (location, Indonesia rule, role, salary floor, language) and records keep / reject with flags. Prints the counts. |
+| `process [--reprocess]` | Normalizes and dedupes new postings, then applies the rule filters (location, Indonesia rule, role, salary floor, language) and records keep / reject with flags. Prints the counts. `--reprocess` also re-applies the current rules to every stored posting; see "Reprocessing after a rule change". |
 | `enrich [--limit <n>]` | Runs the LLM stages on kept postings, newest first, one posting at a time: extract facts (Haiku) -> resolve unclear flags -> scam score -> pay-policy registry -> fit score against `config/cv.md` (Sonnet, only for postings that were kept) -> tier and salary ask. Postings already done are not redone. `--limit` caps how many postings this run handles. Prints `enriched <n>, budget_wait <n>, failed <n>, spent $<x> today`. Exits 0 except for an invalid `--limit`. Details below. |
 | `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
 | `digest [--date YYYY-MM-DD] [--out-dir <dir>]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored at 60 or more, ranked, each with a one-line why; see "Reading the ranked digest"), Scored, not a fit (fit-scored below 60, one line each), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
+
+### Reprocessing after a rule change
+
+Rule changes (filters, resolve rules, role families) only reach new or edited postings. After pulling such a change, run:
+
+```sh
+pnpm job-agent process --reprocess
+```
+
+It first runs the normal `process`, then, for every canonical posting, re-runs the rule filters (replacing the `analysis` row, keeping `digested_at`) and, for every posting with a stored extraction, the resolve rules. Nothing is deleted and nothing is paid: no LLM call, no network call, no `ANTHROPIC_API_KEY` needed. Suspicious rows stay suspicious (scam is not re-scored). A row that moves to `keep` and has no fit (or scam) result becomes `pending` for the next `enrich`, which reuses the stored extraction if its prompt version still matches; a row that moves to `reject` keeps its paid data. Tiers of kept, fit-scored rows are recomputed from the stored FX rates. It is safe to repeat: a second run right after prints all zeros. The last line reads:
+
+```
+reprocessed N postings: rules keep->reject A, reject->keep B; resolve keep->reject C, reject->keep D; now pending for enrich E
+```
+
+What it does not do: no re-extraction. An old extraction keeps its old facts, so a posting extracted before the role family or role title existed keeps a null family / title (no family reject) until it is extracted again. Exits 1 if any posting failed (reported on stderr; the rest are still processed).
 
 A first manual run:
 

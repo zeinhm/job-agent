@@ -9,6 +9,7 @@ import { runDiscover } from "./discover.ts";
 import { runDiscoverCompanies } from "./discover-companies.ts";
 import { runEnrich } from "./enrich.ts";
 import { runProcess } from "./process.ts";
+import { runReprocess } from "./reprocess.ts";
 
 export interface Io {
   out: (text: string) => void;
@@ -70,10 +71,23 @@ const commands: Record<string, Command> = {
       db.$client.close();
     }
   },
-  process: (_args, io) => {
+  process: (args, io) => {
+    let reprocess = false;
+    try {
+      const { values } = parseArgs({
+        args,
+        options: { reprocess: { type: "boolean", default: false } },
+      });
+      reprocess = values.reprocess === true;
+    } catch (e) {
+      io.err(`process: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
     const db = openDb(defaultDbPath());
     try {
-      return runProcess({ db, out: io.out, err: io.err });
+      const code = runProcess({ db, out: io.out, err: io.err });
+      if (!reprocess) return code;
+      return Math.max(code, runReprocess({ db, out: io.out, err: io.err }));
     } finally {
       db.$client.close();
     }
@@ -145,7 +159,7 @@ const usage = (): string =>
     Object.keys(commands)
       .map((name) => `  ${name}`)
       .join("\n") || "  (none yet)"
-  }\n`;
+  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n`;
 
 export async function main(
   argv: string[],

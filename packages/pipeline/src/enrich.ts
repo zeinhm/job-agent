@@ -278,7 +278,7 @@ function makeFitStage(cv: string | null): Stage {
  * Tier and ask from what is stored so far (PLAN 5.3). Pure code on the extraction, registry policy and stored FX.
  * Returns null when no IDR rate is stored: a number is never guessed.
  */
-function computeTier(
+export function computeTier(
   db: Db,
   p: Posting,
   extractionJson: string,
@@ -454,7 +454,7 @@ const FIT_RETRYABLE_SQL = and(
  * Kept canonical postings with no intel row, a pending / budget_wait one, or one whose fit scoring failed and may
  * be tried again (extract-stage failures are never selected); newest first.
  */
-function selectPostings(db: Db, limit: number | undefined): Posting[] {
+export function selectPostings(db: Db, limit: number | undefined): Posting[] {
   const query = db
     .select({ posting: postings })
     .from(postings)
