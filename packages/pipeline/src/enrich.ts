@@ -26,7 +26,14 @@ import {
   extractFacts,
   type Extraction,
 } from "./intel/extract.ts";
-import { FIT_MODEL, FIT_PROMPT_VERSION, scoreFit } from "./intel/fit.ts";
+import {
+  failedFitRuns,
+  FIT_MODEL,
+  FIT_PROMPT_VERSION,
+  fitAttemptMarker,
+  MAX_FIT_ATTEMPTS,
+  scoreFit,
+} from "./intel/fit.ts";
 import { researchCompanyPayPolicy, type ResearchDeps } from "./intel/company-research.ts";
 import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
 import { payPolicyFor, recordPostingPolicy } from "./intel/registry.ts";
@@ -240,10 +247,11 @@ function makeFitStage(cv: string | null): Stage {
         };
       } catch (e) {
         if (e instanceof LlmOutputError) {
-          return {
-            kind: "failed",
-            patch: { resolved_reasons: JSON.stringify(e.issues.map((i) => `fit ${i}`)) },
-          };
+          // Runs failed so far come from the stored row, so the count survives between runs without a migration.
+          const stored = deps.db.select().from(intel).where(eq(intel.posting_id, p.id)).get();
+          const runs = failedFitRuns(stored?.resolved_reasons ?? null);
+          const reasons = [...e.issues.map((i) => `fit ${i}`), fitAttemptMarker(runs + 1)];
+          return { kind: "failed", patch: { resolved_reasons: JSON.stringify(reasons) } };
         }
         if (e instanceof LlmApiError) return { kind: "retry", error: e };
         throw e;
@@ -416,7 +424,22 @@ function savedPaidPatch(db: Db, postingId: string): IntelPatch {
   return patch;
 }
 
-/** Kept canonical postings with no intel row, or a pending / budget_wait one; newest first. */
+/** `failed` rows whose fit stage failed fewer than `MAX_FIT_ATTEMPTS` runs ago (extraction stored, marker present). */
+const FIT_RETRYABLE_SQL = and(
+  eq(intel.status, "failed"),
+  isNotNull(intel.extraction),
+  or(
+    ...Array.from(
+      { length: MAX_FIT_ATTEMPTS - 1 },
+      (_, i) => sql`${intel.resolved_reasons} like ${`%"${fitAttemptMarker(i + 1)}"%`}`,
+    ),
+  ),
+);
+
+/**
+ * Kept canonical postings with no intel row, a pending / budget_wait one, or one whose fit scoring failed and may
+ * be tried again (extract-stage failures are never selected); newest first.
+ */
 function selectPostings(db: Db, limit: number | undefined): Posting[] {
   const query = db
     .select({ posting: postings })
@@ -427,7 +450,7 @@ function selectPostings(db: Db, limit: number | undefined): Posting[] {
       and(
         isNull(postings.canonical_posting_id),
         eq(analysis.decision, "keep"),
-        or(isNull(intel.id), inArray(intel.status, ["pending", "budget_wait"])),
+        or(isNull(intel.id), inArray(intel.status, ["pending", "budget_wait"]), FIT_RETRYABLE_SQL),
       ),
     )
     .orderBy(

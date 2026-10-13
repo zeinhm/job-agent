@@ -1,5 +1,5 @@
 /** Bump on every change to the prompt or the fit schema. */
-export const PROMPT_VERSION = "fit-v1";
+export const PROMPT_VERSION = "fit-v2";
 
 /**
  * Static instructions (sent first, cacheable). The CV follows as a second cacheable block, then the posting.
@@ -16,6 +16,6 @@ Rules:
 
 Output fields:
 - score: an integer from 0 to 100. 90+ means the CV matches nearly every core requirement at the right seniority; 70-89 a strong match with small gaps; 50-69 a partial match; below 50 a weak match or a different kind of role.
-- reasons: 1 to 3 short strings, each at most 140 characters, the most important reasons for the score. State concrete matches and gaps, not generalities.
+- reasons: 1 to 3 short strings, each at most 100 characters (shorter is better), the most important reasons for the score. State concrete matches and gaps, not generalities.
 - matchedSkills: skills or technologies required by the posting that the CV clearly shows.
 - missingSkills: skills or technologies required by the posting that the CV does not show.`;

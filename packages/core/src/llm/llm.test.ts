@@ -276,10 +276,53 @@ describe("invalid output", () => {
     expect(db.select().from(llm_calls).all()).toHaveLength(2);
   });
 
-  it("treats max_tokens truncation as invalid output", async () => {
-    respond = () => HttpResponse.json({ ...fixture("ok-haiku.json"), stop_reason: "max_tokens" });
-    await expect(callStructured(opts(), deps())).rejects.toBeInstanceOf(LlmOutputError);
-    expect(requests).toHaveLength(2);
+  it("max_tokens truncation fails at once: one call, no identical retry, stop reason and tokens in the issues", async () => {
+    respond = () =>
+      HttpResponse.json({
+        ...fixture("ok-haiku.json"),
+        stop_reason: "max_tokens",
+        usage: { input_tokens: 100, output_tokens: 1000 },
+      });
+    const err = await callStructured(opts(), deps()).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LlmOutputError);
+    expect((err as LlmOutputError).issues).toEqual([
+      "stop_reason:max_tokens",
+      "output_tokens:1000",
+      "max_tokens:1000",
+    ]);
+    expect(requests).toHaveLength(1);
+    expect(db.select().from(llm_calls).all()).toHaveLength(1);
+  });
+
+  it("logs stop_reason on every answered call and a content-free warn line for invalid output", async () => {
+    respond = () => HttpResponse.json(fixture("invalid-schema.json"));
+    await callStructured(opts(), deps()).catch(() => undefined);
+    const logs = lines.map((l) => JSON.parse(l) as Record<string, unknown>);
+    const call = logs.find((l) => l["msg"] === "llm call");
+    expect(call).toMatchObject({ status: "ok", stop_reason: "end_turn" });
+    const invalid = logs.filter((l) => l["msg"] === "llm output invalid");
+    expect(invalid).toHaveLength(2);
+    expect(invalid[0]).toMatchObject({
+      level: "warn",
+      model: "claude-haiku-5-5",
+      purpose: "extract",
+      posting_id: null,
+      stop_reason: "end_turn",
+      max_tokens: 1000,
+    });
+    expect(invalid[0]?.["output_tokens"]).toEqual(expect.any(Number));
+    expect(invalid[0]?.["issues"]).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^remote/)]),
+    );
+    expect(lines.join("\n")).not.toContain("Posting text.");
+  });
+
+  it("a retry after a non-truncation failure is allowed once and reserves the same limit", async () => {
+    let n = 0;
+    respond = () => HttpResponse.json(fixture(++n === 1 ? "invalid-schema.json" : "ok-haiku.json"));
+    await callStructured(opts(), deps());
+    const sent = requests.map((r) => (r as { max_tokens: number }).max_tokens);
+    expect(sent).toEqual([1000, 1000]);
   });
 
   it("does not retry past the budget", async () => {
