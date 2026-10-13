@@ -73,13 +73,14 @@ function seed(
     .run();
 }
 
-function run(opts: { date?: string; now?: Date } = {}) {
+function run(opts: { date?: string; now?: Date; includeUnpaid?: boolean } = {}) {
   const out: string[] = [];
   const path = runDigest({
     db,
     outDir: dir,
     now: () => opts.now ?? NOW,
     ...(opts.date !== undefined ? { date: opts.date } : {}),
+    ...(opts.includeUnpaid === true ? { includeUnpaid: true } : {}),
     out: (t) => out.push(t),
   });
   return { path, out: out.join(""), text: readFileSync(path, "utf8") };
@@ -253,6 +254,44 @@ describe("runDigest", () => {
     );
     expect(text).not.toContain("Volunteer");
     expect(text).toContain("Senior Frontend Engineer");
+  });
+
+  it("lists unpaid rejects in a Volunteer / unpaid section only with includeUnpaid", () => {
+    seed("ok", { title: "Senior Frontend Engineer" });
+    seed("vol", { title: "Volunteer Web Developer", company: "Charity Org", location: "Remote" });
+    seed("old", { title: "Old Unpaid Role" });
+    const row = (id: string, updated: string, payType: string) =>
+      db
+        .insert(intel)
+        .values({
+          id: `i-${id}`,
+          posting_id: id,
+          status: "done",
+          final_decision: "reject",
+          resolved_reasons: JSON.stringify(["unpaid"]),
+          extraction: JSON.stringify({ payType }),
+          updated_at: updated,
+        })
+        .run();
+    row("vol", NOW.toISOString(), "equity_only");
+    row("old", "2026-10-01T00:00:00Z", "unpaid");
+    const without = run().text;
+    expect(without).not.toContain("Volunteer / unpaid");
+    expect(without).not.toContain("Volunteer Web Developer");
+    const text = run({ includeUnpaid: true }).text;
+    const section = text.slice(text.indexOf("## Volunteer / unpaid"));
+    expect(section).toContain("### Volunteer Web Developer — Charity Org");
+    expect(section).toContain("- Pay type: equity_only");
+    expect(section).toContain("- Location: Remote");
+    expect(section).toContain("- Link: https://example.com/jobs/vol");
+    expect(section).toContain("- Posted: 2026-10-05");
+    expect(section).not.toContain("Old Unpaid Role");
+    expect(text.indexOf("## LLM spend")).toBeLessThan(text.indexOf("## Volunteer / unpaid"));
+  });
+
+  it("shows None. in the unpaid section when nothing was rejected as unpaid", () => {
+    seed("ok", { title: "Senior Frontend Engineer" });
+    expect(run({ includeUnpaid: true }).text).toContain("## Volunteer / unpaid\n\nNone.");
   });
 
   it("links the apply url for ATS canonicals and the posting url otherwise", () => {

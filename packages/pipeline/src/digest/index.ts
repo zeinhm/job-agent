@@ -35,6 +35,8 @@ export interface DigestOptions {
   now?: () => Date;
   /** LLM cap shown in the spend section; default from `JOB_AGENT_LLM_CAP_USD` / the $1 hard cap. */
   capUsd?: number;
+  /** Adds a "Volunteer / unpaid" section listing postings rejected as unpaid. Default off. */
+  includeUnpaid?: boolean;
   out: (text: string) => void;
 }
 
@@ -346,6 +348,39 @@ function sourceHealth(db: Db, now: Date): string[] {
   return [...lines, ""];
 }
 
+/** Pay type from the stored extraction ("unpaid" or "equity_only"); "unpaid" when it cannot be read. */
+function payTypeOf(i: Intel): string {
+  if (i.extraction == null) return "unpaid";
+  try {
+    const v: unknown = (JSON.parse(i.extraction) as { payType?: unknown } | null)?.payType;
+    return v === "equity_only" ? v : "unpaid";
+  } catch {
+    return "unpaid";
+  }
+}
+
+/** Opt-in section: postings rejected as unpaid, volunteer or equity-only. Listed, never fit-scored. */
+function unpaidSection(rows: { p: Row["p"]; i: Intel }[]): string[] {
+  const lines = rows
+    .filter((r) => r.p.canonical_posting_id === null)
+    .sort(
+      (a, b) =>
+        (b.p.posted_at ?? "").localeCompare(a.p.posted_at ?? "") ||
+        a.p.title.localeCompare(b.p.title) ||
+        a.p.company_name.localeCompare(b.p.company_name),
+    )
+    .flatMap(({ p, i }) => [
+      `### ${displayTitle(p, i)} — ${p.company_name}`,
+      "",
+      `- Pay type: ${payTypeOf(i)}`,
+      `- Location: ${p.location_text ?? "unknown"}`,
+      `- Link: ${isAtsSource(p.source) ? (p.apply_url ?? p.url) : p.url}`,
+      `- Posted: ${p.posted_at !== null ? p.posted_at.slice(0, 10) : "unknown"}`,
+      "",
+    ]);
+  return ["## Volunteer / unpaid", "", ...(lines.length === 0 ? ["None.", ""] : lines)];
+}
+
 /** Writes the digest for `date`, stamping newly kept postings with it. Returns the file path. */
 export function runDigest(opts: DigestOptions): string {
   const { db, out } = opts;
@@ -457,12 +492,14 @@ export function runDigest(opts: DigestOptions): string {
   }
 
   // Resolve-stage rejects are not in `analysis`: count the unpaid ones from intel.
-  const unpaidCount = db
-    .select({ reasons: intel.resolved_reasons })
+  const unpaidRows = db
+    .select({ p: postings, i: intel })
     .from(intel)
+    .innerJoin(postings, eq(postings.id, intel.posting_id))
     .where(and(eq(intel.final_decision, "reject"), gte(intel.updated_at, since)))
     .all()
-    .filter((x) => parseList(x.reasons).includes(UNPAID_REASON)).length;
+    .filter((x) => parseList(x.i.resolved_reasons).includes(UNPAID_REASON));
+  const unpaidCount = unpaidRows.length;
 
   const body = [
     `# Job digest ${date}`,
@@ -485,6 +522,7 @@ export function runDigest(opts: DigestOptions): string {
     ...section("Suspicious", suspicious),
     ...sourceHealth(db, now),
     ...spendSection(db, date, opts.capUsd ?? effectiveCapUsd(process.env, (m) => log.warn(m))),
+    ...(opts.includeUnpaid === true ? unpaidSection(unpaidRows) : []),
   ].join("\n");
 
   const dir = opts.outDir ?? join("data", "digests");

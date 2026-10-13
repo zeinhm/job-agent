@@ -95,11 +95,16 @@ const commands: Record<string, Command> = {
   digest: (args, io) => {
     const { values } = parseArgs({
       args,
-      options: { date: { type: "string" }, "out-dir": { type: "string" } },
+      options: {
+        date: { type: "string" },
+        "out-dir": { type: "string" },
+        "include-unpaid": { type: "boolean" },
+      },
     });
     const db = openDb(defaultDbPath());
     try {
       runDigest({
+        ...(values["include-unpaid"] === true ? { includeUnpaid: true } : {}),
         db,
         ...(values.date !== undefined ? { date: values.date } : {}),
         ...(values["out-dir"] !== undefined ? { outDir: values["out-dir"] } : {}),
