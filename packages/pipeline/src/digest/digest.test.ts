@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main } from "../cli.ts";
 import { formatSalary, isDigestDate, jakartaDate, runDigest } from "./index.ts";
+import { TOP_MATCH_MIN_FIT } from "./rank.ts";
 
 const NOW = new Date("2026-10-07T03:00:00Z");
 const DATE = "2026-10-07";
@@ -442,6 +443,120 @@ describe("runDigest", () => {
 
   it("rejects an invalid date", () => {
     expect(() => run({ date: "nope" })).toThrow(/Invalid date/);
+  });
+});
+
+describe("Top matches threshold", () => {
+  function score(id: string, over: Partial<typeof intel.$inferInsert> = {}) {
+    db.insert(intel)
+      .values({
+        id: `i-${id}`,
+        posting_id: id,
+        status: "done",
+        final_decision: "keep",
+        scam_score: 0,
+        scam_reasons: "[]",
+        fit_score: 80,
+        fit_reasons: JSON.stringify(["Strong TypeScript match", "Second reason"]),
+        tier: "regional",
+        ask_idr_month: 20_000_000,
+        updated_at: "2026-10-07T02:00:00Z",
+        ...over,
+      })
+      .run();
+  }
+  const part = (text: string, from: string, to: string) =>
+    text.slice(text.indexOf(from), text.indexOf(to));
+
+  it("uses 60 as the threshold", () => {
+    expect(TOP_MATCH_MIN_FIT).toBe(60);
+  });
+
+  it("fit 60 is a Top match, fit 59 goes to Scored, not a fit", () => {
+    seed("b60", { title: "Boundary Sixty" });
+    score("b60", { fit_score: 60 });
+    seed("b59", { title: "Boundary Fifty Nine" });
+    score("b59", { fit_score: 59 });
+    const { text } = run();
+    const top = part(text, "## Top matches", "## Scored, not a fit");
+    const low = part(text, "## Scored, not a fit", "## Waiting");
+    expect(top).toContain("### Boundary Sixty — Acme Inc");
+    expect(top).not.toContain("Boundary Fifty Nine");
+    expect(low).toContain("Boundary Fifty Nine");
+    expect(low).not.toContain("Boundary Sixty");
+    expect(low).not.toContain("###");
+  });
+
+  it("prints a compact line with title, company, fit, first reason and link", () => {
+    seed("c1", { title: "Weak Fit" });
+    score("c1", { fit_score: 40 });
+    const { text } = run();
+    expect(text).toContain(
+      "- Weak Fit — Acme Inc — fit 40/100 — Strong TypeScript match — https://example.com/jobs/c1\n",
+    );
+    expect(text).not.toContain("Second reason");
+  });
+
+  it("prints no empty separator when there are no fit reasons", () => {
+    seed("c2", { title: "No Reasons" });
+    score("c2", { fit_score: 30, fit_reasons: "[]" });
+    const { text } = run();
+    expect(text).toContain("- No Reasons — Acme Inc — fit 30/100 — https://example.com/jobs/c2\n");
+  });
+
+  it("sorts by fit descending, then posted date descending", () => {
+    seed("o1", { title: "Fit 50 Old", posted: "2026-10-01T00:00:00Z" });
+    score("o1", { fit_score: 50 });
+    seed("o2", { title: "Fit 50 New", posted: "2026-10-06T00:00:00Z" });
+    score("o2", { fit_score: 50 });
+    seed("o3", { title: "Fit 55", posted: "2026-10-02T00:00:00Z" });
+    score("o3", { fit_score: 55 });
+    seed("o4", { title: "Fit 20", posted: "2026-10-06T00:00:00Z" });
+    score("o4", { fit_score: 20 });
+    const low = part(run().text, "## Scored, not a fit", "## Waiting");
+    const order = ["Fit 55", "Fit 50 New", "Fit 50 Old", "Fit 20"].map((t) => low.indexOf(t));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order.every((x) => x >= 0)).toBe(true);
+  });
+
+  it("prints None. when nothing is below the threshold", () => {
+    seed("n1", { title: "Great" });
+    score("n1");
+    const { text } = run();
+    expect(part(text, "## Scored, not a fit", "## Waiting")).toBe(
+      "## Scored, not a fit\n\nNone.\n\n",
+    );
+    expect(text).toContain("- Scored, not a fit: 0");
+  });
+
+  it("counts top, low-fit, waiting and suspicious correctly", () => {
+    seed("t1", { title: "Top One" });
+    score("t1", { fit_score: 85 });
+    seed("l1", { title: "Low One" });
+    score("l1", { fit_score: 45 });
+    seed("l2", { title: "Low Two" });
+    score("l2", { fit_score: 10 });
+    seed("w1", { title: "Waiting One" });
+    seed("w2", { title: "Fx Wait", salaryStatus: "no_fx" });
+    score("w2", { status: "fx_wait", tier: null, fit_score: 90 });
+    seed("s1", { title: "Scam One" });
+    score("s1", { final_decision: "suspicious", scam_score: 80, fit_score: null });
+    const { text } = run();
+    expect(text).toContain("- Top matches: 1\n");
+    expect(text).toContain("- Scored, not a fit: 2\n");
+    expect(text).toContain("- Waiting for scoring: 2\n");
+    expect(text).toContain("- Suspicious: 1\n");
+    expect(text).toContain("- Kept: 5\n");
+    expect(part(text, "## Waiting for scoring", "## Needs a look")).toContain("Fx Wait");
+    expect(part(text, "## Suspicious", "## Source health")).toContain("Scam One");
+  });
+
+  it("does not list a low fit under Needs a look", () => {
+    seed("u1", { title: "Low Unclear", flags: ["location_unclear"], locationClass: "unclear" });
+    score("u1", { fit_score: 30 });
+    const { text } = run();
+    expect(part(text, "## Needs a look", "## Suspicious")).not.toContain("Low Unclear");
+    expect(part(text, "## Scored, not a fit", "## Waiting")).toContain("Low Unclear");
   });
 });
 

@@ -71,7 +71,7 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | `process` | Normalizes and dedupes new postings, then applies the rule filters (location, Indonesia rule, role, salary floor, language) and records keep / reject with flags. Prints the counts. |
 | `enrich [--limit <n>]` | Runs the LLM stages on kept postings, newest first, one posting at a time: extract facts (Haiku) -> resolve unclear flags -> scam score -> pay-policy registry -> fit score against `config/cv.md` (Sonnet, only for postings that were kept) -> tier and salary ask. Postings already done are not redone. `--limit` caps how many postings this run handles. Prints `enriched <n>, budget_wait <n>, failed <n>, spent $<x> today`. Exits 0 except for an invalid `--limit`. Details below. |
 | `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
-| `digest [--date YYYY-MM-DD] [--out-dir <dir>]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored, ranked, each with a one-line why; see "Reading the ranked digest"), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
+| `digest [--date YYYY-MM-DD] [--out-dir <dir>]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored at 60 or more, ranked, each with a one-line why; see "Reading the ranked digest"), Scored, not a fit (fit-scored below 60, one line each), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. |
 
 A first manual run:
 
@@ -189,11 +189,15 @@ Everything under `data/` is gitignored and may contain personal data. Never comm
 
 Open `data/digests/YYYY-MM-DD.md`. Sections, in order:
 
-- **Top matches**: kept, fit-scored postings, best first. Each shows title, company, link, fit score with up to 3
+- **Top matches**: kept postings with a fit score of 60 or more (`TOP_MATCH_MIN_FIT` in `digest/rank.ts`), best first. Each shows title, company, link, fit score with up to 3
   reasons, the pay tier and your ask (or the text answer to use when the posting has no numeric field), the listed
   salary if any, the scam score with its top reason if above 0, and a one-line **why**. The rank is the fit score, minus
   10 per unresolved flag, plus 5 when the listed salary max is at or above your ask; ties go to the newer posting. The
   same company and title listed in several places is one entry with the locations joined.
+- **Scored, not a fit**: kept postings scored below 60, one line each, so the list is quick to skim:
+  `- title — company — fit N/100 — first fit reason — link` (no reason part when there is none). Highest fit first, then
+  newer posting. They are not in Needs a look. The summary shows the count; "Kept" counts Top matches, Scored, not a
+  fit and Waiting for scoring.
 - **Waiting for scoring**: kept postings without a fit score yet: not enriched (no `ANTHROPIC_API_KEY`), `budget_wait`
   (daily cap reached, retried tomorrow), or `failed`.
 - **Needs a look**: postings with a flag the rules and the LLM could not settle (location, Indonesia rule, role).
