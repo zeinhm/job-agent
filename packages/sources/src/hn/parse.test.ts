@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstLineOf, parseFirstLine } from "./parse.ts";
+import { firstLineLinks, firstLineOf, parseFirstLine } from "./parse.ts";
 
 describe("firstLineOf", () => {
   it("cuts at <p>, strips tags and decodes entities", () => {
@@ -122,5 +122,16 @@ describe("parseFirstLine", () => {
     expect(
       parseFirstLine("Kite | Backend Engineer | Remote | Work with kubernetes"),
     ).not.toHaveProperty("salaryText");
+  });
+});
+
+describe("firstLineLinks", () => {
+  it("returns decoded hrefs of the first line only", () => {
+    const html =
+      'Acme | <a href="https:&#x2F;&#x2F;acme.io&#x2F;careers?a=1&amp;b=2" rel="nofollow">x</a> | <a href="mailto:a@b.c">m</a><p><a href="https:&#x2F;&#x2F;later.example">l</a>';
+    expect(firstLineLinks(html)).toEqual(["https://acme.io/careers?a=1&b=2"]);
+  });
+  it("is empty without links", () => {
+    expect(firstLineLinks("Acme | Engineer")).toEqual([]);
   });
 });

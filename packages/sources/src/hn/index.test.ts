@@ -135,6 +135,15 @@ describe("hn adapter", () => {
     });
   });
 
+  it("takes the first first-line link as applyUrl and none when the first line has no link", async () => {
+    serve();
+    const postings = await adapter().fetch(new Date(0));
+    expect(postings.find((p) => p.externalId === "49922769")?.applyUrl).toBe(
+      "https://www.checklyhq.com",
+    );
+    expect(postings.find((p) => p.externalId === "49922609")?.applyUrl).toBeUndefined();
+  });
+
   it("falls back to unknown company for a comment without pipes", async () => {
     serve();
     const postings = await adapter().fetch(new Date(0));

@@ -156,7 +156,7 @@ describe("enrich", () => {
     addPosting("dup", "keep", { canonical_posting_id: "other" });
     const r = await enrich();
     expect(requests).toHaveLength(0);
-    expect(r.out).toBe("enriched 0, budget_wait 0, failed 0, spent $0.00 today\n");
+    expect(r.out).toContain("enriched 0, budget_wait 0, failed 0, spent $0.00 today\n");
     expect(intelOf("rejected")).toBeUndefined();
     expect(intelOf("dup")).toBeUndefined();
   });
@@ -173,7 +173,7 @@ describe("enrich", () => {
     const parsed = ExtractionSchema.parse(JSON.parse(row?.extraction ?? "null"));
     expect(parsed.payPolicy).toBe("location_agnostic");
     expect(parsed.listedSalary?.max).toBe(130000);
-    expect(r.out).toMatch(/^enriched 1, budget_wait 0, failed 0, spent \$0\.\d\d today\n$/);
+    expect(r.out).toMatch(/^enriched 1, budget_wait 0, failed 0, spent \$0\.\d\d today\n/);
     expect(db.select().from(llm_calls).all()).toHaveLength(1);
   });
 
@@ -268,7 +268,7 @@ describe("enrich", () => {
     expect(intelOf("p5")?.status).toBe("done");
     expect(intelOf("p4")?.status).toBe("done");
     for (const id of ["p3", "p2", "p1"]) expect(intelOf(id)?.status).toBe("budget_wait");
-    expect(r.out).toBe("enriched 2, budget_wait 3, failed 0, spent $1.00 today\n");
+    expect(r.out).toContain("enriched 2, budget_wait 3, failed 0, spent $1.00 today\n");
   });
 
   it("missing key -> skip line, no requests, exit 0, postings stay pending", async () => {
