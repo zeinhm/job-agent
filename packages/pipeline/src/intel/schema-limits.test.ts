@@ -54,7 +54,17 @@ describe("wire output maps back to the stored values", () => {
       repoAssessmentEarly: null,
       companyHq: "DE",
       employment: "contractor",
+      roleFamily: "fullstack",
     });
+  });
+
+  it("extraction: roleFamily 'unknown' becomes null and every family passes through", () => {
+    const base = text("extract-ok.json") as object;
+    const family = (roleFamily: string) =>
+      toExtraction(ExtractionWireSchema.parse({ ...base, roleFamily })).roleFamily;
+    expect(family("unknown")).toBeNull();
+    expect(family("design")).toBe("design");
+    expect(() => ExtractionWireSchema.parse({ ...base, roleFamily: "engineering" })).toThrow();
   });
 
   it("extraction: a one-sided salary keeps the missing bound null", () => {

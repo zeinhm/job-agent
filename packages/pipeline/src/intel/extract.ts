@@ -14,6 +14,20 @@ const iso2 = z.string().regex(/^[A-Z]{2}$/);
  * Facts only (PLAN 5.1 PayContext plus company, EOR and the scam signals only the LLM can see).
  * Every field may be unknown: null, or an empty list.
  */
+export const ROLE_FAMILIES = [
+  "frontend",
+  "fullstack",
+  "backend",
+  "mobile",
+  "data_ml",
+  "devops_sre",
+  "security",
+  "design",
+  "non_engineering",
+  "not_a_job",
+] as const;
+export type RoleFamily = (typeof ROLE_FAMILIES)[number];
+
 export const ExtractionSchema = z.object({
   listedSalary: z
     .object({
@@ -39,8 +53,14 @@ export const ExtractionSchema = z.object({
   employment: z.enum(["employee", "contractor", "eor"]).nullable(),
   eorProvider: z.string().nullable(),
   seniority: z.enum(["mid", "senior", "lead"]).nullable(),
-  /** Old intel rows predate this fact: a missing field parses as null (the text does not say). */
-  roleFamily: z.enum(["engineering", "non_engineering"]).nullable().default(null),
+  /**
+   * Old intel rows predate this fact: a missing field parses as null (the text does not say). The extract-v3
+   * value "engineering" was too coarse to decide on and also parses as null.
+   */
+  roleFamily: z.preprocess(
+    (v) => (v === "engineering" ? null : v),
+    z.enum(ROLE_FAMILIES).nullable().default(null),
+  ),
   contactChannels: z.array(
     z.enum(["email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat"]),
   ),
@@ -100,7 +120,7 @@ export const ExtractionWireSchema = z.object({
   /** "" = none named. */
   eorProvider: z.string(),
   seniority: unknownEnum(["mid", "senior", "lead"]),
-  roleFamily: unknownEnum(["engineering", "non_engineering"]),
+  roleFamily: unknownEnum(ROLE_FAMILIES),
   contactChannels: ExtractionSchema.shape.contactChannels,
   personalEmailDomain: triState,
   asksForPaymentOrId: triState,
