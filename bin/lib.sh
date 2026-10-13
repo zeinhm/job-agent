@@ -3,7 +3,7 @@
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "not in the job-agent repo" >&2; exit 2; }
 . "$REPO/bin/jobagent.conf"
 STATE="$REPO/data/dispatch"
-for d in running cloud fails errors notes; do mkdir -p "$STATE/$d"; done
+for d in running cloud fails errors notes syncs; do mkdir -p "$STATE/$d"; done
 export USER="${USER:-$(id -un)}"
 
 log()   { echo "$(date '+%F %T') $*" >> "$STATE/dispatch.log"; [ -t 1 ] && echo "$(date '+%F %T') $*"; return 0; }

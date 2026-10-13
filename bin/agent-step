@@ -26,7 +26,9 @@ main_ready(){ git checkout -q main 2>/dev/null || question "could not check out 
               if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
                 git stash push -q -m "agent-step $ID: owner's uncommitted changes" && log "stashed uncommitted changes in main for $ID (git stash list)"
               fi
-              git pull -q --ff-only origin main || question "git pull on main failed (diverged?)"; }
+              git pull -q --ff-only origin main || question "git pull on main failed (diverged?)"
+              # local main must equal GitHub: a squash into a main with unpushed commits conflicts in a way no cloud sync can fix
+              [ -z "$(git rev-list origin/main..main 2>/dev/null)" ] || question "local main has commits that are not on GitHub (git log origin/main..main): the owner must run jpush in the repo, then release this card"; }
 post_comment(){ local f="$COMMENTF"; [ -s "$f" ] || { printf 'Report (no comment file), last lines:\n\n%s\n' "$(tail -40 "$OUTF")" > "$H/$ID-fallback.md"; f="$H/$ID-fallback.md"; }
                 hk comment "$ID" "$(cat "$f")" >/dev/null; }
 task_branch(){ local b; b="$(git branch --list "task/$1-*" --format='%(refname:short)' | head -1)"

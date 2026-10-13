@@ -16,10 +16,17 @@ elif [ -f "$BASE" ]; then cp "$BASE" "$SET"; else echo '{}' > "$SET"; fi
 RC=$?; rm -f "$SET"
 if grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit|out of (usage|credits)" "$OUT" \
    && ! grep -q '^VERDICT:' "$OUT"; then
-  T="$(grep -oiE 'resets? +[0-9]{1,2}(:[0-9]{2})? ?[ap]m' "$OUT" | head -1 | grep -oiE '[0-9]{1,2}(:[0-9]{2})? ?[ap]m' | tr -d ' ' | tr 'a-z' 'A-Z')"
-  E=""; if [ -n "$T" ]; then
-    case "$T" in *:*) F="%I:%M%p" ;; *) F="%I%p" ;; esac
-    E="$(date -j -f "$F" "$T" +%s 2>/dev/null || date -d "$(printf '%s' "$T" | sed -E 's/([0-9])(AM|PM)/\1 \2/')" +%s 2>/dev/null)"
+  # "resets 11am" (session limit) or "resets Oct 14 at 12am" (weekly limit)
+  L="$(grep -oiE 'resets? +([a-z]{3,9} +[0-9]{1,2},? +(at +)?)?[0-9]{1,2}(:[0-9]{2})? ?[ap]m' "$OUT" | head -1)"
+  T="$(printf '%s' "$L" | grep -oiE '[0-9]{1,2}(:[0-9]{2})? ?[ap]m$' | tr -d ' ' | tr 'a-z' 'A-Z')"
+  case "$T" in *:*|"") ;; *) T="$(printf '%s' "$T" | sed -E 's/(AM|PM)$/:00\1/')" ;; esac
+  MD="$(printf '%s' "$L" | sed -nE 's/^[Rr][Ee][Ss][Ee][Tt][Ss]? +([A-Za-z]{3})[A-Za-z]* +([0-9]{1,2}).*/\1 \2/p')"
+  G="$(printf '%s' "$T" | sed -E 's/(AM|PM)$/ \1/')"
+  E=""; if [ -n "$T" ] && [ -n "$MD" ]; then
+    E="$(date -j -f "%b %d %I:%M%p" "$MD $T" +%s 2>/dev/null || date -d "$MD $G" +%s 2>/dev/null)"
+    [ -n "$E" ] && [ "$E" -le "$(now)" ] && E=""                 # a date in the past: fall back to 1 hour
+  elif [ -n "$T" ]; then
+    E="$(date -j -f "%I:%M%p" "$T" +%s 2>/dev/null || date -d "$G" +%s 2>/dev/null)"
     [ -n "$E" ] && [ "$E" -le "$(now)" ] && E=$((E + 86400))   # reset time already passed today -> tomorrow
   fi
   echo "LIMIT_RESET_EPOCH=$E" >> "$OUT"; exit 42

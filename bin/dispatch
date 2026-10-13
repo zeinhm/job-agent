@@ -58,6 +58,8 @@ run_local() { # $1 role, $2 id
       kind="$(v KIND)"; t="$(v REWORK_TITLE)"; f="$(v REWORK_BODY_FILE)"
       if [ "$kind" = fail ] && [ "$(counter fails "$id")" -ge "$MAX_FAILS" ]; then
         hold "$id" DOCTOR "FAIL number $MAX_FAILS on this task: decide (split the task, rewrite the card, or change approach). Last findings: $f"
+      elif [ "$kind" = sync ] && [ "$(counter syncs "$id")" -gt 2 ]; then
+        hold "$id" DOCTOR "the branch still does not merge after 2 sync cards: do NOT create another one. Check that local main equals GitHub (git log origin/main..main) and the conflicting files in $f"
       else
         new="$(hk create "$t" --assignee dev --workspace "dir:$REPO" --priority 9 --body-file "$f" | grep -oE 't_[0-9a-f]+' | head -1)"
         if [ -n "$new" ]; then hk reclaim "$id" >/dev/null 2>&1; wait_on "$id" "$new" "$kind rework"
