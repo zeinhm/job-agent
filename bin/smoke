@@ -4,8 +4,20 @@
 # web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
 # Never touches config/ or data/. No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
 # JOB_AGENT_CLI overrides the CLI command (used by tests).
+#
+# bin/smoke run <smoke dir> <command...>: run ONE more CLI command against an existing smoke dir (same temp DB and
+# example configs, no API key), e.g. bin/smoke run /tmp/job-agent-smoke.ab12 process --reprocess
+# Use this instead of prefixing commands with JOB_AGENT_DB=... (env-prefixed commands are not allowed for agents).
 set -uo pipefail
 REPO="$(git rev-parse --show-toplevel)"; cd "$REPO"
+if [ "${1:-}" = run ]; then
+  DIR="${2:?usage: bin/smoke run <smoke dir> <command...>}"; shift 2
+  [ -f "$DIR/smoke.db" ] || { echo "no smoke.db in $DIR: run bin/smoke first"; exit 2; }
+  [ $# -gt 0 ] || { echo "usage: bin/smoke run <smoke dir> <command...>"; exit 2; }
+  export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config"; unset ANTHROPIC_API_KEY
+  read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
+  echo "== $* (smoke dir $DIR)"; exec "${CLI[@]}" "$@"
+fi
 DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/job-agent-smoke.XXXXXX")}"
 mkdir -p "$DIR/config" "$DIR/digests"
 for f in config/*.example.*; do b="$(basename "$f")"; cp "$f" "$DIR/config/${b/.example/}"; done

@@ -16,6 +16,9 @@ Never stop to ask or wait. Decide sensibly from the docs and the card, and write
 - Never push to main and never merge: the automation does that. Never create, complete or block cards
   (only the PM creates cards when planning). `hermes kanban show` and `list` are fine.
 - Live runs of the tool: use `bin/smoke` (temp DB, example configs, public feeds only).
+  For any other CLI command against that same temp DB (e.g. `process --reprocess`), use
+  `bin/smoke run <smoke dir> <command...>`. Never prefix commands with environment variables (`JOB_AGENT_DB=... pnpm ...`):
+  those are not allowed and nobody can approve them in an unattended run.
 
 ## Your report (mandatory)
 1. Write your full report (evidence, findings, reasoning) as markdown to the Comment file given at the top.
