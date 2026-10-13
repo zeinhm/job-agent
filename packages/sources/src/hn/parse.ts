@@ -42,6 +42,15 @@ export function firstLineOf(html: string): string {
     .trim();
 }
 
+export const NO_ROLE_TITLE = "(no role title)";
+
+/**
+ * A segment that is only a link. Scheme-less links need a `www.` prefix or a path, so tech
+ * names such as `Node.js` or `Vue.js` stay role segments.
+ */
+const URL_ONLY_RE =
+  /^(?:https?:\/\/\S+|www\.[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:[/?#]\S*)?|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}[/?#]\S*)$/i;
+
 /** Link targets (`href`) in the first line of an HN comment, entities decoded, in order. */
 export function firstLineLinks(html: string): string[] {
   const raw = html.split(/<p>|\r?\n/i, 1)[0] ?? "";
@@ -50,8 +59,10 @@ export function firstLineLinks(html: string): string[] {
     .filter((u) => /^https?:\/\//i.test(u));
 }
 
+/** Never returns a bare URL as the title: a link-only comment has no role title. */
 function unknownPosting(line: string): ParsedFirstLine {
-  return { company: "unknown", title: line.slice(0, MAX_TITLE_LENGTH) };
+  const title = URL_ONLY_RE.test(line) || line === "" ? NO_ROLE_TITLE : line;
+  return { company: "unknown", title: title.slice(0, MAX_TITLE_LENGTH) };
 }
 
 /** Parses the "Company | Role | Location | Salary" convention of an HN "Who is hiring?" comment. */
@@ -64,11 +75,14 @@ export function parseFirstLine(html: string): ParsedFirstLine {
   const company = segments[0];
   if (segments.length < 2 || company === undefined) return unknownPosting(line);
 
-  const rest = segments.slice(1).filter((s) => !/^https?:\/\/\S+$/i.test(s));
+  const rest = segments.slice(1).filter((s) => !URL_ONLY_RE.test(s));
   if (rest.length === 0) return unknownPosting(line);
-  const title = rest.find((s) => ROLE_RE.test(s)) ?? rest[0] ?? line;
-  const locations = rest.filter((s) => s !== title && LOCATION_RE.test(s));
-  const salary = rest.find((s) => s !== title && SALARY_RE.test(s));
+  const roleSegment =
+    rest.find((s) => ROLE_RE.test(s)) ??
+    rest.find((s) => !LOCATION_RE.test(s) && !SALARY_RE.test(s));
+  const title = roleSegment ?? NO_ROLE_TITLE;
+  const locations = rest.filter((s) => s !== roleSegment && LOCATION_RE.test(s));
+  const salary = rest.find((s) => s !== roleSegment && SALARY_RE.test(s));
 
   return {
     company,

@@ -1,5 +1,5 @@
 /** Bump on every change to the prompt or the extraction schema. */
-export const PROMPT_VERSION = "extract-v4";
+export const PROMPT_VERSION = "extract-v5";
 
 /**
  * Static instructions (sent first, cacheable). The model only reports facts found in the posting;
@@ -28,6 +28,7 @@ Fields:
 - eorProvider: name of the employer-of-record provider if one is named, else an empty string.
 - seniority: "mid", "senior", "lead" or "unknown", from the title and requirements.
 - roleFamily: the kind of work the posting is for, one of: "frontend" (web UI / client-side engineering), "fullstack" (UI and server work together), "backend" (server, API, platform or blockchain / smart-contract engineering), "mobile" (iOS, Android, React Native, Flutter), "data_ml" (data engineering, analytics, machine learning), "devops_sre" (infrastructure, cloud, reliability, DevOps), "security" (security engineering), "design" (visual, UX, UI, 3D, animation or other creative design work), "non_engineering" (any other job: sales, marketing, content, recruiting, operations, support, finance, legal and similar), "not_a_job" (the text is not a job offer, for example a candidate looking for work, a bare link or a discussion reply), "unknown" if the text does not say. The family describes the work, not the industry: "Gameplay Animator", "3D Artist" and "UX Designer" are "design" even at a software or game company; "Recruiter for engineers" is "non_engineering". An engineering manager or tech lead gets the family of the stack they lead. A generic "Software Engineer" gets the family the description's work points to, and "fullstack" when it spans UI and server. State the fact only; do not judge whether the job suits the candidate.
+- roleTitle: the job title the posting hires for, in the posting's own words (for example "Senior Full-Stack Engineer"), without the company name, location or salary. An empty string if the text is not a job offer or states no title. Hacker News "Who is hiring?" threads also contain replies from job seekers, questions and bare links: those are "not_a_job" with an empty roleTitle.
 - contactChannels: how applicants are told to make contact, from this set: "email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat". Empty list if not stated.
 - personalEmailDomain: "yes" if the contact email uses a free personal domain (gmail, yahoo, outlook, proton and similar) instead of a company domain, "no" if it uses a company domain, "unknown" if no email is given.
 - asksForPaymentOrId: "yes" if the posting asks applicants for payment, bank details or identity documents, "no" if it clearly does not, "unknown" if not mentioned.

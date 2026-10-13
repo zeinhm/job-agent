@@ -52,6 +52,7 @@ const BASE_EXTRACTION = ExtractionSchema.parse({
   eorProvider: null,
   seniority: null,
   roleFamily: null,
+  roleTitle: null,
   contactChannels: [],
   personalEmailDomain: null,
   asksForPaymentOrId: null,

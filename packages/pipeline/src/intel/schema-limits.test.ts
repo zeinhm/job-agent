@@ -29,8 +29,8 @@ describe("structured-output schemas sent to the API", () => {
     expect(unionsIn(schema)).toBeLessThanOrEqual(MAX_UNIONS);
   });
 
-  it("the counter catches the old nullable extraction schema (18)", () => {
-    expect(unionsIn(ExtractionSchema)).toBe(18);
+  it("the counter catches the nullable stored extraction schema (19; it is not sent to the API)", () => {
+    expect(unionsIn(ExtractionSchema)).toBe(19);
   });
 });
 
@@ -65,6 +65,18 @@ describe("wire output maps back to the stored values", () => {
     expect(family("unknown")).toBeNull();
     expect(family("design")).toBe("design");
     expect(() => ExtractionWireSchema.parse({ ...base, roleFamily: "engineering" })).toThrow();
+  });
+
+  it("extraction: roleTitle '' becomes null, a title is trimmed, and old rows without it parse as null", () => {
+    const base = text("extract-ok.json") as object;
+    const title = (roleTitle: string) =>
+      toExtraction(ExtractionWireSchema.parse({ ...base, roleTitle })).roleTitle;
+    expect(title("")).toBeNull();
+    expect(title("  Senior Full-Stack Engineer ")).toBe("Senior Full-Stack Engineer");
+    expect(() => ExtractionWireSchema.parse({ ...base, roleTitle: null })).toThrow();
+    const old: Record<string, unknown> = { ...toExtraction(ExtractionWireSchema.parse(base)) };
+    delete old["roleTitle"];
+    expect(ExtractionSchema.parse(old).roleTitle).toBeNull();
   });
 
   it("extraction: a one-sided salary keeps the missing bound null", () => {

@@ -125,6 +125,53 @@ describe("parseFirstLine", () => {
   });
 });
 
+describe("parseFirstLine: non-role first lines", () => {
+  it("uses (no role title) when only locations and a link follow the company", () => {
+    expect(parseFirstLine("Acme | Chicago, Las Vegas | https://grnh.se/x")).toEqual({
+      company: "Acme",
+      title: "(no role title)",
+      locationText: "Chicago, Las Vegas",
+    });
+  });
+
+  it("skips scheme-less links when choosing the title", () => {
+    expect(parseFirstLine("Acme | grnh.se/abc | Remote")).toEqual({
+      company: "Acme",
+      title: "(no role title)",
+      locationText: "Remote",
+    });
+  });
+
+  it.each(["Node.js", "Vue.js", "Next.js"])("keeps %s as the role segment", (tech) => {
+    expect(parseFirstLine(`Acme | ${tech} | Remote`)).toEqual({
+      company: "Acme",
+      title: tech,
+      locationText: "Remote",
+    });
+  });
+
+  it("skips www. links without a path", () => {
+    expect(parseFirstLine("Acme | www.acme.io | Remote").title).toBe("(no role title)");
+  });
+
+  it("never returns a bare URL as the title", () => {
+    expect(parseFirstLine("https://grnh.se/abc").title).toBe("(no role title)");
+    expect(parseFirstLine("grnh.se/abc").title).toBe("(no role title)");
+  });
+
+  it("keeps a plain unknown first line as the title", () => {
+    expect(parseFirstLine("Thanks, I will send my CV").title).toBe("Thanks, I will send my CV");
+  });
+
+  it("leaves a normal role line unchanged", () => {
+    expect(parseFirstLine("Acme | Senior Frontend Engineer | Remote")).toEqual({
+      company: "Acme",
+      title: "Senior Frontend Engineer",
+      locationText: "Remote",
+    });
+  });
+});
+
 describe("firstLineLinks", () => {
   it("returns decoded hrefs of the first line only", () => {
     const html =

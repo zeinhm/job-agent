@@ -92,6 +92,7 @@ describe("scoreScam", () => {
       eorProvider: null,
       seniority: null,
       roleFamily: null,
+      roleTitle: null,
       contactChannels: [],
       personalEmailDomain: null,
       asksForPaymentOrId: null,

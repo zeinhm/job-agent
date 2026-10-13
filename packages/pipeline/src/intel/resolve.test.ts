@@ -260,7 +260,7 @@ describe("extraction schema: roleFamily", () => {
     expect(EXTRACT_SYSTEM_PROMPT).toContain("roleFamily");
     for (const family of ROLE_FAMILIES) expect(EXTRACT_SYSTEM_PROMPT).toContain(`"${family}"`);
     expect(EXTRACT_SYSTEM_PROMPT).toMatch(/"Gameplay Animator"[^.]*"design"/);
-    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v4");
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v5");
   });
 });
 

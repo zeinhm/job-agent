@@ -246,6 +246,42 @@ describe("enrich fit stage", () => {
     expect(intelOf("dev")?.fit_score).toBe(82);
   });
 
+  it("an hn applicant reply extracted as not_a_job is rejected and gets no fit call", async () => {
+    const msg = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
+    const block = msg.content[msg.content.length - 1];
+    if (block?.text === undefined) throw new Error("fixture shape");
+    block.text = JSON.stringify({
+      ...JSON.parse(block.text),
+      roleFamily: "not_a_job",
+      roleTitle: "",
+    });
+    addPosting("reply", {
+      source: "hn",
+      title: "(no role title)",
+      description_text:
+        "Experienced React developer based in Europe, looking for a remote role. CV at the link below. ".repeat(
+          3,
+        ),
+    });
+    server.use(
+      http.post(URL, async ({ request }) => {
+        const body = (await request.json()) as Req;
+        requests.push(body);
+        return HttpResponse.json(body["model"] === FIT_MODEL ? fixture(fitResponse) : msg);
+      }),
+    );
+    const r = await enrich();
+    expect(r.code).toBe(0);
+    const row = intelOf("reply");
+    expect(row?.final_decision).toBe("reject");
+    expect(JSON.parse(row?.resolved_reasons ?? "[]")).toEqual([
+      "Role: the text is not a job posting.",
+    ]);
+    expect(row?.fit_score).toBeNull();
+    expect(JSON.parse(row?.extraction ?? "{}").roleTitle).toBeNull();
+    expect(fitRequests()).toHaveLength(0);
+  });
+
   it("sends the CV as the cacheable prefix, ahead of the posting; posting text stays out of it", async () => {
     addPosting("p1", { description_text: "UNIQUE-POSTING-MARKER React role. ".repeat(8) });
     await enrich();

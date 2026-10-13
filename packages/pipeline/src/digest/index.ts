@@ -155,12 +155,28 @@ function pickLead(group: Row[]): Row {
   );
 }
 
+/**
+ * HN first lines are free text, so the stored title can be a location or a link; for source `hn` the extracted
+ * role title wins when there is one. ATS and board titles are authoritative and stay. `postings.title` is not rewritten.
+ */
+function displayTitle(p: Row["p"], i: Intel | null): string {
+  if (p.source !== "hn" || i?.extraction == null) return p.title;
+  try {
+    const parsed = ExtractionSchema.safeParse(JSON.parse(i.extraction));
+    const roleTitle = parsed.success ? parsed.data.roleTitle?.trim() : undefined;
+    return roleTitle ? roleTitle : p.title;
+  } catch {
+    return p.title;
+  }
+}
+
 /** One entry for a group of same company + title postings; sources and locations span the group. */
 function buildEntry(db: Db, group: Row[]): Entry | null {
   const lead = pickLead(group);
   const { p, a, i } = lead;
   if (i?.final_decision === "reject") return null;
 
+  const title = displayTitle(p, i);
   const flags = [...new Set(group.flatMap((r) => parseList(r.a.flags)))];
   const unclear = remainingUnclear(flags, i);
   const sources: string[] = [];
@@ -185,7 +201,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     idrMonthMin: a.salary_idr_month_min,
     idrMonthMax: a.salary_idr_month_max,
   });
-  const head = [`### ${p.title} — ${p.company_name}`, ""];
+  const head = [`### ${title} — ${p.company_name}`, ""];
   const common = [
     `- Location: ${location}`,
     `- Salary: ${salary}`,
@@ -195,7 +211,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     `- Posted: ${posted !== null ? posted.slice(0, 10) : "unknown"}`,
     "",
   ];
-  const base = { title: p.title, company: p.company_name, postedAt: posted, unclear };
+  const base = { title, company: p.company_name, postedAt: posted, unclear };
 
   if (i?.final_decision === "suspicious") {
     const reasons = parseList(i.scam_reasons).slice(0, MAX_REASONS);
@@ -244,7 +260,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
         rank,
         fit: i.fit_score,
         line: [
-          `- ${p.title} — ${p.company_name} — fit ${i.fit_score}/100${reason !== undefined ? ` — ${reason}` : ""} — ${link}`,
+          `- ${title} — ${p.company_name} — fit ${i.fit_score}/100${reason !== undefined ? ` — ${reason}` : ""} — ${link}`,
         ],
       };
     }

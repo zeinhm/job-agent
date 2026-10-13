@@ -61,6 +61,8 @@ export const ExtractionSchema = z.object({
     (v) => (v === "engineering" ? null : v),
     z.enum(ROLE_FAMILIES).nullable().default(null),
   ),
+  /** The job title the posting hires for, in its words. Old rows predate it: missing parses as null. */
+  roleTitle: z.string().nullable().default(null),
   contactChannels: z.array(
     z.enum(["email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat"]),
   ),
@@ -121,6 +123,8 @@ export const ExtractionWireSchema = z.object({
   eorProvider: z.string(),
   seniority: unknownEnum(["mid", "senior", "lead"]),
   roleFamily: unknownEnum(ROLE_FAMILIES),
+  /** "" = not a job, or no title stated. A plain string, so the union count does not grow. */
+  roleTitle: z.string(),
   contactChannels: ExtractionSchema.shape.contactChannels,
   personalEmailDomain: triState,
   asksForPaymentOrId: triState,
@@ -152,6 +156,7 @@ export function toExtraction(w: ExtractionWire): Extraction {
     eorProvider: w.eorProvider.trim() === "" ? null : w.eorProvider,
     seniority: orNull(w.seniority),
     roleFamily: orNull(w.roleFamily),
+    roleTitle: w.roleTitle.trim() === "" ? null : w.roleTitle.trim(),
     contactChannels: w.contactChannels,
     personalEmailDomain: fromTri(w.personalEmailDomain),
     asksForPaymentOrId: fromTri(w.asksForPaymentOrId),

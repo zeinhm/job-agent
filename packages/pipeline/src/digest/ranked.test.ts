@@ -13,6 +13,7 @@ let dir: string;
 
 interface Seed {
   title: string;
+  source?: string;
   flags?: string[];
   posted?: string;
   max?: number | null;
@@ -24,7 +25,7 @@ function seed(id: string, o: Seed) {
   db.insert(postings)
     .values({
       id,
-      source: "remotive",
+      source: o.source ?? "remotive",
       external_id: `e-${id}`,
       url: `https://example.com/jobs/${id}`,
       title: o.title,
@@ -139,6 +140,87 @@ describe("ranked digest", () => {
     expect(entry("No Max")).toContain("(rank 70)");
   });
 
+  describe("role title from the extraction", () => {
+    const extractionWith = (roleTitle: string | null) =>
+      JSON.stringify({
+        listedSalary: null,
+        listedSalaryScope: null,
+        hiringScope: "worldwide",
+        regions: [],
+        remoteRegions: [],
+        allowedCountries: [],
+        indonesiaExplicit: null,
+        companyHq: null,
+        companyType: null,
+        payPolicy: null,
+        employment: null,
+        eorProvider: null,
+        seniority: null,
+        roleFamily: "fullstack",
+        roleTitle,
+        contactChannels: [],
+        personalEmailDomain: null,
+        asksForPaymentOrId: null,
+        repoAssessmentEarly: null,
+        urgencyLanguage: null,
+        vagueDescription: null,
+      });
+
+    it("an hn posting shows roleTitle in the heading instead of its stored title", () => {
+      seed("hn1", {
+        source: "hn",
+        title: "Chicago, Las Vegas",
+        intel: { fit_score: 80, extraction: extractionWith("Senior Full-Stack Engineer") },
+      });
+      const top = sectionOf(run(), "Top matches");
+      expect(top).toContain("### Senior Full-Stack Engineer — Company hn1");
+      expect(top).not.toContain("Chicago, Las Vegas");
+    });
+
+    it("an hn posting scoring below the top threshold lists roleTitle in the not-a-fit line", () => {
+      seed("hn2", {
+        source: "hn",
+        title: "Chicago, Las Vegas",
+        intel: { fit_score: 30, extraction: extractionWith("Senior Full-Stack Engineer") },
+      });
+      const text = run();
+      expect(text).toContain("- Senior Full-Stack Engineer — Company hn2 — fit 30/100");
+      expect(text).not.toContain("Chicago, Las Vegas");
+    });
+
+    it("an hn posting in Needs a look uses roleTitle", () => {
+      seed("hn3", {
+        source: "hn",
+        title: "Chicago, Las Vegas",
+        flags: ["role_unclear"],
+        intel: { fit_score: 80, extraction: extractionWith("Senior Full-Stack Engineer") },
+      });
+      expect(sectionOf(run(), "Needs a look")).toContain(
+        "- Senior Full-Stack Engineer — Company hn3: role_unclear",
+      );
+    });
+
+    it("an hn posting without roleTitle keeps its stored title", () => {
+      seed("hn4", {
+        source: "hn",
+        title: "Acme | Staff Engineer",
+        intel: { fit_score: 80, extraction: extractionWith(null) },
+      });
+      expect(sectionOf(run(), "Top matches")).toContain("### Acme | Staff Engineer — Company hn4");
+    });
+
+    it("a greenhouse posting keeps its stored title whatever roleTitle says", () => {
+      seed("gh1", {
+        source: "greenhouse",
+        title: "Senior Frontend Engineer",
+        intel: { fit_score: 80, extraction: extractionWith("Totally Different Title") },
+      });
+      const top = sectionOf(run(), "Top matches");
+      expect(top).toContain("### Senior Frontend Engineer — Company gh1");
+      expect(top).not.toContain("Totally Different Title");
+    });
+  });
+
   it("settles unclear flags from the extraction instead of penalizing them", () => {
     const extraction = {
       listedSalary: null,
@@ -155,6 +237,7 @@ describe("ranked digest", () => {
       eorProvider: null,
       seniority: null,
       roleFamily: null,
+      roleTitle: null,
       contactChannels: [],
       personalEmailDomain: null,
       asksForPaymentOrId: null,
