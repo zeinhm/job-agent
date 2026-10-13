@@ -54,3 +54,4 @@ Last audit tag: (none yet)
 | t_a8d69efd | Extend end-to-end test to the Phase 2 pipeline | medium | 309bc4c | 2026-10-09 |
 | t_b7afa306 | Update run docs, cron example and env example for Phase 2 | low | 052e718 | 2026-10-09 |
 | t_ab66aa5b | Reject unpaid, volunteer and equity-only postings before fit scoring | medium | 8f9da31 | 2026-10-14 |
+| t_109ee39b | Digest --include-unpaid: optional Volunteer / unpaid section | medium | 8791751 | 2026-10-14 |
