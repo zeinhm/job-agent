@@ -4,7 +4,7 @@ set -uo pipefail
 HOOK_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pre-commit"
 FAKE="FAKE-PERSONA-7731"
 T=$(mktemp -d "${TMPDIR:-/tmp}/hooktest.XXXXXX")
-trap 'cd /; rm -r "$T"' EXIT
+trap 'cd /; rm -rf "$T"' EXIT
 pass=0; failn=0
 ok()  { echo "PASS: $1"; pass=$((pass+1)); }
 bad() { echo "FAIL: $1"; failn=$((failn+1)); }
