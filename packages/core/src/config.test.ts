@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,7 +35,10 @@ afterEach(() => {
 describe("loadConfig", () => {
   it("loads the example files copied to real names", () => {
     seed();
-    expect(loadConfig(dir)).toEqual({
+    const loaded = loadConfig(dir);
+    // `unknown_tier_ask` is optional and has its own tests below.
+    delete loaded.salary.unknown_tier_ask;
+    expect(loaded).toEqual({
       salary: {
         floor_idr_month: 10000000,
         position_in_listed_range: 0.7,
@@ -52,6 +55,37 @@ describe("loadConfig", () => {
       companies: [{ name: "Example Co", ats: "ashby", slug: "example" }],
     });
   });
+
+  it("loads a file without unknown_tier_ask and with it", () => {
+    seed();
+    const base = readFileSync(join(dir, "salary.yaml"), "utf8").replace(
+      /^unknown_tier_ask:.*\n/m,
+      "",
+    );
+    writeFileSync(join(dir, "salary.yaml"), base);
+    expect(loadConfig(dir).salary.unknown_tier_ask).toBeUndefined();
+    writeFileSync(join(dir, "salary.yaml"), `${base}unknown_tier_ask: { ask_idr_month: 123456 }\n`);
+    expect(loadConfig(dir).salary.unknown_tier_ask).toEqual({ ask_idr_month: 123456 });
+  });
+
+  it.each(["0", "-777777", '"abc"'])(
+    "rejects unknown_tier_ask.ask_idr_month = %s with the key path only",
+    (value) => {
+      seed();
+      const base = readFileSync(join(dir, "salary.yaml"), "utf8").replace(
+        /^unknown_tier_ask:.*\n/m,
+        "",
+      );
+      writeFileSync(
+        join(dir, "salary.yaml"),
+        `${base}unknown_tier_ask: { ask_idr_month: ${value} }\n`,
+      );
+      const err = catchError(() => loadConfig(dir));
+      expect(err.message).toContain("unknown_tier_ask.ask_idr_month");
+      expect(err.message).not.toContain("777777");
+      expect(err.message).not.toContain("abc");
+    },
+  );
 
   it("uses JOB_AGENT_CONFIG_DIR when no argument is given", () => {
     seed();

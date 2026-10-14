@@ -34,6 +34,7 @@ cp config/cv.example.md config/cv.md
 | File | Used by | What it holds |
 |---|---|---|
 | `config/salary.yaml` | `process` | `floor_idr_month`: postings whose listed max is below it are rejected (plus later-phase fields) |
+| `config/salary.yaml` `unknown_tier_ask` | `enrich`, `process --reprocess` | Optional `unknown_tier_ask: { ask_idr_month: <number> }`: your ask when a company's pay policy is unknown (including a US pay-transparency range). The floor still applies. Missing: the regional ask is used and each run prints one warning line `unknown_tier_ask not set in salary.yaml, using the regional ask` (no value). The tier label stays `regional`; the stored `ask_reason` says `ask from unknown_tier_ask` or `ask from regional (unknown_tier_ask not set)` |
 | `config/companies.yaml` | `discover` | companies whose ATS boards are polled (`name`, `ats`, `slug`) |
 | `config/cv.md` | `enrich` | your CV in Markdown, used by the fit-scoring stage |
 

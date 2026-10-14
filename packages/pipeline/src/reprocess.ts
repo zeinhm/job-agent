@@ -14,6 +14,7 @@ import {
 import { computeTier } from "./enrich.ts";
 import { ExtractionSchema } from "./intel/extract.ts";
 import { resolveFlags } from "./intel/resolve.ts";
+import { unknownTierAskWarning } from "./intel/tier.ts";
 import { analyze } from "./process.ts";
 
 export interface ReprocessOptions {
@@ -145,6 +146,8 @@ export function runReprocess(opts: ReprocessOptions): number {
   const now = opts.now ?? (() => new Date());
   const floor = opts.floorIdrMonth ?? loadConfig().salary.floor_idr_month;
   const salary = opts.salary ?? loadConfig().salary;
+  const askWarning = unknownTierAskWarning(salary);
+  if (askWarning !== null) err(askWarning);
 
   const todo = db
     .select()

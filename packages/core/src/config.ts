@@ -22,6 +22,8 @@ const salaryConfigSchema = z.strictObject({
     global_adjusted: z.strictObject({ ask_idr_month: z.number().positive() }),
     global_flat: z.strictObject({ ask_usd_year: z.number().positive() }),
   }),
+  /** Optional: the ask when a company's pay policy is unknown. Missing: the regional ask is used. */
+  unknown_tier_ask: z.strictObject({ ask_idr_month: z.number().positive() }).optional(),
   unknown_policy: z.string().min(1),
   text_field_answer: z.string().min(1),
   review_salary_answers: z.boolean(),

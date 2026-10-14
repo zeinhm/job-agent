@@ -38,7 +38,12 @@ import { researchCompanyPayPolicy, type ResearchDeps } from "./intel/company-res
 import { createDomainAgeLookup, type DomainAgeLookup } from "./intel/rdap.ts";
 import { payPolicyFor, recordPostingPolicy } from "./intel/registry.ts";
 import { runScamStage } from "./intel/scam-stage.ts";
-import { decideTierAndAsk, TIER_SKIPPED_NO_FX, type TierFx } from "./intel/tier.ts";
+import {
+  decideTierAndAsk,
+  TIER_SKIPPED_NO_FX,
+  unknownTierAskWarning,
+  type TierFx,
+} from "./intel/tier.ts";
 
 export interface EnrichOptions {
   db: Db;
@@ -489,6 +494,9 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
     err("enrich: --limit must be a positive integer\n");
     return 1;
   }
+
+  const askWarning = unknownTierAskWarning(opts.salary);
+  if (askWarning !== null) err(askWarning);
 
   // Tier-only pass for postings that waited on an FX rate; needs no API key and makes no LLM call.
   const retiered = retierWaiting(opts, now());

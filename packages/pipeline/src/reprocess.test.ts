@@ -13,6 +13,7 @@ import {
   postings,
   type Db,
   type NewPosting,
+  type SalaryConfig,
 } from "@job-agent/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
@@ -121,12 +122,12 @@ const analysisOf = (id: string) =>
   db.select().from(analysis).where(eq(analysis.posting_id, id)).get();
 const intelOf = (id: string) => db.select().from(intel).where(eq(intel.posting_id, id)).get();
 
-function reprocess() {
+function reprocess(salary: SalaryConfig = SALARY) {
   const out: string[] = [];
   const err: string[] = [];
   const code = runReprocess({
     db,
-    salary: SALARY,
+    salary,
     floorIdrMonth: 10_000_000,
     now: () => NOW,
     out: (t) => out.push(t),
@@ -252,6 +253,43 @@ describe("runReprocess: intel", () => {
     reprocess();
     expect(intelOf("german")?.final_decision).toBe("reject");
     expect(intelOf("german")?.fit_score).toBe(80);
+  });
+});
+
+describe("runReprocess: unknown_tier_ask", () => {
+  const ASK = 16_500_000;
+  const { unknown_tier_ask: _ignored, ...NO_ASK } = SALARY;
+  void _ignored;
+  const UNKNOWN_POLICY = { listedSalary: null, listedSalaryScope: null, payPolicy: null };
+  const WARNING = "unknown_tier_ask not set in salary.yaml, using the regional ask\n";
+
+  function seedThree() {
+    for (const id of ["u1", "u2", "u3"]) {
+      add(id);
+      oldAnalysis(id, "keep");
+      addIntel(id, {}, { roleFamily: "frontend", ...UNKNOWN_POLICY });
+    }
+  }
+
+  it("key missing: regional ask and exactly one warning for three postings, no value in it", () => {
+    seedThree();
+    const r = reprocess(NO_ASK);
+    expect(r.err.split(WARNING).length - 1).toBe(1);
+    expect(r.err).toBe(WARNING);
+    expect(r.err).not.toMatch(/\d{4}/);
+    expect(intelOf("u2")?.ask_idr_month).toBe(NO_ASK.tiers.regional.ask_idr_month);
+    expect(intelOf("u2")?.ask_reason).toContain("ask from regional (unknown_tier_ask not set)");
+  });
+
+  it("key set: its ask is stored, tier stays regional, no warning", () => {
+    seedThree();
+    const r = reprocess({ ...NO_ASK, unknown_tier_ask: { ask_idr_month: ASK } });
+    expect(r.err).toBe("");
+    for (const id of ["u1", "u2", "u3"]) {
+      expect(intelOf(id)?.ask_idr_month).toBe(ASK);
+      expect(intelOf(id)?.tier).toBe("regional");
+      expect(intelOf(id)?.ask_reason).toContain("ask from unknown_tier_ask");
+    }
   });
 });
 

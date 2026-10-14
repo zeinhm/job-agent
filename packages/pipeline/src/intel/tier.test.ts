@@ -12,7 +12,13 @@ const configDir = mkdtempSync(join(tmpdir(), "job-agent-tier-"));
 const exampleDir = new URL("../../../../config/", import.meta.url).pathname;
 copyFileSync(join(exampleDir, "salary.example.yaml"), join(configDir, "salary.yaml"));
 copyFileSync(join(exampleDir, "companies.example.yaml"), join(configDir, "companies.yaml"));
-const SALARY: SalaryConfig = loadConfig(configDir).salary;
+// The base config has no `unknown_tier_ask`: the pre-existing tests (and the golden set) cover the missing-key behaviour.
+const { unknown_tier_ask: _exampleAsk, ...salaryNoAsk } = loadConfig(configDir).salary;
+void _exampleAsk;
+const SALARY: SalaryConfig = salaryNoAsk;
+// Fake owner ask for unknown pay policy; differs from the regional ask (15_000_000) so the source is visible.
+const UNKNOWN_ASK = 16_500_000;
+const WITH_ASK: SalaryConfig = { ...SALARY, unknown_tier_ask: { ask_idr_month: UNKNOWN_ASK } };
 afterAll(() => rmSync(configDir, { recursive: true, force: true }));
 
 const FX: TierFx = {
@@ -261,6 +267,84 @@ describe("no listed range", () => {
     expect(decide({ ...adj, employment: "eor", indonesiaExplicit: true }).tier).toBe("indonesia");
     const indo = decide({ ...adj, employment: "eor", indonesiaExplicit: true });
     expect(indo.askIdrMonth).toBe(SALARY.tiers.indonesia.ask_idr_month);
+  });
+});
+
+describe("unknown_tier_ask", () => {
+  const BRANCHES = [
+    ["unknown", {}],
+    [
+      "us_legal_note_unknown",
+      { listedSalary: usdYear(150_000, 220_000), listedSalaryScope: "us_only_or_legal_note" },
+    ],
+  ] as const;
+  const at = (salary: SalaryConfig, x: Partial<Extraction>) =>
+    decideTierAndAsk({ ...BLANK, ...x }, NO_REGISTRY, salary, FX);
+
+  it.each(BRANCHES)("%s: key set -> uses it, tier stays regional, text unchanged", (branch, x) => {
+    const r = at(WITH_ASK, x);
+    expect(r.branch).toBe(branch);
+    expect(r.tier).toBe("regional");
+    expect(r.askIdrMonth).toBe(UNKNOWN_ASK);
+    expect(r.askText).toBe(SALARY.text_field_answer);
+    expect(r.askReason).toContain("ask from unknown_tier_ask");
+    expect(r.askReason).not.toContain(String(UNKNOWN_ASK));
+    expect(r.askReason).not.toContain("raised to floor");
+  });
+
+  it.each(BRANCHES)("%s: key missing -> regional ask and says so", (branch, x) => {
+    const r = at(SALARY, x);
+    expect(r.branch).toBe(branch);
+    expect(r.askIdrMonth).toBe(SALARY.tiers.regional.ask_idr_month);
+    expect(r.askReason).toContain("ask from regional (unknown_tier_ask not set)");
+  });
+
+  it.each(BRANCHES)("%s: key below the floor -> floor wins, raised to floor", (_b, x) => {
+    const r = at(
+      { ...WITH_ASK, floor_idr_month: 20_000_000, unknown_tier_ask: { ask_idr_month: 1_000_000 } },
+      x,
+    );
+    expect(r.askIdrMonth).toBe(20_000_000);
+    expect(r.askReason).toContain("raised to floor");
+    expect(r.askReason).toContain("ask from unknown_tier_ask");
+  });
+
+  it("other branches ignore the key", () => {
+    const inputs: Partial<Extraction>[] = [
+      { payPolicy: "location_agnostic" },
+      { payPolicy: "location_adjusted", hiringScope: "worldwide" },
+      { payPolicy: "location_adjusted", employment: "eor", indonesiaExplicit: true },
+      { listedSalary: usdYear(100_000, 140_000), listedSalaryScope: "all_locations" },
+    ];
+    for (const x of inputs) expect(at(WITH_ASK, x)).toEqual(at(SALARY, x));
+  });
+
+  it("golden rows on the unknown branches use the key and stay at or above the floor", () => {
+    const rows = (
+      JSON.parse(
+        readFileSync(new URL("../../../../fixtures/golden/tier.json", import.meta.url), "utf8"),
+      ) as {
+        rows: {
+          registryPolicy: "location_agnostic" | "location_adjusted" | "unknown";
+          expectedBranch: string;
+          extraction: unknown;
+        }[];
+      }
+    ).rows.filter((r) => ["unknown", "us_legal_note_unknown"].includes(r.expectedBranch));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const registry: CompanyPayPolicy =
+        row.registryPolicy === "unknown"
+          ? NO_REGISTRY
+          : { policy: row.registryPolicy, source: "manual" };
+      const x = ExtractionSchema.parse(row.extraction);
+      const r = decideTierAndAsk(x, registry, WITH_ASK, FX);
+      expect(r.branch).toBe(row.expectedBranch);
+      expect(r.askIdrMonth).toBe(UNKNOWN_ASK);
+      expect(decideTierAndAsk(x, registry, SALARY, FX).askIdrMonth).toBe(
+        SALARY.tiers.regional.ask_idr_month,
+      );
+    }
   });
 });
 

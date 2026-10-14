@@ -6,6 +6,8 @@ tiers:
   regional:        { ask_idr_month: 15000000 }
   global_adjusted: { ask_idr_month: 14000000 }
   global_flat:     { ask_usd_year: 50000 }
+# your ask when a company pay policy is unknown
+unknown_tier_ask: { ask_idr_month: 16500000 }
 unknown_policy: research_then_regional
 text_field_answer: "Open, happy to align with your compensation band for my location"
 review_salary_answers: true

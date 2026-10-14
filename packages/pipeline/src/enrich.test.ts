@@ -383,6 +383,39 @@ describe("enrich pay-policy registry", () => {
   });
 });
 
+describe("enrich unknown_tier_ask warning", () => {
+  const WARNING = "unknown_tier_ask not set in salary.yaml, using the regional ask\n";
+  const { unknown_tier_ask: _ignored, ...NO_ASK } = SALARY;
+  void _ignored;
+
+  async function run(salary: typeof SALARY) {
+    const err: string[] = [];
+    await runEnrich({
+      db,
+      salary,
+      env: ENV,
+      cv: null,
+      now: () => NOW,
+      out: () => undefined,
+      err: (t) => err.push(t),
+    });
+    return err.join("");
+  }
+
+  it("key missing: one warning line per run over three postings, without a value", async () => {
+    for (const id of ["p1", "p2", "p3"]) addPosting(id);
+    const err = await run(NO_ASK);
+    expect(err.split(WARNING).length - 1).toBe(1);
+    expect(err).not.toMatch(/\d{4}/);
+  });
+
+  it("key set: no warning", async () => {
+    addPosting("p1");
+    const err = await run({ ...NO_ASK, unknown_tier_ask: { ask_idr_month: 16_500_000 } });
+    expect(err).not.toContain("unknown_tier_ask");
+  });
+});
+
 describe("enrich tier stage", () => {
   it("writes tier, both asks, no text and a reason naming the branch for a kept posting", async () => {
     addPosting("p1");

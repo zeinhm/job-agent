@@ -30,7 +30,8 @@ const configDir = mkdtempSync(join(tmpdir(), "job-agent-enrich-research-"));
 const exampleDir = resolve(here, "../../../config");
 copyFileSync(join(exampleDir, "salary.example.yaml"), join(configDir, "salary.yaml"));
 copyFileSync(join(exampleDir, "companies.example.yaml"), join(configDir, "companies.yaml"));
-const SALARY = loadConfig(configDir).salary;
+// A key is set so these tests see no unknown_tier_ask warning (covered in enrich.test.ts).
+const SALARY = { ...loadConfig(configDir).salary, unknown_tier_ask: { ask_idr_month: 16_500_000 } };
 afterAll(() => rmSync(configDir, { recursive: true, force: true }));
 
 const CV = readFileSync(resolve(here, "../../../config/cv.example.md"), "utf-8");

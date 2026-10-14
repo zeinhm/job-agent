@@ -25,6 +25,14 @@ export interface TierAsk {
   askReason: string;
 }
 
+/** One line per run (never per posting, never a value) when the owner has not set `unknown_tier_ask`. */
+export const UNKNOWN_TIER_ASK_WARNING =
+  "unknown_tier_ask not set in salary.yaml, using the regional ask\n";
+
+export function unknownTierAskWarning(salary: SalaryConfig): string | null {
+  return salary.unknown_tier_ask === undefined ? UNKNOWN_TIER_ASK_WARNING : null;
+}
+
 /** Same conversion as the salary normalizer: yearly / 12, hourly x 160. */
 const TO_MONTH = { year: 1 / 12, month: 1, hour: 160 } as const;
 
@@ -134,6 +142,13 @@ export function decideTierAndAsk(
   let askText: string | null = null;
   let configuredUsdYear: number | null = null;
   const notes: string[] = [];
+  // Unknown pay policy (including a US legal note): the owner's own ask, else the regional one. The floor check below
+  // still applies. The tier label stays `regional`.
+  const unknownAsk = salary.unknown_tier_ask?.ask_idr_month;
+  const unknownSource =
+    unknownAsk !== undefined
+      ? "ask from unknown_tier_ask"
+      : "ask from regional (unknown_tier_ask not set)";
 
   if (range !== null && agnosticRange) {
     branch = "listed_agnostic";
@@ -149,9 +164,12 @@ export function decideTierAndAsk(
   } else if (usNote) {
     branch = "us_legal_note_unknown";
     tier = "regional";
-    rawIdr = salary.tiers.regional.ask_idr_month;
+    rawIdr = unknownAsk ?? salary.tiers.regional.ask_idr_month;
     askText = salary.text_field_answer;
-    notes.push("listed range is a US pay-transparency / legal note, treated as unknown");
+    notes.push(
+      "listed range is a US pay-transparency / legal note, treated as unknown",
+      unknownSource,
+    );
   } else if (policy === "location_agnostic") {
     branch = "flat";
     tier = "global_flat";
@@ -169,9 +187,9 @@ export function decideTierAndAsk(
   } else {
     branch = "unknown";
     tier = "regional";
-    rawIdr = salary.tiers.regional.ask_idr_month;
+    rawIdr = unknownAsk ?? salary.tiers.regional.ask_idr_month;
     askText = salary.text_field_answer;
-    notes.push("policy unknown, text field answer plus regional number");
+    notes.push("policy unknown, text field answer plus a number", unknownSource);
   }
 
   let askIdrMonth = Math.round(rawIdr);
