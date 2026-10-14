@@ -52,9 +52,20 @@ const commands: Record<string, Command> = {
   },
   enrich: async (args, io) => {
     let limit: number | undefined;
+    let noReextract = false;
+    let reextractOnly = false;
     try {
-      const { values } = parseArgs({ args, options: { limit: { type: "string" } } });
+      const { values } = parseArgs({
+        args,
+        options: {
+          limit: { type: "string" },
+          "no-reextract": { type: "boolean", default: false },
+          "reextract-only": { type: "boolean", default: false },
+        },
+      });
       if (values.limit !== undefined) limit = Number(values.limit);
+      noReextract = values["no-reextract"] === true;
+      reextractOnly = values["reextract-only"] === true;
     } catch (e) {
       io.err(`enrich: ${e instanceof Error ? e.message : String(e)}\n`);
       return 1;
@@ -68,7 +79,15 @@ const commands: Record<string, Command> = {
     }
     const db = openDb(defaultDbPath());
     try {
-      return await runEnrich({ db, salary, limit, out: io.out, err: io.err });
+      return await runEnrich({
+        db,
+        salary,
+        limit,
+        noReextract,
+        reextractOnly,
+        out: io.out,
+        err: io.err,
+      });
     } finally {
       db.$client.close();
     }
@@ -149,9 +168,9 @@ const commands: Record<string, Command> = {
     const db = openDb(defaultDbPath());
     try {
       const tables = db
-        .all<{ name: string }>(
-          sql`select name from sqlite_master where type = 'table' order by name`,
-        )
+        .all<{
+          name: string;
+        }>(sql`select name from sqlite_master where type = 'table' order by name`)
         .filter(({ name }) => !name.startsWith("sqlite_") && !name.startsWith("__"));
       io.out("row counts\n");
       for (const { name } of tables) {

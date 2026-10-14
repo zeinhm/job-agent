@@ -1,5 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { and, count, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import {
   analysis,
   BudgetExceededError,
@@ -51,6 +64,10 @@ export interface EnrichOptions {
   salary: SalaryConfig;
   /** Stop after this many postings. */
   limit?: number | undefined;
+  /** Skip the re-extraction of outdated extractions (`--no-reextract`). */
+  noReextract?: boolean;
+  /** Only re-extract outdated extractions, skip new postings (`--reextract-only`). */
+  reextractOnly?: boolean;
   env?: Record<string, string | undefined>;
   now?: () => Date;
   /** Override the API base URL (tests). */
@@ -481,6 +498,50 @@ export function selectPostings(db: Db, limit: number | undefined): Posting[] {
   return rows.map((r) => r.posting);
 }
 
+/** Extractions of postings last seen longer ago than this are not re-extracted. */
+export const REEXTRACT_MAX_AGE_DAYS = 14;
+
+/**
+ * Canonical, rule-kept postings whose stored extraction used an older prompt: `intel.extraction` set,
+ * `extract_prompt_version` differs from `EXTRACT_PROMPT_VERSION`, `final_decision` keep or reject (never suspicious),
+ * finished (`done` / `fx_wait`), last seen within `REEXTRACT_MAX_AGE_DAYS`; newest first. `skipIds` are postings the
+ * run already handles as new / pending work.
+ */
+export function selectOutdated(
+  db: Db,
+  now: Date,
+  limit: number | undefined,
+  skipIds: string[] = [],
+): { posting: Posting; intel: Intel }[] {
+  const cutoff = new Date(now.getTime() - REEXTRACT_MAX_AGE_DAYS * 86_400_000).toISOString();
+  const query = db
+    .select({ posting: postings, intel })
+    .from(intel)
+    .innerJoin(postings, eq(postings.id, intel.posting_id))
+    .innerJoin(analysis, eq(analysis.posting_id, postings.id))
+    .where(
+      and(
+        isNull(postings.canonical_posting_id),
+        eq(analysis.decision, "keep"),
+        isNotNull(intel.extraction),
+        or(
+          isNull(intel.extract_prompt_version),
+          ne(intel.extract_prompt_version, EXTRACT_PROMPT_VERSION),
+        ),
+        inArray(intel.final_decision, ["keep", "reject"]),
+        inArray(intel.status, ["done", "fx_wait"]),
+        gte(postings.last_seen_at, cutoff),
+        skipIds.length > 0 ? notInArray(postings.id, skipIds) : undefined,
+      ),
+    )
+    .orderBy(
+      desc(sql`coalesce(${postings.posted_at}, ${postings.first_seen_at})`),
+      desc(postings.first_seen_at),
+      postings.id,
+    );
+  return limit === undefined ? query.all() : query.limit(limit).all();
+}
+
 /** No-key scam check is text-only: no network lookup, the domain age stays unknown. */
 const noDomainLookup: DomainAgeLookup = () => Promise.resolve(null);
 
@@ -502,7 +563,29 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   const retiered = retierWaiting(opts, now());
   if (retiered > 0) out(`tiered ${retiered} postings that waited for an FX rate\n`);
 
-  const todo = selectPostings(db, opts.limit);
+  if (opts.noReextract && opts.reextractOnly) {
+    err("enrich: --no-reextract and --reextract-only cannot be combined\n");
+    return 1;
+  }
+
+  const todo = opts.reextractOnly ? [] : selectPostings(db, opts.limit);
+  // Outdated extractions come after every new / pending posting; `--limit` counts both.
+  const outdatedLimit = opts.limit === undefined ? undefined : opts.limit - todo.length;
+  const outdated =
+    env["ANTHROPIC_API_KEY"] &&
+    !opts.noReextract &&
+    (outdatedLimit === undefined || outdatedLimit > 0)
+      ? selectOutdated(
+          db,
+          now(),
+          outdatedLimit,
+          todo.map((p) => p.id),
+        )
+      : [];
+  const queue: { posting: Posting; old?: Intel }[] = [
+    ...todo.map((posting) => ({ posting })),
+    ...outdated.map((o) => ({ posting: o.posting, old: o.intel })),
+  ];
 
   if (!env["ANTHROPIC_API_KEY"]) {
     // Postings stay pending so the digest can list them as waiting for scoring. The text-only scam rules need no
@@ -539,7 +622,7 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   };
 
   const cv = opts.cv !== undefined ? opts.cv : loadCv();
-  if (cv === null && todo.length > 0) {
+  if (cv === null && queue.length > 0) {
     err("cv.md not found in the config dir, fit scoring skipped (extraction still runs)\n");
   }
 
@@ -569,8 +652,13 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   let apiErrors = 0;
   let aborted = false;
   let lastApiError: LlmApiError | undefined;
+  let reextracted = 0;
+  let keepToReject = 0;
+  let rejectToKeep = 0;
 
-  for (const posting of todo) {
+  for (const { posting, old } of queue) {
+    // An outdated row is only touched once its new extraction validated; budget / abort leave it as it is.
+    if (old !== undefined && (aborted || budgetStopped)) continue;
     if (aborted) {
       upsertIntel(db, posting.id, "pending", {}, now());
       continue;
@@ -581,6 +669,13 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
       continue;
     }
     let patch: IntelPatch = savedPaidPatch(db, posting.id);
+    if (old?.final_decision === "reject") {
+      // A rejected row never had a fit; whatever is stored is not reused when the new facts keep it.
+      delete patch.fit_score;
+      delete patch.fit_reasons;
+      delete patch.fit_model;
+      delete patch.fit_prompt_version;
+    }
     let outcome: "done" | "failed" | "retry" | "budget" | "fx_wait" = "done";
     try {
       for (const stage of stages) {
@@ -615,6 +710,19 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
       outcome = "budget";
     }
 
+    if (old !== undefined) {
+      // The old row stays as it was unless a new extraction came back valid.
+      if (patch.extraction === undefined) {
+        if (outcome === "budget") budgetStopped = true;
+        if (outcome === "retry" && apiErrors >= MAX_CONSECUTIVE_API_ERRORS) aborted = true;
+        if (outcome === "failed") failed += 1;
+        continue;
+      }
+      reextracted += 1;
+      if (old.final_decision === "keep" && patch.final_decision === "reject") keepToReject += 1;
+      if (old.final_decision === "reject" && patch.final_decision === "keep") rejectToKeep += 1;
+    }
+
     if (outcome === "done") {
       upsertIntel(db, posting.id, "done", patch, now());
       enriched += 1;
@@ -641,6 +749,11 @@ export async function runEnrich(opts: EnrichOptions): Promise<number> {
   out(
     `enriched ${enriched}, budget_wait ${budgetWait}, failed ${failed}, spent $${spent.toFixed(2)} today\n`,
   );
+  if (!opts.noReextract) {
+    out(
+      `re-extracted ${reextracted} (decision changes: keep->reject ${keepToReject}, reject->keep ${rejectToKeep})\n`,
+    );
+  }
   out(
     `research: checked ${researchCounts.checked}, found ${researchCounts.found}, no domain ${researchCounts.no_domain}, fetch failed ${researchCounts.fetch_failed}, no wording ${researchCounts.no_wording}\n`,
   );
