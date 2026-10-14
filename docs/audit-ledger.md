@@ -66,3 +66,4 @@ Last audit tag: (none yet)
 | t_fbc60316 | Digest shows Apply, Found on and the apply type; paid-only jobs stay listed with a label | medium | d1c2e63 | 2026-10-14 |
 | t_4eaabb57 | Freshness proof: Source health shows last run and max gap for LinkedIn and Indeed; schedule notes for Tier 2 | medium | e36976b | 2026-10-14 |
 | t_1700ae4a | End-to-end test for the Phase 3 pipeline and bin/smoke coverage of the new keyless sources | medium | 2a85c60 | 2026-10-14 |
+| t_9192fcfc | Update run docs, cron example and env example for Phase 3 | low | 5a1197b | 2026-10-14 |
