@@ -71,6 +71,45 @@ describe("indeed through discover", () => {
     expect(calls).toBe(1);
   });
 
+  it("stores saturated for a paged source (ok and blocked-with-postings), null for others", async () => {
+    const full = Array.from({ length: 50 }, (_, i) => JSON.stringify(job(`k${i}`))).join("\n");
+    let call = 0;
+    const adapter = createIndeedAdapter({
+      sleep: async () => undefined,
+      now: () => T0,
+      runWorker: async () =>
+        ++call === 1 ? { exitCode: 0, stdout: full } : { exitCode: 0, stdout: "" },
+    });
+    expect(await discover(adapter, T0)).toBe(0);
+    expect(runs()[0]).toMatchObject({ status: "ok", saturated: 1 });
+
+    let n = 0;
+    const blocking = createIndeedAdapter({
+      sleep: async () => undefined,
+      now: () => T0,
+      runWorker: async () =>
+        ++n === 1
+          ? { exitCode: 0, stdout: full }
+          : { exitCode: 2, stdout: '{"error":"status code 403","kind":"blocked"}' },
+    });
+    await discover(blocking, new Date(T0.getTime() + minutes(300)), true);
+    expect(runs().at(-1)).toMatchObject({ status: "error", saturated: 1 });
+
+    const other = { name: "other", minIntervalMinutes: 0, fetch: async () => [] };
+    await runDiscover({
+      db,
+      adapters: [other],
+      source: "other",
+      force: true,
+      now: () => T0,
+      out: () => undefined,
+      err: () => undefined,
+    });
+    expect(
+      db.select().from(source_runs).where(eq(source_runs.source, "other")).all()[0]?.saturated,
+    ).toBeNull();
+  });
+
   it("a second run within 2 h records skipped without calling the worker", async () => {
     let calls = 0;
     const adapter = createIndeedAdapter({

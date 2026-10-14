@@ -41,4 +41,9 @@ export interface SourceAdapter {
    * Returns them once and clears them; discover records them in the run's error_message.
    */
   takeWarnings?(): string[];
+  /**
+   * Sources that page a search: how many searches of the last fetch came back with a full first page (so results
+   * beyond it were lost or needed more pages). Reset by each fetch; stored in source_runs.saturated.
+   */
+  takeSaturated?(): number;
 }

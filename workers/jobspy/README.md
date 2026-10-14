@@ -18,7 +18,7 @@ Needs Python >= 3.10. Without the venv the `linkedin` source run is recorded as 
 ## Protocol
 
 Arguments: one JSON object in argv[1] (or on stdin): `site` (`linkedin` | `indeed`), `search_term`, `location`,
-`is_remote`, `hours_old` (1 to 24), `results_wanted` (<= 25 for LinkedIn, <= 50 for Indeed), `country`.
+`is_remote`, `hours_old` (1 to 24), `results_wanted` (<= 25 for LinkedIn, <= 50 for Indeed), `offset` (integer >= 0, default 0; `offset + results_wanted` <= 100; passed to `scrape_jobs(offset=...)`, JobSpy 1.3.0), `country`.
 
 Exit 0: one job object per line. Exit 2: one line `{"error": "...", "kind": "blocked" | "error"}`. A block is a
 429 / 999 / 403 status, an authwall or CAPTCHA, read from JobSpy's log records (JobSpy logs blocks instead of raising).

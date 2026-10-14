@@ -365,6 +365,7 @@ function sourceHealth(db: Db, now: Date): string[] {
     if (latest === undefined) text = "no run in the last 24h";
     else {
       text = `${latest.status}, found ${latest.found}, new ${latest.new}`;
+      if (latest.saturated !== null) text += `, saturated ${latest.saturated}`;
       if (latest.error_message !== null)
         text += `, ${latest.status === "error" ? "error" : "warning"}: ${latest.error_message.replace(/\s+/g, " ")}`;
     }

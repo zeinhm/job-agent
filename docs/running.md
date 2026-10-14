@@ -257,6 +257,15 @@ Indeed dates are whole days, so postings dated more than 48 h before the run are
 `job_url_direct` when Indeed has one; Indeed is a board, so an ATS copy of the same job always wins in dedupe, and a
 domestic Indonesian company's posting is rejected by the Indonesia rule as for every source.
 
+**Paging.** A search that returns a full page (as many job lines as its `results_wanted`: 25 for LinkedIn, 50 for Indeed) is
+asked for the next page (`offset += results_wanted`, same search and lookback) until a page is not full or the search holds
+100 results. Worst case per run: LinkedIn 2 searches x 4 pages = 8 worker calls, Indeed 2 x 2 = 4. Every call but the first
+of a run waits 10 s after the previous one. A block on any page stops everything at once (error + 6 h backoff, the postings
+collected so far are kept); another worker error on a later page keeps what was collected and records an `error` run. A
+search is **saturated** when its first page was full; the digest's Source health line for these two sources shows the count
+for the latest run, right after `new`: `- **linkedin**: ok, found 61, new 7, saturated 1 — last ok ...` (`saturated 0` is
+shown too; other sources have no such field). A saturated search that also hits the 100 cap may still lose older postings.
+
 `bin/smoke --with-jobspy` adds one LinkedIn and one Indeed search with at most 10 results each to the smoke run (only if
 the venv exists). Plain `bin/smoke` never touches LinkedIn or Indeed.
 

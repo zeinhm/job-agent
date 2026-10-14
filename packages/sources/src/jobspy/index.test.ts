@@ -10,7 +10,9 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LINKEDIN_RESULTS_WANTED,
+  MAX_RESULTS_PER_SEARCH,
   SEARCH_GAP_MS,
+  createIndeedAdapter,
   createLinkedInAdapter,
   lookbackHours,
 } from "./index.ts";
@@ -308,5 +310,184 @@ describe("real worker process", () => {
     expect(err).not.toBeInstanceOf(SourceBlockedError);
     expect((err as Error).message).toContain("timed out");
     expect(Date.now() - started).toBeLessThan(5000);
+  });
+});
+
+describe("saturation paging", () => {
+  /** Fake runner: answers each call with `pages[n]` job lines (unique ids per call) and records calls and sleeps. */
+  function harness(pages: number[], site: "linkedin" | "indeed" = "linkedin") {
+    const calls: WorkerSearch[] = [];
+    const events: string[] = [];
+    let id = 0;
+    const runWorker: WorkerRunner = async (s) => {
+      calls.push(s);
+      events.push("call");
+      const n = pages[calls.length - 1] ?? 0;
+      const items = Array.from({ length: n }, () => {
+        id++;
+        return site === "linkedin"
+          ? job(id)
+          : job(id, {
+              id: `in-k${id}`,
+              site: "indeed",
+              job_url: `https://www.indeed.com/viewjob?jk=k${id}`,
+            });
+      });
+      return ok(lines(...items));
+    };
+    const sleep = async (ms: number) => {
+      events.push(`sleep ${ms}`);
+    };
+    const adapter = (site === "linkedin" ? createLinkedInAdapter : createIndeedAdapter)({
+      runWorker,
+      sleep,
+    });
+    return { calls, events, adapter };
+  }
+  const offsets = (calls: WorkerSearch[]) => calls.map((c) => c.offset ?? 0);
+
+  it("a full first page of 25 asks for offset 25", async () => {
+    const h = harness([25, 12, 0]);
+    await h.adapter.fetch(new Date());
+    expect(offsets(h.calls).slice(0, 2)).toEqual([0, 25]);
+    expect(h.calls[0]).not.toHaveProperty("offset");
+  });
+
+  it("four full pages stop at 100: offsets 0, 25, 50, 75 for the first search", async () => {
+    const h = harness([25, 25, 25, 25, 0, 0]);
+    await h.adapter.fetch(new Date());
+    expect(MAX_RESULTS_PER_SEARCH).toBe(100);
+    expect(h.calls.map((c) => [c.location, c.offset ?? 0])).toEqual([
+      ["Worldwide", 0],
+      ["Worldwide", 25],
+      ["Worldwide", 50],
+      ["Worldwide", 75],
+      ["Indonesia", 0],
+    ]);
+  });
+
+  it("25 then 12 is two calls; 24 is one call and not saturated", async () => {
+    const a = harness([25, 12, 0]);
+    await a.adapter.fetch(new Date());
+    expect(offsets(a.calls)).toEqual([0, 25, 0]); // search 2 takes the third call
+    const b = harness([24, 0]);
+    await b.adapter.fetch(new Date());
+    expect(offsets(b.calls)).toEqual([0, 0]);
+    expect(b.adapter.takeSaturated?.()).toBe(0);
+  });
+
+  it("indeed pages 50 then 50 and stops at 100", async () => {
+    const h = harness([50, 50, 0], "indeed");
+    await h.adapter.fetch(new Date());
+    expect(h.calls.map((c) => [c.country, c.offset ?? 0])).toEqual([
+      ["usa", 0],
+      ["usa", 50],
+      ["indonesia", 0],
+    ]);
+  });
+
+  it("sleeps 10 s before every call but the first, pages and searches alike", async () => {
+    const h = harness([25, 25, 25, 25, 25, 0]);
+    await h.adapter.fetch(new Date());
+    expect(h.events).toEqual([
+      "call",
+      ...Array.from({ length: 5 }, () => ["sleep 10000", "call"]).flat(),
+    ]);
+  });
+
+  it("counts searches whose first page was full, not full pages", async () => {
+    const a = harness([25, 25, 3, 10]);
+    await a.adapter.fetch(new Date());
+    expect(a.adapter.takeSaturated?.()).toBe(1);
+    const b = harness([25, 10, 10]);
+    await b.adapter.fetch(new Date());
+    expect(b.adapter.takeSaturated?.()).toBe(1);
+    const c = harness([10, 10]);
+    await c.adapter.fetch(new Date());
+    expect(c.adapter.takeSaturated?.()).toBe(0);
+    const d = harness([25, 25, 25, 25, 25, 25, 25, 25]);
+    await d.adapter.fetch(new Date());
+    expect(d.calls).toHaveLength(8);
+    expect(d.adapter.takeSaturated?.()).toBe(2);
+  });
+
+  it("the count is reset by each fetch", async () => {
+    const h = harness([25, 0, 0, 0, 0]);
+    await h.adapter.fetch(new Date());
+    expect(h.adapter.takeSaturated?.()).toBe(1);
+    await h.adapter.fetch(new Date());
+    expect(h.adapter.takeSaturated?.()).toBe(0);
+  });
+
+  it("a page counts malformed lines as lines", async () => {
+    const calls: WorkerSearch[] = [];
+    const runWorker: WorkerRunner = async (s) => {
+      calls.push(s);
+      if (calls.length > 1) return ok("");
+      const items = Array.from({ length: 24 }, (_, i) => job(i + 1));
+      return ok(lines(...items, "garbage"));
+    };
+    const adapter = createLinkedInAdapter({ runWorker, sleep: async () => undefined });
+    await adapter.fetch(new Date());
+    expect(calls[1]?.offset).toBe(25);
+  });
+
+  it("a posting repeated across pages is counted once", async () => {
+    let n = 0;
+    const runWorker: WorkerRunner = async () => {
+      n++;
+      if (n > 2) return ok("");
+      const first = n === 1 ? 1 : 2;
+      return ok(lines(...Array.from({ length: 25 }, (_, i) => job(first + i))));
+    };
+    const found = await createLinkedInAdapter({ runWorker, sleep: async () => undefined }).fetch(
+      new Date(),
+    );
+    expect(found).toHaveLength(26);
+  });
+
+  it("a block on page 2 stops everything and carries page 1's postings", async () => {
+    const calls: WorkerSearch[] = [];
+    const runWorker: WorkerRunner = async (s) => {
+      calls.push(s);
+      return calls.length === 1
+        ? ok(lines(...Array.from({ length: 25 }, (_, i) => job(i + 1))))
+        : { exitCode: 2, stdout: lines({ error: "authwall", kind: "blocked" }) };
+    };
+    const err = await createLinkedInAdapter({ runWorker, sleep: async () => undefined })
+      .fetch(new Date())
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceBlockedError);
+    expect((err as SourceBlockedError).postings).toHaveLength(25);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("a worker error on page 2 is a PartialSourceError with page 1's postings", async () => {
+    const calls: WorkerSearch[] = [];
+    const runWorker: WorkerRunner = async (s) => {
+      calls.push(s);
+      return calls.length === 1
+        ? ok(lines(...Array.from({ length: 25 }, (_, i) => job(i + 1))))
+        : { exitCode: 2, stdout: lines({ error: "boom", kind: "error" }) };
+    };
+    const err = await createLinkedInAdapter({ runWorker, sleep: async () => undefined })
+      .fetch(new Date())
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialSourceError);
+    expect(err).not.toBeInstanceOf(SourceBlockedError);
+    expect((err as PartialSourceError).postings).toHaveLength(25);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("smoke mode makes exactly one call even when the page is full", async () => {
+    const calls: WorkerSearch[] = [];
+    const runWorker: WorkerRunner = async (s) => {
+      calls.push(s);
+      return ok(lines(...Array.from({ length: 10 }, (_, i) => job(i + 1))));
+    };
+    await createLinkedInAdapter({ runWorker, smoke: true, sleep: async () => undefined }).fetch(
+      new Date(),
+    );
+    expect(calls).toHaveLength(1);
   });
 });

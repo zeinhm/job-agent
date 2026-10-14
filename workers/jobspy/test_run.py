@@ -53,6 +53,29 @@ class ParseArgsTest(unittest.TestCase):
             with self.assertRaises(run.WorkerError, msg=bad):
                 run.parse_args(bad)
 
+    def test_offset_rules(self):
+        self.assertEqual(run.parse_args(json.dumps(LINKEDIN))["offset"], 0)
+        self.assertEqual(run.parse_args(json.dumps({**LINKEDIN, "offset": 75}))["offset"], 75)
+        for bad in (80, -1, True, "25", 1.5):
+            with self.assertRaises(run.WorkerError, msg=repr(bad)):
+                run.parse_args(json.dumps({**LINKEDIN, "offset": bad}))
+        indeed = {"site": "indeed", "search_term": "react", "results_wanted": 50}
+        self.assertEqual(run.parse_args(json.dumps({**indeed, "offset": 50}))["offset"], 50)
+        with self.assertRaises(run.WorkerError):
+            run.parse_args(json.dumps({**indeed, "offset": 51}))
+
+    def test_offset_is_passed_to_scrape_jobs(self):
+        seen = []
+
+        def scrape(**kwargs):
+            seen.append(kwargs)
+            return FakeFrame([])
+
+        self.assertEqual(call({**LINKEDIN, "offset": 75}, scrape)[0], 0)
+        self.assertEqual(call(LINKEDIN, scrape)[0], 0)
+        self.assertEqual(seen[0]["offset"], 75)
+        self.assertNotIn("offset", seen[1])
+
     def test_hours_old_upper_bound(self):
         self.assertEqual(run.parse_args(json.dumps({**LINKEDIN, "hours_old": 24}))["hours_old"], 24)
         with self.assertRaises(run.WorkerError):

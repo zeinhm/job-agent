@@ -18,6 +18,8 @@ export interface WorkerSearch {
   is_remote?: boolean;
   hours_old?: number;
   results_wanted: number;
+  /** Paging: results to skip (page 2 of a full search). Omitted = 0. */
+  offset?: number;
   country?: string;
 }
 

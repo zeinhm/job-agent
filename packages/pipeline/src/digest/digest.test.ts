@@ -100,6 +100,7 @@ function run1(
   status: "ok" | "error" | "skipped",
   startedAt: string,
   msg?: string,
+  saturated?: number,
 ) {
   db.insert(source_runs)
     .values({
@@ -111,6 +112,7 @@ function run1(
       found: 10,
       new: 3,
       error_message: msg ?? null,
+      saturated: saturated ?? null,
     })
     .run();
 }
@@ -706,6 +708,16 @@ describe("runDigest", () => {
     );
     expect(health).toContain("- **hn**: no run in the last 24h — NO SUCCESSFUL RUN");
     expect(health).not.toMatch(/remotive.*NO SUCCESSFUL RUN/);
+  });
+
+  it("shows saturated N right after new M for a paged source, 0 included; other rows unchanged", () => {
+    run1("1", "greenhouse", "ok", "2026-10-07T01:00:00Z");
+    run1("2", "linkedin", "ok", "2026-10-07T01:00:00Z", undefined, 1);
+    run1("3", "indeed", "ok", "2026-10-07T01:00:00Z", undefined, 0);
+    const { text } = run();
+    expect(text).toContain("- **linkedin**: ok, found 10, new 3, saturated 1 —");
+    expect(text).toContain("- **indeed**: ok, found 10, new 3, saturated 0 —");
+    expect(text).toContain("- **greenhouse**: ok, found 10, new 3\n");
   });
 
   it("ignores skipped runs when picking the latest run, and labels ok-run notes as warnings", () => {

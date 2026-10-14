@@ -18,6 +18,8 @@ type Site = "linkedin" | "indeed";
  */
 export const LINKEDIN_RESULTS_WANTED = 25;
 export const SEARCH_GAP_MS = 10_000;
+/** A full search is paged (offset += results_wanted) until a page is not full or the search holds this many results. */
+export const MAX_RESULTS_PER_SEARCH = 100;
 /** Assumption (decisions.md): one plain term; LinkedIn's guest endpoint has no remote filter, so "remote" is in the term. */
 export const LINKEDIN_SEARCH_TERM = "senior frontend engineer react typescript remote";
 export const LINKEDIN_SEARCHES: readonly WorkerSearch[] = [
@@ -214,9 +216,12 @@ function createJobspyAdapter(config: SiteConfig, opts: JobspyAdapterOptions): So
     ? config.searches.slice(0, 1).map((x) => ({ ...x, results_wanted: SMOKE_RESULTS_WANTED }))
     : config.searches;
   let warnings: string[] = [];
+  let saturated = 0;
 
   /** One search; returns its postings, or throws (block -> SourceBlockedError). */
-  async function search(s: WorkerSearch): Promise<{ postings: RawPosting[]; malformed: number }> {
+  async function search(
+    s: WorkerSearch,
+  ): Promise<{ postings: RawPosting[]; malformed: number; lineCount: number }> {
     const { exitCode, stdout } = await runWorker(s);
     const lines = stdout.split("\n").filter((l) => l.trim() !== "");
     if (exitCode !== 0) {
@@ -264,7 +269,7 @@ function createJobspyAdapter(config: SiteConfig, opts: JobspyAdapterOptions): So
     if (malformed * 2 > lines.length) {
       throw new SourceError(SOURCE, `${malformed} of ${lines.length} worker lines invalid`);
     }
-    return { postings, malformed };
+    return { postings, malformed, lineCount: lines.length };
   }
 
   /** Indeed dates are whole days (research Q4), so its server-side window is coarse: filter here too. */
@@ -281,29 +286,54 @@ function createJobspyAdapter(config: SiteConfig, opts: JobspyAdapterOptions): So
       const hoursOld = lookbackHours(since, now());
       const byId = new Map<string, RawPosting>();
       let malformedTotal = 0;
-      for (const [i, s] of searches.entries()) {
-        if (i > 0) await sleep(SEARCH_GAP_MS);
-        try {
-          const result = await search({ ...s, hours_old: hoursOld });
-          malformedTotal += result.malformed;
-          for (const p of result.postings) if (!byId.has(p.externalId)) byId.set(p.externalId, p);
-        } catch (err) {
-          // No retry, no second search after a failure; keep what the first search returned.
-          if (err instanceof SourceBlockedError) {
-            throw new SourceBlockedError(SOURCE, err.message.replace(`[${SOURCE}] `, ""), [
-              ...byId.values(),
-            ]);
+      saturated = 0;
+      let calls = 0;
+      for (const s of searches) {
+        let offset = 0;
+        let full = true;
+        // Paging: while the last page was full and the 100-result ceiling is not reached.
+        for (
+          let page = 0;
+          full && (opts.smoke ? page === 0 : offset + s.results_wanted <= MAX_RESULTS_PER_SEARCH);
+          page++
+        ) {
+          if (calls++ > 0) await sleep(SEARCH_GAP_MS);
+          try {
+            const result = await search({
+              ...s,
+              hours_old: hoursOld,
+              ...(offset > 0 ? { offset } : {}),
+            });
+            malformedTotal += result.malformed;
+            for (const p of result.postings) if (!byId.has(p.externalId)) byId.set(p.externalId, p);
+            full = result.lineCount >= s.results_wanted;
+            if (page === 0 && full) saturated++;
+            offset += s.results_wanted;
+          } catch (err) {
+            // No retry, no further page or search after a failure; keep what was collected.
+            if (err instanceof SourceBlockedError) {
+              throw new SourceBlockedError(SOURCE, err.message.replace(`[${SOURCE}] `, ""), [
+                ...byId.values(),
+              ]);
+            }
+            if (
+              err instanceof SourceError &&
+              !(err instanceof SourceSkippedError) &&
+              byId.size > 0
+            ) {
+              throw new PartialSourceError(SOURCE, err.message.replace(`[${SOURCE}] `, ""), [
+                ...byId.values(),
+              ]);
+            }
+            throw err;
           }
-          if (err instanceof SourceError && !(err instanceof SourceSkippedError) && byId.size > 0) {
-            throw new PartialSourceError(SOURCE, err.message.replace(`[${SOURCE}] `, ""), [
-              ...byId.values(),
-            ]);
-          }
-          throw err;
         }
       }
       if (malformedTotal > 0) warnings.push(`${malformedTotal} malformed worker line(s) skipped`);
       return [...byId.values()].filter(fresh);
+    },
+    takeSaturated() {
+      return saturated;
     },
     takeWarnings() {
       const w = warnings;

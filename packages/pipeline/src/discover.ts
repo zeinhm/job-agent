@@ -203,6 +203,7 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
       found: number,
       added: number,
       msg?: string,
+      saturated?: number,
     ) =>
       db
         .insert(source_runs)
@@ -215,6 +216,7 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
           found,
           new: added,
           error_message: msg ?? null,
+          saturated: saturated ?? null,
         })
         .run();
 
@@ -242,7 +244,7 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
       const items = await adapter.fetch(since);
       const added = storePostings(db, items, startedAt.toISOString());
       const warning = adapter.takeWarnings?.().join("; ");
-      record("ok", items.length, added, warning || undefined);
+      record("ok", items.length, added, warning || undefined, adapter.takeSaturated?.());
       out(`${adapter.name}: ok, found ${items.length}, new ${added}\n`);
       if (warning) out(`${adapter.name}: warning, ${warning}\n`);
     } catch (e) {
@@ -255,6 +257,13 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
       // Keep what the boards that worked returned; the run stays "error" so lastOk (and `since`) do not advance.
       let found = 0;
       let added = 0;
+      let saturated: number | undefined;
+      if (
+        e instanceof PartialSourceError ||
+        (e instanceof SourceBlockedError && e.postings.length > 0)
+      ) {
+        saturated = adapter.takeSaturated?.();
+      }
       if (e instanceof PartialSourceError) {
         found = e.postings.length;
         added = storePostings(db, e.postings, startedAt.toISOString());
@@ -266,7 +275,7 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
           : `[${adapter.name}] unexpected error (${e instanceof Error ? e.name : "unknown"})`;
       const message = e instanceof SourceBlockedError ? `${BLOCKED_PREFIX}${base}` : base;
       log.error("discover adapter failed", { source: adapter.name, error: message });
-      record("error", found, added, message);
+      record("error", found, added, message, saturated);
       out(`${adapter.name}: error, ${message}\n`);
     }
   }

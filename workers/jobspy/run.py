@@ -1,7 +1,7 @@
 """JobSpy worker: one search in, JSON lines out.
 
 Reads ONE JSON object of arguments from argv[1] (or stdin when no argument is given):
-  site ("linkedin" | "indeed"), search_term, location, is_remote, hours_old, results_wanted, country
+  site ("linkedin" | "indeed"), search_term, location, is_remote, hours_old, results_wanted, offset, country
 
 Prints one JSON object per job on stdout. On a block or any failure prints one JSON object
 {"error": "<reason>", "kind": "blocked" | "error"} and exits 2.
@@ -14,6 +14,7 @@ import logging
 import re
 import sys
 
+MAX_RESULTS = 100  # offset + results_wanted ceiling for one search (paging, conventions section 8)
 SITES = {"linkedin": 25, "indeed": 50}  # site -> hard cap for results_wanted (conventions section 8)
 
 JOB_FIELDS = (
@@ -88,6 +89,11 @@ def parse_args(raw):
     wanted = data.get("results_wanted", 10)
     if not isinstance(wanted, int) or isinstance(wanted, bool) or wanted < 1 or wanted > SITES[site]:
         raise WorkerError("results_wanted must be an integer from 1 to %d for %s" % (SITES[site], site))
+    offset = data.get("offset", 0)
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        raise WorkerError("offset must be an integer >= 0")
+    if offset + wanted > MAX_RESULTS:
+        raise WorkerError("offset + results_wanted must be at most %d" % MAX_RESULTS)
     is_remote = data.get("is_remote", False)
     if not isinstance(is_remote, bool):
         raise WorkerError("is_remote must be a boolean")
@@ -100,6 +106,7 @@ def parse_args(raw):
         "location": location,
         "hours_old": hours_old,
         "results_wanted": wanted,
+        "offset": offset,
         "is_remote": is_remote,
         "country": country,
     }
@@ -112,6 +119,8 @@ def build_kwargs(args):
         "results_wanted": args["results_wanted"],
         "verbose": 0,
     }
+    if args["offset"]:
+        kwargs["offset"] = args["offset"]
     if args["location"]:
         kwargs["location"] = args["location"]
     if args["hours_old"] is not None:

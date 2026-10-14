@@ -99,6 +99,7 @@ export const source_runs = sqliteTable("source_runs", {
   found: integer("found").notNull(),
   new: integer("new").notNull(),
   error_message: text("error_message"), // nullable
+  saturated: integer("saturated"), // searches whose first page was full (JobSpy sources); null for others
 });
 
 export const fx_rates = sqliteTable(
