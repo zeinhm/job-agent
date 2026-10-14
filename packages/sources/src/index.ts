@@ -9,3 +9,4 @@ export function findAdapter(name: string): SourceAdapter | undefined {
 }
 
 export * from "./discovery/index.ts";
+export { createIndeedAdapter } from "./jobspy/index.ts";

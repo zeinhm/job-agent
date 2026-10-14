@@ -3,7 +3,7 @@
 # Polls every public keyless source (incl. arbeitnow) and one public ATS board one by one (a failing source does not stop the others), then process + digest.
 # web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
 # Never touches config/ or data/. JOB_AGENT_ENV_FILE=/dev/null stops the CLI from loading the owner's .env (and its API key); the key is also unset. No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
-# bin/smoke --with-jobspy (flag first): also runs ONE LinkedIn search (results_wanted <= 10, logged out, via the JobSpy worker)
+# bin/smoke --with-jobspy (flag first): also runs ONE LinkedIn and ONE Indeed search (results_wanted <= 10, logged out, via the JobSpy worker)
 # when workers/jobspy/.venv exists. Not part of the default run: a block hurts the owner's home IP (agents only with owner OK).
 # JOB_AGENT_CLI overrides the CLI command (used by tests).
 #
@@ -39,8 +39,8 @@ if [ -n "${WEB3_CAREER_TOKEN:-}" ]; then SOURCES+=(web3career); else echo "web3c
 if [ "$WITH_JOBSPY" = 1 ]; then
   if [ -x "$REPO/workers/jobspy/.venv/bin/python" ]; then
     export JOB_AGENT_JOBSPY_SMOKE=1
-    SOURCES+=(linkedin)
-  else echo "linkedin: skipped (workers/jobspy/.venv missing, see workers/jobspy/README.md)"; fi
+    SOURCES+=(linkedin indeed)
+  else echo "linkedin, indeed: skipped (workers/jobspy/.venv missing, see workers/jobspy/README.md)"; fi
 fi
 
 fail=0

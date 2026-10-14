@@ -187,9 +187,9 @@ temp `companies.yaml`; `web3career` only if `WEB3_CAREER_TOKEN` is already in yo
 A failing source shows as `error` and does not stop the others. The script exits 0 when `process` and `digest`
 completed, 1 if either failed. It makes no LLM calls (`ANTHROPIC_API_KEY` is unset for the run).
 
-### LinkedIn through JobSpy (optional, Tier 2)
+### LinkedIn and Indeed through JobSpy (optional, Tier 2)
 
-The `linkedin` source runs a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).
+The `linkedin` and `indeed` sources run a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).
 One-time setup from the repo root (Python >= 3.10):
 
 ```
@@ -205,8 +205,17 @@ A block (HTTP 429 / 999 / 403, authwall, CAPTCHA) is recorded as an `error` run 
 `skipped` for 6 hours (`backoff after block until <time>`), also with `--force`. Nothing is retried and nothing is
 rotated. To lift the backoff early, wait it out: it is a protection for your home IP.
 
-`bin/smoke --with-jobspy` adds one LinkedIn search with at most 10 results to the smoke run (only if the venv exists).
-Plain `bin/smoke` never touches LinkedIn.
+The `indeed` source (`pnpm job-agent discover --source indeed`) uses the same worker, venv and block backoff. Each run
+does two remote searches, 10 s apart, `hours_old = 3`, at most 50 results each: "global remote" (`country_indeed = usa`
+with `is_remote`; Indeed has no worldwide site, so this one is US-scoped) and "Indonesia remote" (`location = Indonesia`,
+`country_indeed = indonesia`, `is_remote`), term `senior frontend OR "full stack" OR react OR typescript`. The poll
+interval is 2 hours: a run started sooner is recorded as `skipped` (`indeed: skipped (polled less than 120 min ago)`).
+Indeed dates are whole days, so postings dated more than 48 h before the run are dropped. The apply link is
+`job_url_direct` when Indeed has one; Indeed is a board, so an ATS copy of the same job always wins in dedupe, and a
+domestic Indonesian company's posting is rejected by the Indonesia rule as for every source.
+
+`bin/smoke --with-jobspy` adds one LinkedIn and one Indeed search with at most 10 results each to the smoke run (only if
+the venv exists). Plain `bin/smoke` never touches LinkedIn or Indeed.
 
 ## Schedule with cron
 

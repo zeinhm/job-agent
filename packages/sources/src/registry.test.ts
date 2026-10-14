@@ -20,6 +20,12 @@ describe("buildAdapters", () => {
     expect(linkedin[0]?.minIntervalMinutes).toBe(50);
   });
 
+  it("always includes one indeed adapter with a 2 hour interval", () => {
+    const indeed = buildAdapters(makeConfig()).filter((a) => a.name === "indeed");
+    expect(indeed).toHaveLength(1);
+    expect(indeed[0]?.minIntervalMinutes).toBe(120);
+  });
+
   it("always includes exactly one remoteok adapter", () => {
     expect(names(makeConfig()).filter((n) => n === "remoteok")).toHaveLength(1);
   });

@@ -10,7 +10,7 @@ import {
 import { z } from "zod";
 import { createSpawnRunner, type WorkerRunner, type WorkerSearch } from "./worker.ts";
 
-const SOURCE = "linkedin";
+type Site = "linkedin" | "indeed";
 
 /** Conventions section 8: past hour, at most 25 results, at least 10 s between the two searches. */
 export const LINKEDIN_HOURS_OLD = 1;
@@ -35,6 +35,37 @@ export const LINKEDIN_SEARCHES: readonly WorkerSearch[] = [
   },
 ];
 
+/**
+ * Indeed (research t_a46f63f1 Q2/Q4, conventions section 8): 2 searches per run, min poll interval 2 h.
+ * `hours_old = 3` so that two runs 2 h apart overlap (dedupe makes repeats free). Indeed has no global site:
+ * the "global remote" search is country_indeed "usa" + is_remote (decisions.md). Indeed dates are whole UTC days, so
+ * postings dated more than 48 h before the run are dropped in TS.
+ */
+export const INDEED_HOURS_OLD = 3;
+export const INDEED_RESULTS_WANTED = 50;
+export const INDEED_MIN_INTERVAL_MINUTES = 120;
+export const INDEED_MAX_AGE_HOURS = 48;
+export const INDEED_SEARCH_TERM = 'senior frontend OR "full stack" OR react OR typescript';
+export const INDEED_SEARCHES: readonly WorkerSearch[] = [
+  {
+    site: "indeed",
+    search_term: INDEED_SEARCH_TERM,
+    is_remote: true,
+    hours_old: INDEED_HOURS_OLD,
+    results_wanted: INDEED_RESULTS_WANTED,
+    country: "usa",
+  },
+  {
+    site: "indeed",
+    search_term: INDEED_SEARCH_TERM,
+    location: "Indonesia",
+    is_remote: true,
+    hours_old: INDEED_HOURS_OLD,
+    results_wanted: INDEED_RESULTS_WANTED,
+    country: "indonesia",
+  },
+];
+
 const errorLineSchema = z.object({
   error: z.string(),
   kind: z.enum(["blocked", "error"]).default("error"),
@@ -42,7 +73,7 @@ const errorLineSchema = z.object({
 
 const jobSchema = z.object({
   id: z.string().min(1).nullish(),
-  site: z.literal("linkedin"),
+  site: z.enum(["linkedin", "indeed"]),
   job_url: z.url(),
   job_url_direct: z.url().nullish(),
   title: z.string().min(1),
@@ -61,6 +92,7 @@ const jobSchema = z.object({
 });
 type Job = z.infer<typeof jobSchema>;
 
+/** weekly / daily intervals have no RawSalary period: the amount stays in salaryText only. */
 const PERIODS: Record<string, "year" | "month" | "hour"> = {
   yearly: "year",
   monthly: "month",
@@ -73,7 +105,8 @@ function toIso(date: string): string {
 }
 
 function externalIdOf(job: Job): string | null {
-  if (job.id) return job.id.replace(/^li-/, "");
+  if (job.id) return job.id.replace(/^(?:li|in)-/, "");
+  if (job.site === "indeed") return new URL(job.job_url).searchParams.get("jk");
   return /\/jobs\/view\/(?:[^/?]*-)?(\d+)/.exec(job.job_url)?.[1] ?? null;
 }
 
@@ -93,7 +126,7 @@ function toRawPosting(job: Job, externalId: string): RawPosting {
     ? `${job.currency ?? ""} ${[job.min_amount, job.max_amount].filter((n) => n != null).join("-")}${job.interval ? ` / ${job.interval}` : ""}`.trim()
     : undefined;
   return {
-    source: SOURCE,
+    source: job.site,
     externalId,
     url: job.job_url,
     ...(job.job_url_direct ? { applyUrl: job.job_url_direct } : {}),
@@ -102,6 +135,7 @@ function toRawPosting(job: Job, externalId: string): RawPosting {
     ...(job.description ? { descriptionText: job.description } : {}),
     ...(job.location ? { locationText: job.location } : {}),
     // LinkedIn's flag is a text heuristic ("remote" in title or location): true is a statement, false is not.
+    // Indeed's remote searches also filter server side (fully remote, not hybrid).
     ...(job.is_remote === true ? { remote: true } : {}),
     ...(salaryText ? { salaryText } : {}),
     ...(salary ? { salary } : {}),
@@ -113,8 +147,8 @@ function toRawPosting(job: Job, externalId: string): RawPosting {
 export const SMOKE_RESULTS_WANTED = 10;
 export const JOBSPY_SMOKE_ENV = "JOB_AGENT_JOBSPY_SMOKE";
 
-export interface LinkedInAdapterOptions {
-  /** One Worldwide search with results_wanted <= 10 (bin/smoke --with-jobspy). */
+export interface JobspyAdapterOptions {
+  /** The first search only, with results_wanted <= 10 (bin/smoke --with-jobspy). */
   smoke?: boolean;
   /** Defaults to spawning workers/jobspy/.venv/bin/python run.py. */
   runWorker?: WorkerRunner;
@@ -123,9 +157,40 @@ export interface LinkedInAdapterOptions {
   timeoutMs?: number;
   /** Defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
+  /** Indeed only: the clock for the age filter. */
+  now?: () => Date;
+}
+export type LinkedInAdapterOptions = JobspyAdapterOptions;
+export type IndeedAdapterOptions = JobspyAdapterOptions;
+
+interface SiteConfig {
+  source: Site;
+  searches: readonly WorkerSearch[];
+  minIntervalMinutes: number;
+  /** Drops postings dated before now minus this many hours (postings without a date are kept). */
+  maxAgeHours?: number;
 }
 
-export function createLinkedInAdapter(opts: LinkedInAdapterOptions = {}): SourceAdapter {
+export const createLinkedInAdapter = (opts: JobspyAdapterOptions = {}): SourceAdapter =>
+  createJobspyAdapter(
+    { source: "linkedin", searches: LINKEDIN_SEARCHES, minIntervalMinutes: 50 },
+    opts,
+  );
+
+export const createIndeedAdapter = (opts: JobspyAdapterOptions = {}): SourceAdapter =>
+  createJobspyAdapter(
+    {
+      source: "indeed",
+      searches: INDEED_SEARCHES,
+      minIntervalMinutes: INDEED_MIN_INTERVAL_MINUTES,
+      maxAgeHours: INDEED_MAX_AGE_HOURS,
+    },
+    opts,
+  );
+
+function createJobspyAdapter(config: SiteConfig, opts: JobspyAdapterOptions): SourceAdapter {
+  const SOURCE = config.source;
+  const now = opts.now ?? (() => new Date());
   const runWorker =
     opts.runWorker ??
     createSpawnRunner({
@@ -136,8 +201,8 @@ export function createLinkedInAdapter(opts: LinkedInAdapterOptions = {}): Source
     });
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const searches: readonly WorkerSearch[] = opts.smoke
-    ? LINKEDIN_SEARCHES.slice(0, 1).map((x) => ({ ...x, results_wanted: SMOKE_RESULTS_WANTED }))
-    : LINKEDIN_SEARCHES;
+    ? config.searches.slice(0, 1).map((x) => ({ ...x, results_wanted: SMOKE_RESULTS_WANTED }))
+    : config.searches;
   let warnings: string[] = [];
 
   /** One search; returns its postings, or throws (block -> SourceBlockedError). */
@@ -192,9 +257,15 @@ export function createLinkedInAdapter(opts: LinkedInAdapterOptions = {}): Source
     return { postings, malformed };
   }
 
+  /** Indeed dates are whole days (research Q4), so its server-side window is coarse: filter here too. */
+  function fresh(p: RawPosting): boolean {
+    if (config.maxAgeHours === undefined || !p.postedAt) return true;
+    return Date.parse(p.postedAt) >= now().getTime() - config.maxAgeHours * 3_600_000;
+  }
+
   return {
     name: SOURCE,
-    minIntervalMinutes: 50,
+    minIntervalMinutes: config.minIntervalMinutes,
     async fetch(): Promise<RawPosting[]> {
       warnings = [];
       const byId = new Map<string, RawPosting>();
@@ -221,7 +292,7 @@ export function createLinkedInAdapter(opts: LinkedInAdapterOptions = {}): Source
         }
       }
       if (malformedTotal > 0) warnings.push(`${malformedTotal} malformed worker line(s) skipped`);
-      return [...byId.values()];
+      return [...byId.values()].filter(fresh);
     },
     takeWarnings() {
       const w = warnings;

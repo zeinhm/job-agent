@@ -97,24 +97,31 @@ describe("bin/smoke", () => {
     expect(calls.filter((c) => c.includes("--source web3career"))).toHaveLength(1);
   });
 
-  it("never polls linkedin without --with-jobspy", () => {
+  it("never polls linkedin or indeed without --with-jobspy", () => {
     const { calls, res } = run();
-    expect(calls.some((c) => c.includes("linkedin"))).toBe(false);
+    expect(calls.some((c) => c.includes("linkedin") || c.includes("indeed"))).toBe(false);
     expect(res.stdout).not.toContain("linkedin");
+    expect(res.stdout).not.toContain("indeed");
   });
 
-  it("--with-jobspy adds one forced linkedin discover, or says the venv is missing", () => {
+  it("--with-jobspy adds one forced linkedin and one forced indeed discover, or says the venv is missing", () => {
     const { calls, res } = run({}, ["--with-jobspy"]);
     expect(res.status).toBe(0);
     const linkedin = calls.filter((c) => c.includes("--source linkedin"));
+    const indeed = calls.filter((c) => c.includes("--source indeed"));
     if (existsSync(join(repo, "workers/jobspy/.venv/bin/python"))) {
       expect(linkedin).toHaveLength(1);
       expect(linkedin[0]).toContain("--force");
+      expect(indeed).toHaveLength(1);
+      expect(indeed[0]).toContain("--force");
     } else {
       expect(linkedin).toHaveLength(0);
-      expect(res.stdout).toContain("linkedin: skipped (workers/jobspy/.venv missing");
+      expect(indeed).toHaveLength(0);
+      expect(res.stdout).toContain("linkedin, indeed: skipped (workers/jobspy/.venv missing");
     }
-    expect(calls.filter((c) => c.startsWith("discover"))).toHaveLength(7 + linkedin.length);
+    expect(calls.filter((c) => c.startsWith("discover"))).toHaveLength(
+      7 + linkedin.length + indeed.length,
+    );
   });
 
   it("exits 1 when process fails but still tries the digest", () => {

@@ -255,8 +255,10 @@ async function fetchAll(): Promise<number> {
   await fetchAndStoreFx(db, now);
   return runDiscover({
     db,
-    // linkedin spawns a real JobSpy worker (live site) when the venv exists: never in tests.
-    adapters: buildAdapters(loadConfig()).filter((a) => a.name !== "linkedin"),
+    // linkedin and indeed spawn a real JobSpy worker (live site) when the venv exists: never in tests.
+    adapters: buildAdapters(loadConfig()).filter(
+      (a) => a.name !== "linkedin" && a.name !== "indeed",
+    ),
     force: true,
     now,
     out: () => {},
