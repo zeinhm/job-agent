@@ -4,7 +4,9 @@ import {
   analysis,
   intel,
   PartialSourceError,
+  SourceBlockedError,
   SourceError,
+  SourceSkippedError,
   log,
   postings,
   source_runs,
@@ -28,6 +30,11 @@ export interface DiscoverOptions {
   err?: (text: string) => void;
 }
 
+/** Tier 2 sources (LinkedIn, Indeed, ...) are skipped this long after a block (phase-3-conventions section 8). */
+export const BLOCK_BACKOFF_HOURS = 6;
+/** A blocked run is an `error` run whose message starts with this; the backoff is read back from it. */
+export const BLOCKED_PREFIX = "blocked: ";
+
 const SINCE_FALLBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function lastOkStart(db: Db, source: string): Date | undefined {
@@ -39,6 +46,20 @@ function lastOkStart(db: Db, source: string): Date | undefined {
     .limit(1)
     .get();
   return row ? new Date(row.started_at) : undefined;
+}
+
+/** When the source's backoff ends, or undefined when its latest error run is not a block still inside the window. */
+export function blockBackoffUntil(db: Db, source: string, now: Date): Date | undefined {
+  const row = db
+    .select({ started_at: source_runs.started_at, error_message: source_runs.error_message })
+    .from(source_runs)
+    .where(and(eq(source_runs.source, source), eq(source_runs.status, "error")))
+    .orderBy(desc(source_runs.started_at))
+    .limit(1)
+    .get();
+  if (!row?.error_message?.startsWith(BLOCKED_PREFIX)) return undefined;
+  const until = new Date(new Date(row.started_at).getTime() + BLOCK_BACKOFF_HOURS * 3_600_000);
+  return until.getTime() > now.getTime() ? until : undefined;
 }
 
 /** Hash over the fields whose change makes a stored posting stale. */
@@ -192,6 +213,15 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
         })
         .run();
 
+    // A block backoff holds even with --force: never retry a source that just refused us.
+    const backoffUntil = blockBackoffUntil(db, adapter.name, startedAt);
+    if (backoffUntil) {
+      const reason = `backoff after block until ${backoffUntil.toISOString()}`;
+      record("skipped", 0, 0, reason);
+      out(`${adapter.name}: skipped (${reason})\n`);
+      continue;
+    }
+
     const due =
       force ||
       lastOk === undefined ||
@@ -211,6 +241,11 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
       out(`${adapter.name}: ok, found ${items.length}, new ${added}\n`);
       if (warning) out(`${adapter.name}: warning, ${warning}\n`);
     } catch (e) {
+      if (e instanceof SourceSkippedError) {
+        record("skipped", 0, 0, e.reason);
+        out(`${adapter.name}: skipped (${e.reason})\n`);
+        continue;
+      }
       errored = true;
       // Keep what the boards that worked returned; the run stays "error" so lastOk (and `since`) do not advance.
       let found = 0;
@@ -220,10 +255,11 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
         added = storePostings(db, e.postings, startedAt.toISOString());
       }
       // Only SourceError messages are guaranteed redacted; anything else is reduced to its type.
-      const message =
+      const base =
         e instanceof SourceError
           ? e.message
           : `[${adapter.name}] unexpected error (${e instanceof Error ? e.name : "unknown"})`;
+      const message = e instanceof SourceBlockedError ? `${BLOCKED_PREFIX}${base}` : base;
       log.error("discover adapter failed", { source: adapter.name, error: message });
       record("error", found, added, message);
       out(`${adapter.name}: error, ${message}\n`);

@@ -6,7 +6,7 @@ export type RawSalary = {
 };
 
 export type RawPosting = {
-  /** Adapter name: "greenhouse" | "lever" | "ashby" | "web3career" | "remotive" | "remoteok" | "himalayas" | "weworkremotely" | "hn" | "smartrecruiters" | "arbeitnow". */
+  /** Adapter name: "greenhouse" | "lever" | "ashby" | "web3career" | "remotive" | "remoteok" | "himalayas" | "weworkremotely" | "hn" | "smartrecruiters" | "arbeitnow" | "linkedin". */
   source: string;
   /** Stable id within the source. */
   externalId: string;

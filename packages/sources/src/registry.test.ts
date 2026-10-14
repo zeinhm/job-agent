@@ -14,6 +14,12 @@ describe("buildAdapters", () => {
     );
   });
 
+  it("always includes one linkedin adapter with a 50 minute interval", () => {
+    const linkedin = buildAdapters(makeConfig()).filter((a) => a.name === "linkedin");
+    expect(linkedin).toHaveLength(1);
+    expect(linkedin[0]?.minIntervalMinutes).toBe(50);
+  });
+
   it("always includes exactly one remoteok adapter", () => {
     expect(names(makeConfig()).filter((n) => n === "remoteok")).toHaveLength(1);
   });

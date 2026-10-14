@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 // A fake CLI that logs its calls: `discover --source remotive` fails, everything else succeeds.
-function run(env: Record<string, string> = {}) {
+function run(env: Record<string, string> = {}, flags: string[] = []) {
   const work = mkdtempSync(join(tmpdir(), "job-agent-smoke-test-"));
   dirs.push(work);
   const cli = join(work, "fake-cli");
@@ -30,7 +30,7 @@ exit 0
   );
   chmodSync(cli, 0o755);
   const smokeDir = join(work, "smoke");
-  const res = spawnSync("bash", [join(repo, "bin/smoke"), smokeDir], {
+  const res = spawnSync("bash", [join(repo, "bin/smoke"), ...flags, smokeDir], {
     cwd: repo,
     encoding: "utf-8",
     env: {
@@ -85,6 +85,26 @@ describe("bin/smoke", () => {
   it("polls web3career only when its token is already set", () => {
     const { calls } = run({ WEB3_CAREER_TOKEN: "t" });
     expect(calls.filter((c) => c.includes("--source web3career"))).toHaveLength(1);
+  });
+
+  it("never polls linkedin without --with-jobspy", () => {
+    const { calls, res } = run();
+    expect(calls.some((c) => c.includes("linkedin"))).toBe(false);
+    expect(res.stdout).not.toContain("linkedin");
+  });
+
+  it("--with-jobspy adds one forced linkedin discover, or says the venv is missing", () => {
+    const { calls, res } = run({}, ["--with-jobspy"]);
+    expect(res.status).toBe(0);
+    const linkedin = calls.filter((c) => c.includes("--source linkedin"));
+    if (existsSync(join(repo, "workers/jobspy/.venv/bin/python"))) {
+      expect(linkedin).toHaveLength(1);
+      expect(linkedin[0]).toContain("--force");
+    } else {
+      expect(linkedin).toHaveLength(0);
+      expect(res.stdout).toContain("linkedin: skipped (workers/jobspy/.venv missing");
+    }
+    expect(calls.filter((c) => c.startsWith("discover"))).toHaveLength(7 + linkedin.length);
   });
 
   it("exits 1 when process fails but still tries the digest", () => {

@@ -206,7 +206,8 @@ async function runPipeline(failing?: Source) {
   await fetchAndStoreFx(db, now);
   const discoverCode = await runDiscover({
     db,
-    adapters: buildAdapters(loadConfig()),
+    // linkedin spawns a real JobSpy worker (live site) when the venv exists: never in tests.
+    adapters: buildAdapters(loadConfig()).filter((a) => a.name !== "linkedin"),
     force: true,
     now,
     ...io,

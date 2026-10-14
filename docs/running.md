@@ -186,6 +186,27 @@ temp `companies.yaml`; `web3career` only if `WEB3_CAREER_TOKEN` is already in yo
 A failing source shows as `error` and does not stop the others. The script exits 0 when `process` and `digest`
 completed, 1 if either failed. It makes no LLM calls (`ANTHROPIC_API_KEY` is unset for the run).
 
+### LinkedIn through JobSpy (optional, Tier 2)
+
+The `linkedin` source runs a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).
+One-time setup from the repo root (Python >= 3.10):
+
+```
+python3 -m venv workers/jobspy/.venv
+workers/jobspy/.venv/bin/pip install -r workers/jobspy/requirements.txt
+```
+
+Run it with `pnpm job-agent discover --source linkedin`. Each run does two searches (Worldwide + remote, Indonesia +
+remote) for the past hour, at most 25 results each, 10 s apart; the poll interval is 50 minutes. Without the venv the
+run is recorded as `skipped` ("jobspy worker not installed (see workers/jobspy/README.md)"), never as `ok`.
+
+A block (HTTP 429 / 999 / 403, authwall, CAPTCHA) is recorded as an `error` run (`blocked: ...`) and the source is then
+`skipped` for 6 hours (`backoff after block until <time>`), also with `--force`. Nothing is retried and nothing is
+rotated. To lift the backoff early, wait it out: it is a protection for your home IP.
+
+`bin/smoke --with-jobspy` adds one LinkedIn search with at most 10 results to the smoke run (only if the venv exists).
+Plain `bin/smoke` never touches LinkedIn.
+
 ## Schedule with cron
 
 `scripts/crontab.example` runs:

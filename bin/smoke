@@ -3,6 +3,8 @@
 # Polls every public keyless source (incl. arbeitnow) and one public ATS board one by one (a failing source does not stop the others), then process + digest.
 # web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
 # Never touches config/ or data/. No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
+# bin/smoke --with-jobspy (flag first): also runs ONE LinkedIn search (results_wanted <= 10, logged out, via the JobSpy worker)
+# when workers/jobspy/.venv exists. Not part of the default run: a block hurts the owner's home IP (agents only with owner OK).
 # JOB_AGENT_CLI overrides the CLI command (used by tests).
 #
 # bin/smoke run <smoke dir> <command...>: run ONE more CLI command against an existing smoke dir (same temp DB and
@@ -18,6 +20,8 @@ if [ "${1:-}" = run ]; then
   read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
   echo "== $* (smoke dir $DIR)"; exec "${CLI[@]}" "$@"
 fi
+WITH_JOBSPY=0
+if [ "${1:-}" = --with-jobspy ]; then WITH_JOBSPY=1; shift; fi
 DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/job-agent-smoke.XXXXXX")}"
 mkdir -p "$DIR/config" "$DIR/digests"
 for f in config/*.example.*; do b="$(basename "$f")"; cp "$f" "$DIR/config/${b/.example/}"; done
@@ -31,6 +35,13 @@ printf 'companies:\n  - { name: GitLab, ats: greenhouse, slug: gitlab }\n' > "$D
 
 SOURCES=(himalayas remoteok remotive weworkremotely hn arbeitnow greenhouse)
 if [ -n "${WEB3_CAREER_TOKEN:-}" ]; then SOURCES+=(web3career); else echo "web3career: skipped (WEB3_CAREER_TOKEN not set)"; fi
+
+if [ "$WITH_JOBSPY" = 1 ]; then
+  if [ -x "$REPO/workers/jobspy/.venv/bin/python" ]; then
+    export JOB_AGENT_JOBSPY_SMOKE=1
+    SOURCES+=(linkedin)
+  else echo "linkedin: skipped (workers/jobspy/.venv missing, see workers/jobspy/README.md)"; fi
+fi
 
 fail=0
 step() { echo "== $*"; "${CLI[@]}" "$@" || { echo "!! '$*' exited $?"; return 1; }; }

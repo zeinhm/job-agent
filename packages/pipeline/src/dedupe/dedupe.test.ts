@@ -70,6 +70,13 @@ describe("dedupePending", () => {
     expect(hashes[0]).toBe(hashes[1]);
   });
 
+  it("a LinkedIn copy of a Greenhouse posting: Greenhouse is canonical, whichever arrived first", () => {
+    const l = add("linkedin", "Acme Inc", "Senior Frontend Engineer (Remote)", 0, "l");
+    const g = add("greenhouse", "Acme", "Senior Frontend Engineer", 1, "g");
+    expect(run()).toBe(2);
+    expect(state()).toEqual({ [l]: g, [g]: null });
+  });
+
   it.each(["smartrecruiters", "workable", "recruitee"])(
     "%s posting wins canonical over an aggregator copy",
     (source) => {
