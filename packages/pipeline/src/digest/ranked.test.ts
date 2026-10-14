@@ -176,6 +176,17 @@ describe("ranked digest", () => {
       expect(top).not.toContain("Chicago, Las Vegas");
     });
 
+    it("a linkedin_posts posting shows roleTitle instead of the placeholder title", () => {
+      seed("li1", {
+        source: "linkedin_posts",
+        title: "(LinkedIn post)",
+        intel: { fit_score: 80, extraction: extractionWith("Senior Frontend Engineer") },
+      });
+      const top = sectionOf(run(), "Top matches");
+      expect(top).toContain("### Senior Frontend Engineer — Company li1");
+      expect(top).not.toContain("(LinkedIn post)");
+    });
+
     it("an hn posting scoring below the top threshold lists roleTitle in the not-a-fit line", () => {
       seed("hn2", {
         source: "hn",

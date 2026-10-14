@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { companies, log, type Db } from "@job-agent/core";
 import {
   BRAVE_KEY_ENV,
+  BraveCapReachedError,
   DAILY_QUERY_BUDGET,
   DISCOVERY_QUERIES,
   extractAtsSlug,
@@ -109,6 +110,10 @@ export async function runDiscoverCompanies(opts: DiscoverCompaniesOptions): Prom
       try {
         urls = await searchUrls(query, apiKey);
       } catch (e) {
+        if (e instanceof BraveCapReachedError) {
+          opts.out(`discover-companies: ${e.message}\n`);
+          break;
+        }
         queriesFailed++;
         log.warn("Search query failed", {
           query: queriesRun,

@@ -255,9 +255,9 @@ async function fetchAll(): Promise<number> {
   await fetchAndStoreFx(db, now);
   return runDiscover({
     db,
-    // linkedin and indeed spawn a real JobSpy worker (live site) when the venv exists: never in tests.
+    // linkedin and indeed spawn a real JobSpy worker (live site) when the venv exists, and linkedin_posts needs a Brave key: never in tests.
     adapters: buildAdapters(loadConfig()).filter(
-      (a) => a.name !== "linkedin" && a.name !== "indeed",
+      (a) => a.name !== "linkedin" && a.name !== "indeed" && a.name !== "linkedin_posts",
     ),
     force: true,
     now,

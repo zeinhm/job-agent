@@ -4,6 +4,7 @@ import { createAshbyAdapter } from "./ashby/index.ts";
 import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
 import { createHnAdapter } from "./hn/index.ts";
+import { createLinkedinPostsAdapter } from "./linkedin-posts/index.ts";
 import { JOBSPY_SMOKE_ENV, createIndeedAdapter, createLinkedInAdapter } from "./jobspy/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
 import { createRecruiteeAdapter } from "./recruitee/index.ts";
@@ -83,6 +84,7 @@ export const buildAdapters = (
   const jobspySmoke = process.env[JOBSPY_SMOKE_ENV] === "1";
   adapters.push(createLinkedInAdapter({ smoke: jobspySmoke }));
   adapters.push(createIndeedAdapter({ smoke: jobspySmoke }));
+  adapters.push(createLinkedinPostsAdapter());
 
   return adapters;
 };

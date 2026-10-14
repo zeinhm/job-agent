@@ -4,6 +4,7 @@ import {
   PartialSourceError,
   apply_links,
   SourceError,
+  SourceSkippedError,
   openDb,
   postings,
   source_runs,
@@ -207,6 +208,18 @@ describe("runDiscover poll interval", () => {
     clock = new Date(T0.getTime() + minutes(60));
     await run({ adapters: [a] });
     expect(a.calls).toHaveLength(2);
+  });
+
+  it("records a SourceSkippedError adapter as a skipped run with its reason and exits 0", async () => {
+    const a = fake("li", () =>
+      Promise.reject(new SourceSkippedError("li", "BRAVE_API_KEY not set")),
+    );
+    const { code, out } = await run({ adapters: [a] });
+    expect(code).toBe(0);
+    expect(runsFor("li")).toMatchObject([
+      { status: "skipped", found: 0, new: 0, error_message: "BRAVE_API_KEY not set" },
+    ]);
+    expect(out.join("")).toContain("li: skipped (BRAVE_API_KEY not set)");
   });
 
   it("a skipped or error run does not reset the interval", async () => {

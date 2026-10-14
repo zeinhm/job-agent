@@ -176,12 +176,15 @@ function pickLead(group: Row[]): Row {
   );
 }
 
+/** Sources whose stored title is not a role title (free text or a placeholder). */
+const ROLE_TITLE_SOURCES: readonly string[] = ["hn", "linkedin_posts"];
+
 /**
- * HN first lines are free text, so the stored title can be a location or a link; for source `hn` the extracted
+ * HN first lines are free text, so the stored title can be a location or a link; for sources `hn` and `linkedin_posts` (title is a placeholder) the extracted
  * role title wins when there is one. ATS and board titles are authoritative and stay. `postings.title` is not rewritten.
  */
 function displayTitle(p: Row["p"], i: Intel | null): string {
-  if (p.source !== "hn" || i?.extraction == null) return p.title;
+  if (!ROLE_TITLE_SOURCES.includes(p.source) || i?.extraction == null) return p.title;
   try {
     const parsed = ExtractionSchema.safeParse(JSON.parse(i.extraction));
     const roleTitle = parsed.success ? parsed.data.roleTitle?.trim() : undefined;

@@ -205,7 +205,21 @@ async function fetchGuarded(
 }
 
 /** Perform an HTTP GET request with retries, rate limiting, and redaction */
+/** The product never requests LinkedIn (AGENTS.md guardrail); a bug that passes such a URL fails here. */
+function assertNotLinkedin(url: string): void {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+  if (host === "linkedin.com" || host.endsWith(".linkedin.com") || host === "lnkd.in") {
+    throw new HttpError(url, null, url);
+  }
+}
+
 async function httpGetInternal(url: string, options: HttpGetOptions = {}): Promise<Response> {
+  assertNotLinkedin(url);
   const minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 

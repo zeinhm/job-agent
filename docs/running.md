@@ -54,11 +54,27 @@ pipeline commands; `private-patterns.txt` is used by the pre-commit hook.
 | `JOB_AGENT_CONFIG_DIR` | `config` | Folder holding `salary.yaml` and `companies.yaml` |
 | `WEB3_CAREER_TOKEN` | (none) | API token for the web3.career source. Without it, that source shows `error` in Source health; the other sources still run |
 | `ANTHROPIC_API_KEY` | (none) | Anthropic API key for the LLM stages of `enrich`. Without it `enrich` prints `ANTHROPIC_API_KEY not set, LLM stages skipped`, makes no calls and exits 0; postings stay `pending` and the digest lists them under Waiting for scoring |
-| `BRAVE_API_KEY` | (none) | Brave Search API key for `discover-companies`. Without it the command prints `BRAVE_API_KEY not set, company discovery skipped` and exits 0 |
+| `BRAVE_API_KEY` | (none) | Brave Search API key for `discover-companies` and the `linkedin_posts` source. Without it `discover-companies` prints `BRAVE_API_KEY not set, company discovery skipped` and exits 0, and `linkedin_posts` records a `skipped` run with that reason |
 | `JOB_AGENT_LLM_CAP_USD` | `1` | Daily LLM spend cap in USD. It can only **lower** the cap (see "LLM cost cap") |
 
 Never put a key or token in a committed file. Put them in the repo's `.env` (git-ignored; the CLI loads it itself,
 variables already set in the environment win) or in your shell profile. `.env.example` lists the names with empty values.
+
+### LinkedIn hiring posts (`linkedin_posts`) and Brave cost
+
+`discover --source linkedin_posts` runs 4 Brave queries per run (`MAX_POST_QUERIES_PER_RUN`, `freshness=pd`, rotating
+through 5 `site:linkedin.com/posts hiring ...` queries) and polls at most every 3 hours. It never requests a
+linkedin.com or lnkd.in URL (the HTTP client refuses those hosts); it only reads Brave's result list. Per the owner's
+storage choice (docs/decisions.md) it stores the post URL and facts derived by plain code (role wording, remote,
+region, company if stated), never the Brave title or snippet.
+
+- **Requests per day:** 8 runs x 4 queries = 32 for posts, plus up to 12 for `discover-companies` = 44 wanted.
+  A **hard cap of 30 Brave requests per UTC day, all callers together**, is enforced (counter file
+  `brave-usage.json` next to the database, in gitignored `data/`; `JOB_AGENT_BRAVE_USAGE` overrides the path). When the
+  cap is reached `linkedin_posts` records a `skipped` run (`Brave daily request cap (30) reached, skipping`) and
+  `discover-companies` prints the same line and stops. Run `discover-companies` rarely, or it uses cap that posts need.
+- **Cost:** Brave Search is $5 per 1,000 requests with a $5 monthly credit (research t_788d14a9 section 4). At the cap,
+  30/day = about 900/month = $4.50, inside the credit; the uncapped 44/day plan would be about $6.60 (about $1.60 over).
 
 ## Commands
 

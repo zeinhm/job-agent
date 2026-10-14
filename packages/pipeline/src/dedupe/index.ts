@@ -23,10 +23,10 @@ export function dedupeHash(normalizedCompany: string, title: string): string {
     .digest("hex");
 }
 
-/** Lower is better: ATS < other API sources < hn. */
+/** Lower is better: ATS < other API sources < hn and linkedin_posts. */
 function sourceRank(source: string): number {
   if (ATS_SOURCE_NAMES.includes(source)) return 0;
-  return source === "hn" ? 2 : 1;
+  return source === "hn" || source === "linkedin_posts" ? 2 : 1;
 }
 
 function compareId(a: Posting, b: Posting): number {
