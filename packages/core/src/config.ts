@@ -46,6 +46,25 @@ export type AppConfig = {
   companies: CompanyConfig[];
 };
 
+/** Parses and validates the text of `companies.yaml`. Errors never include file content. */
+export function parseCompaniesYaml(text: string): CompanyConfig[] {
+  let raw: unknown;
+  try {
+    raw = parse(text);
+  } catch (err) {
+    const code = err instanceof Error && "code" in err ? String(err.code) : "YAML_ERROR";
+    throw new Error(`Config file companies.yaml is not valid YAML (${code})`);
+  }
+  const result = companiesConfigSchema.safeParse(raw);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.code}`)
+      .join("; ");
+    throw new Error(`Config file companies.yaml is invalid: ${issues}`);
+  }
+  return result.data.companies;
+}
+
 /** Reads and validates one YAML file. Errors name the file and key path, never the values. */
 function loadYamlFile<T>(dir: string, file: string, schema: z.ZodType<T>): T {
   let text: string;

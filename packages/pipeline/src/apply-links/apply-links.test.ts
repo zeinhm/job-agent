@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
@@ -521,15 +521,44 @@ describe("step 1c: slug guesses", () => {
 describe("resolve-apply CLI", () => {
   it("runs through main() with --limit and prints the summary line", async () => {
     const dir = mkdtempSync(join(tmpdir(), "job-agent-apply-"));
-    vi.stubEnv("JOB_AGENT_DB", join(dir, "t.db"));
+    vi.stubEnv("JOB_AGENT_DB", join(dir, "data", "t.db"));
+    vi.stubEnv("JOB_AGENT_CONFIG_DIR", join(dir, "config"));
     try {
       const out: string[] = [];
       const err: string[] = [];
       const io = { out: (t: string) => out.push(t), err: (t: string) => err.push(t) };
       expect(await main(["resolve-apply", "--limit", "5"], io)).toBe(0);
       expect(out.join("")).toBe(
-        "resolve-apply: checked 0, ats 0 (db 0, board 0), unknown 0, requests 0\n",
+        "resolve-apply: checked 0, ats 0 (db 0, board 0), unknown 0, requests 0\ncompanies.yaml: not found, nothing added\n",
       );
+      // A company found earlier is appended to the temp companies.yaml, backup under <db dir>/backups.
+      const seeded = openDb(join(dir, "data", "t.db"));
+      seeded
+        .insert(companies)
+        .values({
+          id: randomUUID(),
+          name: "Omega Works",
+          normalized_name: normalizeCompanyName("Omega Works"),
+          ats_type: "lever",
+          ats_slug: "omegaworks",
+          discovered_via: "apply_resolve",
+          verified: true,
+          created_at: T0.toISOString(),
+        })
+        .run();
+      seeded.$client.close();
+      mkdirSync(join(dir, "config"));
+      writeFileSync(
+        join(dir, "config", "companies.yaml"),
+        "companies:\n  - { name: Keep Me, ats: greenhouse, slug: keepme }\n",
+      );
+      out.length = 0;
+      expect(await main(["resolve-apply"], io)).toBe(0);
+      expect(readFileSync(join(dir, "config", "companies.yaml"), "utf8")).toMatch(
+        /^companies:\n {2}- \{ name: Keep Me, ats: greenhouse, slug: keepme \}\n {2}- \{ name: Omega Works, ats: lever, slug: omegaworks \} {2}# added by job-agent \d{4}-\d\d-\d\d \(apply resolve\)\n$/,
+      );
+      expect(readdirSync(join(dir, "data", "backups"))).toHaveLength(1);
+      expect(out.join("")).toContain("companies.yaml: added 1 (backup ");
       expect(await main(["resolve-apply", "--limit", "x"], io)).toBe(1);
       expect(await main(["resolve-apply", "--bogus"], io)).toBe(1);
     } finally {

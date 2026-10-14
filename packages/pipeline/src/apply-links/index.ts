@@ -22,6 +22,7 @@ import {
   type AtsType,
   type Board,
 } from "./boards.ts";
+import { saveFoundAts } from "./save-ats.ts";
 import { slugCandidates } from "./slugs.ts";
 
 export { MAX_SLUG_CANDIDATES } from "./slugs.ts";
@@ -35,6 +36,8 @@ export const ATS_NEGATIVE_CACHE_MS = 30 * DAY_MS;
 export interface ResolveApplyOptions {
   db: Db;
   limit?: number | undefined;
+  /** Where to append found ATS boards (`companies.yaml` dir + backup dir). Omitted = nothing is written. */
+  saveAts?: { configDir: string; backupDir: string };
   now?: () => Date;
   out?: (text: string) => void;
   err?: (text: string) => void;
@@ -265,5 +268,9 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
   out(
     `resolve-apply: checked ${selected.length}, ats ${dbHits + boardHits} (db ${dbHits}, board ${boardHits}), unknown ${unknown}, requests ${http.requests}${failed > 0 ? `, failed ${failed}` : ""}\n`,
   );
-  return failed > 0 ? 1 : 0;
+  let saveCode = 0;
+  if (opts.saveAts) {
+    saveCode = saveFoundAts({ db, ...opts.saveAts, now, out, err });
+  }
+  return failed > 0 || saveCode !== 0 ? 1 : 0;
 }

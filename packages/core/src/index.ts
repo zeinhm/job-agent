@@ -2,6 +2,7 @@ export {
   ATS_TYPES,
   loadConfig,
   loadCv,
+  parseCompaniesYaml,
   type AppConfig,
   type CompanyConfig,
   type SalaryConfig,

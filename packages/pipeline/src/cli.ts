@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
@@ -83,7 +84,16 @@ const commands: Record<string, Command> = {
     }
     const db = openDb(defaultDbPath());
     try {
-      return await runResolveApply({ db, limit, out: io.out, err: io.err });
+      return await runResolveApply({
+        db,
+        limit,
+        saveAts: {
+          configDir: process.env["JOB_AGENT_CONFIG_DIR"] ?? "config",
+          backupDir: join(dirname(defaultDbPath()), "backups"),
+        },
+        out: io.out,
+        err: io.err,
+      });
     } finally {
       db.$client.close();
     }
