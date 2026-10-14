@@ -2,7 +2,10 @@
 # bin/smoke [dir]: live smoke run of the pipeline on a temp DB with the EXAMPLE configs.
 # Polls every public keyless source (incl. arbeitnow) and one public ATS board one by one (a failing source does not stop the others), then process + digest.
 # web3career only runs when WEB3_CAREER_TOKEN is already set in the environment (never read from .env).
-# Never touches config/ or data/. JOB_AGENT_ENV_FILE=/dev/null stops the CLI from loading the owner's .env (and its API key); the key is also unset. No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
+# linkedin_posts (Brave Search results, needs BRAVE_API_KEY) is polled too: without the key it prints its skip line. `yc` and `jobstreet`
+# do not exist (their cards were dropped by the owner) and `threads` is not merged: they are added here when they land.
+# After enrich, `resolve-apply --limit 3` runs (board lookups are paced at 1 request per 2 s, so a smoke run checks 3 postings; public ATS boards only; its Haiku step needs a key and prints its skip line without one).
+# Never touches config/ or data/. JOB_AGENT_ENV_FILE=/dev/null stops the CLI from loading the owner's .env (and its API key); the key is also unset (so is BRAVE_API_KEY: linkedin_posts always shows its skip line). No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
 # bin/smoke --with-jobspy (flag first): also runs ONE LinkedIn and ONE Indeed search (results_wanted <= 10, logged out, via the JobSpy worker)
 # when workers/jobspy/.venv exists. Not part of the default run: a block hurts the owner's home IP (agents only with owner OK).
 # JOB_AGENT_CLI overrides the CLI command (used by tests).
@@ -16,7 +19,7 @@ if [ "${1:-}" = run ]; then
   DIR="${2:?usage: bin/smoke run <smoke dir> <command...>}"; shift 2
   [ -f "$DIR/smoke.db" ] || { echo "no smoke.db in $DIR: run bin/smoke first"; exit 2; }
   [ $# -gt 0 ] || { echo "usage: bin/smoke run <smoke dir> <command...>"; exit 2; }
-  export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config" JOB_AGENT_ENV_FILE=/dev/null; unset ANTHROPIC_API_KEY
+  export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config" JOB_AGENT_ENV_FILE=/dev/null; unset ANTHROPIC_API_KEY BRAVE_API_KEY
   read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
   echo "== $* (smoke dir $DIR)"; exec "${CLI[@]}" "$@"
 fi
@@ -26,14 +29,14 @@ DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/job-agent-smoke.XXXXXX")}"
 mkdir -p "$DIR/config" "$DIR/digests"
 for f in config/*.example.*; do b="$(basename "$f")"; cp "$f" "$DIR/config/${b/.example/}"; done
 export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config" JOB_AGENT_ENV_FILE=/dev/null
-unset ANTHROPIC_API_KEY
+unset ANTHROPIC_API_KEY BRAVE_API_KEY
 read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
 
 # Exactly one ATS board is polled: Greenhouse "gitlab" (a large public board, many postings from a single request;
 # the Greenhouse adapter paces its own requests). It is written into the temp companies.yaml below, never read from config/.
 printf 'companies:\n  - { name: GitLab, ats: greenhouse, slug: gitlab }\n' > "$DIR/config/companies.yaml"
 
-SOURCES=(himalayas remoteok remotive weworkremotely hn arbeitnow greenhouse)
+SOURCES=(himalayas remoteok remotive weworkremotely hn arbeitnow greenhouse linkedin_posts)
 if [ -n "${WEB3_CAREER_TOKEN:-}" ]; then SOURCES+=(web3career); else echo "web3career: skipped (WEB3_CAREER_TOKEN not set)"; fi
 
 if [ "$WITH_JOBSPY" = 1 ]; then
@@ -49,7 +52,9 @@ step() { echo "== $*"; "${CLI[@]}" "$@" || { echo "!! '$*' exited $?"; return 1;
 step fx || true
 for s in "${SOURCES[@]}"; do step discover --force --source "$s" || true; done
 step process || fail=1
-if "${CLI[@]}" 2>&1 | grep -q '^  enrich$'; then step enrich || true; fi
+USAGE="$("${CLI[@]}" 2>&1)"
+if grep -q '^  enrich$' <<< "$USAGE"; then step enrich || true; fi
+if grep -q '^  resolve-apply$' <<< "$USAGE"; then step resolve-apply --limit 3 || true; fi
 step digest --out-dir "$DIR/digests" || fail=1
 echo "== status"
 "${CLI[@]}" status || fail=1

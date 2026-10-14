@@ -30,8 +30,8 @@ function run(env: Record<string, string> = {}, flags: string[] = []) {
   writeFileSync(
     cli,
     `#!/usr/bin/env bash
-[ $# -eq 0 ] && exit 0 # usage probe
-echo "$* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-}" >> "${log}"
+[ $# -eq 0 ] && { printf 'Usage:\\n  enrich\\n  resolve-apply\\n'; exit 0; } # usage probe
+echo "$* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-} BRAVE=\${BRAVE_API_KEY:-}" >> "${log}"
 if [ "$1" = discover ] && [ "$4" = remotive ]; then echo "remotive: error, boom"; exit 1; fi
 if [ "$1" = process ] && [ -n "$FAIL_PROCESS" ]; then exit 1; fi
 if [ "$1" = digest ]; then echo "$3/2026-01-01.md"; fi
@@ -68,10 +68,11 @@ describe("bin/smoke", () => {
       "hn",
       "arbeitnow",
       "greenhouse",
+      "linkedin_posts",
     ]);
     for (const c of calls.filter((c) => c.startsWith("discover"))) expect(c).toContain("--force");
     const order = calls.map((c) => c.split(" ")[0]);
-    expect(order.slice(-3)).toEqual(["process", "digest", "status"]);
+    expect(order.slice(-5)).toEqual(["process", "enrich", "resolve-apply", "digest", "status"]);
     expect(res.stdout).toContain("remotive: error, boom");
     expect(res.stdout).toContain("web3career: skipped");
   });
@@ -99,16 +100,32 @@ describe("bin/smoke", () => {
 
   it("never polls linkedin or indeed without --with-jobspy", () => {
     const { calls, res } = run();
-    expect(calls.some((c) => c.includes("linkedin") || c.includes("indeed"))).toBe(false);
-    expect(res.stdout).not.toContain("linkedin");
+    const sources = calls.filter((c) => c.startsWith("discover")).map((c) => c.split(" ")[3]);
+    expect(sources).not.toContain("linkedin");
+    expect(sources).not.toContain("indeed");
+    expect(res.stdout).not.toContain("linkedin:");
     expect(res.stdout).not.toContain("indeed");
+  });
+
+  it("runs resolve-apply after enrich and before the digest", () => {
+    const { calls } = run();
+    const order = calls.map((c) => c.split(" ")[0]);
+    expect(order.indexOf("enrich")).toBeGreaterThan(order.indexOf("process"));
+    expect(order.indexOf("resolve-apply")).toBe(order.indexOf("enrich") + 1);
+    expect(order.indexOf("digest")).toBe(order.indexOf("resolve-apply") + 1);
+  });
+
+  it("never passes a Brave key on, so linkedin_posts skips", () => {
+    const { calls } = run({ BRAVE_API_KEY: "brave-x" });
+    expect(calls.filter((c) => c.includes("--source linkedin_posts"))).toHaveLength(1);
+    for (const c of calls) expect(c).not.toContain("BRAVE=brave-x");
   });
 
   it("--with-jobspy adds one forced linkedin and one forced indeed discover, or says the venv is missing", () => {
     const { calls, res } = run({}, ["--with-jobspy"]);
     expect(res.status).toBe(0);
-    const linkedin = calls.filter((c) => c.includes("--source linkedin"));
-    const indeed = calls.filter((c) => c.includes("--source indeed"));
+    const linkedin = calls.filter((c) => c.split(" ")[3] === "linkedin");
+    const indeed = calls.filter((c) => c.split(" ")[3] === "indeed");
     if (existsSync(join(repo, "workers/jobspy/.venv/bin/python"))) {
       expect(linkedin).toHaveLength(1);
       expect(linkedin[0]).toContain("--force");
@@ -120,7 +137,7 @@ describe("bin/smoke", () => {
       expect(res.stdout).toContain("linkedin, indeed: skipped (workers/jobspy/.venv missing");
     }
     expect(calls.filter((c) => c.startsWith("discover"))).toHaveLength(
-      7 + linkedin.length + indeed.length,
+      8 + linkedin.length + indeed.length,
     );
   });
 

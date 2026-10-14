@@ -9,4 +9,5 @@ export function findAdapter(name: string): SourceAdapter | undefined {
 }
 
 export * from "./discovery/index.ts";
-export { createIndeedAdapter } from "./jobspy/index.ts";
+export { createIndeedAdapter, createLinkedInAdapter } from "./jobspy/index.ts";
+export { createLinkedinPostsAdapter } from "./linkedin-posts/index.ts";
