@@ -1,8 +1,9 @@
-# Running the pipeline (Phase 1 + Phase 2)
+# Running the pipeline (Phase 1 to Phase 3)
 
-How to run the pipeline on your Mac: find remote postings, filter them with rules (Phase 1), then score them with
-the LLM stages and write a ranked daily digest (Phase 2). It only reads public job feeds, calls the Anthropic API
-for the LLM stages, and writes local files. It never applies anywhere.
+How to run the pipeline on your Mac: find remote postings (Phase 1, more sources in Phase 3), filter them with rules,
+score them with the LLM stages and write a ranked daily digest (Phase 2), and find the free apply link for each match
+(Phase 3). Everything runs hourly from cron (see "Schedule with cron"). It only reads public job feeds, calls the
+Anthropic API for the LLM stages, and writes local files. It never applies anywhere.
 
 ## Prerequisites
 
@@ -55,10 +56,33 @@ pipeline commands; `private-patterns.txt` is used by the pre-commit hook.
 | `WEB3_CAREER_TOKEN` | (none) | API token for the web3.career source. Without it, that source shows `error` in Source health; the other sources still run |
 | `ANTHROPIC_API_KEY` | (none) | Anthropic API key for the LLM stages of `enrich`. Without it `enrich` prints `ANTHROPIC_API_KEY not set, LLM stages skipped`, makes no calls and exits 0; postings stay `pending` and the digest lists them under Waiting for scoring |
 | `BRAVE_API_KEY` | (none) | Brave Search API key for `discover-companies` and the `linkedin_posts` source. Without it `discover-companies` prints `BRAVE_API_KEY not set, company discovery skipped` and exits 0, and `linkedin_posts` records a `skipped` run with that reason |
+| `JOB_AGENT_BRAVE_USAGE` | `brave-usage.json` next to the database | Path of the Brave request counter file (see "LinkedIn hiring posts") |
+| `JOB_AGENT_ENV_FILE` | `<repo root>/.env` | Env file the CLI loads at start (see "Schedule with cron"); `bin/smoke` sets it to `/dev/null`. Set it in the shell, not inside `.env` |
 | `JOB_AGENT_LLM_CAP_USD` | `1` | Daily LLM spend cap in USD. It can only **lower** the cap (see "LLM cost cap") |
 
 Never put a key or token in a committed file. Put them in the repo's `.env` (git-ignored; the CLI loads it itself,
-variables already set in the environment win) or in your shell profile. `.env.example` lists the names with empty values.
+variables already set in the environment win) or in your shell profile. `.env.example` lists the names with empty values (the path overrides `JOB_AGENT_DB`, `JOB_AGENT_CONFIG_DIR` and
+`JOB_AGENT_BRAVE_USAGE` are commented out there: an empty value in `.env` would be used as an empty path). Internal
+switches that tests and scripts set (`JOB_AGENT_CLI`, `JOB_AGENT_DATA_DIR`, `JOB_AGENT_JOBSPY_SMOKE`) are not
+settings; leave them alone.
+
+## Sources
+
+`discover` polls these sources. Each has a minimum poll interval enforced in code; a source polled too recently is
+recorded as `skipped` and gets no request, so the hourly cron never sends extra requests.
+
+| Source (`--source`) | Key or token | Min poll interval |
+|---|---|---|
+| `greenhouse`, `ashby` | none (companies from `companies.yaml` and the database) | 60 min |
+| `lever` | none | 60 min |
+| `recruitee`, `workable`, `smartrecruiters` | none | 6 h |
+| `himalayas`, `weworkremotely` | none | 60 min |
+| `remoteok` | none | 4 h |
+| `remotive`, `arbeitnow`, `hn` | none | 6 h |
+| `web3career` | `WEB3_CAREER_TOKEN` (without it the run is an `error`) | 5 min |
+| `linkedin` | none; needs the JobSpy worker (see "LinkedIn and Indeed through JobSpy") | 50 min |
+| `indeed` | none; needs the JobSpy worker | 2 h |
+| `linkedin_posts` | `BRAVE_API_KEY` (without it the run is `skipped`) | 3 h |
 
 ### LinkedIn hiring posts (`linkedin_posts`) and Brave cost
 
@@ -83,7 +107,7 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | Command | What it does |
 |---|---|
 | `fx` | Fetches today's USD exchange rates (IDR, EUR, GBP, SGD, AUD, CAD, CHF) and stores them. Salaries are converted with the latest stored rate on or before the analysis date, so run it daily. Without a stored IDR rate, `enrich` parks kept postings as `fx_wait` (digest: "Waiting for scoring"); after `fx` the next `enrich` tiers them without any LLM call. |
-| `discover [--source <name>] [--force]` | Polls every source that is due and stores new postings. Each source has a minimum poll interval enforced in code; a source polled too recently is recorded as `skipped` and gets no request. `--source` runs one source (`greenhouse`, `lever`, `ashby`, `himalayas`, `remoteok`, `remotive`, `web3career`, `weworkremotely`, `hn`, `arbeitnow`); `--force` ignores the interval (manual use only). Exits 1 if any source errored. |
+| `discover [--source <name>] [--force]` | Polls every source that is due and stores new postings. Each source has a minimum poll interval enforced in code; a source polled too recently is recorded as `skipped` and gets no request. `--source` runs one source (see "Sources"); `--force` ignores the interval (manual use only). Exits 1 if any source errored. |
 | `discover-companies` | Finds new companies to poll: runs a fixed list of 12 web searches (Brave Search API, at most 20 requests per run, one every 2 seconds) for Greenhouse, Lever, Ashby, SmartRecruiters, Workable and Recruitee board URLs, checks each new board with one request and stores it in the database (`verified` only if the board answered). Companies already known are skipped. The search part needs `BRAVE_API_KEY` (without it: `BRAVE_API_KEY not set, search discovery skipped`). It also adds hiring, fully remote YC companies from the public YC directory (no key needed; the short-lived public search key is read from ycombinator.com/companies at run time and never stored or logged): 1 page request + at most 2 directory requests, then for at most 30 new companies per run the ATS from the website URL or, failing that, the careers-page scan (at most 2 pages) and one board request to verify; stored with `discovered_via = yc_directory`, companies without a findable ATS are stored without a board so they are not scanned again. Prints `discover-companies: <q> queries (<n> failed), <c> candidates, <v> new verified, <n> not found, <k> known, <e> verify errors` and `discover-companies yc: <d> in directory, <c> checked (cap 30), <v> new verified, <n> not found, <a> no ATS, <k> known, <e> errors, <r> requests`. Exits 1 if every search query failed or the YC directory could not be read (an error line says so; the search part still runs). Run it once a day; the next `discover` polls the verified companies. |
 | `process [--reprocess]` | Normalizes and dedupes new postings, then applies the rule filters (location, Indonesia rule, role, salary floor, language) and records keep / reject with flags. Prints the counts. `--reprocess` also re-applies the current rules to every stored posting; see "Reprocessing after a rule change". |
 | `resolve-apply [--limit <n>]` | Finds the free apply link for kept postings from aggregator sources (not ATS sources) that have no link yet (or an `unknown` one older than 7 days), newest first. The free steps need no key. Order: an ATS posting already in the DB with the same company and title (`ats_db`), the company's stored ATS board (`ats_board`), then up to 3 slug guesses from the company name on the 6 ATS board APIs (at most 18 requests per company, a company with no result is not searched again for 30 days). A found board is saved on the company (`discovered_via = apply_resolve`, verified) so `discover` polls it. Stores the link in `apply_links` (`apply_type` `ats` or `unknown`; `unknown` keeps the source link). **Last step, one Haiku call (purpose `apply_link`, prompt `apply-link-v1`):** only for a posting with `final_decision = keep` and fit >= 60 whose text holds two or more candidate links (max 10, the posting's own listing and LinkedIn links excluded) and no ATS job URL after the free steps. Haiku sees the title, company, the numbered links with their link text and up to 2,000 characters of posting text around them, and answers a link number (0 = none) plus a kind; code stores that exact URL with `method = llm` (it never takes a URL from the model; an out-of-range number counts as none). One call per posting ever: a stored `llm` row is final until the posting text changes in `discover`. Cost bound: at most about $0.0005 reserved per call against the $1/day cap (`max_tokens` 64), i.e. below $0.05 for 100 calls. No key: the step is skipped with one line and those postings stay for a later run; budget used up: the step stops for the run (`deferred N` in the summary) and the rest stay too. Prints `resolve-apply: checked N, methods: ..., llm L; types: ...; requests R` (`llm L` and `deferred N` appear only when they apply). Exits 1 only for an invalid `--limit` or a posting that failed unexpectedly. Run it after `enrich`. Afterwards every verified `apply_resolve` company that is not yet in `companies.yaml` is appended to it (see "Automatic additions to companies.yaml" below); that can also make the exit code 1. |
@@ -203,7 +227,7 @@ temp `companies.yaml`; `web3career` only if `WEB3_CAREER_TOKEN` is already in yo
 A failing source shows as `error` and does not stop the others. The script exits 0 when `process` and `digest`
 completed, 1 if either failed. It makes no LLM calls (`ANTHROPIC_API_KEY` is unset for the run).
 
-### LinkedIn and Indeed through JobSpy (optional, Tier 2)
+## LinkedIn and Indeed through JobSpy (optional, Tier 2)
 
 The `linkedin` and `indeed` sources run a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).
 One-time setup from the repo root (Python >= 3.10):
