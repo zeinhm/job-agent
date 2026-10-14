@@ -86,6 +86,7 @@ describe("Phase 2 migration", () => {
         pay_policy: "unknown",
         pay_policy_source: "posting:p1",
         pay_policy_checked_at: null,
+        ats_checked_at: null,
         discovered_via: null,
         discovered_at: null,
         verified: true,

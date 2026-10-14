@@ -13,11 +13,13 @@ export {
   type Analysis,
   type Company,
   type FxRate,
+  type ApplyLink,
   type Intel,
   type LlmCall,
   type NewAnalysis,
   type NewCompany,
   type NewFxRate,
+  type NewApplyLink,
   type NewIntel,
   type NewLlmCall,
   type NewPosting,
@@ -27,6 +29,9 @@ export {
 } from "./db/index.ts";
 export {
   analysis,
+  apply_links,
+  APPLY_METHODS,
+  APPLY_TYPES,
   companies,
   fx_rates,
   intel,

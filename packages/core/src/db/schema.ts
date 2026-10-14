@@ -17,7 +17,8 @@ export const companies = sqliteTable("companies", {
   }),
   pay_policy_source: text("pay_policy_source"), // free text, e.g. posting:<id>, careers:<url>
   pay_policy_checked_at: text("pay_policy_checked_at"), // ISO 8601 UTC, nullable
-  discovered_via: text("discovered_via", { enum: ["config", "search", "manual"] }),
+  ats_checked_at: text("ats_checked_at"), // ISO 8601 UTC, nullable: last apply-resolve board lookup
+  discovered_via: text("discovered_via", { enum: ["config", "search", "manual", "apply_resolve"] }),
   discovered_at: text("discovered_at"), // ISO 8601 UTC, nullable
   verified: integer("verified", { mode: "boolean" }).default(false),
   created_at: text("created_at").notNull(), // ISO 8601 UTC
@@ -122,7 +123,9 @@ export const llm_calls = sqliteTable("llm_calls", {
   id: text("id").primaryKey(),
   day: text("day").notNull(), // YYYY-MM-DD, Asia/Jakarta
   model: text("model").notNull(),
-  purpose: text("purpose", { enum: ["extract", "company_research", "fit"] }).notNull(),
+  purpose: text("purpose", {
+    enum: ["extract", "company_research", "fit", "apply_link"],
+  }).notNull(),
   posting_id: text("posting_id").references(() => postings.id),
   company_id: text("company_id").references(() => companies.id),
   input_tokens: integer("input_tokens").notNull(),
@@ -161,6 +164,32 @@ export const intel = sqliteTable("intel", {
   updated_at: text("updated_at").notNull(), // ISO 8601 UTC
 });
 
+export const APPLY_TYPES = ["ats", "company_form", "paid_aggregator", "unknown"] as const;
+export const APPLY_METHODS = [
+  "ats_db",
+  "ats_board",
+  "careers_page",
+  "posting_text",
+  "llm",
+  "source",
+] as const;
+
+export const apply_links = sqliteTable("apply_links", {
+  id: text("id").primaryKey(),
+  posting_id: text("posting_id")
+    .notNull()
+    .unique()
+    .references(() => postings.id),
+  apply_url: text("apply_url").notNull(),
+  apply_type: text("apply_type", { enum: APPLY_TYPES }).notNull(),
+  method: text("method", { enum: APPLY_METHODS }).notNull(),
+  ats_type: text("ats_type"),
+  ats_slug: text("ats_slug"),
+  found_on: text("found_on").notNull(), // source name of the discovery listing
+  reason: text("reason"),
+  checked_at: text("checked_at").notNull(), // ISO 8601 UTC
+});
+
 // Inferred types for inserts and selects
 export type Company = InferSelectModel<typeof companies>;
 export type NewCompany = InferInsertModel<typeof companies>;
@@ -182,3 +211,6 @@ export type NewLlmCall = InferInsertModel<typeof llm_calls>;
 
 export type Intel = InferSelectModel<typeof intel>;
 export type NewIntel = InferInsertModel<typeof intel>;
+
+export type ApplyLink = InferSelectModel<typeof apply_links>;
+export type NewApplyLink = InferInsertModel<typeof apply_links>;

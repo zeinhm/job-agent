@@ -7,6 +7,8 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "./schema.ts";
 import type {
   Analysis,
+  ApplyLink,
+  NewApplyLink,
   Company,
   FxRate,
   Intel,
@@ -41,6 +43,8 @@ export type Db = ReturnType<typeof openDb>;
 // Re-export inferred row types from schema
 export type {
   Analysis,
+  ApplyLink,
+  NewApplyLink,
   Company,
   FxRate,
   Intel,

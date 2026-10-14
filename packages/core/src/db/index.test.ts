@@ -56,6 +56,7 @@ describe("openDb", () => {
       .sort();
     expect(tableNames).toEqual([
       "analysis",
+      "apply_links",
       "companies",
       "fx_rates",
       "intel",

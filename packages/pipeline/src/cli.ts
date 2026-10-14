@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb, source_runs } from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
+import { runResolveApply } from "./apply-links/index.ts";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
 import { runDiscoverCompanies } from "./discover-companies.ts";
@@ -67,6 +68,22 @@ const commands: Record<string, Command> = {
     const db = openDb(defaultDbPath());
     try {
       return await runEnrich({ db, salary, limit, out: io.out, err: io.err });
+    } finally {
+      db.$client.close();
+    }
+  },
+  "resolve-apply": async (args, io) => {
+    let limit: number | undefined;
+    try {
+      const { values } = parseArgs({ args, options: { limit: { type: "string" } } });
+      if (values.limit !== undefined) limit = Number(values.limit);
+    } catch (e) {
+      io.err(`resolve-apply: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      return await runResolveApply({ db, limit, out: io.out, err: io.err });
     } finally {
       db.$client.close();
     }
