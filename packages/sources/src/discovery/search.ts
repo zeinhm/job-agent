@@ -22,15 +22,18 @@ function usagePath(): string {
   return process.env["JOB_AGENT_BRAVE_USAGE"] ?? join(dirname(defaultDbPath()), "brave-usage.json");
 }
 
+const usageSchema = z.object({ day: z.string(), count: z.number().int().nonnegative() });
+
 function readUsage(path: string, day: string): number {
   if (!existsSync(path)) return 0;
   try {
-    const raw = JSON.parse(readFileSync(path, "utf-8")) as { day?: unknown; count?: unknown };
-    return raw.day === day && typeof raw.count === "number" ? raw.count : 0;
+    const parsed = usageSchema.safeParse(JSON.parse(readFileSync(path, "utf-8")));
+    // A counter of another UTC day is a fresh day; anything unreadable must not open the cap.
+    if (parsed.success) return parsed.data.day === day ? parsed.data.count : 0;
   } catch {
-    // A corrupt counter must not open the cap: count it as already spent.
-    return BRAVE_DAILY_REQUEST_CAP;
+    // not JSON: falls through to spent
   }
+  return BRAVE_DAILY_REQUEST_CAP;
 }
 
 /** Counts one Brave request against today's cap; throws BraveCapReachedError when it is spent. */

@@ -34,6 +34,22 @@ function addRun(
     .run();
 }
 
+function addRunAt(source: string, at: Date, status: "ok" | "error") {
+  const iso = at.toISOString();
+  db.insert(source_runs)
+    .values({
+      id: `r${++n}`,
+      source,
+      started_at: iso,
+      finished_at: iso,
+      status,
+      found: 10,
+      new: 3,
+      error_message: status === "error" ? "boom" : null,
+    })
+    .run();
+}
+
 /** Ok runs at the given minutes-ago offsets. */
 function okRuns(source: string, offsets: number[]) {
   for (const m of offsets) addRun(source, m, "ok");
@@ -98,10 +114,46 @@ describe("freshness line", () => {
     expect(freshnessSuffix(db, "linkedin", NOW)).toBe("last ok 12:55 WIB, max gap 60 min in 24h");
   });
 
-  it("one ok run: max gap n/a; none: no ok run", () => {
-    okRuns("linkedin", [5]);
-    expect(freshnessSuffix(db, "linkedin", NOW)).toBe("last ok 12:55 WIB, max gap n/a");
+  it("one ok run: the gap is now - last ok; none: no ok run", () => {
+    okRuns("linkedin", [30]);
+    expect(freshnessSuffix(db, "linkedin", NOW)).toBe("last ok 12:30 WIB, max gap 30 min in 24h");
     expect(freshnessSuffix(db, "indeed", NOW)).toBe("no ok run in 24h");
+  });
+
+  it("one ok run 2 h ago is LATE for linkedin", () => {
+    okRuns("linkedin", [120]);
+    expect(freshnessSuffix(db, "linkedin", NOW)).toBe(
+      "last ok 11:00 WIB, max gap 120 min in 24h — LATE",
+    );
+  });
+
+  it("now - last ok: 65 min is not late, 66 is", () => {
+    okRuns("linkedin", [65]);
+    expect(freshnessSuffix(db, "linkedin", NOW)).toBe("last ok 11:55 WIB, max gap 65 min in 24h");
+    db.delete(source_runs).run();
+    okRuns("linkedin", [66]);
+    expect(freshnessSuffix(db, "linkedin", NOW)).toBe(
+      "last ok 11:54 WIB, max gap 66 min in 24h — LATE",
+    );
+  });
+
+  it("ok at 05:05, then hourly errors until 10:05, now 10:10: 305 min and LATE", () => {
+    const at = (hhmm: string) => new Date(`2026-10-07T${hhmm}:00Z`);
+    const now = at("10:10");
+    addRunAt("linkedin", at("05:05"), "ok");
+    for (const h of ["06:05", "07:05", "08:05", "09:05", "10:05"])
+      addRunAt("linkedin", at(h), "error");
+    expect(freshnessSuffix(db, "linkedin", now)).toBe(
+      "last ok 12:05 WIB, max gap 305 min in 24h — LATE",
+    );
+  });
+
+  it("ok hourly up to 10:05, now 10:10: not late", () => {
+    const at = (hhmm: string) => new Date(`2026-10-07T${hhmm}:00Z`);
+    for (const h of ["07:05", "08:05", "09:05", "10:05"]) addRunAt("linkedin", at(h), "ok");
+    expect(freshnessSuffix(db, "linkedin", at("10:10"))).toBe(
+      "last ok 17:05 WIB, max gap 60 min in 24h",
+    );
   });
 
   it("shows the backoff end after a block", () => {
@@ -110,7 +162,7 @@ describe("freshness line", () => {
     addRun("linkedin", 5, "skipped", "backoff after block until 2026-10-07T07:00:00.000Z");
     const text = health();
     expect(text).toMatch(
-      /- \*\*linkedin\*\*: error, .* — last ok 10:50 WIB, max gap 70 min in 24h — LATE — in backoff until 18:00 WIB/,
+      /- \*\*linkedin\*\*: error, .* — last ok 10:50 WIB, max gap 130 min in 24h — LATE — in backoff until 18:00 WIB/,
     );
   });
 
