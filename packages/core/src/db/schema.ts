@@ -18,7 +18,9 @@ export const companies = sqliteTable("companies", {
   pay_policy_source: text("pay_policy_source"), // free text, e.g. posting:<id>, careers:<url>
   pay_policy_checked_at: text("pay_policy_checked_at"), // ISO 8601 UTC, nullable
   ats_checked_at: text("ats_checked_at"), // ISO 8601 UTC, nullable: last apply-resolve board lookup
-  discovered_via: text("discovered_via", { enum: ["config", "search", "manual", "apply_resolve"] }),
+  discovered_via: text("discovered_via", {
+    enum: ["config", "search", "manual", "apply_resolve", "yc_directory"],
+  }),
   discovered_at: text("discovered_at"), // ISO 8601 UTC, nullable
   verified: integer("verified", { mode: "boolean" }).default(false),
   created_at: text("created_at").notNull(), // ISO 8601 UTC

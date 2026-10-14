@@ -16,6 +16,13 @@ const fixture = JSON.parse(
   ),
 ) as Record<string, unknown>;
 
+const YC_PAGE = "https://www.ycombinator.com/companies";
+const ALGOLIA = "https://TESTAPP123-dsn.algolia.net/1/indexes/YCCompany_production";
+const ycPage = readFileSync(
+  new URL("../../sources/test/fixtures/discovery/yc-companies-page.html", import.meta.url),
+  "utf-8",
+);
+
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterAll(() => server.close());
@@ -25,6 +32,11 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 beforeEach(() => {
+  // YC part runs on every call; by default the directory is empty.
+  server.use(
+    http.get(YC_PAGE, () => new HttpResponse(ycPage, { headers: { "content-type": "text/html" } })),
+    http.get(ALGOLIA, () => HttpResponse.json({ hits: [], nbHits: 0, page: 0, nbPages: 0 })),
+  );
   let now = 0;
   __testInjectTimeAndSleep(
     () => new Date(now),
@@ -210,16 +222,16 @@ describe("runDiscoverCompanies", () => {
     ).toBe(1);
   });
 
-  it("skips with a message, no requests and exit 0 when the key is missing", async () => {
+  it("skips the search part with a message and exit 0 when the key is missing", async () => {
     vi.stubEnv("BRAVE_API_KEY", "");
     const c = io();
     const db = openDb(":memory:");
     expect(await runDiscoverCompanies({ db, out: c.o, err: c.e })).toBe(0);
-    expect(c.out.join("")).toBe("BRAVE_API_KEY not set, company discovery skipped\n");
+    expect(c.out.join("")).toContain("BRAVE_API_KEY not set, search discovery skipped\n");
     expect(db.select().from(companies).all()).toHaveLength(0);
   });
 
-  it("CLI command skips with exit 0 and no network when the key is missing", async () => {
+  it("CLI command skips the search part with exit 0 when the key is missing", async () => {
     vi.stubEnv("BRAVE_API_KEY", "");
     vi.stubEnv("JOB_AGENT_DB", ":memory:");
     const out: string[] = [];
@@ -228,6 +240,6 @@ describe("runDiscoverCompanies", () => {
       err: () => undefined,
     });
     expect(code).toBe(0);
-    expect(out.join("")).toContain("company discovery skipped");
+    expect(out.join("")).toContain("search discovery skipped");
   });
 });

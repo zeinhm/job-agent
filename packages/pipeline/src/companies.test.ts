@@ -60,6 +60,19 @@ describe("loadPollableCompanies", () => {
     insert("good", { ats_type: "ashby", ats_slug: "good", verified: true });
     insert("unverified", { ats_type: "ashby", ats_slug: "u", verified: false });
     insert("noats", { verified: true });
-    expect(loadPollableCompanies(db).map((c) => c.ats_slug)).toEqual(["good"]);
+    insert("yc good", {
+      ats_type: "ashby",
+      ats_slug: "yc-good",
+      verified: true,
+      discovered_via: "yc_directory",
+    });
+    insert("yc ghost", {
+      ats_type: "ashby",
+      ats_slug: "yc-ghost",
+      verified: false,
+      discovered_via: "yc_directory",
+    });
+    insert("yc noboard", { verified: false, discovered_via: "yc_directory" });
+    expect(loadPollableCompanies(db).map((c) => c.ats_slug)).toEqual(["good", "yc-good"]);
   });
 });
