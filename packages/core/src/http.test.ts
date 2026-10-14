@@ -127,6 +127,53 @@ describe("httpGet", () => {
   });
 });
 
+describe("YC host guard", () => {
+  let server: ReturnType<typeof setupServer>;
+  const requested: string[] = [];
+
+  beforeEach(() => {
+    requested.length = 0;
+    server = setupServer(
+      http.get("https://hn.algolia.com/api/v1/items/1", () => HttpResponse.json({ id: 1 })),
+      http.get("https://example.com/to-yc", () =>
+        HttpResponse.text("", {
+          status: 302,
+          headers: { location: "https://www.ycombinator.com/companies" },
+        }),
+      ),
+    );
+    server.events.on("request:start", ({ request }) => requested.push(request.url));
+    server.listen({ onUnhandledRequest: "error" });
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it.each([
+    "https://www.ycombinator.com/companies",
+    "https://ycombinator.com/companies",
+    "https://news.ycombinator.com/item?id=1",
+    "https://www.workatastartup.com/jobs",
+    "https://WWW.YCombinator.com/companies",
+  ])("refuses %s before any request", async (url) => {
+    await expect(httpGet(url)).rejects.toThrow(HttpError);
+    expect(requested).toEqual([]);
+  });
+
+  it("refuses a redirect into a YC host without requesting it", async () => {
+    await expect(
+      httpGet("https://example.com/to-yc", { allowRedirectTo: () => true }),
+    ).rejects.toThrow(HttpError);
+    expect(requested.filter((u) => u.includes("ycombinator.com"))).toEqual([]);
+  });
+
+  it("still allows hn.algolia.com and look-alike hosts", async () => {
+    const res = await httpGet("https://hn.algolia.com/api/v1/items/1");
+    expect(res.ok).toBe(true);
+  });
+});
+
 describe("Rate limiting", () => {
   let server: ReturnType<typeof setupServer>;
 

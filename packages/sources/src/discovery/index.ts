@@ -10,4 +10,3 @@ export {
   searchUrls,
 } from "./search.ts";
 export { boardUrl, verifyBoard } from "./verify.ts";
-export { fetchYcCompanies, YC_PAGE_CAP, type YcCompany } from "./yc.ts";

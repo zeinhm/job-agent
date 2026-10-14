@@ -955,6 +955,29 @@ describe("step 3: apply links in the posting text", () => {
     expect(link(p)).toMatchObject({ apply_type: "unknown", method: "source" });
   });
 
+  it("a YC link in the posting text is never requested and the run finishes", async () => {
+    const p = setup(
+      `Apply at https://www.ycombinator.com/companies/x/jobs/y or https://www.workatastartup.com/jobs/1`,
+    );
+    await run();
+    expect(
+      requested.filter((u) => /(^|\.)(ycombinator|workatastartup)\.com$/.test(new URL(u).hostname)),
+    ).toEqual([]);
+    expect(link(p)).toBeDefined();
+  });
+
+  it("a careers page redirecting to a YC host is not followed and the run finishes", async () => {
+    const p = setup(`No link here.`);
+    server.use(
+      http.get(`https://${DOMAIN}/careers`, () =>
+        HttpResponse.redirect("https://www.ycombinator.com/companies/x/jobs", 302),
+      ),
+    );
+    await run();
+    expect(requested.filter((u) => new URL(u).hostname.endsWith("ycombinator.com"))).toEqual([]);
+    expect(link(p)).toMatchObject({ apply_type: "unknown" });
+  });
+
   it("a link on another company's domain is not the company's own", async () => {
     const p = setup(`Apply at https://other-company.example/careers`);
     await run();

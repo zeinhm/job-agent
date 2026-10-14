@@ -198,6 +198,7 @@ async function fetchGuarded(
       return res;
     }
     const next = new URL(location, current).toString();
+    assertNotYc(next);
     if (!allow(next)) throw new HttpError(url, null, url);
     current = next;
   }
@@ -218,8 +219,30 @@ function assertNotLinkedin(url: string): void {
   }
 }
 
+/**
+ * YC's terms forbid scraping (owner decision 2026-10-14, docs/decisions.md): nothing requests ycombinator.com,
+ * its subdomains or workatastartup.com. `hn.algolia.com` is a different host and stays allowed.
+ */
+function assertNotYc(url: string): void {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return;
+  }
+  if (
+    host === "ycombinator.com" ||
+    host.endsWith(".ycombinator.com") ||
+    host === "workatastartup.com" ||
+    host.endsWith(".workatastartup.com")
+  ) {
+    throw new HttpError(url, null, url);
+  }
+}
+
 async function httpGetInternal(url: string, options: HttpGetOptions = {}): Promise<Response> {
   assertNotLinkedin(url);
+  assertNotYc(url);
   const minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 

@@ -16,13 +16,6 @@ const fixture = JSON.parse(
   ),
 ) as Record<string, unknown>;
 
-const YC_PAGE = "https://www.ycombinator.com/companies";
-const ALGOLIA = "https://TESTAPP123-dsn.algolia.net/1/indexes/YCCompany_production";
-const ycPage = readFileSync(
-  new URL("../../sources/test/fixtures/discovery/yc-companies-page.html", import.meta.url),
-  "utf-8",
-);
-
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterAll(() => server.close());
@@ -32,11 +25,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 beforeEach(() => {
-  // YC part runs on every call; by default the directory is empty.
-  server.use(
-    http.get(YC_PAGE, () => new HttpResponse(ycPage, { headers: { "content-type": "text/html" } })),
-    http.get(ALGOLIA, () => HttpResponse.json({ hits: [], nbHits: 0, page: 0, nbPages: 0 })),
-  );
   let now = 0;
   __testInjectTimeAndSleep(
     () => new Date(now),
@@ -227,8 +215,33 @@ describe("runDiscoverCompanies", () => {
     const c = io();
     const db = openDb(":memory:");
     expect(await runDiscoverCompanies({ db, out: c.o, err: c.e })).toBe(0);
-    expect(c.out.join("")).toContain("BRAVE_API_KEY not set, search discovery skipped\n");
+    expect(c.out.join("")).toBe("BRAVE_API_KEY not set, search discovery skipped\n");
     expect(db.select().from(companies).all()).toHaveLength(0);
+  });
+
+  it("runs only the search part: no request to any YC or Algolia host, no yc line, exit 0", async () => {
+    const hosts: string[] = [];
+    server.events.on("request:start", ({ request }) => hosts.push(new URL(request.url).hostname));
+    server.use(
+      http.get(SEARCH, () => HttpResponse.json(oneResult("https://jobs.lever.co/real-co/1"))),
+      http.get(/api\.lever/, () => HttpResponse.json([])),
+    );
+    const c = io();
+    const code = await runDiscoverCompanies({
+      db: openDb(":memory:"),
+      apiKey: "k",
+      queries: ["q"],
+      out: c.o,
+      err: c.e,
+    });
+    server.events.removeAllListeners();
+    expect(code).toBe(0);
+    expect(hosts.length).toBeGreaterThan(0);
+    expect(
+      hosts.filter((h) => /ycombinator\.com$|algolia\.net$|workatastartup\.com$/.test(h)),
+    ).toEqual([]);
+    expect(c.out.join("")).not.toContain("discover-companies yc:");
+    expect(c.err.join("")).toBe("");
   });
 
   it("CLI command skips the search part with exit 0 when the key is missing", async () => {

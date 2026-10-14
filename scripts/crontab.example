@@ -12,7 +12,7 @@
 # Each source's own interval still limits real requests. Proof of freshness: the digest's Source health line
 # and `status` show `last ok ... max gap ... min in 24h` for linkedin and indeed (LATE above 65 / 130 min).
 #
-# Order within a day: fx -> discover-companies (daily) -> hourly: discover -> process -> enrich -> resolve-apply -> digest.
+# Order within a day: fx -> (Mondays only: discover-companies, weekly at 07:00) -> hourly: discover -> process -> enrich -> resolve-apply -> digest.
 # `bin/run-hourly` runs the hourly steps in that order (`;` semantics: a failing step does not stop the next ones;
 # `discover` exits 1 when any source errors, and the digest reports it in Source health). It holds a lock
 # (data/locks/hourly), so a run that starts while the previous one is still going prints a skip line and exits 0.
@@ -33,8 +33,8 @@ PATH=/ABSOLUTE/PATH/TO/node/bin:/usr/bin:/bin
 # fx: daily 06:50 WIB
 50 6 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent fx >> data/logs/fx.log 2>&1
 
-# discover-companies: daily 07:00 WIB, before the first discover of the day
-0 7 * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent discover-companies >> data/logs/discover-companies.log 2>&1
+# discover-companies: weekly, Monday 07:00 WIB
+0 7 * * 1 cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && pnpm -s job-agent discover-companies >> data/logs/discover-companies.log 2>&1
 
 # hourly at :05: discover, process, enrich, resolve-apply, digest (with a lock so runs never overlap)
 5 * * * * cd /ABSOLUTE/PATH/TO/job-agent && mkdir -p data/logs && bin/run-hourly >> data/logs/run-hourly.log 2>&1

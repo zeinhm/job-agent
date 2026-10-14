@@ -12,7 +12,7 @@ const cron = read("scripts/crontab.example");
 const envExample = read(".env.example");
 
 /** Cron job lines only (no comments), in file order. */
-const jobs = cron.split("\n").filter((l) => /^\d+ [\d*/]+ \* \* \*/.test(l));
+const jobs = cron.split("\n").filter((l) => /^\d+ [\d*/]+ \* \* [\d*]/.test(l));
 const commandsOf = (line: string): string[] =>
   [...line.matchAll(/pnpm -s job-agent (\S+)/g)].map((m) => m[1] as string);
 
@@ -205,19 +205,19 @@ describe("Phase 2 run docs", () => {
     expect(envExample).not.toMatch(/sk-ant|=\S/);
   });
 
-  it("runs fx -> discover-companies daily, then one hourly bin/run-hourly line, with no keys in the crontab", () => {
+  it("runs fx daily, discover-companies weekly on Monday, then one hourly bin/run-hourly line, with no keys in the crontab", () => {
     const flat = jobs.flatMap(commandsOf);
     expect(flat).toEqual(["fx", "discover-companies"]);
     const hourly = jobs.filter((l) => l.includes("bin/run-hourly"));
     expect(hourly).toHaveLength(1);
     expect(hourly[0]).toMatch(/^5 \* \* \* \* /);
-    // daily jobs: fx runs before discover-companies
-    const hm = (cmd: string): number => {
-      const l = jobs.find((j) => commandsOf(j)[0] === cmd) as string;
-      const [m, h] = l.split(" ");
-      return Number(h) * 60 + Number(m);
-    };
-    expect(hm("fx")).toBeLessThan(hm("discover-companies"));
+    const line = (cmd: string): string[] =>
+      (jobs.find((j) => commandsOf(j)[0] === cmd) as string).split(" ");
+    expect(line("fx").slice(0, 5)).toEqual(["50", "6", "*", "*", "*"]);
+    // weekly, Monday 07:00; no daily discover-companies line
+    expect(line("discover-companies").slice(0, 5)).toEqual(["0", "7", "*", "*", "1"]);
+    expect(jobs.filter((j) => commandsOf(j).includes("discover-companies"))).toHaveLength(1);
+    expect(running).toMatch(/discover-companies` weekly/);
     expect(cron).not.toMatch(/^[A-Z_]*(KEY|TOKEN)=/m);
     // the hourly script runs the steps in the documented order
     const script = read("bin/run-hourly");
