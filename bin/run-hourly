@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # bin/run-hourly: the hourly product run. discover -> process -> enrich -> resolve-apply -> digest, each appended to
 # data/logs/<command>.log. A mkdir lock (data/locks/hourly) stops overlapping runs: a run that finds it prints
-# "run-hourly: previous run still active, skipped" and exits 0. A lock older than 3 h is stale (crashed run) and is removed.
+# "run-hourly: previous run still active, skipped" and exits 0. A lock older than 3 h is stale (crashed run) and is removed under a short-lived "hourly.takeover" mkdir lock that re-checks the age, so a lock another run just took over is never removed.
 # Steps are separated like `;`: a failing step does not stop the next ones (exit 1 at the end if any failed).
 # Keys come from the repo's .env, which the CLI loads itself. JOB_AGENT_CLI overrides the CLI command and
 # JOB_AGENT_DATA_DIR the data dir (both used by tests).
@@ -10,12 +10,26 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$REPO"
 DATA="${JOB_AGENT_DATA_DIR:-$REPO/data}"
 LOCK="$DATA/locks/hourly"
 mkdir -p "$DATA/locks" "$DATA/logs"
+is_stale() { [ -n "$(find "$LOCK" -maxdepth 0 -mmin +180 2>/dev/null)" ]; }
 if ! mkdir "$LOCK" 2>/dev/null; then
-  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +180 2>/dev/null)" ]; then
-    echo "run-hourly: stale lock (older than 3 h) removed"
-    rmdir "$LOCK" 2>/dev/null || rm -rf "$LOCK"
-    mkdir "$LOCK" 2>/dev/null || { echo "run-hourly: previous run still active, skipped"; exit 0; }
-  else
+  took=0
+  if is_stale; then
+    # JOB_AGENT_TEST_TAKEOVER_PAUSE (seconds) only exists so tests can widen the gap between the age check and the takeover; empty in production.
+    [ -n "${JOB_AGENT_TEST_TAKEOVER_PAUSE:-}" ] && sleep "$JOB_AGENT_TEST_TAKEOVER_PAUSE"
+    TAKEOVER="$LOCK.takeover"
+    if mkdir "$TAKEOVER" 2>/dev/null; then
+      # Only one run is in here at a time, and the age is checked again inside: a lock another run took over meanwhile is fresh and is left alone.
+      if is_stale && rm -rf "$LOCK" && mkdir "$LOCK" 2>/dev/null; then
+        took=1
+        echo "run-hourly: stale lock (older than 3 h) removed"
+      fi
+      rmdir "$TAKEOVER" 2>/dev/null
+    else
+      # A takeover lock left by a killed run: clear it once it is clearly abandoned; this run skips, the next one takes over.
+      find "$TAKEOVER" -maxdepth 0 -mmin +10 -exec rmdir {} \; 2>/dev/null
+    fi
+  fi
+  if [ "$took" != 1 ]; then
     echo "run-hourly: previous run still active, skipped"; exit 0
   fi
 fi

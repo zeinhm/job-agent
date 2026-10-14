@@ -4,6 +4,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -103,6 +104,60 @@ describe("bin/run-hourly", () => {
     expect(s.called()).toHaveLength(5);
     expect(existsSync(s.lock)).toBe(false);
   });
+
+  it("two runs started together against a stale lock: exactly one runs, the other skips (20 rounds)", async () => {
+    for (let i = 0; i < 20; i++) {
+      // discover sleeps so the winner still holds the lock while the loser starts
+      const s = setup(`[ "$1" = discover ] && sleep 0.4`);
+      mkdirSync(s.lock, { recursive: true });
+      const old = new Date(Date.now() - 4 * 3600 * 1000);
+      utimesSync(s.lock, old, old);
+      const exec = () =>
+        new Promise<{ code: number | null; out: string }>((resolve) => {
+          const p = spawn("bash", [script], { cwd: repo, env: s.env });
+          let out = "";
+          p.stdout.on("data", (d) => (out += d));
+          p.on("exit", (code) => resolve({ code, out }));
+        });
+      const [a, b] = await Promise.all([exec(), exec()]);
+      expect([a.code, b.code], `round ${i}`).toEqual([0, 0]);
+      const skipped = [a, b].filter((r) => r.out.includes(SKIP));
+      expect(skipped, `round ${i}`).toHaveLength(1);
+      expect(s.called(), `round ${i}`).toEqual([
+        "discover",
+        "process",
+        "enrich",
+        "resolve-apply",
+        "digest",
+      ]);
+      expect(existsSync(s.lock), `round ${i}`).toBe(false);
+      expect(readdirSync(join(s.data, "locks")), `round ${i}`).toEqual([]);
+    }
+  }, 120_000);
+
+  it("a run that passed the age check but pauses before taking over does not remove the lock another run just took over", async () => {
+    const s = setup(`[ "$1" = discover ] && sleep 2.5`);
+    mkdirSync(s.lock, { recursive: true });
+    const old = new Date(Date.now() - 4 * 3600 * 1000);
+    utimesSync(s.lock, old, old);
+    const exec = (env: NodeJS.ProcessEnv) =>
+      new Promise<{ code: number | null; out: string }>((resolve) => {
+        const p = spawn("bash", [script], { cwd: repo, env });
+        let out = "";
+        p.stdout.on("data", (d) => (out += d));
+        p.on("exit", (code) => resolve({ code, out }));
+      });
+    // B sees the stale lock, then sleeps 1.2 s; A takes over meanwhile and is still running its steps when B resumes.
+    const b = exec({ ...s.env, JOB_AGENT_TEST_TAKEOVER_PAUSE: "1.2" });
+    await new Promise((r) => setTimeout(r, 300));
+    const a = await exec(s.env).then(async (ra) => ({ ra, rb: await b }));
+    expect(a.ra.out).not.toContain(SKIP);
+    expect(a.rb.out).toContain(SKIP);
+    expect([a.ra.code, a.rb.code]).toEqual([0, 0]);
+    expect(s.called().filter((c) => c === "discover")).toHaveLength(1);
+    expect(s.called()).toHaveLength(5);
+    expect(readdirSync(join(s.data, "locks"))).toEqual([]);
+  }, 30_000);
 
   it("removes the lock after a failing step, still runs the later steps, and exits 1", () => {
     const s = setup();

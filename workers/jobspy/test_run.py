@@ -99,6 +99,32 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(lines, [{"error": "response status code 429", "kind": "blocked"}])
 
+    def test_bare_numbers_are_not_a_block(self):
+        for text in ("Found 429 jobs", "job id 4031999", "fetched 403 results"):
+            self.assertIsNone(run.BLOCK_PATTERN.search(text), text)
+
+            def scrape(**kwargs):
+                logging.getLogger("JobSpy:LinkedIn").error(text)
+                return FakeFrame([])
+
+            code, lines = call(LINKEDIN, scrape)
+            self.assertEqual((code, lines), (2, [{"error": text, "kind": "error"}]))
+
+    def test_block_wording_is_a_block(self):
+        for text in (
+            "status code 429",
+            "HTTP 999",
+            "403 Forbidden while fetching, status unknown",
+            "LinkedIn response status code 429",
+            "Indeed response status code 403",
+            "429 Too Many Requests",
+            "LinkedIn: unexpected page with no jobs (blocked?)",
+            "authwall",
+            "captcha",
+            "too many requests",
+        ):
+            self.assertTrue(run.BLOCK_PATTERN.search(text), text)
+
     def test_empty_result_with_error_log_is_error(self):
         def scrape(**kwargs):
             logging.getLogger("JobSpy").error("something broke")

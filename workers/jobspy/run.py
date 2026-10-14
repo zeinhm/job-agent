@@ -35,7 +35,13 @@ JOB_FIELDS = (
 )
 
 # JobSpy logs a block instead of raising (research t_a46f63f1 Q5), so the worker reads its log records.
-BLOCK_PATTERN = re.compile(r"\b(429|999|403)\b|blocked\?|authwall|captcha|too many requests", re.IGNORECASE)
+# The numbers count only next to status wording (JobSpy 1.3.0 logs "<Site> response status code <n>"), so a job id or a count never matches.
+BLOCK_PATTERN = re.compile(
+    r"\b(?:status(?:\s+code)?|http|response\s+code)\s*[:=]?\s*(?:429|999|403)\b"
+    r"|\b(?:429\s+too\s+many\s+requests|403\s+forbidden|999\s+request\s+denied)"
+    r"|blocked\?|authwall|captcha|too many requests",
+    re.IGNORECASE,
+)
 
 
 class WorkerError(Exception):
