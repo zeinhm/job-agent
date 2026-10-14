@@ -61,3 +61,4 @@ Last audit tag: (none yet)
 | t_7f305c0c | Apply links: careers-page ATS detection and apply links in the posting text | medium | d31f792 | 2026-10-14 |
 | t_8e27df96 | Re-extract stored postings whose extraction used an older prompt version | medium | 599a0c0 | 2026-10-14 |
 | t_0bfea274 | Apply links: one Haiku call picks among candidate links when the rules leave it unclear | medium | a2c57b1 | 2026-10-14 |
+| t_c26830be | Add hiring YC companies from the public directory to the ATS polling list | medium | d096002 | 2026-10-14 |
