@@ -312,7 +312,7 @@ describe("ranked digest", () => {
     expect(top).toContain("- Tier / ask: global_adjusted — IDR 28.0M / month | USD 21,000 / year");
     expect(top).toContain("- Scam score: 15 — Recruiter uses a free email domain");
     expect(top).toContain("- Salary: IDR 20.0M–30.0M / month");
-    expect(top).toContain("- Link: https://example.com/jobs/t1");
+    expect(top).toContain("- Apply: https://example.com/jobs/t1 (unknown, not resolved yet)");
     expect(top).toContain("- Type: unknown");
     expect(top).not.toContain("Why:");
   });

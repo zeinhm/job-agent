@@ -1,7 +1,15 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { analysis, intel, openDb, postings, source_runs, type Db } from "@job-agent/core";
+import {
+  analysis,
+  apply_links,
+  intel,
+  openDb,
+  postings,
+  source_runs,
+  type Db,
+} from "@job-agent/core";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main } from "../cli.ts";
@@ -313,8 +321,8 @@ describe("runDigest", () => {
     score("ats");
     score("api");
     const { text } = run();
-    expect(text).toContain("- Link: https://apply.example.com/ats");
-    expect(text).toContain("- Link: https://example.com/jobs/api");
+    expect(text).toContain("- Apply: https://apply.example.com/ats (unknown, not resolved yet)");
+    expect(text).toContain("- Apply: https://example.com/jobs/api (unknown, not resolved yet)");
     expect(text).not.toContain("apply.example.com/api");
   });
 
@@ -323,7 +331,9 @@ describe("runDigest", () => {
     (source) => {
       seed("ats", { source, applyUrl: "https://apply.example.com/ats" });
       score("ats");
-      expect(run().text).toContain("- Link: https://apply.example.com/ats");
+      expect(run().text).toContain(
+        "- Apply: https://apply.example.com/ats (unknown, not resolved yet)",
+      );
     },
   );
 
@@ -356,7 +366,7 @@ describe("runDigest", () => {
     const { text } = run();
     expect(text.match(/^### /gm)).toHaveLength(2);
     expect(text).toContain("- Location: worldwide — Austin; Berlin; Lisbon");
-    expect(text).toContain("- Link: https://apply.example.com/g2");
+    expect(text).toContain("- Apply: https://apply.example.com/g2 (unknown, not resolved yet)");
     expect(text).toContain("- Kept: 2");
     for (const id of ["g1", "g2", "g3", "g4"]) {
       expect(db.select().from(analysis).where(eq(analysis.posting_id, id)).get()?.digested_at).toBe(
@@ -364,6 +374,88 @@ describe("runDigest", () => {
       );
     }
     expect(run().text).toBe(text);
+  });
+
+  describe("apply route lines", () => {
+    function link(id: string, type: string, url: string, foundOn = "remotive") {
+      db.insert(apply_links)
+        .values({
+          id: `l-${id}`,
+          posting_id: id,
+          apply_url: url,
+          apply_type: type as "ats",
+          method: "ats_db",
+          found_on: foundOn,
+          checked_at: "2026-10-07T02:00:00Z",
+        })
+        .run();
+    }
+    const topBlock = (text: string, title: string) => {
+      const from = text.indexOf(`### ${title}`);
+      return text.slice(from, text.indexOf("\n\n", text.indexOf("- Posted:", from)));
+    };
+
+    it.each(["ats", "company_form", "signup_required", "unknown"])(
+      "a Top match with apply type %s shows Apply and Found on",
+      (type) => {
+        seed("x", { title: "Role X" });
+        score("x");
+        link("x", type, "https://boards.example.com/acme/1", "himalayas");
+        const block = topBlock(run().text, "Role X");
+        expect(block).toContain(`- Apply: https://boards.example.com/acme/1 (${type})`);
+        expect(block).toContain("- Found on: himalayas — https://example.com/jobs/x");
+        expect(block).not.toContain("- Link:");
+        expect(block.split("\n")[0]).toBe("### Role X — Acme Inc");
+      },
+    );
+
+    it("a Top match without an apply_links row shows the current link as unresolved", () => {
+      seed("n", { title: "Role N", source: "greenhouse", applyUrl: "https://apply.example.com/n" });
+      score("n");
+      const block = topBlock(run().text, "Role N");
+      expect(block).toContain("- Apply: https://apply.example.com/n (unknown, not resolved yet)");
+      expect(block).toContain("- Found on: greenhouse — https://example.com/jobs/n");
+    });
+
+    it("paid_aggregator gets the heading label and ranks by fit, not last", () => {
+      seed("paid", { title: "Paid Role" });
+      seed("free", { title: "Free Role" });
+      score("paid", { fit_score: 80 });
+      score("free", { fit_score: 70 });
+      link("paid", "paid_aggregator", "https://paid.example.com/p");
+      link("free", "ats", "https://boards.example.com/f");
+      const { text } = run();
+      expect(text).toContain("### Paid Role — Acme Inc (paid-only apply)");
+      expect(text).not.toContain("Free Role — Acme Inc (paid-only apply)");
+      expect(text).toContain("- Apply: https://paid.example.com/p (paid_aggregator)");
+      const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Scored"));
+      expect(top.indexOf("Paid Role")).toBeLessThan(top.indexOf("Free Role"));
+    });
+
+    it("not-a-fit and waiting lines show the resolved apply url", () => {
+      seed("nf", { title: "Weak Role" });
+      score("nf", { fit_score: TOP_MATCH_MIN_FIT - 1 });
+      seed("w", { title: "Waiting Role" });
+      link("nf", "paid_aggregator", "https://paid.example.com/nf");
+      link("w", "company_form", "https://acme.example.com/apply");
+      const { text } = run();
+      expect(text).toMatch(
+        /- Weak Role — Acme Inc \(paid-only apply\) — fit \d+\/100.* — https:\/\/paid.example.com\/nf/,
+      );
+      expect(text).toMatch(/- Waiting Role — Acme Inc — .* — https:\/\/acme.example.com\/apply/);
+    });
+
+    it("a group uses the apply link of the lead member", () => {
+      seed("g1", { title: "Group Role", location: "Berlin" });
+      seed("g2", { title: "Group Role", location: "Austin" });
+      score("g2");
+      link("g1", "ats", "https://boards.example.com/other");
+      link("g2", "company_form", "https://acme.example.com/lead", "hn");
+      const block = topBlock(run().text, "Group Role");
+      expect(block).toContain("- Apply: https://acme.example.com/lead (company_form)");
+      expect(block).toContain("- Found on: hn — https://example.com/jobs/g2");
+      expect(block).not.toContain("boards.example.com/other");
+    });
   });
 
   describe("groups take everything from one member", () => {
@@ -381,7 +473,7 @@ describe("runDigest", () => {
       const { text } = run();
       const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
       expect(top).toContain("### data engineer — Acme Inc");
-      expect(top).toContain("- Link: https://example.com/jobs/g2");
+      expect(top).toContain("- Apply: https://example.com/jobs/g2 (unknown, not resolved yet)");
       expect(top).not.toContain("apply.example.com/g1");
       expect(top).toContain("- Fit: 80/100");
       expect(top).toContain("Strong TypeScript match");
@@ -445,7 +537,7 @@ describe("runDigest", () => {
       score("a2");
       const { text } = run();
       const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
-      expect(top).toContain("- Link: https://example.com/jobs/a2");
+      expect(top).toContain("- Apply: https://example.com/jobs/a2 (unknown, not resolved yet)");
     });
   });
 

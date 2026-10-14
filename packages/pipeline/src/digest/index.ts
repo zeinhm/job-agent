@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { and, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import {
   analysis,
+  apply_links,
   effectiveCapUsd,
   intel,
   log,
@@ -75,6 +76,7 @@ type Row = {
 
 const UNCLEAR_FLAGS = ["location_unclear", "indonesia_unclear", "role_unclear"];
 const MAX_REASONS = 3;
+const PAID_ONLY_LABEL = "(paid-only apply)";
 
 /** Unclear flags the resolve stage could not settle; all of them when there is no usable extraction. */
 function remainingUnclear(flags: string[], i: Intel | null): string[] {
@@ -213,6 +215,12 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     }
   }
   const link = isAtsSource(p.source) ? (p.apply_url ?? p.url) : p.url;
+  // Apply route of the same lead member as the rest of the block; the unresolved fallback is the old link.
+  const resolved = db.select().from(apply_links).where(eq(apply_links.posting_id, p.id)).get();
+  const applyUrl = resolved?.apply_url ?? link;
+  const paidOnly = resolved?.apply_type === "paid_aggregator";
+  const applyLine = `- Apply: ${applyUrl} (${resolved === undefined ? "unknown, not resolved yet" : resolved.apply_type})`;
+  const foundOnLine = `- Found on: ${resolved?.found_on ?? p.source} — ${p.url}`;
   const locations = joinLocations(group.map((r) => r.p.location_text));
   const location = capText(
     compressZones([a.location_class, locations].filter((x) => x).join(" — ")),
@@ -224,12 +232,14 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     idrMonthMin: a.salary_idr_month_min,
     idrMonthMax: a.salary_idr_month_max,
   });
-  const head = [`### ${title} — ${p.company_name}`, ""];
+  const paidLabel = paidOnly ? ` ${PAID_ONLY_LABEL}` : "";
+  const head = [`### ${title} — ${p.company_name}${paidLabel}`, ""];
   const common = [
     `- Location: ${location}`,
     `- Salary: ${salary}`,
     `- Flags: ${openFlags.length > 0 ? openFlags.join(", ") : "none"}`,
-    `- Link: ${link}`,
+    applyLine,
+    foundOnLine,
     `- Sources: ${sources.join(", ")}`,
     `- Posted: ${posted !== null ? posted.slice(0, 10) : "unknown"}`,
     "",
@@ -272,7 +282,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
         rank,
         fit: i.fit_score,
         line: [
-          `- ${title} — ${p.company_name} — fit ${i.fit_score}/100${reason !== undefined ? ` — ${reason}` : ""} — ${link}`,
+          `- ${title} — ${p.company_name}${paidLabel} — fit ${i.fit_score}/100${reason !== undefined ? ` — ${reason}` : ""} — ${applyUrl}`,
         ],
       };
     }
@@ -299,7 +309,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     ...base,
     kind: "waiting",
     rank: 0,
-    line: [`- ${title} — ${p.company_name} — ${waitingReason(i)} — ${link}`],
+    line: [`- ${title} — ${p.company_name}${paidLabel} — ${waitingReason(i)} — ${applyUrl}`],
   };
 }
 
