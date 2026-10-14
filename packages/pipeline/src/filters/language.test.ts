@@ -88,3 +88,62 @@ describe("classifyLanguage: language requirement", () => {
     expect(cls("Engineer", "German is a plus. Fluent French required.")).toBe("reject");
   });
 });
+
+describe("classifyLanguage: not-required wording and markets", () => {
+  it.each([
+    [
+      "Lead AI Engineer (m/w/d)",
+      "* Deutschkenntnisse auf beliebigem Niveau. In Teilen des Unternehmens hilfreich, fuer diese Rolle aber nie Voraussetzung.",
+    ],
+    [
+      "Backend Engineer",
+      "German is not required. Fluent German is not a requirement for this role.",
+    ],
+    ["Backend Engineer", "Fluent German is not a prerequisite."],
+    ["Backend Engineer", "No German required."],
+    ["Backend Engineer", "Fluent German helps, but is not needed."],
+    ["Backend Engineer", "Speaking French is not necessary. Fluent French speaker."],
+    ["Backend Engineer", "Deutschkenntnisse sind keine Voraussetzung."],
+    [
+      "Backend Engineer",
+      "Keine Deutschkenntnisse erforderlich. Deutschkenntnisse sind nicht notwendig.",
+    ],
+    [
+      "Backend Engineer",
+      "Native French speaker: pas obligatoire. Français courant pas necessaire.",
+    ],
+    ["Backend Engineer", "Our product is available in French speaker markets."],
+    ["Backend Engineer", "We serve Spanish-speaking countries."],
+    ["Backend Engineer", "Our customers are German speaker communities."],
+  ])("keeps %s / %s", (title, desc) => {
+    expect(cls(title, desc)).toBe("ok");
+  });
+
+  it.each([
+    ["Backend Engineer", "Fluent German is required, but a car is not required."],
+    ["Backend Engineer", "Fluent German is required, a driving licence is not required."],
+    ["Backend Engineer", "Fluent German is required but relocation is not needed."],
+    ["Backend Engineer", "Fluent German is required and travel is not needed"],
+    ["Backend Engineer", "Fluent German required\nFluent French is not required"],
+    ["Backend Engineer", "Fluent German and French; French is not required"],
+  ])("rejects a real requirement next to an unrelated negation: %s / %s", (title, desc) => {
+    expect(cls(title, desc)).toBe("reject");
+  });
+
+  it("keeps a list of languages that are all not required", () => {
+    expect(cls("Backend Engineer", "German, French and Italian are not required.")).toBe("ok");
+  });
+
+  it.each([
+    ["Backend Engineer", "Fluent German required."],
+    ["Backend Engineer", "Sehr gute Deutschkenntnisse (C1) erforderlich."],
+    ["Backend Engineer", "Native French speaker."],
+    ["Backend Engineer", "You must be a fluent German speaker."],
+    ["Backend Engineer", "English is not required, but fluent German is."],
+    ["Backend Engineer", "German is not required.\nFluent French required."],
+    ["Backend Engineer", "French is not required. Fluent German required."],
+    ["German speaking Account Manager", "We sell software."],
+  ])("still rejects %s / %s", (title, desc) => {
+    expect(cls(title, desc)).toBe("reject");
+  });
+});

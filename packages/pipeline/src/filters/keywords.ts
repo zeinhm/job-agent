@@ -1264,8 +1264,47 @@ export const LANGUAGE_TITLE_SPEAKING_TERMS: readonly string[] = [
   "francophone",
 ];
 
+/**
+ * Wording that says a language is not needed (matched accent- and case-insensitively). A sentence with one of these
+ * protects the languages it names in the whole bullet or paragraph.
+ */
+export const LANGUAGE_NEGATION_PHRASES: readonly string[] = [
+  "not required",
+  "not a requirement",
+  "not a prerequisite",
+  "not needed",
+  "not necessary",
+  "keine Voraussetzung",
+  "nie Voraussetzung",
+  "nicht erforderlich",
+  "nicht notwendig",
+  "beliebigem Niveau",
+  "pas obligatoire",
+  "pas nécessaire",
+  "pas requis",
+];
+
+/** Negation forms with a gap: "no German required", "keine Deutschkenntnisse erforderlich". */
+export const LANGUAGE_NEGATION_PATTERNS: readonly string[] = [
+  `no\\s+(?:[\\p{L}-]+\\s+){0,2}(?:${LANGUAGE_NAMES.join("|")})\\s+(?:is\\s+)?(?:required|needed)`,
+  "keine?\\s+(?:[\\p{L}-]+\\s+){0,3}erforderlich",
+];
+
+/** A "<language> speaker(s)" mention followed by one of these describes a market, not a requirement. */
+export const LANGUAGE_MARKET_NOUNS: readonly string[] = [
+  "markets?",
+  "countries",
+  "regions?",
+  "users?",
+  "customers?",
+  "audiences?",
+  "communit(?:y|ies)",
+  "world",
+];
+
 /** A clause containing one of these says the language is optional, so it is not a requirement. */
 export const LANGUAGE_OPTIONAL_PHRASES: readonly string[] = [
+  ...LANGUAGE_NEGATION_PHRASES,
   "a plus",
   "plus",
   "nice to have",
@@ -1276,13 +1315,11 @@ export const LANGUAGE_OPTIONAL_PHRASES: readonly string[] = [
   "beneficial",
   "preferred",
   "helpful",
-  "not required",
   "optional",
   "desirable",
   "von Vorteil",
   "wünschenswert",
   "ein Plus",
-  "nicht erforderlich",
   "un plus",
   "un atout",
   "apprécié",

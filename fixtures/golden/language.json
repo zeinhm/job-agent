@@ -270,5 +270,53 @@
     "label": "ok",
     "reason": "no language other than English or Indonesian required",
     "source": "arbeitnow"
+  },
+  {
+    "id": "lg-035",
+    "title": "Lead AI Engineer (m/w/d)",
+    "snippet": "* Deutschkenntnisse auf beliebigem Niveau. In Teilen des Unternehmens hilfreich, fuer diese Rolle aber nie Voraussetzung.",
+    "label": "ok",
+    "reason": "language not required or a market",
+    "source": "audit t_f75d6948 MAJOR"
+  },
+  {
+    "id": "lg-036",
+    "title": "Backend Engineer",
+    "snippet": "German is not required. Fluent German is not a requirement for this role.",
+    "label": "ok",
+    "reason": "language not required or a market",
+    "source": "audit t_f75d6948 MAJOR"
+  },
+  {
+    "id": "lg-037",
+    "title": "Backend Engineer",
+    "snippet": "Our product is available in French speaker markets.",
+    "label": "ok",
+    "reason": "language not required or a market",
+    "source": "batch audit #5"
+  },
+  {
+    "id": "lg-038",
+    "title": "Backend Engineer",
+    "snippet": "We serve Spanish-speaking countries.",
+    "label": "ok",
+    "reason": "language not required or a market",
+    "source": "batch audit #5"
+  },
+  {
+    "id": "lg-039",
+    "title": "Backend Engineer",
+    "snippet": "English is not required, but fluent German is.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "audit t_f75d6948 MAJOR (negation never protects another language)"
+  },
+  {
+    "id": "lg-040",
+    "title": "Backend Engineer",
+    "snippet": "Native French speaker.",
+    "label": "reject",
+    "reason": "language required or German/French title",
+    "source": "batch audit #5 (speaker without a market noun)"
   }
 ]
