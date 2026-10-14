@@ -71,14 +71,14 @@ describe("step 2: restriction", () => {
     "Authorized to work in the UK required",
     "Authorized to work in the EU required",
   ])("%s in description -> restricted", (descriptionText) => {
-    check({ locationText: "Remote", descriptionText }, "restricted", "in description");
+    check({ locationText: "Remote", descriptionText }, "restricted", "step 2 text restriction");
   });
 
   it("restriction beats a worldwide signal", () => {
     check(
       { locationText: "Worldwide", descriptionText: "You must reside in the US." },
       "restricted",
-      '"must reside in" in description',
+      "step 2 text restriction",
     );
   });
 
@@ -178,7 +178,7 @@ describe("reasons", () => {
     );
     expect(
       classifyLocation({ locationText: "Remote", descriptionText: "must reside in the US" }).reason,
-    ).toContain('"must reside in" in description');
+    ).toContain("step 2 text restriction");
   });
 });
 
@@ -406,4 +406,51 @@ describe("time zone wording: negation", () => {
       expect(r.reason).not.toContain("time zone");
     },
   );
+});
+
+describe("work-authorization and residence wording is judged by its places", () => {
+  it.each([
+    ["Worldwide", "Must be authorized to work in the United States.", "restricted"],
+    ["Anywhere in the World", "You must have the right to work in the UK.", "restricted"],
+    ["Worldwide", "Must be authorised to work in Germany.", "restricted"],
+    ["Worldwide", "A valid work permit for Canada is required.", "restricted"],
+    ["Remote", "Must be located in the US.", "restricted"],
+    ["Remote", "Must reside in Germany.", "restricted"],
+    ["Remote", "Candidates must be located in Europe or Asia.", "apac_ok"],
+    ["Remote", "Must be authorized to work in Indonesia or Singapore.", "apac_ok"],
+    [
+      "Worldwide",
+      "Applicants must be authorized to work in their country of residence.",
+      "worldwide",
+    ],
+    ["Remote", "Must be authorized to work in one of our hiring countries.", "unclear"],
+  ] as const)("%s + %s -> %s", (locationText, descriptionText, expected) => {
+    expect(classifyLocation({ locationText, descriptionText }).class).toBe(expected);
+  });
+
+  it("a restricting sentence gets a text-restriction reason naming the sentence", () => {
+    const r = classifyLocation({
+      locationText: "Worldwide",
+      descriptionText: "Must be authorized to work in the United States.",
+    });
+    expect(r.reason).toBe(
+      'step 2 text restriction: "Must be authorized to work in the United States."',
+    );
+  });
+
+  it("the same wording in the location field is judged the same way", () => {
+    expect(classifyLocation({ locationText: "Remote (must reside in Germany)" }).class).toBe(
+      "restricted",
+    );
+    expect(classifyLocation({ locationText: "Remote, must be located in Asia" }).class).not.toBe(
+      "restricted",
+    );
+  });
+
+  it("visa-sponsorship wording alone is not a place limit", () => {
+    expect(
+      classifyLocation({ locationText: "Worldwide", descriptionText: "We cannot sponsor visas." })
+        .class,
+    ).toBe("worldwide");
+  });
 });

@@ -1077,5 +1077,75 @@
     "descriptionSnippet": "We can hire in several countries, details on request.",
     "expected": "unclear",
     "source": "t_56bbe118 vague list"
+  },
+  {
+    "id": "loc-152",
+    "locationText": "Remote",
+    "descriptionSnippet": "Candidates must be located in Europe or Asia.",
+    "expected": "apac_ok",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-153",
+    "locationText": "Worldwide",
+    "descriptionSnippet": "Must be authorized to work in the United States.",
+    "expected": "restricted",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-154",
+    "locationText": "Anywhere in the World",
+    "descriptionSnippet": "You must have the right to work in the UK.",
+    "expected": "restricted",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-155",
+    "locationText": "Worldwide",
+    "descriptionSnippet": "Applicants must be authorized to work in their country of residence.",
+    "expected": "worldwide",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-156",
+    "locationText": "Remote",
+    "descriptionSnippet": "Must be authorized to work in Indonesia or Singapore.",
+    "expected": "apac_ok",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-157",
+    "locationText": "Remote",
+    "descriptionSnippet": "Must be located in the US.",
+    "expected": "restricted",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-158",
+    "locationText": "Remote",
+    "descriptionSnippet": "Must reside in Germany.",
+    "expected": "restricted",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-159",
+    "locationText": "Remote",
+    "descriptionSnippet": "Must be authorized to work in one of our hiring countries.",
+    "expected": "unclear",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-160",
+    "locationText": "Worldwide",
+    "descriptionSnippet": "A valid work permit for Canada is required.",
+    "expected": "restricted",
+    "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-161",
+    "locationText": "Worldwide",
+    "descriptionSnippet": "Must be authorized to work in the US or Canada.",
+    "expected": "restricted",
+    "source": "t_e1bd0972 work-authorization wording"
   }
 ]

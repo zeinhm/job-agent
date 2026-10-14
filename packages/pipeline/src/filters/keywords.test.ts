@@ -31,11 +31,6 @@ describe("keyword lists", () => {
       "US only",
       "Remote (US",
       "US-based",
-      "must reside in",
-      "must be located in",
-      "authorized to work in the US",
-      "authorized to work in the UK",
-      "authorized to work in the EU",
       "EU only",
       "UK only",
       "Canada only",
@@ -45,6 +40,26 @@ describe("keyword lists", () => {
       "LATAM",
     ]) {
       expect(has(keywords.RESTRICTION_PHRASES, p), p).toBe(true);
+    }
+  });
+
+  it("place-dependent wording is judged by its sentence, not by the generic restriction list", () => {
+    const wording = [
+      "must reside in",
+      "must be located in",
+      "authorized to work in",
+      "authorised to work in",
+      "authorization to work in",
+      "work authorization in",
+      "work authorization for",
+      "right to work in",
+      "legally eligible to work in",
+      "valid work permit for",
+      "work permit in",
+    ];
+    for (const p of wording) {
+      expect(has(keywords.HIRING_RESTRICTION_PHRASES, p), p).toBe(true);
+      expect(has(keywords.RESTRICTION_PHRASES, p), p).toBe(false);
     }
   });
 

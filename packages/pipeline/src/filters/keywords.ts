@@ -29,7 +29,11 @@ export const APAC_PHRASES: readonly string[] = [
   "WIB",
 ];
 
-/** Geographic or eligibility restrictions that exclude an Indonesia-based candidate. */
+/**
+ * Geographic or eligibility restrictions that exclude an Indonesia-based candidate, wherever they stand.
+ * Place-dependent wording ("must be located in", "must reside in", "authorized to work in") is not here: it is judged
+ * by the places in its sentence (HIRING_RESTRICTION_PHRASES, location.ts).
+ */
 export const RESTRICTION_PHRASES: readonly string[] = [
   "US only",
   "U.S. only",
@@ -40,12 +44,6 @@ export const RESTRICTION_PHRASES: readonly string[] = [
   "US time zones",
   "U.S. time zones",
   "US hours",
-  "must reside in",
-  "must be located in",
-  "authorized to work in the US",
-  "authorized to work in the U.S.",
-  "authorized to work in the UK",
-  "authorized to work in the EU",
   "EU only",
   "UK only",
   "Canada only",
@@ -76,6 +74,18 @@ export const HIRING_RESTRICTION_PHRASES: readonly string[] = [
   "must be located in",
   "eligible to work in",
   "legally authorized to work in",
+  "legally eligible to work in",
+  "authorized to work in",
+  "authorised to work in",
+  "authorization to work in",
+  "authorisation to work in",
+  "work authorization in",
+  "work authorization for",
+  "work authorisation in",
+  "work authorisation for",
+  "right to work in",
+  "valid work permit for",
+  "work permit in",
 ];
 
 /** Region words for a hiring sentence (not in KNOWN_PLACES). None of them covers Indonesia. */
@@ -163,6 +173,9 @@ export const HIRING_VAGUE_PHRASES: readonly string[] = [
   "and more",
   "and beyond",
   "and elsewhere",
+  "hiring countries",
+  "hiring regions",
+  "supported countries",
 ];
 
 /**

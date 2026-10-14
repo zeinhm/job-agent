@@ -170,6 +170,18 @@ describe("runReprocess: rules", () => {
     expect(r.out).toContain("rules keep->reject 2, reject->keep 0");
   });
 
+  it("rejects an old keep whose Worldwide label has a work-authorization sentence, without an LLM call", () => {
+    const fetchSpy = vi.fn(() => Promise.reject(new Error("network call")));
+    vi.stubGlobal("fetch", fetchSpy);
+    add("workauth", { description_text: "Must be authorized to work in the United States." });
+    oldAnalysis("workauth", "keep");
+    expect(reprocess().code).toBe(0);
+    expect(analysisOf("workauth")?.decision).toBe("reject");
+    expect(analysisOf("workauth")?.location_class).toBe("restricted");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(db.select().from(llm_calls).all()).toHaveLength(0);
+  });
+
   it("keeps a posting the current rules keep, and enrich selects it when it has no intel row", () => {
     add("revived");
     oldAnalysis("revived", "reject");

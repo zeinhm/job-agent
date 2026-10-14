@@ -190,6 +190,12 @@ const COVERING_PHRASES = [
   "anywhere",
   "globally",
   "global",
+  "country of residence",
+  "country where you live",
+  "country you live in",
+  "your country",
+  "their country",
+  "own country",
 ];
 
 function excerpt(sentence: string): string {
@@ -276,6 +282,8 @@ export function classifyLocation(input: LocationInput): LocationResult {
   if (restriction) {
     return { class: "restricted", reason: `step 2 restriction ${cite(restriction)}` };
   }
+  const fieldRestriction = findTextRestriction(locationText) ?? findTextRestriction(tagsField.text);
+  if (fieldRestriction?.class === "restricted") return fieldRestriction;
   const countryRestriction = findPhrase(locationFields, WORLDWIDE_LOCATION_PHRASES)
     ? undefined
     : findCountryRestriction(locationText);
