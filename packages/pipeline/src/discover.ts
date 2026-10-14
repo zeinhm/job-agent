@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import {
   analysis,
+  apply_links,
   intel,
   PartialSourceError,
   SourceBlockedError,
@@ -163,6 +164,10 @@ function refreshPosting(db: Db, old: Posting, p: RawPosting, hash: string, nowIs
       .run();
   }
   db.delete(intel).where(eq(intel.posting_id, old.id)).run();
+  // A stored LLM apply-link answer was for the old text; the edited posting may be asked once more.
+  db.delete(apply_links)
+    .where(and(eq(apply_links.posting_id, old.id), eq(apply_links.method, "llm")))
+    .run();
   db.delete(analysis)
     .where(and(eq(analysis.posting_id, old.id), isNull(analysis.digested_at)))
     .run();

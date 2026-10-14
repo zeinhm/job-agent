@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { CompanyResearchWireSchema, toCompanyResearch } from "./company-research.ts";
 import { ExtractionSchema, ExtractionWireSchema, toExtraction } from "./extract.ts";
+import { ApplyLinkWireSchema } from "../apply-links/llm-step.ts";
 import { FitSchema } from "./fit.ts";
 
 /** The API rejects more than 16 union-typed parameters (HTTP 400); we keep headroom. */
@@ -25,6 +26,7 @@ describe("structured-output schemas sent to the API", () => {
     ["extraction", ExtractionWireSchema],
     ["fit", FitSchema],
     ["company pay-policy research", CompanyResearchWireSchema],
+    ["apply link choice", ApplyLinkWireSchema],
   ])("%s has at most %i union-typed parameters", (_name, schema) => {
     expect(unionsIn(schema)).toBeLessThanOrEqual(MAX_UNIONS);
   });

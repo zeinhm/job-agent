@@ -28,7 +28,7 @@ export type TextRoute =
   | { type: "company_form"; url: string; reason: string };
 
 /** Text with markup removed but every link target kept in the text (`<a href=U>t</a>` becomes ` U `). */
-function plain(text: string): string {
+export function plainText(text: string): string {
   return decodeEntities(
     text
       .replace(/\\\//g, "/")
@@ -65,7 +65,7 @@ export function textLinks(
   text: string | null | undefined,
   extraUrls: Array<string | null | undefined>,
 ): TextLinks {
-  const body = plain(text ?? "");
+  const body = plainText(text ?? "");
   const urls = new Set(urlsIn(body));
   for (const u of extraUrls) {
     if (u) for (const x of urlsIn(u)) urls.add(x);

@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import {
   analysis,
   APPLY_METHODS,
+  BudgetExceededError,
   APPLY_TYPES,
   apply_links,
   companies,
@@ -13,6 +14,7 @@ import {
   type Db,
   type Posting,
 } from "@job-agent/core";
+import { TOP_MATCH_MIN_FIT } from "../digest/rank.ts";
 import { normalizeTitle } from "../dedupe/index.ts";
 import { ATS_SOURCE_NAMES } from "../filters/keywords.ts";
 import { normalizeCompanyName } from "../normalize/index.ts";
@@ -24,7 +26,8 @@ import {
   lookupBoard,
   type Board,
 } from "./boards.ts";
-import { isPollable } from "./ats-links.ts";
+import { atsLinkOf, isPollable } from "./ats-links.ts";
+import { candidateLinks, chooseApplyLink, hasAtsJobUrl } from "./llm-step.ts";
 import {
   domainResemblesCompany,
   scanCareers,
@@ -59,6 +62,8 @@ export interface ResolveApplyOptions {
   err?: (text: string) => void;
   /** Careers page fetcher; default is the company-research fetcher (tests inject nothing, msw stands in). */
   fetchPage?: FetchPage;
+  /** Environment holding `ANTHROPIC_API_KEY` for the Haiku link step (default `process.env`) and a test API base URL. */
+  llm?: { env?: Record<string, string | undefined>; baseURL?: string };
 }
 
 type ApplyType = (typeof apply_links.$inferSelect)["apply_type"];
@@ -121,7 +126,12 @@ function selectPostings(db: Db, now: Date, limit: number | undefined): Posting[]
         )})`,
         or(
           isNull(apply_links.id),
-          and(eq(apply_links.apply_type, "unknown"), lt(apply_links.checked_at, recheckBefore)),
+          // A stored LLM answer is final (one call per posting); a changed posting loses it in `discover`.
+          and(
+            eq(apply_links.apply_type, "unknown"),
+            sql`${apply_links.method} <> 'llm'`,
+            lt(apply_links.checked_at, recheckBefore),
+          ),
         ),
       ),
     )
@@ -420,10 +430,108 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
     };
   }
 
+  const env = opts.llm?.env ?? process.env;
+  let llmStop: "budget" | "no_key" | null = null;
+  let deferred = 0;
+  let llmCalls = 0;
+
+  /**
+   * Step 4: one Haiku call for a strong match whose route is still unclear after steps 1-3. Returns the resolution,
+   * null when the step does not apply (or its answer was unusable), or "defer" when it would apply but cannot run now
+   * (no key, budget used up): no row is stored, so the posting is picked up again on the next run.
+   */
+  async function llmStep(p: Posting, free: Resolution): Promise<Resolution | "defer" | null> {
+    const row = db
+      .select({ final: intel.final_decision, fit: intel.fit_score })
+      .from(intel)
+      .where(eq(intel.posting_id, p.id))
+      .get();
+    if (row?.final !== "keep" || row.fit === null || row.fit < TOP_MATCH_MIN_FIT) return null;
+    const cands = candidateLinks(
+      p.description_text,
+      [p.apply_url],
+      [p.url, p.apply_url ?? null, free.apply_url],
+    );
+    if (cands.length < 2 || hasAtsJobUrl(cands)) return null;
+    if (llmStop === null && !env["ANTHROPIC_API_KEY"]) {
+      llmStop = "no_key";
+      out("resolve-apply: ANTHROPIC_API_KEY not set, apply-link LLM step skipped\n");
+    }
+    if (llmStop !== null) {
+      deferred++;
+      return "defer";
+    }
+    let answer;
+    try {
+      llmCalls++;
+      answer = await chooseApplyLink(
+        {
+          postingId: p.id,
+          title: p.title,
+          companyName: p.company_name,
+          descriptionText: p.description_text,
+        },
+        cands,
+        {
+          db,
+          env,
+          now,
+          ...(opts.llm?.baseURL !== undefined ? { baseURL: opts.llm.baseURL } : {}),
+        },
+      );
+    } catch (e) {
+      if (e instanceof BudgetExceededError) {
+        llmStop = "budget";
+        deferred++;
+        out("resolve-apply: LLM daily budget used up, apply-link LLM step stopped for this run\n");
+        return "defer";
+      }
+      // Invalid output or an API failure: the row stays `unknown` (checked again after 7 days).
+      log.warn("apply-link LLM call failed", {
+        posting_id: p.id,
+        error: e instanceof Error ? e.name : "unknown",
+      });
+      return null;
+    }
+    const chosen = answer.choice >= 1 ? cands[answer.choice - 1] : undefined;
+    if (chosen === undefined) {
+      return {
+        ...free,
+        method: "llm",
+        reason: `LLM: none of the ${cands.length} links is an apply route${
+          answer.choice > cands.length ? " (answer out of range)" : ""
+        }`,
+      };
+    }
+    const ats = atsLinkOf(chosen.url);
+    // Code decides the type: the model's kind counts only when the URL agrees with it.
+    const type =
+      answer.kind === "ats"
+        ? ats !== null
+          ? "ats"
+          : "unknown"
+        : answer.kind === "unknown"
+          ? "unknown"
+          : answer.kind;
+    return {
+      apply_url: chosen.url,
+      apply_type: type,
+      method: "llm",
+      ...(type === "ats" && ats ? { ats_type: ats.vendor } : {}),
+      ...(type === "ats" && ats && ats.slug !== "" ? { ats_slug: ats.slug } : {}),
+      reason: `LLM chose link ${answer.choice} of ${cands.length} (${answer.kind})`,
+    };
+  }
+
   for (const p of selected) {
     let r: Resolution;
     try {
       r = await resolve(p);
+      if (r.method === "source" && r.apply_type === "unknown") {
+        const l = await llmStep(p, r);
+        if (l === "defer") continue;
+        if (l !== null) r = l;
+      }
     } catch (e) {
       failed++;
       log.error("resolve-apply failed for a posting", { posting_id: p.id, error: String(e) });
@@ -455,7 +563,7 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
     `resolve-apply: checked ${selected.length}, methods: ${count(
       methods,
       APPLY_METHODS.filter((m) => m !== "llm"),
-    )}; types: ${count(types, APPLY_TYPES)}; requests ${http.requests}${failed > 0 ? `, failed ${failed}` : ""}\n`,
+    )}${llmCalls > 0 ? `, llm ${methods.get("llm") ?? 0}` : ""}; types: ${count(types, APPLY_TYPES)}; requests ${http.requests}${deferred > 0 ? `, deferred ${deferred}` : ""}${failed > 0 ? `, failed ${failed}` : ""}\n`,
   );
   let saveCode = 0;
   if (opts.saveAts) {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import {
   PartialSourceError,
+  apply_links,
   SourceError,
   openDb,
   postings,
@@ -138,6 +139,42 @@ describe("runDiscover storage", () => {
     await run({ adapters: [a] });
     expect(runsFor("remotive")[0]).toMatchObject({ found: 2, new: 1 });
     expect(db.select().from(postings).all()).toHaveLength(1);
+  });
+});
+
+describe("runDiscover edited postings and apply links", () => {
+  it("drops a stored LLM apply link when the posting content changes, keeps other methods", async () => {
+    let text = "first text";
+    const a = fake("remotive", async () => [
+      raw("remotive", 1, { descriptionText: text }),
+      raw("remotive", 2, { descriptionText: "stable" }),
+    ]);
+    await run({ adapters: [a] });
+    const ids = db.select().from(postings).all();
+    for (const [i, p] of ids.entries()) {
+      db.insert(apply_links)
+        .values({
+          id: `l${i}`,
+          posting_id: p.id,
+          apply_url: "https://example.com/apply",
+          apply_type: "unknown",
+          method: p.external_id === "job-1" ? "llm" : "source",
+          found_on: "remotive",
+          checked_at: T0.toISOString(),
+        })
+        .run();
+    }
+    // Same text: nothing changes.
+    clock = new Date(T0.getTime() + minutes(5));
+    await run({ adapters: [a], force: true });
+    expect(db.select().from(apply_links).all()).toHaveLength(2);
+
+    text = "edited text";
+    clock = new Date(T0.getTime() + minutes(10));
+    await run({ adapters: [a], force: true });
+    const left = db.select().from(apply_links).all();
+    expect(left).toHaveLength(1);
+    expect(left[0]?.method).toBe("source");
   });
 });
 
