@@ -29,8 +29,8 @@ describe("structured-output schemas sent to the API", () => {
     expect(unionsIn(schema)).toBeLessThanOrEqual(MAX_UNIONS);
   });
 
-  it("the counter catches the nullable stored extraction schema (20; it is not sent to the API)", () => {
-    expect(unionsIn(ExtractionSchema)).toBe(20);
+  it("the counter catches the nullable stored extraction schema (22; it is not sent to the API)", () => {
+    expect(unionsIn(ExtractionSchema)).toBe(22);
   });
 });
 
@@ -90,6 +90,23 @@ describe("wire output maps back to the stored values", () => {
     const old: Record<string, unknown> = { ...toExtraction(ExtractionWireSchema.parse(base)) };
     delete old["payType"];
     expect(ExtractionSchema.parse(old).payType).toBeNull();
+  });
+
+  it("extraction: hoursZone 'unknown' and overlapHours 0 become null, values pass, old rows parse as null", () => {
+    const base = text("extract-ok.json") as object;
+    const got = toExtraction(ExtractionWireSchema.parse(base));
+    expect(got).toMatchObject({ hoursZone: null, overlapHours: null });
+    const hours = toExtraction(
+      ExtractionWireSchema.parse({ ...base, hoursZone: "europe", overlapHours: 4 }),
+    );
+    expect(hours).toMatchObject({ hoursZone: "europe", overlapHours: 4 });
+    expect(() => ExtractionWireSchema.parse({ ...base, hoursZone: null })).toThrow();
+    expect(() => ExtractionWireSchema.parse({ ...base, hoursZone: "mars" })).toThrow();
+    expect(() => ExtractionWireSchema.parse({ ...base, overlapHours: null })).toThrow();
+    const old: Record<string, unknown> = { ...got };
+    delete old["hoursZone"];
+    delete old["overlapHours"];
+    expect(ExtractionSchema.parse(old)).toMatchObject({ hoursZone: null, overlapHours: null });
   });
 
   it("extraction: a one-sided salary keeps the missing bound null", () => {

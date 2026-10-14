@@ -304,6 +304,39 @@ describe("enrich fit stage", () => {
     expect(fitRequests()).toHaveLength(1);
   });
 
+  it("a posting extracted as needing Americas hours is rejected and gets no fit call", async () => {
+    const msg = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
+    const block = msg.content[msg.content.length - 1];
+    if (block?.text === undefined) throw new Error("fixture shape");
+    block.text = JSON.stringify({
+      ...JSON.parse(block.text),
+      hoursZone: "americas",
+      overlapHours: 8,
+    });
+    addPosting("night", { title: "Staff Engineer (US Pacific hours)" });
+    addPosting("day");
+    server.use(
+      http.post(URL, async ({ request }) => {
+        const body = (await request.json()) as Req;
+        requests.push(body);
+        if (body["model"] === FIT_MODEL) return HttpResponse.json(fixture(fitResponse));
+        const text = String((body["messages"] as { content: string }[])[0]?.content);
+        return HttpResponse.json(text.includes("Pacific") ? msg : fixture("extract-ok.json"));
+      }),
+    );
+    expect((await enrich()).code).toBe(0);
+    const night = intelOf("night");
+    expect(night?.final_decision).toBe("reject");
+    expect(JSON.parse(night?.resolved_reasons ?? "[]")).toEqual([
+      "Hours: needs 8 h overlap with the Americas, which falls in the WIB night.",
+    ]);
+    expect(night?.fit_score).toBeNull();
+    expect(intelOf("day")?.final_decision).toBe("keep");
+    const fitCalls = db.select().from(llm_calls).where(eq(llm_calls.purpose, "fit")).all();
+    expect(fitCalls.map((c) => c.posting_id)).toEqual(["day"]);
+    expect(fitRequests()).toHaveLength(1);
+  });
+
   it("an hn applicant reply extracted as not_a_job is rejected and gets no fit call", async () => {
     const msg = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
     const block = msg.content[msg.content.length - 1];

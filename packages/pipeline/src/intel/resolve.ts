@@ -66,6 +66,9 @@ const NOT_COVERING = new Set([
   "middle east",
 ]);
 
+/** Most Americas working-hours overlap that still fits a GMT+7 day; the Americas day is the WIB night. */
+export const MAX_AMERICAS_OVERLAP_HOURS = 3;
+
 const norm = (s: string) => s.trim().toLowerCase();
 
 function resolveLocation(x: Extraction): Outcome {
@@ -96,6 +99,17 @@ function resolveLocation(x: Extraction): Outcome {
       };
     }
   }
+  // Working-hours wording is not a residence limit: with no hiring places named, hours settle the flag.
+  if (
+    x.hoursZone !== null &&
+    x.hiringScope === null &&
+    x.regions.length === 0 &&
+    x.allowedCountries.length === 0
+  )
+    return {
+      decision: "keep",
+      reason: "Location: the posting states working hours, not a place you must live in.",
+    };
   return null;
 }
 
@@ -139,6 +153,19 @@ function familyReject(x: Extraction): { decision: "reject"; reason: string } | n
       family === "not_a_job"
         ? "Role: the text is not a job posting."
         : `Role: the posting is a ${family} role, outside the target (${TARGET_ROLE_FAMILIES.join(", ")}).`,
+  };
+}
+
+/**
+ * Americas hours fall in the WIB night: more than `MAX_AMERICAS_OVERLAP_HOURS` of required overlap (a full Americas
+ * day is 8 h or more) rejects. Europe, APAC, other and unknown hours, or no stated overlap, settle nothing.
+ */
+function hoursReject(x: Extraction): { decision: "reject"; reason: string } | null {
+  if (x.hoursZone !== "americas" || x.overlapHours === null) return null;
+  if (x.overlapHours <= MAX_AMERICAS_OVERLAP_HOURS) return null;
+  return {
+    decision: "reject",
+    reason: `Hours: needs ${x.overlapHours} h overlap with the Americas, which falls in the WIB night.`,
   };
 }
 
@@ -203,6 +230,11 @@ export function resolveFlags(input: ResolveInput): ResolveResult {
   if (unpaid !== null) {
     decision = "reject";
     if (!reasons.includes(unpaid.reason)) reasons.push(unpaid.reason);
+  }
+  const hours = hoursReject(input.extraction);
+  if (hours !== null) {
+    decision = "reject";
+    if (!reasons.includes(hours.reason)) reasons.push(hours.reason);
   }
   return { decision, reasons, remainingFlags };
 }

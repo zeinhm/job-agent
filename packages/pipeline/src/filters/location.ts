@@ -114,6 +114,47 @@ function timezoneHits(field: Field): TimezoneHit[] {
   return hits;
 }
 
+const ZONE_PHRASE_RE =
+  /\b(?:europe(?:an)?|eu|emea|u\.?s\.?a?|americas?|american|north\s+america(?:n)?|latam)\s+time\s*-?zones?\b/i;
+const ZONE_ABBREV_RE = /(?<![A-Za-z])(?:CET|CEST|EET|EEST|EST|EDT|MST|MDT|PST|PDT)(?![A-Za-z])/;
+const RESIDENCE_RE =
+  /\b(?:located|based|living|lives?|reside|resides|residing|residents?)\s+(?:in|within)\b|\bmust\s+be\s+(?:in|within)\b/i;
+const COMPANY_SUBJECT_RE =
+  /\b(?:our|the)\s+(?:team|company|office|offices|headquarters|hq)\b|\bwe(?:'re|\s+are)\s+(?:located|based)\b/i;
+const ZONE_NEGATED_RE =
+  /\b(?:no|without|regardless\s+of|not\s+(?:tied|restricted|limited)\s+to)\b[^.]{0,40}\btime\s*-?zones?\b/i;
+const HOURS_RE =
+  /\boverlap|\bhours?\b|\bmornings?\b|\bafternoons?\b|\bevenings?\b|\bavailable\b|\bonline\b|\bworking\s+day\b|\bwork(?:ing)?\s+(?:in|with|within|to)\b/i;
+
+/**
+ * Time-zone wording naming a European or Americas zone ("European time zone", "CET", "EST"). For a GMT+7 candidate
+ * residence wording ("must live in", "based in CET +/- 2 hours") is a location restriction; working-hours wording
+ * ("overlap with CET", "available during PST hours") settles nothing here; a zone with neither is unclear.
+ * Explicit UTC/GMT ranges are handled by `timezoneHits`.
+ */
+function findZoneWording(fields: readonly Field[]): LocationResult | undefined {
+  let unclear: LocationResult | undefined;
+  for (const field of fields) {
+    for (const raw of field.text.split(/(?<=[.!?])\s+|[\n;|]+/)) {
+      const sentence = raw.trim();
+      if (!sentence || !(ZONE_PHRASE_RE.test(sentence) || ZONE_ABBREV_RE.test(sentence))) continue;
+      if (ZONE_NEGATED_RE.test(sentence)) continue;
+      if (RESIDENCE_RE.test(sentence) && !COMPANY_SUBJECT_RE.test(sentence)) {
+        return {
+          class: "restricted",
+          reason: `step 2 time zone residence restriction in ${field.name}: "${excerpt(sentence)}"`,
+        };
+      }
+      if (HOURS_RE.test(sentence)) continue;
+      unclear ??= {
+        class: "unclear",
+        reason: `step 2 time zone without residence or hours wording in ${field.name}: "${excerpt(sentence)}"`,
+      };
+    }
+  }
+  return unclear;
+}
+
 function stripAccents(text: string): string {
   return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 }
@@ -253,6 +294,8 @@ export function classifyLocation(input: LocationInput): LocationResult {
       reason: `step 2 timezone range excludes UTC+7 ${cite(excludingRange)}`,
     };
   }
+  const zoneWording = findZoneWording(allFields);
+  if (zoneWording?.class === "restricted") return zoneWording;
   const noRemote = findPhrase(allFields, NO_REMOTE_PHRASES);
   if (noRemote) {
     return { class: "restricted", reason: `step 2 no remote option ${cite(noRemote)}` };
@@ -279,6 +322,7 @@ export function classifyLocation(input: LocationInput): LocationResult {
 
   const textRestriction = findTextRestriction(descriptionField.text);
   if (textRestriction) return textRestriction;
+  if (zoneWording) return zoneWording;
 
   // 3. worldwide signal
   const worldwide =

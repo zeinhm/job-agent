@@ -22,7 +22,7 @@ import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { groupPostings, joinLocations } from "./group.ts";
 import { compareRanked, rankScore, TOP_MATCH_MIN_FIT } from "./rank.ts";
 import { spendSection } from "./spend.ts";
-import { buildWhy } from "./why.ts";
+import { buildWhy, hoursLine } from "./why.ts";
 
 export { formatSalary } from "./format.ts";
 
@@ -275,6 +275,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
         ...head,
         `- Fit: ${i.fit_score}/100 (rank ${rank})${fitReasons.length > 0 ? ` — ${fitReasons.join("; ")}` : ""}`,
         `- Tier / ask: ${i.tier ?? "no tier"} — ${label ?? "no ask decided"}`,
+        ...hoursLine(i.extraction),
         ...(i.scam_score !== null && i.scam_score > 0
           ? [`- Scam score: ${i.scam_score}${scamReason !== undefined ? ` — ${scamReason}` : ""}`]
           : []),

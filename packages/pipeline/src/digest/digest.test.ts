@@ -392,6 +392,22 @@ describe("runDigest", () => {
       expect(text).toContain("- Top matches: 1");
     });
 
+    it("a Top match shows the hours it expects, and none when no hours zone is set", () => {
+      seed("h1", { title: "Hours Engineer" });
+      seed("h2", { title: "No Hours Engineer" });
+      seed("h3", { title: "Open Hours Engineer" });
+      score("h1", { extraction: JSON.stringify({ hoursZone: "europe", overlapHours: 4 }) });
+      score("h2");
+      score("h3", { extraction: JSON.stringify({ hoursZone: "americas", overlapHours: null }) });
+      const { text } = run();
+      const top = text.slice(text.indexOf("## Top matches"), text.indexOf("## Waiting"));
+      const block = (title: string) =>
+        top.slice(top.indexOf(`### ${title}`)).split("\n### ")[0] ?? "";
+      expect(block("Hours Engineer")).toContain("- Hours: overlap 4 h with Europe\n");
+      expect(block("No Hours Engineer")).not.toContain("- Hours:");
+      expect(block("Open Hours Engineer")).toContain("- Hours: business hours with the Americas");
+    });
+
     it("never puts a group with a suspicious member in Top; shows the suspicious link", () => {
       seed("s1", { title: "Ops Lead" });
       seed("s2", { title: "Ops Lead" });

@@ -348,3 +348,62 @@ describe("classifyLocation: text restriction (t_56bbe118)", () => {
     expect(cl("We can hire in the U.S. and Canada only.").class).toBe("restricted");
   });
 });
+
+describe("time zones for a GMT+7 candidate: residence vs working hours", () => {
+  const desc = (descriptionText: string): LocationInput => ({
+    locationText: "Remote",
+    descriptionText,
+  });
+
+  it.each([
+    "We are looking for someone located in a European time zone.",
+    "Candidates should be based in CET +/- 2 hours.",
+    "You need to live in EST or a nearby zone.",
+    "Applicants residing in the Europe time zone are preferred.",
+    "Must live in PST.",
+  ])("residence wording %s -> restricted", (text) => {
+    check(desc(text), "restricted", "time zone residence");
+  });
+
+  it.each([
+    "We need at least 4 hours of overlap with CET.",
+    "You will work European business hours.",
+    "Must be available during PST hours.",
+    "Our team is based in CET, so expect some overlap with EST mornings.",
+    "Flexible schedule, but online during EET afternoons.",
+  ])("working-hours wording %s -> not restricted", (text) => {
+    const result = classifyLocation(desc(text));
+    expect(result.class).not.toBe("restricted");
+  });
+
+  it.each(["Remote, Europe time zone", "Europe timezone", "CET timezone"])(
+    "bare zone %s in location -> unclear",
+    (locationText) => {
+      check({ locationText }, "unclear", "time zone without residence or hours");
+    },
+  );
+
+  it("a bare zone in the description -> unclear", () => {
+    check(desc("This is a remote role in the European time zone."), "unclear", "time zone");
+  });
+
+  it("explicit ranges keep today's result", () => {
+    check({ locationText: "Anywhere (UTC-3 to UTC+3)" }, "restricted", "UTC-3 to UTC+3");
+    check({ locationText: "Remote", descriptionText: "Overlap with GMT+5 to GMT+9" }, "apac_ok");
+    check({ locationText: "Remote GMT+7" }, "apac_ok");
+  });
+
+  it("an APAC signal still beats a bare zone", () => {
+    check({ locationText: "Remote, Asia", descriptionText: "Europe time zone" }, "apac_ok");
+  });
+});
+
+describe("time zone wording: negation", () => {
+  it.each(["No US timezone restriction.", "We work async, regardless of European time zone."])(
+    "%s -> not a zone signal",
+    (descriptionText) => {
+      const r = classifyLocation({ locationText: "Remote", descriptionText });
+      expect(r.reason).not.toContain("time zone");
+    },
+  );
+});

@@ -44,6 +44,8 @@ const BLANK: Extraction = ExtractionSchema.parse({
   roleFamily: null,
   roleTitle: null,
   payType: null,
+  hoursZone: null,
+  overlapHours: null,
   contactChannels: [],
   personalEmailDomain: null,
   asksForPaymentOrId: null,

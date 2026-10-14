@@ -31,6 +31,9 @@ export type RoleFamily = (typeof ROLE_FAMILIES)[number];
 export const PAY_TYPES = ["paid", "unpaid", "equity_only"] as const;
 export type PayType = (typeof PAY_TYPES)[number];
 
+export const HOURS_ZONES = ["europe", "americas", "apac", "other"] as const;
+export type HoursZone = (typeof HOURS_ZONES)[number];
+
 export const ExtractionSchema = z.object({
   listedSalary: z
     .object({
@@ -68,6 +71,13 @@ export const ExtractionSchema = z.object({
   roleTitle: z.string().nullable().default(null),
   /** Old rows predate this fact: a missing field parses as null (the text does not say). */
   payType: z.enum(PAY_TYPES).nullable().default(null),
+  /**
+   * The zone whose working hours the posting asks you to overlap with (when you must be online, not where you
+   * live). Old rows predate it: missing parses as null.
+   */
+  hoursZone: z.enum(HOURS_ZONES).nullable().default(null),
+  /** Hours of required overlap with `hoursZone`; null when not stated. Old rows: missing parses as null. */
+  overlapHours: z.number().nullable().default(null),
   contactChannels: z.array(
     z.enum(["email", "company_form", "ats", "telegram", "whatsapp", "discord", "other_chat"]),
   ),
@@ -132,6 +142,10 @@ export const ExtractionWireSchema = z.object({
   roleTitle: z.string(),
   /** A plain enum with "unknown", so the union count does not grow. */
   payType: unknownEnum(PAY_TYPES),
+  /** A plain enum with "unknown", so the union count does not grow. */
+  hoursZone: unknownEnum(HOURS_ZONES),
+  /** 0 = not stated. A plain number, so the union count does not grow. */
+  overlapHours: z.number(),
   contactChannels: ExtractionSchema.shape.contactChannels,
   personalEmailDomain: triState,
   asksForPaymentOrId: triState,
@@ -165,6 +179,8 @@ export function toExtraction(w: ExtractionWire): Extraction {
     roleFamily: orNull(w.roleFamily),
     roleTitle: w.roleTitle.trim() === "" ? null : w.roleTitle.trim(),
     payType: orNull(w.payType),
+    hoursZone: orNull(w.hoursZone),
+    overlapHours: w.overlapHours > 0 ? w.overlapHours : null,
     contactChannels: w.contactChannels,
     personalEmailDomain: fromTri(w.personalEmailDomain),
     asksForPaymentOrId: fromTri(w.asksForPaymentOrId),

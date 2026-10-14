@@ -26,6 +26,8 @@ const BLANK: Extraction = ExtractionSchema.parse({
   seniority: null,
   roleFamily: null,
   payType: null,
+  hoursZone: null,
+  overlapHours: null,
   contactChannels: [],
   personalEmailDomain: null,
   asksForPaymentOrId: null,
@@ -285,7 +287,7 @@ describe("extraction schema: roleFamily", () => {
     expect(EXTRACT_SYSTEM_PROMPT).toContain("roleFamily");
     for (const family of ROLE_FAMILIES) expect(EXTRACT_SYSTEM_PROMPT).toContain(`"${family}"`);
     expect(EXTRACT_SYSTEM_PROMPT).toMatch(/"Gameplay Animator"[^.]*"design"/);
-    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v6");
+    expect(EXTRACT_PROMPT_VERSION).toBe("extract-v7");
   });
 });
 
@@ -480,5 +482,56 @@ describe("resolve: location without a flag (text restriction overrides the label
     expect(
       run([], { hiringScope: "countries", allowedCountries: ["GB"] }, "reject").reasons,
     ).toEqual([]);
+  });
+});
+
+describe("resolve: working hours", () => {
+  it.each([
+    ["europe", 4, "keep"],
+    ["americas", 2, "keep"],
+    ["americas", 3, "keep"],
+    ["americas", 4, "reject"],
+    ["americas", 8, "reject"],
+    ["americas", null, "keep"],
+    ["apac", 8, "keep"],
+    ["other", 8, "keep"],
+    [null, 8, "keep"],
+  ] as const)("%s / %s h -> %s", (hoursZone, overlapHours, decision) => {
+    const r = run([], { hoursZone, overlapHours });
+    expect(r.decision).toBe(decision);
+    if (decision === "reject")
+      expect(r.reasons).toEqual([
+        `Hours: needs ${overlapHours} h overlap with the Americas, which falls in the WIB night.`,
+      ]);
+    else expect(r.reasons).toEqual([]);
+  });
+
+  it("rejects next to a settled flag, even when the rules saw a worldwide label", () => {
+    const r = run(["location_unclear"], {
+      hoursZone: "americas",
+      overlapHours: 6,
+      hiringScope: "worldwide",
+    });
+    expect(r.decision).toBe("reject");
+    expect(r.reasons).toHaveLength(2);
+    expect(r.reasons.at(-1)).toContain("Hours: needs 6 h");
+  });
+
+  it("never overturns a rule reject", () => {
+    expect(run([], { hoursZone: "americas", overlapHours: 6 }, "reject").reasons).toEqual([]);
+  });
+
+  it("hours settle a location_unclear whose only question was a bare time zone", () => {
+    const r = run(["location_unclear"], { hoursZone: "europe", overlapHours: 4 });
+    expect(r.decision).toBe("keep");
+    expect(r.remainingFlags).toEqual([]);
+    expect(r.reasons[0]).toContain("working hours");
+  });
+
+  it("hours do not settle location_unclear when no hours are stated or places are named", () => {
+    expect(run(["location_unclear"], {}).remainingFlags).toEqual(["location_unclear"]);
+    expect(
+      run(["location_unclear"], { hoursZone: "europe", regions: ["Germany"] }).remainingFlags,
+    ).toEqual(["location_unclear"]);
   });
 });
