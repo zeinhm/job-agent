@@ -290,6 +290,10 @@ function section(md: string, heading: string): string {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
+/** "title — company" of each one-line entry under Waiting for scoring. */
+const waitingTitles = (s: string) =>
+  [...s.matchAll(/^- (.+?) — (.+?) — .+ — https?:\/\/\S+$/gm)].map((m) => `${m[1]} — ${m[2]}`);
+
 const titles = (s: string) => [...s.matchAll(/^### (.+)$/gm)].map((m) => m[1] as string);
 
 describe("phase 2 pipeline end to end", () => {
@@ -301,7 +305,7 @@ describe("phase 2 pipeline end to end", () => {
     for (const r of runs) expect(r.found, r.source).toBeGreaterThan(0);
   });
 
-  it("full run: ranked Top matches, each with a why line; the scam posting only under Suspicious", async () => {
+  it("full run: ranked Top matches, none with a why line; the scam posting only under Suspicious", async () => {
     await fetchAll();
     expect(runProcess({ db, now, ...io([]) })).toBe(0);
     const r = await enrich();
@@ -313,13 +317,14 @@ describe("phase 2 pipeline end to end", () => {
     const entries = titles(top);
     expect(entries.length).toBeGreaterThan(0);
     expect(entries).toContain("Senior Frontend Engineer — Fixture Labs");
-    // Every entry carries a fit line, a tier/ask line and a why line.
+    // Every entry carries a fit line, a type line and a tier/ask line, and no why line.
     const blocks = top.split(/^### /m).slice(1);
     expect(blocks).toHaveLength(entries.length);
     for (const b of blocks) {
       expect(b).toMatch(/^- Fit: \d+\/100 \(rank -?\d+\)/m);
       expect(b).toMatch(/^- Tier \/ ask: /m);
-      expect(b).toMatch(/^- Why: \S.+/m);
+      expect(b).toMatch(/^- Type: (employee|contractor|EOR|unknown)$/m);
+      expect(b).not.toContain("Why:");
       expect(b).toContain("React and TypeScript");
     }
     // Ranked: the "(rank N)" values never increase down the list.
@@ -389,8 +394,8 @@ describe("phase 2 pipeline end to end", () => {
 
     const md = digest();
     const wait = section(md, "Waiting for scoring");
-    expect(titles(wait).length).toBeGreaterThan(0);
-    expect(md).toContain(`- Waiting for scoring: ${titles(wait).length}`);
+    expect(waitingTitles(wait).length).toBeGreaterThan(0);
+    expect(md).toContain(`- Waiting for scoring: ${waitingTitles(wait).length}`);
     expect(wait).toContain("waiting for the daily LLM budget");
     const spend = section(md, "LLM spend");
     const m = /\$(\d+\.\d+) of \$1\.00 cap/.exec(spend);
@@ -419,11 +424,11 @@ describe("phase 2 pipeline end to end", () => {
 
     const md = digest();
     expect(section(md, "Top matches")).toContain("None scored yet.");
-    expect(titles(section(md, "Waiting for scoring")).length).toBeGreaterThan(0);
+    expect(waitingTitles(section(md, "Waiting for scoring")).length).toBeGreaterThan(0);
     // The text-only scam rules run without a key: the fee posting is suspicious, not "waiting".
     expect(r.out).toContain("scam rules checked");
     expect(titles(section(md, "Suspicious"))).toEqual(["Senior React Engineer — Fee Staffing Ltd"]);
-    expect(titles(section(md, "Waiting for scoring"))).not.toContain(
+    expect(waitingTitles(section(md, "Waiting for scoring"))).not.toContain(
       "Senior React Engineer — Fee Staffing Ltd",
     );
     expect(section(md, "LLM spend")).toContain("No LLM calls.");

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { main } from "../cli.ts";
 import { formatSalary, isDigestDate, jakartaDate, runDigest } from "./index.ts";
+import { MAX_LOCATION_CHARS } from "./group.ts";
 import { TOP_MATCH_MIN_FIT } from "./rank.ts";
 
 const NOW = new Date("2026-10-07T03:00:00Z");
@@ -107,6 +108,25 @@ function run1(
     .run();
 }
 
+function score(id: string, over: Partial<typeof intel.$inferInsert> = {}) {
+  db.insert(intel)
+    .values({
+      id: `i-${id}`,
+      posting_id: id,
+      status: "done",
+      final_decision: "keep",
+      scam_score: 0,
+      scam_reasons: "[]",
+      fit_score: 80,
+      fit_reasons: JSON.stringify(["Strong TypeScript match"]),
+      tier: "regional",
+      ask_idr_month: 35_000_000,
+      updated_at: "2026-10-07T02:00:00Z",
+      ...over,
+    })
+    .run();
+}
+
 function seedDay() {
   seed("m1", { title: "Older Match", posted: "2026-10-01T00:00:00Z" });
   seed("m2", { title: "Newest Match", posted: "2026-10-06T00:00:00Z" });
@@ -191,20 +211,15 @@ describe("runDigest", () => {
       text.indexOf("## Needs a look"),
     );
     const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Suspicious"));
-    expect(waiting.match(/^### /gm)).toHaveLength(5);
+    expect(waiting.match(/^- .+ — .+ — .+ — https:\/\/\S+$/gm)).toHaveLength(5);
+    expect(waiting).not.toContain("###");
     expect(waiting.indexOf("Newest Match")).toBeLessThan(waiting.indexOf("Older Match"));
     expect(waiting.indexOf("Older Match")).toBeLessThan(waiting.indexOf("Undated Match"));
     expect(looks).toContain("- New Flagged — Acme Inc: location_unclear");
     expect(looks).not.toContain("Old Flagged");
 
     // Duplicates are not separate entries.
-    expect(text).not.toContain("### Job d1");
-    expect(text).toContain("- Sources: remotive, himalayas, hn");
-    expect(text).toContain("- Salary: IDR 25.0M–30.0M / month");
-    expect(text).toContain("- Salary: salary unknown");
-    expect(text).toContain("- Flags: location_unclear");
-    expect(text).toContain("- Location: unclear — Worldwide");
-    expect(text).toContain("- Posted: unknown");
+    expect(text).not.toContain("Job d1");
     expect(text).toContain("- Kept: 5");
     expect(text).toContain("- Waiting for scoring: 5");
     expect(text).toContain(
@@ -224,7 +239,6 @@ describe("runDigest", () => {
     const { text } = run();
     const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Suspicious"));
     expect(looks).toContain("- Staff Engineer — Acme Inc: role_unclear");
-    expect(text).toContain("- Flags: role_unclear");
     expect(text).toContain(
       "- Rejected in the last 24h: 1 (location 0, indonesia 0, role 1, salary 0, language 0, unpaid 0)",
     );
@@ -297,6 +311,8 @@ describe("runDigest", () => {
   it("links the apply url for ATS canonicals and the posting url otherwise", () => {
     seed("ats", { source: "greenhouse", applyUrl: "https://apply.example.com/ats" });
     seed("api", { source: "remotive", applyUrl: "https://apply.example.com/api" });
+    score("ats");
+    score("api");
     const { text } = run();
     expect(text).toContain("- Link: https://apply.example.com/ats");
     expect(text).toContain("- Link: https://example.com/jobs/api");
@@ -307,6 +323,7 @@ describe("runDigest", () => {
     "links the ATS apply url for a %s posting",
     (source) => {
       seed("ats", { source, applyUrl: "https://apply.example.com/ats" });
+      score("ats");
       expect(run().text).toContain("- Link: https://apply.example.com/ats");
     },
   );
@@ -318,8 +335,8 @@ describe("runDigest", () => {
 
     seed("late", { title: "Late Match" });
     const second = run();
-    expect(second.text).toContain("### Late Match");
-    expect(second.text).toContain("### Newest Match");
+    expect(second.text).toContain("- Late Match — Acme Inc — ");
+    expect(second.text).toContain("- Newest Match — Acme Inc — ");
     expect(
       db.select().from(analysis).where(eq(analysis.posting_id, "late")).get()?.digested_at,
     ).toBe(DATE);
@@ -336,6 +353,7 @@ describe("runDigest", () => {
     });
     seed("g3", { title: "backend engineer", location: "Lisbon", company: "ACME" });
     seed("g4", { title: "Backend Engineer", location: "Lisbon", company: "Globex" });
+    for (const id of ["g1", "g2", "g3", "g4"]) score(id);
     const { text } = run();
     expect(text.match(/^### /gm)).toHaveLength(2);
     expect(text).toContain("- Location: worldwide — Austin; Berlin; Lisbon");
@@ -350,25 +368,6 @@ describe("runDigest", () => {
   });
 
   describe("groups take everything from one member", () => {
-    function score(id: string, over: Partial<typeof intel.$inferInsert> = {}) {
-      db.insert(intel)
-        .values({
-          id: `i-${id}`,
-          posting_id: id,
-          status: "done",
-          final_decision: "keep",
-          scam_score: 0,
-          scam_reasons: "[]",
-          fit_score: 80,
-          fit_reasons: JSON.stringify(["Strong TypeScript match"]),
-          tier: "regional",
-          ask_idr_month: 35_000_000,
-          updated_at: "2026-10-07T02:00:00Z",
-          ...over,
-        })
-        .run();
-    }
-
     it("takes link, title, salary, fit and why from the fit-scored member, not group[0]", () => {
       // g1 is the ATS member (group[0]) but unscored; g2 is scored with its own salary.
       seed("g1", {
@@ -437,7 +436,7 @@ describe("runDigest", () => {
       const waiting = text.slice(text.indexOf("## Waiting"), text.indexOf("## Needs a look"));
       expect(top).not.toContain("QA Lead");
       expect(waiting).toContain("QA Lead");
-      expect(waiting).toContain("- Link: https://example.com/jobs/w1");
+      expect(waiting).toContain(" — https://example.com/jobs/w1");
     });
 
     it("prefers a scored member that has an ask over one that has none", () => {
@@ -451,8 +450,121 @@ describe("runDigest", () => {
     });
   });
 
+  describe("shorter format", () => {
+    const topOf = (text: string) =>
+      text.slice(text.indexOf("## Top matches"), text.indexOf("## Scored, not a fit"));
+    const nine = [-8, -7, -6, -5, -4, -3, -1, 0, 2].map(
+      (h) => `UTC${h < 0 ? "-" : "+"}${Math.abs(h)}`,
+    );
+
+    const extraction = (over: Record<string, unknown> = {}) =>
+      JSON.stringify({
+        listedSalary: null,
+        listedSalaryScope: null,
+        hiringScope: "worldwide",
+        regions: [],
+        remoteRegions: [],
+        allowedCountries: [],
+        indonesiaExplicit: null,
+        companyHq: null,
+        companyType: null,
+        payPolicy: null,
+        employment: null,
+        eorProvider: null,
+        seniority: null,
+        roleFamily: "fullstack",
+        roleTitle: null,
+        contactChannels: [],
+        personalEmailDomain: null,
+        asksForPaymentOrId: null,
+        repoAssessmentEarly: null,
+        urgencyLanguage: null,
+        vagueDescription: null,
+        ...over,
+      });
+
+    it("has no Why line anywhere", () => {
+      seed("a", { title: "Alpha" });
+      score("a");
+      expect(run().text).not.toContain("Why:");
+    });
+
+    it("compresses 9 UTC offsets into a span", () => {
+      seed("z", { title: "Zones", location: nine.join(", ") });
+      score("z");
+      const text = run().text;
+      expect(text).toContain("- Location: worldwide — UTC-8 to UTC+2 (9 zones)\n");
+    });
+
+    it("compresses IANA zone names and leaves fewer than 3 offsets alone", () => {
+      seed("n", {
+        title: "Named",
+        location: "America/Los_Angeles, America/New_York, Europe/Berlin",
+      });
+      score("n");
+      seed("f", { title: "Few", location: "UTC-5, UTC+1" });
+      score("f");
+      const text = run().text;
+      expect(text).toContain("worldwide — UTC-8 to UTC+1 (3 zones)");
+      expect(text).toContain("worldwide — UTC-5, UTC+1");
+    });
+
+    it("cuts a 300-char location to 120 chars", () => {
+      seed("l", { title: "Long", location: "x".repeat(300) });
+      score("l");
+      const line =
+        run()
+          .text.split("\n")
+          .find((l) => l.startsWith("- Location: ")) ?? "";
+      const value = line.slice("- Location: ".length);
+      expect(value).toHaveLength(MAX_LOCATION_CHARS);
+      expect(value.endsWith("…")).toBe(true);
+    });
+
+    it.each([
+      ["employee", "employee"],
+      ["contractor", "contractor"],
+      ["eor", "EOR"],
+      [null, "unknown"],
+    ])("shows Type for employment %s", (employment, label) => {
+      seed("e", { title: "Typed" });
+      score("e", { extraction: extraction({ employment }) });
+      expect(topOf(run().text)).toContain(`- Type: ${label}\n`);
+    });
+
+    it("shows Type unknown without an extraction", () => {
+      seed("e", { title: "Typed" });
+      score("e");
+      expect(topOf(run().text)).toContain("- Type: unknown\n");
+    });
+
+    it("shows Flags: none when location_unclear was settled, and keeps other flags", () => {
+      seed("s", { title: "Settled", flags: ["location_unclear", "salary_unknown"] });
+      score("s", { extraction: extraction() });
+      seed("o", { title: "Open", flags: ["location_unclear"] });
+      score("o");
+      const blocks = topOf(run().text).split("### ").slice(1);
+      const settled = blocks.find((b) => b.startsWith("Settled")) ?? "";
+      const open = blocks.find((b) => b.startsWith("Open")) ?? "";
+      expect(settled).toContain("- Flags: salary_unknown\n");
+      expect(settled).not.toContain("location_unclear");
+      expect(open).toContain("- Flags: location_unclear\n");
+    });
+
+    it("lists waiting entries as single lines with status and link", () => {
+      seed("w", { title: "Wait", company: "Acme" });
+      const text = run().text;
+      const waiting = text.slice(text.indexOf("## Waiting"), text.indexOf("## Needs a look"));
+      expect(waiting).toContain("- Wait — Acme — not enriched yet — https://example.com/jobs/w\n");
+      expect(waiting).not.toContain("- Status:");
+    });
+  });
+
   it("caps joined locations at 5 with +N more", () => {
-    for (const c of "abcdefg") seed(`l${c}`, { title: "Same", location: `City ${c}` });
+    for (const c of "abcdefg") {
+      seed(`l${c}`, { title: "Same", location: `City ${c}` });
+      score(`l${c}`);
+    }
     const { text } = run();
     expect(text).toContain("City a; City b; City c; City d; City e; +2 more");
   });

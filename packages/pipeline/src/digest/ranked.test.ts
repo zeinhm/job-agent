@@ -120,7 +120,8 @@ describe("ranked digest", () => {
     expect(top.indexOf("Clean Seventy-Five")).toBeGreaterThan(-1);
     expect(top.indexOf("Clean Seventy-Five")).toBeLessThan(top.indexOf("Flagged Eighty"));
     expect(top).toContain("(rank 70)");
-    expect(top).toContain("role_unclear still open (-10)");
+    expect(top).toContain("- Flags: role_unclear");
+    expect(top).not.toContain("Why:");
   });
 
   it("adds the salary bonus only when the listed max reaches the ask", () => {
@@ -134,9 +135,7 @@ describe("ranked digest", () => {
     const top = sectionOf(run(), "Top matches");
     const entry = (t: string) => top.slice(top.indexOf(`### ${t}`)).split("\n### ")[0] ?? "";
     expect(entry("Covers Ask")).toContain("(rank 75)");
-    expect(entry("Covers Ask")).toContain("listed max covers the ask (+5)");
     expect(entry("Short Of Ask")).toContain("(rank 70)");
-    expect(entry("Short Of Ask")).not.toContain("covers the ask");
     expect(entry("No Max")).toContain("(rank 70)");
   });
 
@@ -291,7 +290,7 @@ describe("ranked digest", () => {
     expect(sectionOf(text, "Top matches")).toContain("(rank 77)");
   });
 
-  it("gives every top match fit score, reasons, tier and ask, and a why line", () => {
+  it("gives every top match fit score, reasons, type, tier and ask, and no why line", () => {
     seed("t1", {
       title: "Senior Frontend Engineer",
       max: 30_000_000,
@@ -314,28 +313,8 @@ describe("ranked digest", () => {
     expect(top).toContain("- Scam score: 15 — Recruiter uses a free email domain");
     expect(top).toContain("- Salary: IDR 20.0M–30.0M / month");
     expect(top).toContain("- Link: https://example.com/jobs/t1");
-    const why = top.split("\n").find((l) => l.startsWith("- Why: "));
-    expect(why).toBe(
-      "- Why: fit 82 — React and TypeScript lead roles; Next.js in the stack — tier global_adjusted, ask IDR 28.0M / month | USD 21,000 / year — listed max covers the ask (+5) — scam score 15",
-    );
-  });
-
-  it("shows the role reason resolved from facts in the Why line", () => {
-    seed("res", {
-      title: "Resolved Role",
-      intel: {
-        fit_score: 70,
-        resolved_reasons: JSON.stringify([
-          "Location: the posting hires worldwide.",
-          "Role: engineering role at senior level.",
-        ]),
-      },
-    });
-    const top = sectionOf(run(), "Top matches");
-    const why = top.split("\n").find((l) => l.startsWith("- Why: "));
-    expect(why).toContain("Role: engineering role at senior level");
-    expect(why).not.toContain("matches the target");
-    expect(why).not.toContain("worldwide");
+    expect(top).toContain("- Type: unknown");
+    expect(top).not.toContain("Why:");
   });
 
   it("shows the ask text when the policy is unknown", () => {
@@ -378,11 +357,14 @@ describe("ranked digest", () => {
     const text = run();
     const waiting = sectionOf(text, "Waiting for scoring");
     for (const t of ["No Intel Yet", "Budget Wait", "Failed One", "No Cv"]) {
-      expect(waiting).toContain(`### ${t}`);
+      expect(waiting).toMatch(
+        new RegExp(`^- ${t} — Company n\\d — .+ — https://example.com/jobs/n\\d$`, "m"),
+      );
     }
-    expect(waiting).toContain("- Status: not enriched yet");
-    expect(waiting).toContain("- Status: waiting for the daily LLM budget");
-    expect(waiting).toContain("- Status: no fit score");
+    expect(waiting).not.toContain("###");
+    expect(waiting).toContain(" — not enriched yet — ");
+    expect(waiting).toContain(" — waiting for the daily LLM budget — ");
+    expect(waiting).toContain(" — no fit score");
     expect(sectionOf(text, "Top matches")).toContain("None scored yet.");
   });
 
