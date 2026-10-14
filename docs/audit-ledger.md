@@ -59,3 +59,4 @@ Last audit tag: (none yet)
 | t_fb5c9fac | Time zone requirements for a GMT+7 candidate: residence vs working hours | medium | 169e896 | 2026-10-14 |
 | t_2e9e402a | Apply links: schema, resolve-apply command and ATS lookup by company name + title match | medium | 198340a | 2026-10-14 |
 | t_7f305c0c | Apply links: careers-page ATS detection and apply links in the posting text | medium | d31f792 | 2026-10-14 |
+| t_8e27df96 | Re-extract stored postings whose extraction used an older prompt version | medium | 599a0c0 | 2026-10-14 |
