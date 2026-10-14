@@ -41,8 +41,8 @@ Before you approve, look at these two things:
 
 | Source | Status | Card | Notes |
 |---|---|---|---|
-| `linkedin` (JobSpy) | **Built, never run live** | t_e781cb5e (high, audited) | Python worker `workers/jobspy/` (`python-jobspy==1.3.0`), logged out, no cookies or proxies. It prints JSON and the TS adapter is the only DB writer. Two searches per run (Worldwide, Indonesia), `hours_old = 1`, 25 results each, 10 s apart, minimum 50 min between runs. A block (429/999/403/authwall/captcha) gives an `error` run, then 6 h of `skipped` runs, also under `--force`. Nothing is retried |
-| `indeed` (JobSpy) | **Built, never run live** | t_f6be6d67 (high, audited) | Same worker and backoff. Searches: "global remote" (US Indeed site, because Indeed has no worldwide site) and "Indonesia remote". `hours_old = 3`, minimum 2 h between runs |
+| `linkedin` (JobSpy) | **Built, never run live** | t_e781cb5e (high, audited) | Python worker `workers/jobspy/` (`python-jobspy==1.3.0`), logged out, no cookies or proxies. It prints JSON and the TS adapter is the only DB writer. Two searches per run (Worldwide, Indonesia), adaptive `hours_old` (last ok run + 10 min, 1 to 24 h), 25 results each, 10 s apart, minimum 50 min between runs. A block (429/999/403/authwall/captcha) gives an `error` run, then 6 h of `skipped` runs, also under `--force`. Nothing is retried |
+| `indeed` (JobSpy) | **Built, never run live** | t_f6be6d67 (high, audited) | Same worker and backoff. Searches: "global remote" (US Indeed site, because Indeed has no worldwide site) and "Indonesia remote". same adaptive `hours_old`, minimum 2 h between runs |
 | `linkedin_posts` (Brave) | Built, never run live | t_74a60bf8 (high, audited) | Reads only Brave's result list. Our HTTP client refuses `linkedin.com`, `*.linkedin.com` and `lnkd.in`. It stores only the post URL plus facts built by plain code (storage option (a), your answer). Brave's title, snippet and poster are never stored. Hard cap: 30 Brave requests per UTC day across all callers |
 | YC directory -> ATS list | Built, **conflicts with your drop** | t_c26830be (medium) | See item 1 above |
 | YC jobs | Dropped by you | t_e9d06901 | YC terms forbid scraping; applying needs a YC login |
@@ -196,7 +196,7 @@ The code and tests are in place. The auditor confirmed each item:
 
 | Item | Where |
 |---|---|
-| `hours_old = 1` | `packages/sources/src/jobspy/index.ts:16` |
+| Adaptive `hours_old` (`lookbackHours`) | `packages/sources/src/jobspy/index.ts` |
 | Hourly at :05 with a lock | `scripts/crontab.example`, `bin/run-hourly` |
 | 50-minute minimum interval | `jobspy/index.ts:176`, enforced in `discover.ts` |
 | `LATE` when the max gap exceeds 65 min | `digest/freshness.ts:7` |

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { SourceBlockedError, SourceSkippedError } from "@job-agent/core";
 import { describe, expect, it, vi } from "vitest";
 import {
-  INDEED_HOURS_OLD,
   INDEED_MIN_INTERVAL_MINUTES,
   INDEED_RESULTS_WANTED,
   INDEED_SEARCHES,
@@ -35,6 +34,26 @@ const ok = (stdout: string) => ({ exitCode: 0, stdout });
 const make = (runWorker: WorkerRunner) =>
   createIndeedAdapter({ runWorker, sleep: async () => undefined, now: () => NOW });
 
+describe("indeed lookback", () => {
+  it("sends the computed hours_old to both searches and in smoke mode", async () => {
+    const since = new Date(NOW.getTime() - 130 * 60_000);
+    for (const smoke of [false, true]) {
+      const seen: WorkerSearch[] = [];
+      await createIndeedAdapter({
+        smoke,
+        sleep: async () => undefined,
+        now: () => NOW,
+        runWorker: async (s) => {
+          seen.push(s);
+          return ok("");
+        },
+      }).fetch(since);
+      expect(seen).toHaveLength(smoke ? 1 : 2);
+      for (const s of seen) expect(s.hours_old).toBe(3);
+    }
+  });
+});
+
 describe("indeed searches", () => {
   it("builds both searches with the research parameters", () => {
     expect(INDEED_SEARCHES).toEqual([
@@ -42,7 +61,6 @@ describe("indeed searches", () => {
         site: "indeed",
         search_term: 'senior frontend OR "full stack" OR react OR typescript',
         is_remote: true,
-        hours_old: 3,
         results_wanted: 50,
         country: "usa",
       },
@@ -51,13 +69,11 @@ describe("indeed searches", () => {
         search_term: 'senior frontend OR "full stack" OR react OR typescript',
         location: "Indonesia",
         is_remote: true,
-        hours_old: 3,
         results_wanted: 50,
         country: "indonesia",
       },
     ]);
-    // two runs 2 h apart overlap
-    expect(INDEED_HOURS_OLD * 60).toBeGreaterThan(INDEED_MIN_INTERVAL_MINUTES - 60);
+    expect(INDEED_MIN_INTERVAL_MINUTES).toBe(120);
     expect(INDEED_RESULTS_WANTED).toBeLessThanOrEqual(50);
   });
 
@@ -70,7 +86,8 @@ describe("indeed searches", () => {
     await adapter.fetch(NOW);
     expect(adapter.name).toBe("indeed");
     expect(adapter.minIntervalMinutes).toBe(120);
-    expect(seen).toEqual([...INDEED_SEARCHES]);
+    // since = now -> 1 h lookback on top of the fixed searches
+    expect(seen).toEqual(INDEED_SEARCHES.map((x) => ({ ...x, hours_old: 1 })));
   });
 
   it("smoke mode runs one search with at most 10 results", async () => {

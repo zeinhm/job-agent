@@ -140,7 +140,7 @@ file and PLAN.md disagree, block.
 ## 8. New sources
 | Source name | Adapter | Access | Max rate (binding) |
 |---|---|---|---|
-| `linkedin` | `packages/sources/src/jobspy/` + `workers/jobspy/` | JobSpy, logged out, `hours_old = 1` | 2 searches per hourly run (Worldwide + remote, Indonesia + remote), `results_wanted <= 25`, >= 10 s between searches, min poll interval 50 min |
+| `linkedin` | `packages/sources/src/jobspy/` + `workers/jobspy/` | JobSpy, logged out, adaptive `hours_old` (last ok run + 10 min, 1 to 24 h) | 2 searches per hourly run (Worldwide + remote, Indonesia + remote), `results_wanted <= 25`, >= 10 s between searches, min poll interval 50 min |
 | `indeed` | same | JobSpy | 2 searches per run (global remote, Indonesia remote), min poll interval 2 h |
 | `yc` | `packages/sources/src/yc/` | public ycombinator.com job pages (research decides endpoint) | per research, never faster than 1 request / 3 s, page cap |
 | `jobstreet` | `packages/sources/src/jobstreet/` | public search pages / endpoint (research decides) | per research, never faster than 1 request / 3 s, page cap |
@@ -162,7 +162,8 @@ file and PLAN.md disagree, block.
   as it does for `hn`.
 
 ## Freshness (the Phase 3 "done when")
-- LinkedIn guest search filters on "posted in the last hour" (`hours_old = 1`); the hourly schedule therefore makes a
+- LinkedIn guest search filters on "posted in the last N hours", where N is the lookback since the last ok run plus 10 min
+  (1 to 24, decisions.md 2026-10-14 adaptive lookback); the hourly schedule therefore makes a
   LinkedIn posting appear in the DB within about one hour. Proof = consecutive successful `linkedin` runs no more than
   65 minutes apart over a day, plus `first_seen_at` of postings found. The digest's Source health line for `linkedin`
   and `indeed` shows `last ok <hh:mm>, max gap <n> min in 24h`.

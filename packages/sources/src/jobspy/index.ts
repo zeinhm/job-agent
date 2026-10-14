@@ -12,8 +12,10 @@ import { createSpawnRunner, type WorkerRunner, type WorkerSearch } from "./worke
 
 type Site = "linkedin" | "indeed";
 
-/** Conventions section 8: past hour, at most 25 results, at least 10 s between the two searches. */
-export const LINKEDIN_HOURS_OLD = 1;
+/**
+ * Every search looks back from the last ok run of its source (`hours_old` is set in `fetch`, see `lookbackHours`).
+ * Conventions section 8: at most 25 results, at least 10 s between the two searches.
+ */
 export const LINKEDIN_RESULTS_WANTED = 25;
 export const SEARCH_GAP_MS = 10_000;
 /** Assumption (decisions.md): one plain term; LinkedIn's guest endpoint has no remote filter, so "remote" is in the term. */
@@ -23,25 +25,22 @@ export const LINKEDIN_SEARCHES: readonly WorkerSearch[] = [
     site: "linkedin",
     search_term: LINKEDIN_SEARCH_TERM,
     location: "Worldwide",
-    hours_old: LINKEDIN_HOURS_OLD,
     results_wanted: LINKEDIN_RESULTS_WANTED,
   },
   {
     site: "linkedin",
     search_term: LINKEDIN_SEARCH_TERM,
     location: "Indonesia",
-    hours_old: LINKEDIN_HOURS_OLD,
     results_wanted: LINKEDIN_RESULTS_WANTED,
   },
 ];
 
 /**
  * Indeed (research t_a46f63f1 Q2/Q4, conventions section 8): 2 searches per run, min poll interval 2 h.
- * `hours_old = 3` so that two runs 2 h apart overlap (dedupe makes repeats free). Indeed has no global site:
+ * The lookback window (`lookbackHours`) already overlaps the previous run (dedupe makes repeats free). Indeed has no global site:
  * the "global remote" search is country_indeed "usa" + is_remote (decisions.md). Indeed dates are whole UTC days, so
  * postings dated more than 48 h before the run are dropped in TS.
  */
-export const INDEED_HOURS_OLD = 3;
 export const INDEED_RESULTS_WANTED = 50;
 export const INDEED_MIN_INTERVAL_MINUTES = 120;
 export const INDEED_MAX_AGE_HOURS = 48;
@@ -51,7 +50,6 @@ export const INDEED_SEARCHES: readonly WorkerSearch[] = [
     site: "indeed",
     search_term: INDEED_SEARCH_TERM,
     is_remote: true,
-    hours_old: INDEED_HOURS_OLD,
     results_wanted: INDEED_RESULTS_WANTED,
     country: "usa",
   },
@@ -60,11 +58,23 @@ export const INDEED_SEARCHES: readonly WorkerSearch[] = [
     search_term: INDEED_SEARCH_TERM,
     location: "Indonesia",
     is_remote: true,
-    hours_old: INDEED_HOURS_OLD,
     results_wanted: INDEED_RESULTS_WANTED,
     country: "indonesia",
   },
 ];
+
+export const LOOKBACK_OVERLAP_MINUTES = 10;
+export const MIN_LOOKBACK_HOURS = 1;
+export const MAX_LOOKBACK_HOURS = 24;
+
+/**
+ * `hours_old` for a search: the time since `since` (the start of the last ok run, or the 7-day fallback) plus a
+ * 10 min overlap, rounded up to whole hours, clamped to 1..24 h. A `since` in the future (clock skew) gives 1.
+ */
+export function lookbackHours(since: Date, now: Date): number {
+  const minutes = (now.getTime() - since.getTime()) / 60_000 + LOOKBACK_OVERLAP_MINUTES;
+  return Math.min(MAX_LOOKBACK_HOURS, Math.max(MIN_LOOKBACK_HOURS, Math.ceil(minutes / 60)));
+}
 
 const errorLineSchema = z.object({
   error: z.string(),
@@ -157,7 +167,7 @@ export interface JobspyAdapterOptions {
   timeoutMs?: number;
   /** Defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
-  /** Indeed only: the clock for the age filter. */
+  /** The clock for the lookback window (both sites) and the Indeed age filter. */
   now?: () => Date;
 }
 export type LinkedInAdapterOptions = JobspyAdapterOptions;
@@ -266,14 +276,15 @@ function createJobspyAdapter(config: SiteConfig, opts: JobspyAdapterOptions): So
   return {
     name: SOURCE,
     minIntervalMinutes: config.minIntervalMinutes,
-    async fetch(): Promise<RawPosting[]> {
+    async fetch(since: Date): Promise<RawPosting[]> {
       warnings = [];
+      const hoursOld = lookbackHours(since, now());
       const byId = new Map<string, RawPosting>();
       let malformedTotal = 0;
       for (const [i, s] of searches.entries()) {
         if (i > 0) await sleep(SEARCH_GAP_MS);
         try {
-          const result = await search(s);
+          const result = await search({ ...s, hours_old: hoursOld });
           malformedTotal += result.malformed;
           for (const p of result.postings) if (!byId.has(p.externalId)) byId.set(p.externalId, p);
         } catch (err) {

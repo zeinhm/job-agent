@@ -81,8 +81,10 @@ def parse_args(raw):
     if location is not None and not isinstance(location, str):
         raise WorkerError("location must be a string")
     hours_old = data.get("hours_old")
-    if hours_old is not None and (not isinstance(hours_old, int) or isinstance(hours_old, bool) or hours_old < 1):
-        raise WorkerError("hours_old must be a positive integer")
+    if hours_old is not None and (
+        not isinstance(hours_old, int) or isinstance(hours_old, bool) or hours_old < 1 or hours_old > 24
+    ):
+        raise WorkerError("hours_old must be an integer from 1 to 24")
     wanted = data.get("results_wanted", 10)
     if not isinstance(wanted, int) or isinstance(wanted, bool) or wanted < 1 or wanted > SITES[site]:
         raise WorkerError("results_wanted must be an integer from 1 to %d for %s" % (SITES[site], site))

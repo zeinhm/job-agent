@@ -9,10 +9,10 @@ import {
 } from "@job-agent/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  LINKEDIN_HOURS_OLD,
   LINKEDIN_RESULTS_WANTED,
   SEARCH_GAP_MS,
   createLinkedInAdapter,
+  lookbackHours,
 } from "./index.ts";
 import { NOT_INSTALLED, type WorkerRunner, type WorkerSearch } from "./worker.ts";
 
@@ -130,8 +130,49 @@ describe("linkedin adapter mapping", () => {
   });
 });
 
+const min = (n: number) => n * 60_000;
+describe("lookbackHours", () => {
+  const NOW = new Date("2026-10-14T12:00:00Z");
+  const hoursFor = (agoMs: number) => lookbackHours(new Date(NOW.getTime() - agoMs), NOW);
+  it.each([
+    ["0 min", 0, 1],
+    ["50 min (exactly 60 with overlap)", min(50), 1],
+    ["51 min", min(51), 2],
+    ["70 min", min(70), 2],
+    ["2 h 10 min", min(130), 3],
+    ["6 h 5 min (after a block backoff)", min(365), 7],
+    ["23 h 50 min", min(23 * 60 + 50), 24],
+    ["30 h", min(30 * 60), 24],
+    ["7 days", min(7 * 24 * 60), 24],
+    ["1 h in the future", -min(60), 1],
+  ])("%s -> %i", (_label, ago, expected) => {
+    expect(hoursFor(ago)).toBe(expected);
+  });
+});
+
+describe("linkedin lookback", () => {
+  const NOW = new Date("2026-10-14T12:00:00Z");
+  it("sends the computed hours_old to both searches and in smoke mode", async () => {
+    for (const smoke of [false, true]) {
+      const seen: WorkerSearch[] = [];
+      const runWorker: WorkerRunner = async (s) => {
+        seen.push(s);
+        return ok("");
+      };
+      await createLinkedInAdapter({
+        runWorker,
+        smoke,
+        sleep: async () => undefined,
+        now: () => NOW,
+      }).fetch(new Date(NOW.getTime() - min(365)));
+      expect(seen).toHaveLength(smoke ? 1 : 2);
+      for (const s of seen) expect(s.hours_old).toBe(7);
+    }
+  });
+});
+
 describe("linkedin searches", () => {
-  it("runs Worldwide then Indonesia, 10 s apart, past hour, at most 25 results", async () => {
+  it("runs Worldwide then Indonesia, 10 s apart, lookback hours, at most 25 results", async () => {
     vi.useFakeTimers();
     const started: { search: WorkerSearch; at: number }[] = [];
     const runWorker: WorkerRunner = async (search) => {
@@ -147,11 +188,10 @@ describe("linkedin searches", () => {
     expect((started[1]?.at ?? 0) - (started[0]?.at ?? 0)).toBeGreaterThanOrEqual(10_000);
     for (const { search } of started) {
       expect(search.site).toBe("linkedin");
-      expect(search.hours_old).toBe(1);
+      expect(search.hours_old).toBe(1); // since = now
       expect(search.results_wanted).toBeLessThanOrEqual(25);
       expect(search.search_term).toContain("remote");
     }
-    expect(LINKEDIN_HOURS_OLD).toBe(1);
     expect(LINKEDIN_RESULTS_WANTED).toBeLessThanOrEqual(25);
     expect(SEARCH_GAP_MS).toBeGreaterThanOrEqual(10_000);
   });

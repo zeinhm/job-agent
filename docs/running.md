@@ -238,7 +238,10 @@ workers/jobspy/.venv/bin/pip install -r workers/jobspy/requirements.txt
 ```
 
 Run it with `pnpm job-agent discover --source linkedin`. Each run does two searches (Worldwide + remote, Indonesia +
-remote) for the past hour, at most 25 results each, 10 s apart; the poll interval is 50 minutes. Without the venv the
+remote), at most 25 results each, 10 s apart; the poll interval is 50 minutes. The search window (`hours_old`, both
+LinkedIn and Indeed) is the time since the start of the source's last ok run plus 10 minutes, rounded up to whole
+hours and clamped to 1 to 24 hours; with no ok run yet it is 24. Errors, blocks and backoff-skipped runs do not advance
+it, so nothing posted in such a gap is missed (dedupe absorbs the overlap). Without the venv the
 run is recorded as `skipped` ("jobspy worker not installed (see workers/jobspy/README.md)"), never as `ok`.
 
 A block (HTTP 429 / 999 / 403, authwall, CAPTCHA) is recorded as an `error` run (`blocked: ...`) and the source is then
@@ -246,7 +249,7 @@ A block (HTTP 429 / 999 / 403, authwall, CAPTCHA) is recorded as an `error` run 
 rotated. To lift the backoff early, wait it out: it is a protection for your home IP.
 
 The `indeed` source (`pnpm job-agent discover --source indeed`) uses the same worker, venv and block backoff. Each run
-does two remote searches, 10 s apart, `hours_old = 3`, at most 50 results each: "global remote" (`country_indeed = usa`
+does two remote searches, 10 s apart, the same lookback window, at most 50 results each: "global remote" (`country_indeed = usa`
 with `is_remote`; Indeed has no worldwide site, so this one is US-scoped) and "Indonesia remote" (`location = Indonesia`,
 `country_indeed = indonesia`, `is_remote`), term `senior frontend OR "full stack" OR react OR typescript`. The poll
 interval is 2 hours: a run started sooner is recorded as `skipped` (`indeed: skipped (polled less than 120 min ago)`).

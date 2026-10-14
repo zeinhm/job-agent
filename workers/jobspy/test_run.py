@@ -47,10 +47,16 @@ class ParseArgsTest(unittest.TestCase):
             json.dumps({**LINKEDIN, "search_term": " "}),
             json.dumps({**LINKEDIN, "results_wanted": 26}),
             json.dumps({**LINKEDIN, "hours_old": 0}),
+            json.dumps({**LINKEDIN, "hours_old": 25}),
             json.dumps({**LINKEDIN, "is_remote": "yes"}),
         ):
             with self.assertRaises(run.WorkerError, msg=bad):
                 run.parse_args(bad)
+
+    def test_hours_old_upper_bound(self):
+        self.assertEqual(run.parse_args(json.dumps({**LINKEDIN, "hours_old": 24}))["hours_old"], 24)
+        with self.assertRaises(run.WorkerError):
+            run.parse_args(json.dumps({**LINKEDIN, "hours_old": 25}))
 
     def test_linkedin_gets_no_remote_or_country_argument(self):
         kwargs = run.build_kwargs(
