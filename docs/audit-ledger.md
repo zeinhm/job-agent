@@ -63,3 +63,4 @@ Last audit tag: (none yet)
 | t_0bfea274 | Apply links: one Haiku call picks among candidate links when the rules leave it unclear | medium | a2c57b1 | 2026-10-14 |
 | t_c26830be | Add hiring YC companies from the public directory to the ATS polling list | medium | d096002 | 2026-10-14 |
 | t_d46f2a41 | Shorter digest: no Why line, compact time zones, employment type, only open flags, one-line waiting entries | medium | 4bc3e97 | 2026-10-14 |
+| t_fbc60316 | Digest shows Apply, Found on and the apply type; paid-only jobs stay listed with a label | medium | d1c2e63 | 2026-10-14 |
