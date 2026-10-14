@@ -19,10 +19,10 @@ import { failedFitRuns, MAX_FIT_ATTEMPTS } from "../intel/fit.ts";
 import { resolveFlags, UNPAID_REASON } from "../intel/resolve.ts";
 import { TIER_SKIPPED_NO_FX } from "../intel/tier.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
-import { groupPostings, joinLocations } from "./group.ts";
+import { capText, compressZones, groupPostings, joinLocations } from "./group.ts";
 import { compareRanked, rankScore, TOP_MATCH_MIN_FIT } from "./rank.ts";
 import { spendSection } from "./spend.ts";
-import { buildWhy, hoursLine } from "./why.ts";
+import { hoursLine } from "./why.ts";
 
 export { formatSalary } from "./format.ts";
 
@@ -138,6 +138,23 @@ function waitingReason(i: Intel | null): string {
   return "no fit score (no CV configured or fit not run)";
 }
 
+const EMPLOYMENT_LABELS: Record<string, string> = {
+  employee: "employee",
+  contractor: "contractor",
+  eor: "EOR",
+};
+
+/** Employment type from the stored extraction; "unknown" when null, missing or unreadable. */
+function employmentLabel(extraction: string | null): string {
+  if (extraction == null) return "unknown";
+  try {
+    const e: unknown = (JSON.parse(extraction) as { employment?: unknown } | null)?.employment;
+    return (typeof e === "string" && EMPLOYMENT_LABELS[e]) || "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 const isScored = (r: Row) =>
   r.i !== null && r.i.status === "done" && r.i.final_decision === "keep" && r.i.fit_score !== null;
 
@@ -181,6 +198,8 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
   const title = displayTitle(p, i);
   const flags = [...new Set(group.flatMap((r) => parseList(r.a.flags)))];
   const unclear = remainingUnclear(flags, i);
+  // Settled unclear flags are dropped; rule flags that are not unclear flags stay.
+  const openFlags = flags.filter((f) => !UNCLEAR_FLAGS.includes(f) || unclear.includes(f));
   const sources: string[] = [];
   for (const r of group) {
     const dups = db
@@ -195,7 +214,9 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
   }
   const link = isAtsSource(p.source) ? (p.apply_url ?? p.url) : p.url;
   const locations = joinLocations(group.map((r) => r.p.location_text));
-  const location = [a.location_class, locations].filter((x) => x).join(" — ");
+  const location = capText(
+    compressZones([a.location_class, locations].filter((x) => x).join(" — ")),
+  );
   const dates = group.map((r) => r.p.posted_at).filter((d): d is string => d !== null);
   const posted = dates.length > 0 ? dates.reduce((x, y) => (x > y ? x : y)) : null;
   const salary = formatSalary({
@@ -207,7 +228,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
   const common = [
     `- Location: ${location}`,
     `- Salary: ${salary}`,
-    `- Flags: ${flags.length > 0 ? flags.join(", ") : "none"}`,
+    `- Flags: ${openFlags.length > 0 ? openFlags.join(", ") : "none"}`,
     `- Link: ${link}`,
     `- Sources: ${sources.join(", ")}`,
     `- Posted: ${posted !== null ? posted.slice(0, 10) : "unknown"}`,
@@ -243,17 +264,6 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
       listedMaxIdrMonth: a.salary_idr_month_max,
       askIdrMonth: i.ask_idr_month,
     });
-    const why = buildWhy({
-      fitScore: i.fit_score,
-      fitReasons,
-      resolvedReasons: parseList(i.resolved_reasons),
-      tier: i.tier,
-      askLabel: label,
-      remainingUnclearFlags: unclear,
-      listedMaxIdrMonth: a.salary_idr_month_max,
-      askIdrMonth: i.ask_idr_month,
-      scamScore: i.scam_score,
-    });
     if (i.fit_score < TOP_MATCH_MIN_FIT) {
       const reason = fitReasons[0];
       return {
@@ -274,12 +284,12 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
       line: [
         ...head,
         `- Fit: ${i.fit_score}/100 (rank ${rank})${fitReasons.length > 0 ? ` — ${fitReasons.join("; ")}` : ""}`,
+        `- Type: ${employmentLabel(i.extraction)}`,
         `- Tier / ask: ${i.tier ?? "no tier"} — ${label ?? "no ask decided"}`,
         ...hoursLine(i.extraction),
         ...(i.scam_score !== null && i.scam_score > 0
           ? [`- Scam score: ${i.scam_score}${scamReason !== undefined ? ` — ${scamReason}` : ""}`]
           : []),
-        `- Why: ${why}`,
         ...common,
       ],
     };
@@ -289,7 +299,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     ...base,
     kind: "waiting",
     rank: 0,
-    line: [...head, `- Status: ${waitingReason(i)}`, ...common],
+    line: [`- ${title} — ${p.company_name} — ${waitingReason(i)} — ${link}`],
   };
 }
 
