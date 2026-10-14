@@ -57,8 +57,8 @@ pipeline commands; `private-patterns.txt` is used by the pre-commit hook.
 | `BRAVE_API_KEY` | (none) | Brave Search API key for `discover-companies`. Without it the command prints `BRAVE_API_KEY not set, company discovery skipped` and exits 0 |
 | `JOB_AGENT_LLM_CAP_USD` | `1` | Daily LLM spend cap in USD. It can only **lower** the cap (see "LLM cost cap") |
 
-Never put a key or token in a committed file. Set them in your shell profile or in your local crontab's environment
-lines. `.env.example` lists the names with empty values.
+Never put a key or token in a committed file. Put them in the repo's `.env` (git-ignored; the CLI loads it itself,
+variables already set in the environment win) or in your shell profile. `.env.example` lists the names with empty values.
 
 ## Commands
 
@@ -123,7 +123,7 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
   `issues` (Zod paths and codes, never the model's text). The same facts end up in `intel.resolved_reasons`, e.g.
   `fit stop_reason:max_tokens`, `fit output_tokens:1536`, `fit max_tokens:1536`.
 - **Lower the cap** with `JOB_AGENT_LLM_CAP_USD`, e.g. `JOB_AGENT_LLM_CAP_USD=0.25 pnpm job-agent enrich`, or
-  `JOB_AGENT_LLM_CAP_USD=0.25` in your crontab environment lines. The variable can only lower the cap: a value above 1
+  `JOB_AGENT_LLM_CAP_USD=0.25` in your `.env`. The variable can only lower the cap: a value above 1
   is ignored with a warning and the cap stays at $1.00; a value that is not a number is ignored too. `0` makes no
   calls. Raising the cap means changing `DAILY_LLM_CAP_USD` in the code, which is the owner's decision.
 - **When the cap is reached**, `enrich` stops calling the API. The postings it did not reach are marked `budget_wait`
@@ -214,10 +214,21 @@ Plain `bin/smoke` never touches LinkedIn.
 
 - `fx` daily at 06:50 Asia/Jakarta
 - `discover-companies` daily at 07:00 Asia/Jakarta (before the first `discover` of the day)
-- `discover`, `process`, then `enrich` every 2 hours (at :30)
-- `discover`, `process`, `enrich`, then `digest` daily at 08:00 Asia/Jakarta
+- `bin/run-hourly` every hour at :05: `discover`, `process`, `enrich`, `resolve-apply`, `digest` in that order. Each
+  step appends to `data/logs/<command>.log`; a failing step does not stop the next ones (the script then exits 1).
 
-So the order in a day is `fx` -> `discover-companies` -> `discover` -> `process` -> `enrich` -> `digest`.
+So the order in a day is `fx` -> `discover-companies` -> hourly `discover` -> `process` -> `enrich` -> `resolve-apply` -> `digest`.
+Sources polled less often than hourly record `skipped` runs; the adapters' own minimum poll intervals still apply.
+
+**No overlapping runs.** `bin/run-hourly` takes a lock by creating the directory `data/locks/hourly`. A run that finds
+it prints `run-hourly: previous run still active, skipped` and exits 0. A lock older than 3 hours (left by a crashed
+run) is removed with a log line, and the run goes on. The lock is removed when the run ends, also after a failing step.
+
+**Keys live in `.env`, not in the crontab.** The CLI reads `<repo root>/.env` itself at start (the repo root is found
+from the CLI file, not the working directory), so cron needs no environment lines for keys. A variable already set in
+the environment wins over the file; a missing file is fine; an unreadable file or a line that is not `KEY=VALUE` gives
+one stderr line that names the file (never a key or a value). `JOB_AGENT_ENV_FILE` points the CLI at another file.
+`bin/smoke` sets it to `/dev/null`, so a smoke run never picks up your key.
 
 Cron uses the Mac's local time. The example assumes the clock is set to Asia/Jakarta; otherwise convert the hours.
 
@@ -225,9 +236,8 @@ To install:
 
 1. Copy it: `cp scripts/crontab.example data/crontab` (`data/` is gitignored).
 2. In the copy, replace `/ABSOLUTE/PATH/TO/job-agent` with the repo root (`pwd`) and `/ABSOLUTE/PATH/TO/node/bin` with
-   `dirname "$(command -v pnpm)"` (cron has a minimal `PATH`). Add `ANTHROPIC_API_KEY=<key>`, `BRAVE_API_KEY=<key>`,
-   `JOB_AGENT_LLM_CAP_USD=<lower cap, optional>` and `WEB3_CAREER_TOKEN=<token>` (if you use web3.career) under the
-   `PATH` line. Keep the copy in `data/`, never commit it.
+   `dirname "$(command -v pnpm)"` (cron has a minimal `PATH`). Put the keys in the repo's `.env` (copy
+   `.env.example`; `.env` is git-ignored), not in the crontab. Keep the copy in `data/`, never commit it.
 3. Check what is already installed: `crontab -l`. `crontab <file>` **replaces** your whole crontab, so merge any
    existing lines into the copy first.
 4. Install: `crontab data/crontab`, then `crontab -l` to confirm.

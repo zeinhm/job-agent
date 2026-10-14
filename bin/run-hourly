@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# bin/run-hourly: the hourly product run. discover -> process -> enrich -> resolve-apply -> digest, each appended to
+# data/logs/<command>.log. A mkdir lock (data/locks/hourly) stops overlapping runs: a run that finds it prints
+# "run-hourly: previous run still active, skipped" and exits 0. A lock older than 3 h is stale (crashed run) and is removed.
+# Steps are separated like `;`: a failing step does not stop the next ones (exit 1 at the end if any failed).
+# Keys come from the repo's .env, which the CLI loads itself. JOB_AGENT_CLI overrides the CLI command and
+# JOB_AGENT_DATA_DIR the data dir (both used by tests).
+set -uo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; cd "$REPO"
+DATA="${JOB_AGENT_DATA_DIR:-$REPO/data}"
+LOCK="$DATA/locks/hourly"
+mkdir -p "$DATA/locks" "$DATA/logs"
+if ! mkdir "$LOCK" 2>/dev/null; then
+  if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +180 2>/dev/null)" ]; then
+    echo "run-hourly: stale lock (older than 3 h) removed"
+    rmdir "$LOCK" 2>/dev/null || rm -rf "$LOCK"
+    mkdir "$LOCK" 2>/dev/null || { echo "run-hourly: previous run still active, skipped"; exit 0; }
+  else
+    echo "run-hourly: previous run still active, skipped"; exit 0
+  fi
+fi
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+trap 'exit 143' INT TERM HUP
+read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
+fail=0
+for cmd in discover process enrich resolve-apply digest; do
+  "${CLI[@]}" "$cmd" >> "$DATA/logs/$cmd.log" 2>&1 || fail=1
+done
+exit "$fail"

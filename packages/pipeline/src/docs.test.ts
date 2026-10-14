@@ -42,22 +42,24 @@ describe("Phase 2 run docs", () => {
     expect(envExample).not.toMatch(/sk-ant|=\S/);
   });
 
-  it("runs the cron steps in the order fx -> discover-companies -> discover -> process -> enrich -> digest", () => {
+  it("runs fx -> discover-companies daily, then one hourly bin/run-hourly line, with no keys in the crontab", () => {
     const flat = jobs.flatMap(commandsOf);
-    expect(flat.slice(0, 2)).toEqual(["fx", "discover-companies"]);
-    expect(jobs.map(commandsOf)).toContainEqual(["discover", "process", "enrich"]);
-    expect(jobs.map(commandsOf)).toContainEqual(["discover", "process", "enrich", "digest"]);
-    // daily jobs: fx runs before discover-companies, which runs before the first discover
+    expect(flat).toEqual(["fx", "discover-companies"]);
+    const hourly = jobs.filter((l) => l.includes("bin/run-hourly"));
+    expect(hourly).toHaveLength(1);
+    expect(hourly[0]).toMatch(/^5 \* \* \* \* /);
+    // daily jobs: fx runs before discover-companies
     const hm = (cmd: string): number => {
-      // "discover" = the daily digest run (a fixed hour), not the every-2-hours job
-      const l = jobs.find(
-        (j) => commandsOf(j)[0] === cmd && (cmd !== "discover" || commandsOf(j).includes("digest")),
-      ) as string;
+      const l = jobs.find((j) => commandsOf(j)[0] === cmd) as string;
       const [m, h] = l.split(" ");
       return Number(h) * 60 + Number(m);
     };
     expect(hm("fx")).toBeLessThan(hm("discover-companies"));
-    expect(hm("discover-companies")).toBeLessThan(hm("discover"));
+    expect(cron).not.toMatch(/^[A-Z_]*(KEY|TOKEN)=/m);
+    // the hourly script runs the steps in the documented order
+    const script = read("bin/run-hourly");
+    expect(script).toContain("for cmd in discover process enrich resolve-apply digest; do");
+    expect(running).toContain("`discover`, `process`, `enrich`, `resolve-apply`, `digest`");
   });
 
   it("contains no real-looking secrets or personal data", () => {

@@ -1,4 +1,14 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -21,7 +31,7 @@ function run(env: Record<string, string> = {}, flags: string[] = []) {
     cli,
     `#!/usr/bin/env bash
 [ $# -eq 0 ] && exit 0 # usage probe
-echo "$* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR KEY=\${ANTHROPIC_API_KEY:-}" >> "${log}"
+echo "$* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-}" >> "${log}"
 if [ "$1" = discover ] && [ "$4" = remotive ]; then echo "remotive: error, boom"; exit 1; fi
 if [ "$1" = process ] && [ -n "$FAIL_PROCESS" ]; then exit 1; fi
 if [ "$1" = digest ]; then echo "$3/2026-01-01.md"; fi
@@ -112,4 +122,43 @@ describe("bin/smoke", () => {
     expect(res.status).toBe(1);
     expect(calls.some((c) => c.startsWith("digest"))).toBe(true);
   });
+
+  it("points the CLI at /dev/null instead of .env, whatever JOB_AGENT_ENV_FILE says", () => {
+    const { calls } = run({ JOB_AGENT_ENV_FILE: "/some/fake/.env" });
+    expect(calls.length).toBeGreaterThan(0);
+    for (const c of calls) expect(c).toContain("ENVFILE=/dev/null ");
+  });
+
+  it("with the real CLI and a fake .env holding a key, `bin/smoke run enrich` still skips (no key seen)", () => {
+    const work = mkdtempSync(join(tmpdir(), "job-agent-smoke-test-"));
+    dirs.push(work);
+    const dir = join(work, "smoke");
+    mkdirSync(join(dir, "config"), { recursive: true });
+    writeFileSync(join(dir, "smoke.db"), "");
+    for (const f of readdirSync(join(repo, "config")).filter((n) => n.includes(".example."))) {
+      copyFileSync(join(repo, "config", f), join(dir, "config", f.replace(".example", "")));
+    }
+    const fakeEnv = join(work, ".env");
+    writeFileSync(fakeEnv, "ANTHROPIC_API_KEY=sk-ant-fake\n");
+    const env: NodeJS.ProcessEnv = { ...process.env, JOB_AGENT_ENV_FILE: fakeEnv };
+    delete env.ANTHROPIC_API_KEY;
+    delete env.JOB_AGENT_CLI;
+    const res = spawnSync("bash", [join(repo, "bin/smoke"), "run", dir, "enrich"], {
+      cwd: repo,
+      encoding: "utf-8",
+      env,
+    });
+    expect(res.stdout).toContain("ANTHROPIC_API_KEY not set, LLM stages skipped");
+    // Control: the same CLI run directly (no bin/smoke) loads the key from that file, so no skip line.
+    const direct = spawnSync("pnpm", ["-s", "job-agent", "enrich"], {
+      cwd: repo,
+      encoding: "utf-8",
+      env: {
+        ...env,
+        JOB_AGENT_DB: join(dir, "smoke.db"),
+        JOB_AGENT_CONFIG_DIR: join(dir, "config"),
+      },
+    });
+    expect(direct.stdout).not.toContain("ANTHROPIC_API_KEY not set");
+  }, 60_000);
 });

@@ -9,6 +9,7 @@ import { runResolveApply } from "./apply-links/index.ts";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
 import { runDiscoverCompanies } from "./discover-companies.ts";
+import { loadEnvFile } from "./env.ts";
 import { runEnrich } from "./enrich.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
@@ -231,5 +232,7 @@ export async function main(
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  // Before any command, so cron needs no keys in the crontab. Not inside main(): tests call main() and must not read a real .env.
+  loadEnvFile((t) => process.stderr.write(t));
   process.exitCode = await main(process.argv.slice(2));
 }
