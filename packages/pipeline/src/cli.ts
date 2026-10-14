@@ -8,6 +8,7 @@ import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runResolveApply } from "./apply-links/index.ts";
 import { runDigest } from "./digest/index.ts";
 import { runDiscover } from "./discover.ts";
+import { freshnessSuffix } from "./digest/freshness.ts";
 import { runDiscoverCompanies } from "./discover-companies.ts";
 import { loadEnvFile } from "./env.ts";
 import { runEnrich } from "./enrich.ts";
@@ -184,7 +185,10 @@ const commands: Record<string, Command> = {
       io.out("source status (latest run)\n");
       for (const r of [...latest.values()].sort((a, b) => a.source.localeCompare(b.source))) {
         const detail = r.error_message ? `, ${r.error_message}` : "";
-        io.out(`  ${r.source}: ${r.status}, found ${r.found}, new ${r.new}${detail}\n`);
+        const fresh = freshnessSuffix(db, r.source, new Date());
+        io.out(
+          `  ${r.source}: ${r.status}, found ${r.found}, new ${r.new}${detail}${fresh !== undefined ? ` — ${fresh}` : ""}\n`,
+        );
       }
       return 0;
     } finally {

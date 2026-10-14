@@ -319,6 +319,13 @@ The last section of every digest has one line per source that has ever run, buil
 - `ok, found N, new M`: the source answered; N postings in its response window, M not seen before.
 - `skipped`: the latest run came too soon after the previous successful one (poll interval). Normal between polls.
 - `error, ..., error: <message>`: the latest run failed; the message says why (HTTP status, invalid response, missing token).
+- **Freshness (`linkedin`, `indeed`)**: these lines carry proof of how often the source was polled, e.g.
+  `- **linkedin**: ok, found 12, new 2 — last ok 13:05 WIB, max gap 60 min in 24h`. `last ok` is the start of the latest
+  successful run (WIB); `max gap` is the longest time between two consecutive `ok` runs in the last 24h
+  (`max gap n/a` with a single ok run, `no ok run in 24h` with none). ` — LATE` is added when that gap is above 65 min
+  (`linkedin`) or 130 min (`indeed`): the Phase 3 "LinkedIn jobs appear within an hour" check fails for that day.
+  ` — in backoff until HH:MM WIB` means the source refused us (block) and is not polled until then. `pnpm job-agent status`
+  prints the same suffix after each source's latest run. Other sources keep the plain line.
 - `no run in the last 24h`: cron or `discover` has not run this source for a day.
 - `NO SUCCESSFUL RUN`: no `ok` run in the last 24 hours. A source with this mark for more than a day needs a look:
   check `data/logs/discover.log`, then run `pnpm job-agent discover --source <name>` by hand.

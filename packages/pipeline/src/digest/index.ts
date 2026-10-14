@@ -19,6 +19,7 @@ import { ExtractionSchema } from "../intel/extract.ts";
 import { failedFitRuns, MAX_FIT_ATTEMPTS } from "../intel/fit.ts";
 import { resolveFlags, UNPAID_REASON } from "../intel/resolve.ts";
 import { TIER_SKIPPED_NO_FX } from "../intel/tier.ts";
+import { freshnessSuffix } from "./freshness.ts";
 import { formatSalary, isAtsSource, parseList } from "./format.ts";
 import { capText, compressZones, groupPostings, joinLocations } from "./group.ts";
 import { compareRanked, rankScore, TOP_MATCH_MIN_FIT } from "./rank.ts";
@@ -367,7 +368,10 @@ function sourceHealth(db: Db, now: Date): string[] {
       if (latest.error_message !== null)
         text += `, ${latest.status === "error" ? "error" : "warning"}: ${latest.error_message.replace(/\s+/g, " ")}`;
     }
-    lines.push(`- **${name}**: ${text}${noOk ? " — NO SUCCESSFUL RUN" : ""}`);
+    const fresh = freshnessSuffix(db, name, now);
+    lines.push(
+      `- **${name}**: ${text}${fresh !== undefined ? ` — ${fresh}` : ""}${noOk ? " — NO SUCCESSFUL RUN" : ""}`,
+    );
   }
   return [...lines, ""];
 }

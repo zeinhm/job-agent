@@ -8,6 +8,10 @@
 # code (discover records a `skipped` run for a source polled too recently), so running discover
 # more often than a source allows never sends it extra requests.
 #
+# `bin/run-hourly` covers LinkedIn hourly (hours_old = 1 plus a 50 min interval, so every hourly run polls it).
+# Each source's own interval still limits real requests. Proof of freshness: the digest's Source health line
+# and `status` show `last ok ... max gap ... min in 24h` for linkedin and indeed (LATE above 65 / 130 min).
+#
 # Order within a day: fx -> discover-companies (daily) -> hourly: discover -> process -> enrich -> resolve-apply -> digest.
 # `bin/run-hourly` runs the hourly steps in that order (`;` semantics: a failing step does not stop the next ones;
 # `discover` exits 1 when any source errors, and the digest reports it in Source health). It holds a lock
