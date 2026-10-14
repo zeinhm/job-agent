@@ -6,6 +6,7 @@ import {
   __testInjectTimeAndSleep,
   analysis,
   apply_links,
+  companies,
   intel,
   llm_calls,
   log,
@@ -19,6 +20,7 @@ import {
   APPLY_LINK_MAX_TOKENS,
   buildApplyLinkInput,
   candidateLinks,
+  decideApplyType,
   MAX_CANDIDATES,
   MAX_CONTEXT_CHARS,
 } from "./llm-step.ts";
@@ -94,6 +96,7 @@ function addPosting(
     fit?: number | null;
     final?: "keep" | "reject" | null;
     title?: string;
+    companyId?: string;
   } = {},
 ): string {
   const id = `p${++n}`;
@@ -104,6 +107,7 @@ function addPosting(
       external_id: id,
       url: `https://remotive.example.test/jobs/${id}`,
       title: opts.title ?? "Platform Engineer",
+      company_id: opts.companyId ?? null,
       company_name: "Nobody Inc",
       description_text: opts.text ?? LINKS_TEXT,
       first_seen_at: "2026-10-13T00:00:00.000Z",
@@ -304,6 +308,158 @@ describe("apply-link LLM step", () => {
     expect(text).not.toContain("blog.example.test");
     expect(text).not.toContain("Application form");
   });
+});
+
+const linksTo = (...urls: string[]): string =>
+  `<p>${urls.map((u, i) => `<a href="${u}">Option ${i + 1}</a>`).join(" or ")}</p>`;
+
+function addCompany(domain: string | null): string {
+  const id = `c${++n}`;
+  db.insert(companies)
+    .values({
+      id,
+      name: "Nobody Inc",
+      normalized_name: `nobody-${id}`,
+      domain,
+      // A fresh negative cache: no careers scan and no slug guesses (no HTTP besides the model).
+      ats_checked_at: T0.toISOString(),
+      created_at: T0.toISOString(),
+    })
+    .run();
+  return id;
+}
+
+describe("apply type is decided by code from the chosen URL", () => {
+  const OWN = "https://example.test/team";
+  // A paid-only link in the text is already found by the free steps, so the model never gets to choose it; the type
+  // table is checked on the function.
+  it("decideApplyType table", () => {
+    // paid_aggregator only on PAID_ONLY_HOSTS; a paid-only host is paid_aggregator whatever the model said
+    expect(decideApplyType("https://flexjobs.com/job/1", "paid_aggregator", null).type).toBe(
+      "paid_aggregator",
+    );
+    expect(decideApplyType("https://www.flexjobs.com/job/1", "company_form", null)).toEqual({
+      type: "paid_aggregator",
+      confirmed: false,
+    });
+    expect(decideApplyType(OWN, "paid_aggregator", "example.test")).toEqual({
+      type: "unknown",
+      confirmed: false,
+    });
+    // company_form
+    for (const url of [
+      "https://remoteok.com/remote-jobs/1",
+      "https://himalayas.app/jobs/1",
+      "https://jobs.lever.co/acme/1",
+      "https://boards.greenhouse.io/acme/jobs/1",
+      "https://flexjobs.com/job/1",
+      "https://github.com/acme/jobs",
+    ]) {
+      expect(decideApplyType(url, "company_form", null).type, url).not.toBe("company_form");
+    }
+    expect(
+      decideApplyType("https://careers.example.test/apply", "company_form", "example.test"),
+    ).toEqual({
+      type: "company_form",
+      confirmed: true,
+    });
+    expect(decideApplyType("https://other.test/apply", "company_form", "example.test")).toEqual({
+      type: "unknown",
+      confirmed: false,
+    });
+    // no company domain + a plain unknown host: company_form (documents the rule)
+    expect(decideApplyType("https://forms.example.test/x", "company_form", null).type).toBe(
+      "company_form",
+    );
+    expect(decideApplyType(OWN, "unknown", "example.test")).toEqual({
+      type: "unknown",
+      confirmed: true,
+    });
+  });
+
+  const stored = async (kind: string, chosen: string, domain: string | null) => {
+    answers = [{ text: `{"choice":1,"kind":"${kind}"}` }];
+    const p = addPosting({
+      text: linksTo(chosen, "https://blog.example.test/post"),
+      companyId: addCompany(domain),
+    });
+    await run();
+    return link(p);
+  };
+
+  it("paid_aggregator on the company's own domain is stored unknown, type not confirmed", async () => {
+    expect(await stored("paid_aggregator", OWN, "example.test")).toMatchObject({
+      apply_url: OWN,
+      apply_type: "unknown",
+      reason: "LLM chose link 1 of 2 (paid_aggregator), type not confirmed",
+    });
+  });
+
+  it("company_form on a board, ATS or paid host is not company_form", async () => {
+    for (const url of [
+      "https://remoteok.com/remote-jobs/1",
+      "https://himalayas.app/jobs/1",
+      "https://jobs.lever.co/acme",
+    ]) {
+      const row = await stored("company_form", url, null);
+      expect(row?.apply_type, url).not.toBe("company_form");
+    }
+  });
+
+  it("company_form on a subdomain of the company domain stays company_form", async () => {
+    expect(
+      await stored("company_form", "https://careers.example.test/team", "example.test"),
+    ).toMatchObject({ apply_type: "company_form", reason: "LLM chose link 1 of 2 (company_form)" });
+  });
+
+  it("company_form on a foreign host is unknown when the company has a domain", async () => {
+    expect(
+      await stored("company_form", "https://forms.other.test/a", "example.test"),
+    ).toMatchObject({
+      apply_type: "unknown",
+      reason: "LLM chose link 1 of 2 (company_form), type not confirmed",
+    });
+  });
+});
+
+describe("apply-link LLM API failures", () => {
+  const STOP = "resolve-apply: LLM API error, apply-link LLM step stopped for this run\n";
+  for (const mode of ["http500", "network"] as const) {
+    it(`${mode}: no row, no further call this run, one stop line, exit 0; next run asks again`, async () => {
+      server.use(
+        http.post(API, async ({ request }) => {
+          requests.push((await request.json()) as Req);
+          return mode === "network"
+            ? HttpResponse.error()
+            : HttpResponse.json(
+                { type: "error", error: { type: "api_error", message: "boom" } },
+                { status: 500 },
+              );
+        }),
+      );
+      const first = addPosting();
+      const second = addPosting({ title: "Data Engineer" });
+      const r = await run();
+      expect(r.code).toBe(0);
+      expect(link(first)).toBeUndefined();
+      expect(link(second)).toBeUndefined();
+      const afterOne = requests.length;
+      expect(afterOne).toBeGreaterThanOrEqual(1);
+      expect(r.out.split(STOP)).toHaveLength(2);
+      expect(r.out).toMatch(/deferred 2/);
+      const text = JSON.stringify(logged);
+      expect(text).not.toContain("example.test");
+
+      // The outage is over: the next run takes both again.
+      server.resetHandlers();
+      answers = [{ text: '{"choice":1,"kind":"company_form"}' }];
+      clock = new Date(clock.getTime() + 60 * 60 * 1000);
+      await run();
+      expect(link(first)).toMatchObject({ method: "llm", apply_type: "company_form" });
+      expect(link(second)).toMatchObject({ method: "llm" });
+      expect(requests.length).toBeGreaterThan(afterOne);
+    });
+  }
 });
 
 describe("candidateLinks and prompt input", () => {

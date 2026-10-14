@@ -4,6 +4,7 @@ import {
   analysis,
   APPLY_METHODS,
   BudgetExceededError,
+  LlmApiError,
   APPLY_TYPES,
   apply_links,
   companies,
@@ -27,7 +28,7 @@ import {
   type Board,
 } from "./boards.ts";
 import { atsLinkOf, isPollable } from "./ats-links.ts";
-import { candidateLinks, chooseApplyLink, hasAtsJobUrl } from "./llm-step.ts";
+import { candidateLinks, chooseApplyLink, decideApplyType, hasAtsJobUrl } from "./llm-step.ts";
 import {
   domainResemblesCompany,
   scanCareers,
@@ -446,7 +447,7 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
   }
 
   const env = opts.llm?.env ?? process.env;
-  let llmStop: "budget" | "no_key" | null = null;
+  let llmStop: "budget" | "no_key" | "api" | null = null;
   let deferred = 0;
   let llmCalls = 0;
 
@@ -501,7 +502,14 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
         out("resolve-apply: LLM daily budget used up, apply-link LLM step stopped for this run\n");
         return "defer";
       }
-      // Invalid output or an API failure: the row stays `unknown` (checked again after 7 days).
+      if (e instanceof LlmApiError) {
+        // An outage must not park a strong match for 7 days: no row, so the next run takes it again.
+        llmStop = "api";
+        deferred++;
+        out("resolve-apply: LLM API error, apply-link LLM step stopped for this run\n");
+        return "defer";
+      }
+      // Invalid output: the row stays `unknown` (checked again after 7 days).
       log.warn("apply-link LLM call failed", {
         posting_id: p.id,
         error: e instanceof Error ? e.name : "unknown",
@@ -519,22 +527,20 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
       };
     }
     const ats = atsLinkOf(chosen.url);
-    // Code decides the type: the model's kind counts only when the URL agrees with it.
-    const type =
-      answer.kind === "ats"
-        ? ats !== null
-          ? "ats"
-          : "unknown"
-        : answer.kind === "unknown"
-          ? "unknown"
-          : answer.kind;
+    const company =
+      p.company_id !== null
+        ? db.select().from(companies).where(eq(companies.id, p.company_id)).get()
+        : undefined;
+    const { type, confirmed } = decideApplyType(chosen.url, answer.kind, company?.domain ?? null);
     return {
       apply_url: chosen.url,
       apply_type: type,
       method: "llm",
       ...(type === "ats" && ats ? { ats_type: ats.vendor } : {}),
       ...(type === "ats" && ats && ats.slug !== "" ? { ats_slug: ats.slug } : {}),
-      reason: `LLM chose link ${answer.choice} of ${cands.length} (${answer.kind})`,
+      reason: `LLM chose link ${answer.choice} of ${cands.length} (${answer.kind})${
+        confirmed ? "" : ", type not confirmed"
+      }`,
     };
   }
 

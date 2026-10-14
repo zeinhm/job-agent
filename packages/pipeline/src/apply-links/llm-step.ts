@@ -2,8 +2,15 @@ import { callStructured, type LlmDeps } from "@job-agent/core";
 import { z } from "zod";
 import { APPLY_LINK_SYSTEM_PROMPT } from "../intel/prompts/apply-link.ts";
 import { atsLinkOf } from "./ats-links.ts";
-import { hostOf } from "./boards.ts";
-import { plainText, textLinks } from "./posting-text.ts";
+import { companyDomainFromUrl } from "../normalize/company-domain.ts";
+import { hostMatchesDomain, hostOf } from "./boards.ts";
+import {
+  hostIsOn,
+  PAID_ONLY_HOSTS,
+  plainText,
+  SIGNUP_WALL_HOSTS,
+  textLinks,
+} from "./posting-text.ts";
 
 export { PROMPT_VERSION as APPLY_LINK_PROMPT_VERSION } from "../intel/prompts/apply-link.ts";
 
@@ -68,6 +75,40 @@ export function candidateLinks(
     if (out.length === MAX_CANDIDATES) break;
   }
   return out;
+}
+
+export type LlmApplyType = "ats" | "company_form" | "paid_aggregator" | "unknown";
+
+/**
+ * Code decides the stored type from the chosen URL; the model's `kind` only counts when the URL agrees with it.
+ * A paid-only host is `paid_aggregator` whatever the model said. `company_form` needs a host that is not paid-only,
+ * a sign-up wall, a job board / never-own host or an ATS, and, when the company has a domain, is that domain or a
+ * subdomain of it. `confirmed` is false when the model's kind was downgraded or overruled.
+ */
+export function decideApplyType(
+  url: string,
+  kind: ApplyLinkAnswer["kind"],
+  companyDomain: string | null,
+): { type: LlmApplyType; confirmed: boolean } {
+  if (hostIsOn(url, PAID_ONLY_HOSTS)) {
+    return { type: "paid_aggregator", confirmed: kind === "paid_aggregator" };
+  }
+  if (kind === "unknown") return { type: "unknown", confirmed: true };
+  if (kind === "ats") {
+    return atsLinkOf(url) !== null
+      ? { type: "ats", confirmed: true }
+      : { type: "unknown", confirmed: false };
+  }
+  if (kind === "company_form") {
+    const ok =
+      atsLinkOf(url) === null &&
+      !hostIsOn(url, SIGNUP_WALL_HOSTS) &&
+      companyDomainFromUrl(url) !== null &&
+      (!companyDomain || hostMatchesDomain(url, companyDomain));
+    return ok ? { type: "company_form", confirmed: true } : { type: "unknown", confirmed: false };
+  }
+  // paid_aggregator on a host that is not paid-only
+  return { type: "unknown", confirmed: false };
 }
 
 /** True when one of the links is an ATS job URL (the free steps would already have used it). */
