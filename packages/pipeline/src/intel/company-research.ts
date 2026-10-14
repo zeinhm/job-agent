@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { isPlaceholderCompany } from "../apply-links/placeholder.ts";
 import {
   callStructured,
   companies,
@@ -234,6 +235,7 @@ export async function researchCompanyPayPolicy(
   const env = deps.env ?? process.env;
   const row = db.select().from(companies).where(eq(companies.id, companyId)).get();
   if (!row) return { kind: "skipped", reason: "company not found" };
+  if (isPlaceholderCompany(row.name)) return { kind: "skipped", reason: "no company name" };
   if (!isDueForResearch(row, now))
     return { kind: "skipped", reason: "policy known or checked recently" };
   if (!env["ANTHROPIC_API_KEY"]) throw new MissingApiKeyError();

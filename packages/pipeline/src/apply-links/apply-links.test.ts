@@ -18,6 +18,7 @@ import {
   type Db,
 } from "@job-agent/core";
 import { main } from "../cli.ts";
+import { saveFoundAts } from "./save-ats.ts";
 import { normalizeCompanyName } from "../normalize/index.ts";
 import { MAX_SLUG_CANDIDATES, runResolveApply } from "./index.ts";
 import { slugCandidates } from "./slugs.ts";
@@ -572,7 +573,7 @@ describe("resolve-apply CLI", () => {
       out.length = 0;
       expect(await main(["resolve-apply"], io)).toBe(0);
       expect(readFileSync(join(dir, "config", "companies.yaml"), "utf8")).toMatch(
-        /^companies:\n {2}- \{ name: Keep Me, ats: greenhouse, slug: keepme \}\n {2}- \{ name: Omega Works, ats: lever, slug: omegaworks \} {2}# added by job-agent \d{4}-\d\d-\d\d \(apply resolve\)\n$/,
+        /^companies:\n {2}- \{ name: Keep Me, ats: greenhouse, slug: keepme \}\n {2}- \{ name: "Omega Works", ats: lever, slug: "omegaworks" \} {2}# added by job-agent \d{4}-\d\d-\d\d \(apply resolve\)\n$/,
       );
       expect(readdirSync(join(dir, "data", "backups"))).toHaveLength(1);
       expect(out.join("")).toContain("companies.yaml: added 1 (backup ");
@@ -705,6 +706,80 @@ describe("step 2: careers page", () => {
       });
     },
   );
+
+  describe("board of the careers page without a title match", () => {
+    const ghBoard = (slug: string, name: string) => [
+      http.get(`https://boards-api.greenhouse.io/v1/boards/${slug}`, () => ghProbe(name)),
+      http.get(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`, () =>
+        ghJobs(["Data Analyst"]),
+      ),
+    ];
+    const page = (slug: string) =>
+      http.get(`https://${DOMAIN}/careers`, () =>
+        html(`<a href="https://job-boards.greenhouse.io/${slug}">Open roles</a>`),
+      );
+
+    it("another company's board is not saved nor used, and the reason says so", async () => {
+      const { c, p } = setup();
+      allBoardsMissing();
+      server.use(page("othercorp"), ...ghBoard("othercorp", "Other Corp"));
+      await run();
+      expect(company(c)?.ats_slug).toBeNull();
+      expect(company(c)?.discovered_via).not.toBe("apply_resolve");
+      expect(link(p)?.reason).toContain("careers page board not confirmed as the company's");
+      expect(link(p)?.method).not.toBe("careers_page");
+    });
+
+    it("never appends the other company's board to companies.yaml", async () => {
+      const { p } = setup();
+      allBoardsMissing();
+      server.use(page("othercorp"), ...ghBoard("othercorp", "Other Corp"));
+      await run();
+      const cfg = mkdtempSync(join(tmpdir(), "careers-cfg-"));
+      try {
+        const orig = "companies:\n  - { name: Zed, ats: lever, slug: zed }\n";
+        writeFileSync(join(cfg, "companies.yaml"), orig);
+        saveFoundAts({ db, configDir: cfg, backupDir: join(cfg, "b") });
+        expect(readFileSync(join(cfg, "companies.yaml"), "utf8")).toBe(orig);
+      } finally {
+        rmSync(cfg, { recursive: true, force: true });
+      }
+      expect(link(p)?.reason).toContain("not confirmed");
+    });
+
+    it("the company's own board (name matches) is still saved", async () => {
+      const { c, p } = setup();
+      server.use(page("acmelabs"), ...ghBoard("acmelabs", "Acme Labs"));
+      await run();
+      expect(company(c)).toMatchObject({
+        ats_type: "greenhouse",
+        ats_slug: "acmelabs",
+        verified: true,
+        discovered_via: "apply_resolve",
+      });
+      expect(link(p)?.reason ?? "").not.toContain("not confirmed");
+    });
+
+    it("the company's own board (slug is a guess of the name, no board name) is still saved", async () => {
+      const { c } = setup();
+      server.use(
+        http.get(`https://${DOMAIN}/careers`, () =>
+          html(`<a href="https://jobs.lever.co/acme-labs">Jobs</a>`),
+        ),
+        http.get("https://api.lever.co/v0/postings/acme-labs", () =>
+          HttpResponse.json([
+            {
+              text: "Data Analyst",
+              hostedUrl: "https://jobs.lever.co/acme-labs/q",
+              descriptionPlain: "",
+            },
+          ]),
+        ),
+      );
+      await run();
+      expect(company(c)).toMatchObject({ ats_type: "lever", ats_slug: "acme-labs" });
+    });
+  });
 
   it("falls back to /jobs when /careers shows no ATS", async () => {
     const { p } = setup();
@@ -861,6 +936,31 @@ describe("step 2: careers page", () => {
     await run();
     expect(requested).toEqual([]);
   });
+});
+
+describe("placeholder company", () => {
+  it.each(["(unknown)", "", "  "])(
+    "%j: no ATS, careers or research request; resolved from the text step with 'no company name'",
+    async (name) => {
+      const c = addCompany(name, {
+        domain: "unknownco.example",
+        ats_type: "greenhouse",
+        ats_slug: "unknown",
+      });
+      const withLink = addPosting("linkedin_posts", "(LinkedIn post)", c, name, {
+        description: "We are hiring, details at https://jobs.lever.co/realco/abc-123",
+      });
+      const bare = addPosting("linkedin_posts", "(LinkedIn post 2)", c, name);
+      const noRow = addPosting("linkedin_posts", "(LinkedIn post 3)", null, name);
+      await run();
+      expect(requested).toEqual([]);
+      expect(link(withLink)?.method).toBe("posting_text");
+      for (const id of [bare, noRow]) {
+        expect(link(id)?.method).toBe("source");
+        expect(link(id)?.reason).toContain("no company name");
+      }
+    },
+  );
 });
 
 describe("step 3: apply links in the posting text", () => {

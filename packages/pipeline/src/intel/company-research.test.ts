@@ -126,6 +126,16 @@ describe("company pay-policy research", () => {
     expect(apiCalls).toBeGreaterThan(callsAfterFirst);
   });
 
+  it("does not select the (unknown) placeholder company", async () => {
+    db.update(companies).set({ name: "(unknown)", normalized_name: "unknown" }).run();
+    expect(await researchCompanyPayPolicy("c1", deps())).toEqual({
+      kind: "skipped",
+      reason: "no company name",
+    });
+    expect(pageRequests).toHaveLength(0);
+    expect(apiCalls).toBe(0);
+  });
+
   it("does not research a company whose policy is already known or manual", async () => {
     db.update(companies).set({ pay_policy: "location_adjusted" }).run();
     expect((await researchCompanyPayPolicy("c1", deps())).kind).toBe("skipped");

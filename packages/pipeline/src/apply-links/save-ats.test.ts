@@ -84,7 +84,7 @@ describe("saveFoundAts", () => {
     const text = readFileSync(file(), "utf8");
     expect(text.startsWith(ORIGINAL)).toBe(true);
     expect(text.slice(ORIGINAL.length)).toBe(
-      "  - { name: Gamma Labs, ats: ashby, slug: gammalabs }  # added by job-agent 2026-10-14 (apply resolve)\n",
+      '  - { name: "Gamma Labs", ats: ashby, slug: "gammalabs" }  # added by job-agent 2026-10-14 (apply resolve)\n',
     );
     expect(parseCompaniesYaml(text).map((c) => c.name)).toEqual([
       "Alpha Works",
@@ -119,6 +119,35 @@ describe("saveFoundAts", () => {
     expect(save()).toBe(0);
     expect(readFileSync(file(), "utf8")).toBe(ORIGINAL);
     expect(existsSync(backups)).toBe(false);
+  });
+
+  it("quotes YAML keyword and number-like names so they read back as the same strings", () => {
+    const names = ["Null", "True", "2020", "No", "1e3", "0x1F", "2020-01-01", "Normal Name Inc"];
+    for (const n of names) addCompany(n, "greenhouse", n.toLowerCase());
+    expect(save()).toBe(0);
+    expect(errs).toEqual([]);
+    const text = readFileSync(file(), "utf8");
+    expect(text.startsWith(ORIGINAL)).toBe(true);
+    const parsed = parseCompaniesYaml(text);
+    expect(
+      parsed
+        .slice(2)
+        .map((c) => c.name)
+        .sort(),
+    ).toEqual([...names].sort());
+    expect(
+      parsed
+        .slice(2)
+        .map((c) => c.slug)
+        .sort(),
+    ).toEqual(names.map((n) => n.toLowerCase()).sort());
+  });
+
+  it("never writes a name that normalizes to nothing (~) or the (unknown) placeholder", () => {
+    addCompany("~", "greenhouse", "tilde");
+    addCompany("(unknown)", "greenhouse", "unknown");
+    expect(save()).toBe(0);
+    expect(readFileSync(file(), "utf8")).toBe(ORIGINAL);
   });
 
   it("round-trips a name with YAML special characters", () => {

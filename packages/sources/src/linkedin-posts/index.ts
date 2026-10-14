@@ -15,6 +15,8 @@ import {
 import { extractFacts, isLinkedinPostUrl } from "./parse.ts";
 
 const SOURCE = "linkedin_posts";
+/** Company name of a post that names none; the pipeline never probes ATS boards or research for it. */
+export const UNKNOWN_COMPANY = "(unknown)";
 const FRESHNESS = "pd";
 /** Research t_788d14a9 section 1: 4 of the post queries per 3 h slot. */
 export const MAX_POST_QUERIES_PER_RUN = 4;
@@ -58,7 +60,7 @@ export function mapResult(r: SearchResult): RawPosting | null {
     externalId: postExternalId(r.url),
     url: r.url,
     title: "(LinkedIn post)",
-    company: facts.company ?? "(unknown)",
+    company: facts.company ?? UNKNOWN_COMPANY,
     descriptionText: facts.description,
     ...(facts.remote && { remote: true }),
     ...(facts.locationText && { locationText: facts.locationText }),

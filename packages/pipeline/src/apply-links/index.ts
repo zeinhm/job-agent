@@ -41,6 +41,7 @@ import {
   SIGNUP_WALL_HOSTS,
   textLinks,
 } from "./posting-text.ts";
+import { isPlaceholderCompany } from "./placeholder.ts";
 import { saveFoundAts } from "./save-ats.ts";
 import { slugCandidates } from "./slugs.ts";
 
@@ -299,11 +300,21 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
     }
     // A pollable board named on the page: fetch it and match the title as in step 1.
     let firstBoard: Board | null = null;
+    let unconfirmed = false;
+    const ownSlugs = new Set(
+      [...slugCandidates(company.name), ...slugCandidates(company.name, true)].map((x) =>
+        x.toLowerCase(),
+      ),
+    );
     for (const b of scan.boards.filter((l) => isPollable(l.vendor)).slice(0, 3)) {
       if (!isPollable(b.vendor)) continue;
       const lookup = await lookupBoard(http, b.vendor, b.slug);
       if (lookup.kind !== "ok") continue;
-      firstBoard ??= lookup.board;
+      const confirmed =
+        (lookup.board.name !== null && isSameCompany(lookup.board, company, () => false)) ||
+        ownSlugs.has(lookup.board.slug.toLowerCase());
+      if (confirmed) firstBoard ??= lookup.board;
+      else unconfirmed = true;
       const url = findJob(lookup.board, p.title);
       if (url !== undefined) {
         saveBoard(company, lookup.board);
@@ -336,6 +347,7 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
         },
       };
     }
+    if (unconfirmed) return { note: "careers page board not confirmed as the company's" };
     return { note: scan.note === "" ? "careers page: no ATS link" : `careers page: ${scan.note}` };
   }
 
@@ -394,6 +406,9 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
     const dbUrl = atsIndex.get(key);
     if (dbUrl !== undefined) return { apply_url: dbUrl, apply_type: "ats", method: "ats_db" };
     const notes: string[] = [];
+    if (isPlaceholderCompany(company?.name ?? p.company_name)) {
+      return textStep(p, undefined, ["no company name"]);
+    }
     if (!company) return textStep(p, undefined, ["no company row"]);
 
     // 1b: the company's stored board.
