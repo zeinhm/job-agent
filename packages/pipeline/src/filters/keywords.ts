@@ -817,6 +817,34 @@ export const ROLE_NON_ENGINEERING_PHRASES: readonly string[] = [
   "social media manager",
   "customer success manager",
   "marketing specialist",
+  // Title deny-list extension (t_fa40baa4, owner decision 2026-10-14)
+  "sales executive",
+  "sales associate",
+  "receptionist",
+  "delivery driver",
+  "truck driver",
+  "cashier",
+  "barista",
+  "benefits specialist",
+  "benefits counselor",
+  "category manager",
+  "brand manager",
+  "store manager",
+  "hr generalist",
+  "financial analyst",
+  "financial advisor",
+  "recruitment assistant",
+  "administrative assistant",
+  "communications lead",
+  "communications manager",
+  "alliances manager",
+  "data protection officer",
+  "privacy officer",
+  "sap consultant",
+  "functional consultant",
+  "management consultant",
+  "business consultant",
+  "ai trainer",
   // French (owner live run 2026-10-09)
   "Technicien",
   "Technicienne",
@@ -829,6 +857,8 @@ export const ROLE_NON_ENGINEERING_PHRASES: readonly string[] = [
   "Assistant(e) de direction",
   "Responsable commercial",
   "Responsable commerciale",
+  "Opérateur",
+  "Opératrice",
 ];
 
 /**
@@ -844,6 +874,8 @@ export const ROLE_NON_ENGINEERING_GERMAN_TERMS: readonly string[] = [
   "Kauffrau",
   "Personalreferent",
   "Steuerberater",
+  "Monteur",
+  "Testbenutzer",
 ];
 
 /**
@@ -855,6 +887,12 @@ export const ROLE_NON_ENGINEERING_GERMAN_DOMAIN_TERMS: readonly string[] = [
   "Vertrieb",
   "Projektleiter",
   "Projektmanager",
+  "Arzt",
+  "Ärztin",
+  "Psychotherapeut",
+  "Assistent",
+  "Nebenjob",
+  "Minijob",
 ];
 
 /** German engineer/developer nouns, matched inside compounds ("Softwareentwickler", "Entwicklerin", "Wirtschaftsingenieur"). */
@@ -896,7 +934,48 @@ export const ROLE_NON_ENGINEERING_DOMAIN_PHRASES: readonly string[] = [
   // French "Commercial(e)" is also an English adjective ("Commercial Platform Engineer"): engineer nouns exempt it.
   "commercial",
   "commerciale",
+  "customer service",
+  // Ambiguous nouns (a company or product domain): an engineer noun, target skill or engineering wording exempts them.
+  "clerk",
+  "sourcer",
+  "teacher",
+  "professor",
+  "counselor",
+  "marketer",
+  "product owner",
+  "tutor",
+  "caregiver",
+  "dentist",
+  "veterinarian",
+  "accounts receivable",
+  "account receivable",
+  "accounts payable",
+  "call center",
+  "call centre",
+  "paid media",
+  "teaching",
+  "instructor",
+  "fitness",
+  "healthcare",
+  "logistics",
+  "warehouse",
+  "supply chain",
+  "procurement",
+  "payroll",
+  "tax",
+  "product design",
+  "design lead",
+  "editor",
+  "translator",
+  "journalist",
+  "administrative",
+  "communications",
+  "crm",
+  "trainer",
 ];
+
+/** Rejected unless the title has a target skill ("Frontend Engineer, Sales Engineer Tools" stays). */
+export const ROLE_NON_ENGINEERING_UNLESS_TARGET_PHRASES: readonly string[] = ["sales engineer"];
 
 /** Role nouns that make a title an engineering role (used to exempt domain words). */
 export const ROLE_ENGINEER_NOUNS: readonly string[] = [

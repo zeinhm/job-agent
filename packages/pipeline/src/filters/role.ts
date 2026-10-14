@@ -8,6 +8,7 @@ import {
   ROLE_NON_ENGINEERING_GERMAN_DOMAIN_TERMS,
   ROLE_NON_ENGINEERING_GERMAN_TERMS,
   ROLE_NON_ENGINEERING_PHRASES,
+  ROLE_NON_ENGINEERING_UNLESS_TARGET_PHRASES,
   ROLE_OUT_OF_TARGET_PHRASES,
   ROLE_SENIORITY_WORDS,
   ROLE_TARGET_EXCLUDED_PHRASES,
@@ -66,6 +67,10 @@ export function classifyRole(input: RoleInput): RoleResult {
   if (nonEngineering !== undefined) {
     return { class: "reject", reason: `non-engineering role ("${nonEngineering}")` };
   }
+  const unlessTarget = findPhrase(title, ROLE_NON_ENGINEERING_UNLESS_TARGET_PHRASES);
+  if (unlessTarget !== undefined && findPhrase(title, ROLE_TARGET_PHRASES) === undefined) {
+    return { class: "reject", reason: `non-engineering role ("${unlessTarget}")` };
+  }
   const german = ROLE_NON_ENGINEERING_GERMAN_TERMS.find((term) =>
     compoundPattern(term).test(title),
   );
@@ -82,7 +87,13 @@ export function classifyRole(input: RoleInput): RoleResult {
     return { class: "reject", reason: `non-engineering role ("${germanDomain}")` };
   }
   const domain = findPhrase(title, ROLE_NON_ENGINEERING_DOMAIN_PHRASES);
-  if (domain !== undefined && !hasEngineerNoun) {
+  // Domain words alone never reject a title that names an engineer noun, a target skill or engineering wording.
+  const engineeringTitle =
+    hasEngineerNoun ||
+    findPhrase(title, ROLE_TARGET_PHRASES) !== undefined ||
+    findPhrase(title, ROLE_LEADERSHIP_PHRASES) !== undefined ||
+    /\bengineering\b/i.test(title);
+  if (domain !== undefined && !engineeringTitle) {
     return { class: "reject", reason: `non-engineering role ("${domain}")` };
   }
 

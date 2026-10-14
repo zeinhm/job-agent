@@ -1582,5 +1582,869 @@
     "reason": "Full-stack target skill.",
     "judgment": false,
     "source": "owner live run 2026-10-09"
+  },
+  {
+    "id": "rl-177",
+    "title": "Senior Sales Engineer - UK",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (sales engineer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-178",
+    "title": "Sales Executive, DACH",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (sales executive).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-179",
+    "title": "Sales Associate (Remote)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (sales associate).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-180",
+    "title": "Receptionist",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (receptionist).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-181",
+    "title": "Records Clerk",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (clerk).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-182",
+    "title": "Technical Sourcer",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (sourcer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-183",
+    "title": "High School Teacher, Computer Science",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (teacher).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-184",
+    "title": "Visiting Professor of Informatics",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (professor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-185",
+    "title": "Delivery Driver (Full-time)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (delivery driver).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-186",
+    "title": "Truck Driver CDL-A",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (truck driver).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-187",
+    "title": "Cashier",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (cashier).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-188",
+    "title": "Barista",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (barista).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-189",
+    "title": "Benefits Specialist",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (benefits specialist).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-190",
+    "title": "Bilingual (Spanish) Benefits Counselor",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (benefits counselor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-191",
+    "title": "Career Counselor",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (counselor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-192",
+    "title": "(Senior) Category Manager",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (category manager).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-193",
+    "title": "Brand Manager, Consumer",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (brand manager).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-194",
+    "title": "Store Manager",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (store manager).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-195",
+    "title": "HR Generalist",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (hr generalist).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-196",
+    "title": "Financial Analyst",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (financial analyst).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-197",
+    "title": "Financial Advisor",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (financial advisor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-198",
+    "title": "Recruitment Assistant",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (recruitment assistant).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-199",
+    "title": "Administrative Assistant",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (administrative assistant).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-200",
+    "title": "Growth Marketer",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (marketer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-201",
+    "title": "Senior Product Owner",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (product owner).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-202",
+    "title": "Communications Lead",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (communications lead).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-203",
+    "title": "Communications Manager, EMEA",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (communications manager).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-204",
+    "title": "Technology Alliances Manager",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (alliances manager).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-205",
+    "title": "Data Protection Officer",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (data protection officer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-206",
+    "title": "Privacy Officer, EU",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (privacy officer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-207",
+    "title": "Senior SAP Consultant EWM (m/w/d)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (sap consultant).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-208",
+    "title": "Functional Consultant, Finance",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (functional consultant).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-209",
+    "title": "Management Consultant",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (management consultant).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-210",
+    "title": "Business Consultant",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (business consultant).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-211",
+    "title": "Kaqchikel (Mayan) Language Expert - AI Trainer",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (ai trainer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-212",
+    "title": "Opératrice (Télétravail)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Opératrice).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-213",
+    "title": "Service Monteur Warmtepompen",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Monteur).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-214",
+    "title": "Nebenjob als Online-Testbenutzer (m/w/d)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Testbenutzer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-215",
+    "title": "Facharzt/Fachärztin Allgemeine Innere Medizin",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Arzt).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-216",
+    "title": "Psychotherapeut:in (a) - Digital Health/Basel",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Psychotherapeut).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-217",
+    "title": "Assistent/in in der Finanzberatung",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Assistent).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-218",
+    "title": "Minijob Büro (m/w/d)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (Minijob).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-219",
+    "title": "Customer Service Agent",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (customer service).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-220",
+    "title": "Private Tutor, Mathematics",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (tutor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-221",
+    "title": "Caregiver, Home Care",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (caregiver).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-222",
+    "title": "Account Receivable Specialist",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (account receivable).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-223",
+    "title": "Accounts Payable Clerk",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (accounts payable).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-224",
+    "title": "Call Center Agent - Kreditabsicherung im Homeoffice (w/m/d)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (call center).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-225",
+    "title": "Paid Media Buyer",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (paid media).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-226",
+    "title": "Freelance Teaching Fellow",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (teaching).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-227",
+    "title": "Freelancer - Group Fitness Instructor (m/w/d)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (instructor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-228",
+    "title": "Healthcare Operations Associate",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (healthcare).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-229",
+    "title": "Logistics Coordinator",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (logistics).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-230",
+    "title": "Warehouse Associate",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (warehouse).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-231",
+    "title": "Supply Chain Planner",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (supply chain).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-232",
+    "title": "Procurement Specialist",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (procurement).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-233",
+    "title": "Payroll Specialist",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (payroll).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-234",
+    "title": "Direct Tax Lead",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (tax).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-235",
+    "title": "Product Design Lead",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (product design).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-236",
+    "title": "Video Editor",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (editor).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-237",
+    "title": "Freelance Translator (Portuguese)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (translator).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-238",
+    "title": "Journalist, Tech Desk",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (journalist).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-239",
+    "title": "Manager - CRM Casino",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (crm).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-240",
+    "title": "Language Trainer, Spanish",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "reject",
+    "reason": "Plainly non-engineering title (trainer).",
+    "judgment": false,
+    "source": "smoke 2026-10-14 / t_fa40baa4"
+  },
+  {
+    "id": "rl-241",
+    "title": "Frontend Engineer, Customer Success Tools",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: Keeps next to Customer Success Manager (reject): engineer noun exempts domain words.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-242",
+    "title": "Full-Stack Engineer, Payroll Platform",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: payroll domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-243",
+    "title": "React Developer, Logistics Dashboard",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: logistics domain word with developer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-244",
+    "title": "Senior Full-Stack Software Engineer, Healthcare Platform",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: healthcare domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-245",
+    "title": "Full Stack Engineer - Supply Chain Software",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: supply chain domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-246",
+    "title": "Full-Stack Software Engineer, Tax Technology",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: tax domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-247",
+    "title": "Frontend Engineer, Warehouse Management System",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: warehouse domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-248",
+    "title": "Full-Stack Developer, Procurement Tools",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: procurement domain word with developer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-249",
+    "title": "Senior Frontend Engineer, Communications Platform",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: communications domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-250",
+    "title": "Full-Stack Engineer, CRM Integrations",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: crm domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-251",
+    "title": "TypeScript Developer, Video Editor",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: editor domain word with developer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-252",
+    "title": "React Engineer, Teaching Platform",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: teaching domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-253",
+    "title": "Senior React Engineer, Translator Tools",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: translator domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-254",
+    "title": "Full Stack Developer, Customer Service Platform",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: customer service domain word with developer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-255",
+    "title": "Frontend Engineer, Product Design Systems",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: product design domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-256",
+    "title": "Full-Stack Software Engineer, Fitness App",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: fitness domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-257",
+    "title": "Full-Stack Software Engineer (Sales Tools)",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: sales domain word with engineer noun, next to Sales Executive.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-258",
+    "title": "Full-Stack Software Engineer, Call Center Platform",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: call center domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-259",
+    "title": "Senior Full-Stack Engineer - Accounts Receivable Automation",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: accounts receivable domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-260",
+    "title": "Frontend Engineer, Healthcare Scheduling",
+    "snippet": "Title deny-list extension t_fa40baa4.",
+    "label": "keep",
+    "reason": "Target engineering title that must still be kept: healthcare domain word with engineer noun.",
+    "judgment": false,
+    "source": "t_fa40baa4"
+  },
+  {
+    "id": "rl-261",
+    "title": "Software Engineer, Clerk",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "unclear",
+    "reason": "Generic engineer title, the company name Clerk must not reject it.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-262",
+    "title": "Senior Backend Engineer - Clerk",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "reject",
+    "reason": "Backend is outside the target; rejected for that, not for the company name Clerk.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-263",
+    "title": "Frontend Engineer, Sales Engineer Tools",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-264",
+    "title": "Senior React Developer - Teacher Marketplace",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-265",
+    "title": "Frontend Engineer - Product Owner Tools",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-266",
+    "title": "React Developer, Counselor Platform",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-267",
+    "title": "Full-Stack Lead, Logistics",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-268",
+    "title": "Frontend Lead, Healthcare",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-269",
+    "title": "Staff Frontend Engineering Lead, Payroll",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-270",
+    "title": "Frontend Engineering Manager, Procurement",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "keep",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-271",
+    "title": "Clerk",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "reject",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
+  },
+  {
+    "id": "rl-272",
+    "title": "Sales Engineer",
+    "snippet": "Synthetic title for the deny-list exemption (t_f9b3db0c).",
+    "label": "reject",
+    "reason": "Target skill or engineer noun keeps; bare non-engineering noun rejects.",
+    "judgment": false,
+    "source": "t_f9b3db0c"
   }
 ]
