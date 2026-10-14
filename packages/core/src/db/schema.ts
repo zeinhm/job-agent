@@ -164,7 +164,13 @@ export const intel = sqliteTable("intel", {
   updated_at: text("updated_at").notNull(), // ISO 8601 UTC
 });
 
-export const APPLY_TYPES = ["ats", "company_form", "paid_aggregator", "unknown"] as const;
+export const APPLY_TYPES = [
+  "ats",
+  "company_form",
+  "paid_aggregator",
+  "signup_required",
+  "unknown",
+] as const;
 export const APPLY_METHODS = [
   "ats_db",
   "ats_board",

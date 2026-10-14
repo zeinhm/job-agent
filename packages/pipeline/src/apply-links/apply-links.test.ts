@@ -104,6 +104,8 @@ function addPosting(
     pending?: boolean;
     seen?: string;
     canonical?: string;
+    description?: string;
+    applyUrl?: string;
   } = {},
 ): string {
   const id = `p${++n}`;
@@ -116,6 +118,8 @@ function addPosting(
       title,
       company_id: companyId,
       company_name: companyName,
+      description_text: opts.description ?? null,
+      apply_url: opts.applyUrl ?? null,
       first_seen_at: opts.seen ?? "2026-10-13T00:00:00.000Z",
       last_seen_at: "2026-10-13T00:00:00.000Z",
       normalized_at: "2026-10-13T00:00:00.000Z",
@@ -175,6 +179,20 @@ function allBoardsMissing() {
   );
 }
 
+const METHOD_KEYS = ["ats_db", "ats_board", "careers_page", "posting_text", "source"] as const;
+const TYPE_KEYS = ["ats", "company_form", "paid_aggregator", "signup_required", "unknown"] as const;
+/** The expected summary line; `requests` may be a regex source for "any number". */
+function summary(
+  checked: number,
+  methods: Partial<Record<(typeof METHOD_KEYS)[number], number>>,
+  types: Partial<Record<(typeof TYPE_KEYS)[number], number>>,
+  requests: number | string,
+): string {
+  const list = (keys: readonly string[], m: Record<string, number | undefined>) =>
+    keys.map((k) => `${k} ${m[k] ?? 0}`).join(", ");
+  return `resolve-apply: checked ${checked}, methods: ${list(METHOD_KEYS, methods)}; types: ${list(TYPE_KEYS, types)}; requests ${requests}\n`;
+}
+
 describe("slugCandidates", () => {
   it("follows the research rules", () => {
     expect(slugCandidates("Acme Labs, Inc.")).toEqual(["acmelabs", "acme-labs", "acme"]);
@@ -222,9 +240,7 @@ describe("resolve-apply selection", () => {
     db.delete(apply_links).run();
 
     const all = await run();
-    expect(all.out).toMatch(
-      /^resolve-apply: checked 4, ats 0 \(db 0, board 0\), unknown 4, requests \d+\n$/,
-    );
+    expect(all.out).toMatch(new RegExp(`^${summary(4, { source: 4 }, { unknown: 4 }, "\\d+")}$`));
     for (const id of [old, fresh, kept, pending]) expect(link(id)).toBeDefined();
     for (const id of [ats, rejected, rejectedIntel, suspicious, dup])
       expect(link(id)).toBeUndefined();
@@ -264,7 +280,7 @@ describe("step 1a: ATS posting in the DB", () => {
     const atsId = addPosting("ashby", "Senior Frontend Engineer", c, "Acme Labs");
     const agg = addPosting("remotive", "Senior Frontend Engineer (Remote)", null, "ACME LABS");
     const r = await run();
-    expect(r.out).toBe("resolve-apply: checked 1, ats 1 (db 1, board 0), unknown 0, requests 0\n");
+    expect(r.out).toBe(summary(1, { ats_db: 1 }, { ats: 1 }, 0));
     expect(link(agg)).toMatchObject({
       apply_url: `https://ashby.example.test/jobs/${atsId}`,
       apply_type: "ats",
@@ -301,7 +317,7 @@ describe("step 1b: stored board", () => {
       ),
     );
     const r = await run();
-    expect(r.out).toBe("resolve-apply: checked 2, ats 2 (db 0, board 2), unknown 0, requests 1\n");
+    expect(r.out).toBe(summary(2, { ats_board: 2 }, { ats: 2 }, 1));
     expect(link(a)).toMatchObject({
       apply_url: "https://boards.example-ats.test/acme/jobs/1",
       method: "ats_board",
@@ -320,7 +336,7 @@ describe("step 1b: stored board", () => {
       ),
     );
     const r = await run();
-    expect(r.out).toMatch(/ats 0 \(db 0, board 0\), unknown 1, requests 1/);
+    expect(r.out).toBe(summary(1, { source: 1 }, { unknown: 1 }, 1));
     expect(link(p)).toMatchObject({
       apply_type: "unknown",
       method: "source",
@@ -335,6 +351,7 @@ describe("step 1c: slug guesses", () => {
     const c = addCompany("Acme Labs, Inc.", { domain: "acmelabs.example" });
     const p = addPosting("remotive", "Senior Frontend Engineer", c, "Acme Labs, Inc.");
     server.use(
+      http.get("https://acmelabs.example/*", notFound), // careers pages come first and show nothing
       http.get("https://boards-api.greenhouse.io/*", notFound),
       http.get("https://api.lever.co/*", notFound),
       http.get("https://api.ashbyhq.com/posting-api/job-board/acmelabs", () =>
@@ -344,7 +361,7 @@ describe("step 1c: slug guesses", () => {
       ),
     );
     const r = await run();
-    expect(r.out).toBe("resolve-apply: checked 1, ats 1 (db 0, board 1), unknown 0, requests 3\n");
+    expect(r.out).toBe(summary(1, { ats_board: 1 }, { ats: 1 }, 5));
     expect(link(p)).toMatchObject({
       apply_url: "https://jobs.ashbyhq.com/acmelabs/j1",
       apply_type: "ats",
@@ -443,7 +460,7 @@ describe("step 1c: slug guesses", () => {
     addPosting("himalayas", "Backend Engineer", c, "Acme Labs, Inc.");
     allBoardsMissing();
     const r1 = await run();
-    expect(r1.out).toMatch(/checked 2, ats 0 \(db 0, board 0\), unknown 2, requests 18\n$/);
+    expect(r1.out).toBe(summary(2, { source: 2 }, { unknown: 2 }, 18));
     expect(requested).toHaveLength(MAX_SLUG_CANDIDATES * 6);
     for (const host of [
       "boards-api.greenhouse.io",
@@ -529,7 +546,7 @@ describe("resolve-apply CLI", () => {
       const io = { out: (t: string) => out.push(t), err: (t: string) => err.push(t) };
       expect(await main(["resolve-apply", "--limit", "5"], io)).toBe(0);
       expect(out.join("")).toBe(
-        "resolve-apply: checked 0, ats 0 (db 0, board 0), unknown 0, requests 0\ncompanies.yaml: not found, nothing added\n",
+        summary(0, {}, {}, 0) + "companies.yaml: not found, nothing added\n",
       );
       // A company found earlier is appended to the temp companies.yaml, backup under <db dir>/backups.
       const seeded = openDb(join(dir, "data", "t.db"));
@@ -565,5 +582,437 @@ describe("resolve-apply CLI", () => {
       vi.unstubAllEnvs();
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+const careersHtml = (body: string) => `<html><body><h1>Careers</h1>${body}</body></html>`;
+const html = (body: string) =>
+  new HttpResponse(careersHtml(body), { headers: { "content-type": "text/html" } });
+
+describe("step 2: careers page", () => {
+  const DOMAIN = "acmelabs.example";
+  const TITLE = "Senior Frontend Engineer";
+  function setup() {
+    const c = addCompany("Acme Labs", { domain: DOMAIN });
+    const p = addPosting("remotive", TITLE, c, "Acme Labs");
+    return { c, p };
+  }
+
+  it.each([
+    {
+      name: "Greenhouse embed script",
+      body: `<div id="grnhse_app"></div><script src="https://boards.greenhouse.io/embed/job_board/js?for=acmelabs"></script>`,
+      api: () =>
+        http.get("https://boards-api.greenhouse.io/v1/boards/acmelabs/jobs", () =>
+          ghJobs([TITLE], "https://acmelabs.example/jobs/search?gh_jid="),
+        ),
+      expected: { ats_type: "greenhouse", ats_slug: "acmelabs" },
+      url: "https://acmelabs.example/jobs/search?gh_jid=/jobs/1",
+    },
+    {
+      name: "Greenhouse hosted board link",
+      body: `<a href="https://job-boards.greenhouse.io/acmelabs">Open roles</a>`,
+      api: () =>
+        http.get("https://boards-api.greenhouse.io/v1/boards/acmelabs/jobs", () =>
+          ghJobs([TITLE], "https://job-boards.greenhouse.io/acmelabs"),
+        ),
+      expected: { ats_type: "greenhouse", ats_slug: "acmelabs" },
+      url: "https://job-boards.greenhouse.io/acmelabs/jobs/1",
+    },
+    {
+      name: "Lever hosted link",
+      body: `<a href="https://jobs.lever.co/acmelabs">Jobs</a>`,
+      api: () =>
+        http.get("https://api.lever.co/v0/postings/acmelabs", () =>
+          HttpResponse.json([
+            {
+              text: TITLE,
+              hostedUrl: "https://jobs.lever.co/acmelabs/abc-1",
+              descriptionPlain: "",
+            },
+          ]),
+        ),
+      expected: { ats_type: "lever", ats_slug: "acmelabs" },
+      url: "https://jobs.lever.co/acmelabs/abc-1",
+    },
+    {
+      name: "Ashby embed script",
+      body: `<div id="ashby_embed"></div><script src="https://jobs.ashbyhq.com/acmelabs/embed?version=2"></script>`,
+      api: () =>
+        http.get("https://api.ashbyhq.com/posting-api/job-board/acmelabs", () =>
+          ashbyJobs([{ title: TITLE, id: "j1" }]),
+        ),
+      expected: { ats_type: "ashby", ats_slug: "acmelabs" },
+      url: "https://jobs.ashbyhq.com/acmelabs/j1",
+    },
+    {
+      name: "Workable hosted link",
+      body: `<a href="https://apply.workable.com/acmelabs/">Join us</a>`,
+      api: () =>
+        http.get("https://apply.workable.com/api/v1/widget/accounts/acmelabs", () =>
+          HttpResponse.json({
+            name: "Acme Labs",
+            jobs: [
+              { title: TITLE, shortcode: "AB12", shortlink: "https://apply.workable.com/j/AB12" },
+            ],
+          }),
+        ),
+      expected: { ats_type: "workable", ats_slug: "acmelabs" },
+      url: "https://apply.workable.com/j/AB12",
+    },
+    {
+      name: "Recruitee subdomain link",
+      body: `<a href="https://acmelabs.recruitee.com/">Jobs</a>`,
+      api: () =>
+        http.get("https://acmelabs.recruitee.com/api/offers/", () =>
+          HttpResponse.json({
+            offers: [
+              {
+                title: TITLE,
+                careers_url: "https://acmelabs.recruitee.com/o/fe",
+                company_name: "Acme Labs",
+              },
+            ],
+          }),
+        ),
+      expected: { ats_type: "recruitee", ats_slug: "acmelabs" },
+      url: "https://acmelabs.recruitee.com/o/fe",
+    },
+  ])(
+    "$name -> ats via careers_page, no blind slug probes",
+    async ({ body, api, expected, url }) => {
+      const { c, p } = setup();
+      server.use(
+        http.get(`https://${DOMAIN}/careers`, () => html(body)),
+        api(),
+      );
+      const r = await run();
+      expect(r.out).toBe(summary(1, { careers_page: 1 }, { ats: 1 }, 2));
+      expect(link(p)).toMatchObject({
+        apply_type: "ats",
+        method: "careers_page",
+        apply_url: url,
+        ...expected,
+      });
+      expect(requested).toEqual([
+        `https://${DOMAIN}/careers`,
+        expect.stringContaining(expected.ats_slug),
+      ]);
+      expect(company(c)).toMatchObject({
+        ats_type: expected.ats_type,
+        ats_slug: "acmelabs",
+        verified: true,
+      });
+    },
+  );
+
+  it("falls back to /jobs when /careers shows no ATS", async () => {
+    const { p } = setup();
+    server.use(
+      http.get(`https://${DOMAIN}/careers`, () => html("<p>We are hiring</p>")),
+      http.get(`https://${DOMAIN}/jobs`, () =>
+        html(`<a href="https://jobs.lever.co/acmelabs">Jobs</a>`),
+      ),
+      http.get("https://api.lever.co/v0/postings/acmelabs", () =>
+        HttpResponse.json([
+          { text: TITLE, hostedUrl: "https://jobs.lever.co/acmelabs/z9", descriptionPlain: "" },
+        ]),
+      ),
+    );
+    await run();
+    expect(link(p)).toMatchObject({
+      method: "careers_page",
+      apply_url: "https://jobs.lever.co/acmelabs/z9",
+    });
+  });
+
+  it("non-pollable ATS: a job link whose text is the title -> ats", async () => {
+    const { p } = setup();
+    server.use(
+      http.get(`https://${DOMAIN}/careers`, () =>
+        html(
+          `<a href="https://acmelabs.teamtailor.com/jobs/77-other-role">Other Role</a>
+           <a href="https://acmelabs.teamtailor.com/jobs/78-fe"> Senior  Frontend Engineer </a>`,
+        ),
+      ),
+    );
+    const r = await run();
+    expect(r.out).toBe(summary(1, { careers_page: 1 }, { ats: 1 }, 1));
+    expect(link(p)).toMatchObject({
+      apply_type: "ats",
+      method: "careers_page",
+      apply_url: "https://acmelabs.teamtailor.com/jobs/78-fe",
+      ats_type: "teamtailor",
+      ats_slug: "acmelabs",
+    });
+  });
+
+  it("non-pollable ATS: a board link only -> company_form with the board URL", async () => {
+    const { p } = setup();
+    server.use(
+      http.get(`https://${DOMAIN}/careers`, () =>
+        html(`<a href="https://acmelabs.jobs.personio.de/job/5?language=en">Other Role</a>`),
+      ),
+    );
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "company_form",
+      method: "careers_page",
+      apply_url: "https://acmelabs.jobs.personio.de/",
+      ats_type: "personio",
+    });
+  });
+
+  it("a ?gh_jid= job link on the company site whose text is the title -> ats (greenhouse)", async () => {
+    const { p } = setup();
+    server.use(
+      http.get(`https://${DOMAIN}/careers`, () =>
+        html(`<a href="/jobs/search?gh_jid=8172510">${TITLE}</a>`),
+      ),
+    );
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "ats",
+      method: "careers_page",
+      apply_url: "https://acmelabs.example/jobs/search?gh_jid=8172510",
+      ats_type: "greenhouse",
+    });
+  });
+
+  it("makes at most 2 page requests, then goes on with the slug guesses", async () => {
+    const { p } = setup();
+    allBoardsMissing();
+    server.use(http.get(`https://${DOMAIN}/*`, notFound));
+    const r = await run();
+    expect(requested.filter((u) => u.startsWith(`https://${DOMAIN}/`))).toEqual([
+      `https://${DOMAIN}/careers`,
+      `https://${DOMAIN}/jobs`,
+    ]);
+    expect(r.out).toBe(summary(1, { source: 1 }, { unknown: 1 }, 2 + MAX_SLUG_CANDIDATES * 6));
+    expect(link(p)?.reason).toBe("no ATS board found; careers page: HTTP 404, HTTP 404");
+  });
+
+  it("does not follow a redirect to another host", async () => {
+    const { p } = setup();
+    allBoardsMissing();
+    let evilHits = 0;
+    server.use(
+      http.get(`https://${DOMAIN}/careers`, () =>
+        HttpResponse.redirect("https://careers-elsewhere.example/careers", 302),
+      ),
+      http.get(`https://${DOMAIN}/jobs`, notFound),
+      http.get("https://careers-elsewhere.example/*", () => {
+        evilHits++;
+        return html(`<a href="https://jobs.lever.co/acmelabs">x</a>`);
+      }),
+    );
+    await run();
+    expect(evilHits).toBe(0);
+    expect(hostCount("careers-elsewhere.example")).toBe(0);
+    expect(link(p)).toMatchObject({ apply_type: "unknown" });
+    // Nothing found on the page: the slug guesses ran and the redirect is named in the reason.
+    expect(link(p)?.reason).toContain("redirected off-site");
+  });
+
+  it("never requests a LinkedIn domain", async () => {
+    const c = addCompany("Acme Labs", { domain: "linkedin.com", discovered_via: "config" });
+    addPosting("remotive", TITLE, c, "Acme Labs");
+    allBoardsMissing();
+    await run();
+    expect(requested.filter((u) => new URL(u).hostname.endsWith("linkedin.com"))).toEqual([]);
+  });
+
+  it("domain trust: an HN-only domain that does not resemble the company is not fetched", async () => {
+    const c = addCompany("Zephyr Systems", { domain: "unrelated-example.test" });
+    const p = addPosting("hn", TITLE, c, "Zephyr Systems", {
+      applyUrl: "https://unrelated-example.test/jobs",
+    });
+    allBoardsMissing();
+    await run();
+    expect(hostCount("unrelated-example.test")).toBe(0);
+    expect(link(p)?.reason).toContain("careers page skipped");
+    expect(link(p)?.reason).toContain("HN comments");
+  });
+
+  it("domain trust: an HN-only domain that resembles the company name is fetched", async () => {
+    const c = addCompany("Zephyr Systems", { domain: "zephyr.example" });
+    addPosting("hn", TITLE, c, "Zephyr Systems");
+    allBoardsMissing();
+    server.use(http.get("https://zephyr.example/*", notFound));
+    await run();
+    expect(hostCount("zephyr.example")).toBe(2);
+  });
+
+  it("domain trust: a domain a non-HN posting links to is fetched even when the name differs", async () => {
+    const c = addCompany("Zephyr Systems", { domain: "unrelated-example.test" });
+    addPosting("hn", TITLE, c, "Zephyr Systems");
+    addPosting("remotive", "Backend Engineer", c, "Zephyr Systems", {
+      applyUrl: "https://unrelated-example.test/apply/1",
+    });
+    allBoardsMissing();
+    server.use(http.get("https://unrelated-example.test/*", notFound));
+    await run();
+    expect(hostCount("unrelated-example.test")).toBe(2);
+  });
+
+  it("skips the careers pages when the company was fully checked within 30 days", async () => {
+    const c = addCompany("Acme Labs", { domain: DOMAIN, ats_checked_at: T0.toISOString() });
+    addPosting("remotive", TITLE, c, "Acme Labs");
+    await run();
+    expect(requested).toEqual([]);
+  });
+});
+
+describe("step 3: apply links in the posting text", () => {
+  const DOMAIN = "acmelabs.example";
+  function setup(
+    description: string,
+    extra: { source?: string; applyUrl?: string; domain?: string | null } = {},
+  ) {
+    const c = addCompany("Acme Labs", {
+      domain: extra.domain === undefined ? DOMAIN : extra.domain,
+      discovered_via: "config",
+    });
+    const p = addPosting(extra.source ?? "hn", "Senior Frontend Engineer", c, "Acme Labs", {
+      description,
+      ...(extra.applyUrl ? { applyUrl: extra.applyUrl } : {}),
+    });
+    allBoardsMissing();
+    server.use(http.get(`https://${DOMAIN}/*`, notFound));
+    return p;
+  }
+
+  it("HN comment with a jobs.lever.co link (entity-escaped, as HN serves it) -> ats via posting_text", async () => {
+    const p = setup(
+      `Acme Labs | Senior Frontend Engineer | REMOTE<p>Apply at <a href="https:&#x2F;&#x2F;jobs.lever.co&#x2F;acmelabs&#x2F;1f2e3d4c" rel="nofollow">https:&#x2F;&#x2F;jobs.lever.co&#x2F;acmelabs&#x2F;1f2e3...</a>`,
+    );
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "ats",
+      method: "posting_text",
+      apply_url: "https://jobs.lever.co/acmelabs/1f2e3d4c",
+      ats_type: "lever",
+      ats_slug: "acmelabs",
+    });
+  });
+
+  it("an ATS job URL beats a company-domain link", async () => {
+    const p = setup(
+      `Apply at https://acmelabs.example/careers or directly https://jobs.ashbyhq.com/acmelabs/0a1b2c3d-0a1b-4c3d-8e9f-0a1b2c3d4e5f`,
+    );
+    await run();
+    expect(link(p)).toMatchObject({ apply_type: "ats", ats_type: "ashby", method: "posting_text" });
+  });
+
+  it("works for a posting without a company row", async () => {
+    const id = addPosting("remoteok", "Senior Frontend Engineer", null, "Nobody", {
+      description: "<p>Apply at https://boards.greenhouse.io/nobody/jobs/123.</p>",
+    });
+    await run();
+    expect(link(id)).toMatchObject({
+      apply_type: "ats",
+      method: "posting_text",
+      apply_url: "https://boards.greenhouse.io/nobody/jobs/123",
+    });
+  });
+
+  it("only a mailto: link at the company domain -> company_form", async () => {
+    const p = setup(
+      `Acme Labs | Engineer<p>Questions? <a href="mailto:jobs@acmelabs.example">write to us</a>`,
+    );
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "company_form",
+      method: "posting_text",
+      apply_url: "mailto:jobs@acmelabs.example",
+    });
+  });
+
+  it("an e-mail in 'send your resume to' wording at the company domain -> company_form", async () => {
+    const p = setup(`Please send your resume and a short cover letter to hiring@acmelabs.example.`);
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "company_form",
+      apply_url: "mailto:hiring@acmelabs.example",
+    });
+  });
+
+  it("a company-domain link after apply wording -> company_form", async () => {
+    const p = setup(`Apply here: https://acmelabs.example/open-roles/frontend`);
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "company_form",
+      method: "posting_text",
+      apply_url: "https://acmelabs.example/open-roles/frontend",
+    });
+  });
+
+  it("board, shortener and LinkedIn links and other people's mailboxes never count as the company's own", async () => {
+    const p = setup(
+      `Apply at https://bit.ly/abc123 or https://www.linkedin.com/jobs/view/1 or https://remoteok.com/remote-jobs/1 or send your resume to someone@example.org`,
+    );
+    await run();
+    expect(link(p)).toMatchObject({ apply_type: "unknown", method: "source" });
+  });
+
+  it("a link on another company's domain is not the company's own", async () => {
+    const p = setup(`Apply at https://other-company.example/careers`);
+    await run();
+    expect(link(p)).toMatchObject({ apply_type: "unknown" });
+  });
+
+  it("only a paid-only host -> paid_aggregator", async () => {
+    const p = setup(`Apply through https://www.flexjobs.com/jobs/12345`);
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "paid_aggregator",
+      apply_url: "https://www.flexjobs.com/jobs/12345",
+    });
+  });
+
+  it("a paid-only source link with no other route -> paid_aggregator", async () => {
+    const p = setup("No link here.", { source: "remotive", applyUrl: "https://remote.co/job/9" });
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "paid_aggregator",
+      apply_url: "https://remote.co/job/9",
+    });
+  });
+
+  it("a free route beats the paid-only host", async () => {
+    const p = setup(
+      `See https://www.flexjobs.com/jobs/1 or apply at https://jobs.lever.co/acmelabs/abc`,
+    );
+    await run();
+    expect(link(p)).toMatchObject({ apply_type: "ats", method: "posting_text" });
+  });
+
+  it("a Himalayas listing with no other route -> signup_required, never fetched", async () => {
+    const p = setup("Great job.", {
+      source: "himalayas",
+      applyUrl: "https://himalayas.app/companies/acme/jobs/frontend",
+    });
+    await run();
+    expect(link(p)).toMatchObject({
+      apply_type: "signup_required",
+      method: "source",
+      apply_url: "https://himalayas.app/companies/acme/jobs/frontend",
+    });
+    expect(hostCount("himalayas.app")).toBe(0);
+  });
+
+  it("a Himalayas listing whose text names an ATS job URL -> ats", async () => {
+    const p = setup("Apply at https://jobs.lever.co/acmelabs/xyz", {
+      source: "himalayas",
+      applyUrl: "https://himalayas.app/companies/acme/jobs/frontend",
+    });
+    await run();
+    expect(link(p)).toMatchObject({ apply_type: "ats", method: "posting_text" });
+  });
+
+  it("with no company domain a mailto does not count", async () => {
+    const p = setup(`<a href="mailto:jobs@acmelabs.example">mail</a>`, { domain: null });
+    await run();
+    expect(link(p)).toMatchObject({ apply_type: "unknown" });
   });
 });
