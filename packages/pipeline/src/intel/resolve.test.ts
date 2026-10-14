@@ -313,8 +313,8 @@ describe("resolve: combination and guards", () => {
     expect(r.decision).toBe("reject");
     expect(r.reasons).toEqual([]);
   });
-  it("without flags there is no change", () => {
-    expect(run([], { hiringScope: "countries", allowedCountries: ["US"] })).toEqual({
+  it("without flags and with nothing excluding Indonesia there is no change", () => {
+    expect(run([], { hiringScope: "countries", allowedCountries: ["US", "ID"] })).toEqual({
       decision: "keep",
       reasons: [],
       remainingFlags: [],
@@ -419,7 +419,8 @@ describe("resolve golden set (R5 rows, t_dee70d65)", () => {
 
   it("indonesia: all non-judgment rows match (null = stays unclear)", () => {
     const bad = firm.filter((r) => {
-      const res = run(["indonesia_unclear"], toExtraction(r));
+      // The location check runs for every kept posting now; neutralise it so only the Indonesia flag is judged.
+      const res = run(["indonesia_unclear"], { ...toExtraction(r), hiringScope: "worldwide" });
       const got = res.remainingFlags.length > 0 ? null : res.decision;
       return got !== (r.expectedIndonesia ?? null);
     });
@@ -436,5 +437,48 @@ describe("resolve golden set (R5 rows, t_dee70d65)", () => {
       .filter((r) => r.judgment)
       .map((r) => `  ${r.id}: ${run(all, toExtraction(r)).decision}`);
     console.log(["", "Resolve judgment rows:", ...lines, ""].join("\n"));
+  });
+});
+
+describe("resolve: location without a flag (text restriction overrides the label)", () => {
+  it("countries without Indonesia reject a kept posting with no flags", () => {
+    const r = run([], { hiringScope: "countries", allowedCountries: ["GB", "IE", "DE"] });
+    expect(r.decision).toBe("reject");
+    expect(r.reasons).toEqual([
+      "Location: hiring is limited to GB, IE, DE, which does not include Indonesia or a region covering it.",
+    ]);
+    expect(r.remainingFlags).toEqual([]);
+  });
+  it("a list with ID keeps and adds no reason", () => {
+    expect(run([], { hiringScope: "countries", allowedCountries: ["GB", "ID"] })).toEqual({
+      decision: "keep",
+      reasons: [],
+      remainingFlags: [],
+    });
+  });
+  it("worldwide keeps and adds no reason", () => {
+    expect(run([], { hiringScope: "worldwide" })).toEqual({
+      decision: "keep",
+      reasons: [],
+      remainingFlags: [],
+    });
+  });
+  it("a covering region keeps and adds no reason", () => {
+    expect(run([], { hiringScope: "region", regions: ["APAC"] }).reasons).toEqual([]);
+  });
+  it("an unknown region name settles nothing", () => {
+    expect(run([], { hiringScope: "region", regions: ["Narnia"] })).toEqual({
+      decision: "keep",
+      reasons: [],
+      remainingFlags: [],
+    });
+  });
+  it("a region known to exclude Indonesia rejects", () => {
+    expect(run([], { hiringScope: "region", regions: ["EMEA"] }).decision).toBe("reject");
+  });
+  it("a rule reject stays untouched", () => {
+    expect(
+      run([], { hiringScope: "countries", allowedCountries: ["GB"] }, "reject").reasons,
+    ).toEqual([]);
   });
 });

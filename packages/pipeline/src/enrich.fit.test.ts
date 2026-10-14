@@ -174,6 +174,38 @@ describe("enrich fit stage", () => {
     expect(calls.map((c) => c.purpose).sort()).toEqual(["extract", "fit"]);
   });
 
+  it("a worldwide rule class with a countries extraction ends reject and makes no fit call", async () => {
+    addPosting("typeform");
+    const x = fixture("extract-ok.json") as { content: { type: string; text?: string }[] };
+    const block = x.content[x.content.length - 1];
+    if (block?.text === undefined) throw new Error("fixture shape");
+    block.text = JSON.stringify({
+      ...JSON.parse(block.text),
+      hiringScope: "countries",
+      allowedCountries: ["GB", "IE", "DE", "PT", "ES", "NL"],
+    });
+    server.use(
+      http.post(URL, async ({ request }) => {
+        const body = (await request.json()) as Req;
+        requests.push(body);
+        return HttpResponse.json(x);
+      }),
+    );
+    expect((await enrich()).code).toBe(0);
+    expect(intelOf("typeform")?.final_decision).toBe("reject");
+    expect(JSON.parse(intelOf("typeform")?.resolved_reasons ?? "[]")[0]).toMatch(
+      /^Location: hiring is limited to GB/,
+    );
+    expect(fitRequests()).toHaveLength(0);
+    expect(
+      db
+        .select()
+        .from(llm_calls)
+        .all()
+        .filter((c) => c.purpose === "fit"),
+    ).toHaveLength(0);
+  });
+
   it("only keep postings are scored: suspicious and rejected postings make 0 fit requests", async () => {
     addPosting("scam", {
       description_text:

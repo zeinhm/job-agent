@@ -325,3 +325,26 @@ describe("step 2: source says remote: false", () => {
     expect(classifyLocation({ locationText: "Worldwide", remote: false }).class).toBe("worldwide");
   });
 });
+
+describe("classifyLocation: text restriction (t_56bbe118)", () => {
+  const cl = (d: string, loc = "Anywhere in the World") =>
+    classifyLocation({ locationText: loc, descriptionText: d });
+  it("cites the matched sentence, capped at 120 characters", () => {
+    const r = cl(`Intro. We can only hire in ${"UK, ".repeat(60)}DE. Outro.`);
+    expect(r.class).toBe("restricted");
+    expect(r.reason).toMatch(/^step 2 text restriction: "We can only hire in UK/);
+    expect(r.reason.length).toBeLessThanOrEqual(`step 2 text restriction: ""`.length + 120);
+  });
+  it("an unreadable list is unclear, never restricted", () => {
+    expect(cl("We hire in most EU countries and a few others.").class).toBe("unclear");
+  });
+  it("a restricted sentence wins over a vague one", () => {
+    expect(cl("We hire in some places. We can only hire in the UK.").class).toBe("restricted");
+  });
+  it("an office mention is not a restriction", () => {
+    expect(cl("Our team in Berlin and offices in London.").class).toBe("worldwide");
+  });
+  it("U.S. does not end the sentence", () => {
+    expect(cl("We can hire in the U.S. and Canada only.").class).toBe("restricted");
+  });
+});

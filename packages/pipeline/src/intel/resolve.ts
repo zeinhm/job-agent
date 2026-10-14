@@ -167,7 +167,7 @@ const RESOLVERS: Record<ResolvableFlag, (x: Extraction) => Outcome> = {
 
 /**
  * Settles unclear flags from extracted facts. Pure; the LLM extracted the facts, this code decides.
- * Never overturns a rule reject; a known role family outside `TARGET_ROLE_FAMILIES`, or an unpaid / equity-only pay type, rejects a kept posting. A flag whose facts are unknown stays in `remainingFlags`.
+ * Never overturns a rule reject; a hiring scope that excludes Indonesia, a known role family outside `TARGET_ROLE_FAMILIES`, or an unpaid / equity-only pay type, rejects a kept posting. A flag whose facts are unknown stays in `remainingFlags`.
  */
 export function resolveFlags(input: ResolveInput): ResolveResult {
   const present = RESOLVABLE.filter((f) => input.flags.includes(f));
@@ -184,6 +184,14 @@ export function resolveFlags(input: ResolveInput): ResolveResult {
     }
     reasons.push(outcome.reason);
     if (outcome.decision === "reject") decision = "reject";
+  }
+  // A text-limited hiring scope rejects even when the rules saw a worldwide label (no flag asked for it). Keeping adds no reason.
+  if (!present.includes("location_unclear")) {
+    const location = resolveLocation(input.extraction);
+    if (location?.decision === "reject") {
+      decision = "reject";
+      reasons.push(location.reason);
+    }
   }
   // A family outside the target rejects even when no flag asked for it.
   const outside = familyReject(input.extraction);

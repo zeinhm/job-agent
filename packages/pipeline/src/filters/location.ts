@@ -1,5 +1,10 @@
 import {
   APAC_PHRASES,
+  HIRING_COUNTRY_CODES,
+  HIRING_REGION_NAMES,
+  HIRING_RESTRICTION_PHRASES,
+  HIRING_VAGUE_PHRASES,
+  INDONESIA_PHRASES,
   KNOWN_PLACES,
   MULTI_PLACE_PHRASES,
   NO_REMOTE_PHRASES,
@@ -132,6 +137,55 @@ function findPlace(locationText: string): Hit | undefined {
   return findPhrase([{ name: "location", text: locationText }], [...ONSITE_PHRASES, "office"]);
 }
 
+const SENTENCE_SPLIT_RE = /(?<!\b[A-Z]\.[A-Z]\.)(?<=[.!?])\s+|\n+/;
+const CODE_RE = new RegExp(
+  `(?<![\\p{L}\\p{N}])(?:${HIRING_COUNTRY_CODES.join("|")})(?![\\p{L}\\p{N}])`,
+  "u",
+);
+const COVERING_PHRASES = [
+  ...APAC_PHRASES,
+  ...INDONESIA_PHRASES,
+  ...WORLDWIDE_DESCRIPTION_PHRASES,
+  "anywhere",
+  "globally",
+  "global",
+];
+
+function excerpt(sentence: string): string {
+  const text = sentence.replace(/\s+/g, " ").trim();
+  return text.length > 120 ? `${text.slice(0, 119)}\u2026` : text;
+}
+
+/**
+ * A description sentence with hiring-restriction wording. Places that all exclude Indonesia -> restricted; any
+ * covering place or worldwide wording -> no change; wording with a vague place list -> unclear (never a reject).
+ * "offices in London" or "team in Berlin" carry no hiring wording and never get here.
+ */
+function findTextRestriction(description: string): LocationResult | undefined {
+  let unclear: LocationResult | undefined;
+  for (const raw of description.split(SENTENCE_SPLIT_RE)) {
+    const sentence = raw.trim();
+    if (!sentence) continue;
+    if (!HIRING_RESTRICTION_PHRASES.some((p) => phrasePattern(p).test(sentence))) continue;
+    if (COVERING_PHRASES.some((p) => phrasePattern(p).test(sentence))) continue;
+    if (HIRING_VAGUE_PHRASES.some((p) => phrasePattern(p).test(sentence))) {
+      unclear ??= {
+        class: "unclear",
+        reason: `step 2 text restriction with an unreadable place list: "${excerpt(sentence)}"`,
+      };
+      continue;
+    }
+    const hasPlace =
+      PLACE_RE.test(stripAccents(sentence)) ||
+      CODE_RE.test(sentence) ||
+      HIRING_REGION_NAMES.some((r) => phrasePattern(r).test(sentence));
+    if (hasPlace) {
+      return { class: "restricted", reason: `step 2 text restriction: "${excerpt(sentence)}"` };
+    }
+  }
+  return unclear;
+}
+
 function trimmed(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
@@ -143,7 +197,8 @@ function cite(hit: Hit): string {
 /**
  * Classify a posting's location for an Indonesia-based (GMT+7) candidate. First matching rule wins:
  * 1. APAC signal in location or tags -> apac_ok
- * 2. restriction in location, tags or description -> restricted
+ * 2. restriction in location, tags or description -> restricted; a description sentence limiting hiring to places
+ *    that exclude Indonesia -> restricted, one with an unreadable place list -> unclear (both before step 3)
  * 3. worldwide signal -> worldwide
  * 4. APAC signal in the description only -> apac_ok
  * 5. a location that positively names a place (KNOWN_PLACES whitelist or an on-site word), no remote
@@ -221,6 +276,9 @@ export function classifyLocation(input: LocationInput): LocationResult {
   ) {
     return { class: "restricted", reason: "step 2 source marks the posting as not remote" };
   }
+
+  const textRestriction = findTextRestriction(descriptionField.text);
+  if (textRestriction) return textRestriction;
 
   // 3. worldwide signal
   const worldwide =

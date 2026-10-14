@@ -958,5 +958,124 @@
     "descriptionSnippet": "Engineering role",
     "expected": "restricted",
     "source": "t_649b6dca whitelist rework"
+  },
+  {
+    "id": "loc-135",
+    "locationText": "Anywhere in the World",
+    "descriptionSnippet": "Typeform is a remote-first company. We can only hire in UK, IE, DE, PT, ES, NL for this role.",
+    "expected": "restricted",
+    "source": "Typeform on We Work Remotely (t_56bbe118)"
+  },
+  {
+    "id": "loc-136",
+    "locationText": "Anywhere in the World",
+    "descriptionSnippet": "We can hire in the UK, Germany and Indonesia. Great benefits.",
+    "expected": "worldwide",
+    "source": "t_56bbe118 text allows Indonesia"
+  },
+  {
+    "id": "loc-137",
+    "locationText": "Remote",
+    "descriptionSnippet": "We hire anywhere in APAC. Join a distributed team.",
+    "expected": "apac_ok",
+    "source": "t_56bbe118 APAC wording"
+  },
+  {
+    "id": "loc-138",
+    "locationText": "Remote",
+    "descriptionSnippet": "We have offices in London and NYC, fully remote worldwide.",
+    "expected": "worldwide",
+    "source": "t_56bbe118 office mention is not a restriction"
+  },
+  {
+    "id": "loc-139",
+    "locationText": "Remote",
+    "descriptionSnippet": "You must be based in Europe to apply for this position.",
+    "expected": "restricted",
+    "source": "t_56bbe118 region restriction"
+  },
+  {
+    "id": "loc-140",
+    "locationText": "Anywhere",
+    "descriptionSnippet": "We hire in most EU countries and a few others.",
+    "expected": "unclear",
+    "source": "t_56bbe118 unreadable list"
+  },
+  {
+    "id": "loc-141",
+    "locationText": "Worldwide",
+    "descriptionSnippet": "Our team in Berlin is friendly. Candidates must be located in the United States or Canada.",
+    "expected": "restricted",
+    "source": "t_56bbe118 must be located"
+  },
+  {
+    "id": "loc-142",
+    "locationText": "Remote - Anywhere",
+    "descriptionSnippet": "We can only hire from Spain, Portugal and France due to our legal entities.",
+    "expected": "restricted",
+    "source": "t_56bbe118 only hire from"
+  },
+  {
+    "id": "loc-143",
+    "locationText": "Anywhere in the World",
+    "descriptionSnippet": "Candidates must be eligible to work in Ireland or the Netherlands.",
+    "expected": "restricted",
+    "source": "t_56bbe118 eligible to work in"
+  },
+  {
+    "id": "loc-144",
+    "locationText": "Remote",
+    "descriptionSnippet": "You need to be legally authorized to work in Canada. We offer flexible hours.",
+    "expected": "restricted",
+    "source": "t_56bbe118 legally authorized"
+  },
+  {
+    "id": "loc-145",
+    "locationText": "Anywhere in the World",
+    "descriptionSnippet": "We are only able to hire in Germany, Austria and Switzerland.",
+    "expected": "restricted",
+    "source": "t_56bbe118 only able to hire"
+  },
+  {
+    "id": "loc-146",
+    "locationText": "Remote (Worldwide)",
+    "descriptionSnippet": "We can hire in the UK and anywhere else you can work asynchronously.",
+    "expected": "worldwide",
+    "source": "t_56bbe118 worldwide wording in the same sentence"
+  },
+  {
+    "id": "loc-147",
+    "locationText": "Remote",
+    "descriptionSnippet": "We hire in the following countries: Poland, Romania and Czechia. Apply now.",
+    "expected": "restricted",
+    "source": "t_56bbe118 following countries list"
+  },
+  {
+    "id": "loc-148",
+    "locationText": "Remote",
+    "descriptionSnippet": "We can hire in Singapore, Indonesia and Malaysia.",
+    "expected": "apac_ok",
+    "source": "t_56bbe118 list includes Indonesia"
+  },
+  {
+    "id": "loc-149",
+    "locationText": "Anywhere",
+    "descriptionSnippet": "Must reside in US/Canada. Our offices in London are optional.",
+    "expected": "restricted",
+    "source": "t_56bbe118 must reside in"
+  },
+  {
+    "id": "loc-150",
+    "locationText": "Worldwide",
+    "descriptionSnippet": "Our founders are in Lisbon. We hire from many countries across the globe, no restrictions.",
+    "expected": "worldwide",
+    "source": "t_56bbe118 no restriction wording"
+  },
+  {
+    "id": "loc-151",
+    "locationText": "Remote",
+    "descriptionSnippet": "We can hire in several countries, details on request.",
+    "expected": "unclear",
+    "source": "t_56bbe118 vague list"
   }
 ]

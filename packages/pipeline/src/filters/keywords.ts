@@ -61,6 +61,111 @@ export const RESTRICTION_PHRASES: readonly string[] = [
 ];
 
 /**
+ * Description wording that limits who the company can hire. A sentence with one of these plus a place that does not
+ * cover Indonesia is a text restriction (location.ts), whatever the source's region label says.
+ */
+export const HIRING_RESTRICTION_PHRASES: readonly string[] = [
+  "can only hire in",
+  "can only hire from",
+  "only able to hire",
+  "we hire in",
+  "we hire from",
+  "we can hire in",
+  "must be based in",
+  "must reside in",
+  "must be located in",
+  "eligible to work in",
+  "legally authorized to work in",
+];
+
+/** Region words for a hiring sentence (not in KNOWN_PLACES). None of them covers Indonesia. */
+export const HIRING_REGION_NAMES: readonly string[] = [
+  "Europe",
+  "European Union",
+  "EU",
+  "EEA",
+  "EMEA",
+  "Americas",
+  "North America",
+  "South America",
+  "Latin America",
+  "LATAM",
+  "Africa",
+  "Middle East",
+  "Nordics",
+  "DACH",
+  "Benelux",
+];
+
+/**
+ * Upper-case ISO country codes read as places in a hiring sentence. Written exactly like this (case-sensitive).
+ * Codes that are ordinary upper-case words (IT, IN, NO, BE, AT, OR) are left out; ID (Indonesia) is a covering place.
+ */
+export const HIRING_COUNTRY_CODES: readonly string[] = [
+  "GB",
+  "UK",
+  "IE",
+  "DE",
+  "PT",
+  "ES",
+  "NL",
+  "FR",
+  "PL",
+  "SE",
+  "DK",
+  "FI",
+  "CH",
+  "CZ",
+  "RO",
+  "LT",
+  "LV",
+  "EE",
+  "GR",
+  "HU",
+  "BG",
+  "HR",
+  "SK",
+  "SI",
+  "LU",
+  "MT",
+  "CY",
+  "US",
+  "CA",
+  "MX",
+  "BR",
+  "AR",
+  "CO",
+  "CL",
+  "IL",
+  "ZA",
+  "NG",
+  "KE",
+  "EG",
+  "MA",
+];
+
+/** Words that make a place list unreadable ("most EU countries and a few others"): the rule says unclear, never reject. */
+export const HIRING_VAGUE_PHRASES: readonly string[] = [
+  "most",
+  "some",
+  "several",
+  "various",
+  "many",
+  "a few",
+  "few",
+  "other",
+  "others",
+  "certain",
+  "select",
+  "selected",
+  "parts of",
+  "etc",
+  "and more",
+  "and beyond",
+  "and elsewhere",
+];
+
+/**
  * Country names (and common abbreviations) that make a "Countries: ...", "Remote, <country>" or
  * "<country> (Remote)" location a restriction. Indonesia and the APAC region words are deliberately absent:
  * they are APAC signals and win first. Matched as whole list items, case-insensitively.
