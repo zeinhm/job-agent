@@ -57,3 +57,4 @@ Last audit tag: (none yet)
 | t_109ee39b | Digest --include-unpaid: optional Volunteer / unpaid section | medium | 8791751 | 2026-10-14 |
 | t_fa40baa4 | Extend the free title deny-list so clearly non-engineering titles never reach an AI call | medium | 201af0f | 2026-10-14 |
 | t_fb5c9fac | Time zone requirements for a GMT+7 candidate: residence vs working hours | medium | 169e896 | 2026-10-14 |
+| t_2e9e402a | Apply links: schema, resolve-apply command and ATS lookup by company name + title match | medium | 198340a | 2026-10-14 |
