@@ -1,0 +1,25 @@
+body {
+  font-family: system-ui, sans-serif;
+  margin: 0 auto;
+  max-width: 60rem;
+  padding: 1rem;
+}
+header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+[role="tablist"] {
+  border-bottom: 1px solid #888;
+  display: flex;
+  gap: 0.25rem;
+  margin: 1rem 0;
+}
+[role="tab"][aria-selected="true"] {
+  font-weight: bold;
+}
+.empty {
+  color: #555;
+}

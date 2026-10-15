@@ -4,6 +4,7 @@
     { "path": "packages/core" },
     { "path": "packages/sources" },
     { "path": "packages/pipeline" },
-    { "path": "apps/dashboard" }
+    { "path": "apps/dashboard" },
+    { "path": "apps/dashboard/src/web" }
   ]
 }
