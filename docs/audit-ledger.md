@@ -88,3 +88,4 @@ Last audit tag: (none yet)
 | t_8140d1bc | Match application questions to the answer bank; fill the unknown-questions inbox | medium | 77e37ce | 2026-10-16 |
 | t_bb962b1b | Unknown-questions inbox: answer, link as alternative, dismiss; re-match after each action | medium | fae437b | 2026-10-16 |
 | t_3b914bae | End-to-end test for Phase 4 and bin/smoke coverage of the dashboard | medium | 56ca0df | 2026-10-16 |
+| t_c5832945 | Run docs for Phase 4: dashboard, review keys, answer bank, inbox, eval scripts, done-when check | low | 3c47619 | 2026-10-16 |
