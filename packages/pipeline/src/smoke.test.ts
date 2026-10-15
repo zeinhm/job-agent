@@ -27,6 +27,7 @@ function run(env: Record<string, string> = {}, flags: string[] = []) {
   dirs.push(work);
   const cli = join(work, "fake-cli");
   const log = join(work, "calls.log");
+  const dash = join(work, "fake-dash");
   writeFileSync(
     cli,
     `#!/usr/bin/env bash
@@ -39,6 +40,16 @@ exit 0
 `,
   );
   chmodSync(cli, 0o755);
+  // The dashboard command logs into the same file as "dashboard <args>"; FAIL_DASH makes the self-check fail.
+  writeFileSync(
+    dash,
+    `#!/usr/bin/env bash
+echo "dashboard $* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-} BRAVE=\${BRAVE_API_KEY:-}" >> "${log}"
+[ -n "$FAIL_DASH" ] && exit 1
+exit 0
+`,
+  );
+  chmodSync(dash, 0o755);
   const smokeDir = join(work, "smoke");
   const res = spawnSync("bash", [join(repo, "bin/smoke"), ...flags, smokeDir], {
     cwd: repo,
@@ -48,6 +59,7 @@ exit 0
       WEB3_CAREER_TOKEN: "",
       ANTHROPIC_API_KEY: "sk-x",
       JOB_AGENT_CLI: cli,
+      JOB_AGENT_DASH_CLI: dash,
       ...env,
     },
   });
@@ -72,12 +84,15 @@ describe("bin/smoke", () => {
     ]);
     for (const c of calls.filter((c) => c.startsWith("discover"))) expect(c).toContain("--force");
     const order = calls.map((c) => c.split(" ")[0]);
-    expect(order.slice(-6)).toEqual([
+    expect(order.slice(-9)).toEqual([
       "process",
       "enrich",
       "resolve-apply",
+      "answers",
       "fetch-questions",
+      "match-questions",
       "digest",
+      "dashboard",
       "status",
     ]);
     expect(res.stdout).toContain("remotive: error, boom");
@@ -119,8 +134,50 @@ describe("bin/smoke", () => {
     const order = calls.map((c) => c.split(" ")[0]);
     expect(order.indexOf("enrich")).toBeGreaterThan(order.indexOf("process"));
     expect(order.indexOf("resolve-apply")).toBe(order.indexOf("enrich") + 1);
-    expect(order.indexOf("fetch-questions")).toBe(order.indexOf("resolve-apply") + 1);
-    expect(order.indexOf("digest")).toBe(order.indexOf("fetch-questions") + 1);
+    expect(order.indexOf("answers")).toBe(order.indexOf("resolve-apply") + 1);
+    expect(order.indexOf("fetch-questions")).toBe(order.indexOf("answers") + 1);
+    expect(order.indexOf("match-questions")).toBe(order.indexOf("fetch-questions") + 1);
+    expect(order.indexOf("digest")).toBe(order.indexOf("match-questions") + 1);
+  });
+
+  it("runs answers import, match-questions and dashboard --self-check on the temp DB, no keys", () => {
+    const { calls, smokeDir, res } = run({ BRAVE_API_KEY: "brave-x" });
+    expect(res.status).toBe(0);
+    const imp = calls.find((c) => c.startsWith("answers"));
+    expect(imp).toContain("answers import |");
+    const match = calls.find((c) => c.startsWith("match-questions"));
+    const dash = calls.find((c) => c.startsWith("dashboard"));
+    expect(dash).toContain("dashboard --self-check |");
+    for (const c of [imp, match, dash]) {
+      expect(c).toContain(`DB=${smokeDir}/smoke.db`);
+      expect(c).toContain(`CFG=${smokeDir}/config`);
+      expect(c).toContain("ENVFILE=/dev/null ");
+      expect(c).toContain("KEY= BRAVE=");
+    }
+    expect(res.stdout).toContain("== dashboard --self-check");
+  });
+
+  it("exits 1 when the dashboard self-check fails, but still prints the status", () => {
+    const { res, calls } = run({ FAIL_DASH: "1" });
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("!! 'dashboard --self-check' exited 1");
+    expect(calls.some((c) => c.startsWith("status"))).toBe(true);
+  });
+
+  it("--demo runs seed-demo right after process; without it there is no seed-demo", () => {
+    const demo = run({}, ["--demo"]);
+    expect(demo.res.status).toBe(0);
+    const order = demo.calls.map((c) => c.split(" ")[0]);
+    expect(order.filter((c) => c === "seed-demo")).toHaveLength(1);
+    expect(order.indexOf("seed-demo")).toBe(order.indexOf("process") + 1);
+    expect(demo.calls.find((c) => c.startsWith("seed-demo"))).toContain(
+      `DB=${demo.smokeDir}/smoke.db`,
+    );
+    expect(run().calls.some((c) => c.startsWith("seed-demo"))).toBe(false);
+    // Combinable with --with-jobspy.
+    expect(run({}, ["--with-jobspy", "--demo"]).calls.some((c) => c.startsWith("seed-demo"))).toBe(
+      true,
+    );
   });
 
   it("runs fetch-questions --limit 3 on the temp DB", () => {

@@ -5,11 +5,16 @@
 # linkedin_posts (Brave Search results, needs BRAVE_API_KEY) is polled too: without the key it prints its skip line. `jobstreet`
 # does not exist (its card was dropped by the owner) and `threads` is not merged: they are added here when they land.
 # After enrich, `resolve-apply --limit 3` runs (board lookups are paced at 1 request per 2 s, so a smoke run checks 3 postings; public ATS boards only; its Haiku step needs a key and prints its skip line without one).
-# Then `fetch-questions --limit 3` (kept ATS postings only; paced 1 request per 2 s per host, public ATS job APIs, GET only).
+# Then `answers import` (the example answers.yaml copy), `fetch-questions --limit 3` (kept ATS postings only; paced 1 request per 2 s per host,
+# public ATS job APIs, GET only) and `match-questions`; after the digest `dashboard --self-check` (127.0.0.1 on an ephemeral port, /api/health and
+# /api/queue on the smoke DB) closes the run.
 # Never touches config/ or data/. JOB_AGENT_ENV_FILE=/dev/null stops the CLI from loading the owner's .env (and its API key); the key is also unset (so is BRAVE_API_KEY: linkedin_posts always shows its skip line). No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
 # bin/smoke --with-jobspy (flag first): also runs ONE LinkedIn and ONE Indeed search (results_wanted <= 10, logged out, via the JobSpy worker)
 # when workers/jobspy/.venv exists. Not part of the default run: a block hurts the owner's home IP (agents only with owner OK).
-# JOB_AGENT_CLI overrides the CLI command (used by tests).
+# bin/smoke --demo (flag first, combinable with --with-jobspy): also runs `seed-demo` after process, so the queue and the dashboard
+# self-check have a filled fake day (Alex Example persona). Same step on an existing smoke dir: bin/smoke run <smoke dir> seed-demo
+# [--date YYYY-MM-DD]. seed-demo refuses the default DB and anything under data/.
+# JOB_AGENT_CLI overrides the CLI command (used by tests); JOB_AGENT_DASH_CLI the dashboard command (self-check step and `dash`).
 #
 # bin/smoke run <smoke dir> <command...>: run ONE more CLI command against an existing smoke dir (same temp DB and
 # example configs, no API key), e.g. bin/smoke run /tmp/job-agent-smoke.ab12 process --reprocess
@@ -34,8 +39,14 @@ if [ "${1:-}" = dash ]; then
   read -r -a DASH <<< "${JOB_AGENT_DASH_CLI:-pnpm -s dashboard}"
   echo "== dashboard $* (smoke dir $DIR)"; exec "${DASH[@]}" "$@"
 fi
-WITH_JOBSPY=0
-if [ "${1:-}" = --with-jobspy ]; then WITH_JOBSPY=1; shift; fi
+WITH_JOBSPY=0; DEMO=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --with-jobspy) WITH_JOBSPY=1; shift ;;
+    --demo) DEMO=1; shift ;;
+    *) break ;;
+  esac
+done
 DIR="${1:-$(mktemp -d "${TMPDIR:-/tmp}/job-agent-smoke.XXXXXX")}"
 mkdir -p "$DIR/config" "$DIR/digests"
 for f in config/*.example.*; do b="$(basename "$f")"; cp "$f" "$DIR/config/${b/.example/}"; done
@@ -63,11 +74,17 @@ step() { echo "== $*"; "${CLI[@]}" "$@" || { echo "!! '$*' exited $?"; return 1;
 step fx || true
 for s in "${SOURCES[@]}"; do step discover --force --source "$s" || true; done
 step process || fail=1
+if [ "$DEMO" = 1 ]; then step seed-demo || fail=1; fi
 USAGE="$("${CLI[@]}" 2>&1)"
 if grep -q '^  enrich$' <<< "$USAGE"; then step enrich || true; fi
 if grep -q '^  resolve-apply$' <<< "$USAGE"; then step resolve-apply --limit 3 || true; fi
+step answers import || fail=1
 if grep -q '^  fetch-questions$' <<< "$USAGE"; then step fetch-questions --limit 3 || true; fi
+step match-questions || fail=1
 step digest --out-dir "$DIR/digests" || fail=1
+read -r -a DASH <<< "${JOB_AGENT_DASH_CLI:-pnpm -s dashboard}"
+echo "== dashboard --self-check"
+"${DASH[@]}" --self-check || { echo "!! 'dashboard --self-check' exited $?"; fail=1; }
 echo "== status"
 "${CLI[@]}" status || fail=1
 echo "smoke dir: $DIR"
