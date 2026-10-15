@@ -68,3 +68,4 @@ Last audit tag: (none yet)
 | t_1700ae4a | End-to-end test for the Phase 3 pipeline and bin/smoke coverage of the new keyless sources | medium | 2a85c60 | 2026-10-14 |
 | t_9192fcfc | Update run docs, cron example and env example for Phase 3 | low | 5a1197b | 2026-10-14 |
 | t_172f1d5e | Source poll intervals: slack below the hourly schedule (indeed LATE fix) | medium | 6eacd65 | 2026-10-15 |
+| t_47589c2e | linkedin_posts disabled by default (Brave does not index LinkedIn posts) | medium | 3eef570 | 2026-10-15 |
