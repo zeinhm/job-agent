@@ -72,3 +72,4 @@ Last audit tag: (none yet)
 | t_ce49d729 | Owner-only holds labelled OWNER, real error in hold reasons | medium | 3e01a18 | 2026-10-15 |
 | t_1099c9eb | Phase 4 schema: reviews, answer_bank, posting_questions, unknown_questions; SQLite WAL | medium | 1b7a414 | 2026-10-15 |
 | t_99deaa3f | Demo seed: seed-demo fills a smoke DB with fake queue data | medium | bcee7d0 | 2026-10-15 |
+| t_c269b5ab | Dashboard web app skeleton: Vite + React + TanStack Query, four tabs, build and tests in pnpm check | medium | 8667a6d | 2026-10-15 |
