@@ -6,5 +6,9 @@
   },
   "include": ["src"],
   "exclude": ["src/web"],
-  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/pipeline" }]
+  "references": [
+    { "path": "../../packages/apply" },
+    { "path": "../../packages/core" },
+    { "path": "../../packages/pipeline" }
+  ]
 }

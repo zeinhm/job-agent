@@ -55,6 +55,7 @@ const server = setupServer(
   http.get("http://localhost:3000/api/stats", ({ request }) =>
     HttpResponse.json(statsFor(new URL(request.url).searchParams.get("date") ?? "")),
   ),
+  http.get("http://localhost:3000/api/answers", () => HttpResponse.json({ answers: [] })),
   http.get("http://localhost:3000/api/queue", () =>
     HttpResponse.json({
       date: "2026-10-16",
@@ -105,7 +106,7 @@ describe("App", () => {
     await user.click(screen.getByRole("tab", { name: "Stats" }));
     expect(await screen.findByLabelText("Done-when")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Answers" }));
-    expect(screen.getByText(/No answers yet/)).toBeTruthy();
+    expect(await screen.findByText(/No answers yet/)).toBeTruthy();
   });
 
   it("Stats tab shows the day numbers, ask checks per tier and the last 7 days", async () => {

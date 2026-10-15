@@ -1,3 +1,4 @@
+import { dirname, join } from "node:path";
 import { defaultDbPath, loadConfig, openDb } from "@job-agent/core";
 import { parseArgs } from "./args.ts";
 import { selfCheck } from "./self-check.ts";
@@ -11,12 +12,18 @@ async function main(): Promise<void> {
     console.error(USAGE);
     process.exit(2);
   }
-  const db = openDb(defaultDbPath());
+  const dbPath = defaultDbPath();
+  const db = openDb(dbPath);
   if (args.selfCheck) {
     process.exit(await selfCheck(db, (line) => console.log(line)));
   }
   try {
-    const server = await startServer(db, { port: args.port, salary: () => loadConfig().salary });
+    const server = await startServer(db, {
+      port: args.port,
+      // data/exports next to the DB; the product never writes config/.
+      exportsDir: join(dirname(dbPath), "exports"),
+      salary: () => loadConfig().salary,
+    });
     console.log(`dashboard: http://127.0.0.1:${server.port}/`);
     const stop = () => void server.close().then(() => process.exit(0));
     process.on("SIGINT", stop);

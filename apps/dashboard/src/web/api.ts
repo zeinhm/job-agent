@@ -38,6 +38,58 @@ export async function apiPost<S extends z.ZodType>(
   return schema.parse(await res.json());
 }
 
+// Same-origin JSON PATCH, same rules as apiPost.
+export async function apiPatch<S extends z.ZodType>(
+  path: string,
+  body: unknown,
+  schema: S,
+): Promise<z.infer<S>> {
+  const res = await fetch(new URL(path, window.location.origin), {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, path);
+  return schema.parse(await res.json());
+}
+
+export const ANSWER_TYPES = ["text", "long_text", "yes_no", "number", "choice"] as const;
+
+export const AnswerSchema = z.object({
+  key: z.string(),
+  group: z.string(),
+  question: z.string().nullable(),
+  answer: z.string(),
+  type: z.enum(ANSWER_TYPES).nullable(),
+  choices: z.array(z.string()).nullable(),
+  alternatives: z.array(z.string()).nullable(),
+  approved: z.boolean(),
+  approvedAt: z.string().nullable(),
+  source: z.enum(["config", "dashboard"]),
+  updatedAt: z.string(),
+});
+export type Answer = z.infer<typeof AnswerSchema>;
+
+const AnswersSchema = z.object({ answers: z.array(AnswerSchema) });
+const ExportedSchema = z.object({ path: z.string(), count: z.number() });
+
+/** Body of PATCH /api/answers/:key (mirrors the server's AnswerPatchSchema). */
+export interface AnswerPatchBody {
+  answer?: string;
+  question?: string | null;
+  alternatives?: string[] | null;
+  approved?: boolean;
+}
+
+/** Body of POST /api/answers. */
+export interface NewAnswerBody {
+  group: string;
+  key: string;
+  answer: string;
+  question?: string;
+}
+
 export const REVIEW_STATUSES = [
   "open",
   "interested",
@@ -222,6 +274,11 @@ export const api = {
     apiGet(`/api/postings/${encodeURIComponent(id)}`, PostingDetailSchema),
   review: (body: ReviewBody) => apiPost("/api/reviews", body, RecordedSchema),
   bulk: (body: BulkBody) => apiPost("/api/reviews/bulk", body, BatchRecordedSchema),
+  answers: (): Promise<Answer[]> => apiGet("/api/answers", AnswersSchema).then((r) => r.answers),
+  patchAnswer: (key: string, body: AnswerPatchBody) =>
+    apiPatch(`/api/answers/${encodeURIComponent(key)}`, body, AnswerSchema),
+  createAnswer: (body: NewAnswerBody) => apiPost("/api/answers", body, AnswerSchema),
+  exportAnswers: () => apiPost("/api/answers/export", {}, ExportedSchema),
   undo: (postingIds: string[]) =>
     apiPost("/api/reviews/undo", { posting_ids: postingIds }, BatchRecordedSchema),
 };

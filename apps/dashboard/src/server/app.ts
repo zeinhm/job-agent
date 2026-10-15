@@ -1,7 +1,17 @@
 import { fileURLToPath } from "node:url";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import {
+  AnswerKeySchema,
+  AnswerPatchSchema,
+  AnswerStoreError,
+  NewAnswerSchema,
+  createAnswer,
+  exportAnswers,
+  listAnswers,
+  updateAnswer,
+} from "@job-agent/apply";
 import type { Db, SalaryConfig } from "@job-agent/core";
 import {
   getPostingDetail,
@@ -24,6 +34,7 @@ import { parseBody, parseParams, parseQuery } from "./validate.ts";
 
 const QueueQuery = z.strictObject({ date: z.string().refine(isDigestDate).optional() });
 const PostingParams = z.object({ id: z.string().min(1).max(200) });
+const AnswerParams = z.object({ key: AnswerKeySchema });
 
 export interface AppOptions {
   /** Clock, for the default day and review timestamps. */
@@ -33,6 +44,8 @@ export interface AppOptions {
   salary?: () => SalaryConfig;
   /** Built web app (Vite output). Defaults to apps/dashboard/dist/web. */
   webDir?: string;
+  /** Where `POST /api/answers/export` writes (data/exports next to the DB). Never config/. */
+  exportsDir?: string;
   /** Error log sink; one line per error, never bodies or row content. */
   logError?: (line: string) => void;
 }
@@ -113,6 +126,47 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     const r = batchRoute((now) => undoReviews(db, input.posting_ids, now));
     if (!r.ok) return c.json({ error: r.kind }, r.kind === "not_found" ? 404 : 409);
     return c.json({ recorded: r.value }, 201);
+  });
+
+  const now = () => (opts.now ?? (() => new Date()))();
+  // Store errors carry field names only, so the response never echoes submitted values.
+  const answerError = (c: Context, e: unknown) => {
+    if (!(e instanceof AnswerStoreError)) throw e;
+    if (e.kind === "exists") return c.json({ error: "exists" }, 409);
+    if (e.kind === "not_found") return c.json({ error: "not found" }, 404);
+    return c.json({ error: "invalid request", issues: e.paths.map((path) => ({ path })) }, 400);
+  };
+
+  app.get("/api/answers", (c) => c.json({ answers: listAnswers(db) }));
+
+  app.post("/api/answers", async (c) => {
+    const input = await parseBody(c, NewAnswerSchema);
+    try {
+      return c.json(createAnswer(db, input, now()), 201);
+    } catch (e) {
+      return answerError(c, e);
+    }
+  });
+
+  // The export goes to data/exports (opts.exportsDir), never to config/; the response has the path and count only.
+  app.post("/api/answers/export", (c) => {
+    if (opts.exportsDir === undefined) {
+      logError("dashboard error /api/answers/export 500");
+      return c.json({ error: "exports not configured" }, 500);
+    }
+    const { path, count } = exportAnswers(db, opts.exportsDir, jakartaDate(now()));
+    return c.json({ path, count });
+  });
+
+  app.patch("/api/answers/:key", async (c) => {
+    const { key } = parseParams(c, AnswerParams);
+    const patch = await parseBody(c, AnswerPatchSchema);
+    try {
+      const updated = updateAnswer(db, key, patch, now());
+      return updated === null ? c.json({ error: "not found" }, 404) : c.json(updated);
+    } catch (e) {
+      return answerError(c, e);
+    }
   });
 
   // Last resort for anything no route matched: static files, SPA fallback, JSON 404 for /api.

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.19.0",
+    "@job-agent/apply": "workspace:*",
     "@job-agent/core": "workspace:*",
     "@job-agent/pipeline": "workspace:*",
     "@tanstack/react-query": "^5.104.2",
