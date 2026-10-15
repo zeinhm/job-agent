@@ -61,9 +61,13 @@ export class QuestionsHttp {
     this.requests++;
     let res: Response;
     try {
-      res = await httpGet(url, { minIntervalMs: MIN_INTERVAL_MS });
+      // Redirects are never followed: the questions stay on the ATS API host that was asked (a 3xx is a failed fetch).
+      res = await httpGet(url, { minIntervalMs: MIN_INTERVAL_MS, followRedirects: false });
     } catch (err) {
       const status = err instanceof HttpError ? err.status : null;
+      if (status !== null && status >= 300 && status < 400) {
+        return { kind: "error", reason: `redirect not followed (HTTP ${status})` };
+      }
       if (status === 404) return { kind: "missing" };
       if (status === 401 || status === 403 || status === 429) {
         this.blockedHosts.set(host, status);

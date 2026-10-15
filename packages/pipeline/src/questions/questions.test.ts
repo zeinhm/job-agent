@@ -640,6 +640,37 @@ describe("fetch-questions", () => {
     expect(r.err).toContain(`fetch-questions: error ${id} greenhouse: HTTP 500`);
   });
 
+  it.each([
+    ["another host", "https://elsewhere.example.test/jobs/1?token=secret-q"],
+    ["the same host", "https://boards-api.greenhouse.io/v1/other?token=secret-q"],
+  ])(
+    "never follows a redirect (to %s): a failed fetch, target not requested, no query logged",
+    async (_n, target) => {
+      const targetUrl = new URL(target);
+      let hit = false;
+      server.use(
+        http.get(
+          GH_JOB,
+          () => new HttpResponse(null, { status: 302, headers: { location: target } }),
+        ),
+        http.get(`${targetUrl.origin}${targetUrl.pathname}`, () => {
+          hit = true;
+          return HttpResponse.json(fixture("greenhouse-job.json"));
+        }),
+      );
+      const id = ghPosting();
+      const r = await run();
+      expect(r.code).toBe(1);
+      expect(r.err).toContain(
+        `fetch-questions: error ${id} greenhouse: redirect not followed (HTTP 302)`,
+      );
+      expect(r.err + r.out).not.toContain("secret-q");
+      expect(hit).toBe(false);
+      expect(rows(id)).toEqual([]);
+      expect(requested).toEqual([`GET ${GH_JOB}?questions=true`]);
+    },
+  );
+
   it("only ever sends GET requests", async () => {
     gh200();
     server.use(

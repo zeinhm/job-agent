@@ -164,12 +164,12 @@ describe("bin/smoke", () => {
     expect(calls.some((c) => c.startsWith("status"))).toBe(true);
   });
 
-  it("--demo runs seed-demo right after process; without it there is no seed-demo", () => {
+  it("--demo runs seed-demo before any discover; without it there is no seed-demo", () => {
     const demo = run({}, ["--demo"]);
     expect(demo.res.status).toBe(0);
     const order = demo.calls.map((c) => c.split(" ")[0]);
     expect(order.filter((c) => c === "seed-demo")).toHaveLength(1);
-    expect(order.indexOf("seed-demo")).toBe(order.indexOf("process") + 1);
+    expect(order.indexOf("seed-demo")).toBeLessThan(order.indexOf("discover"));
     expect(demo.calls.find((c) => c.startsWith("seed-demo"))).toContain(
       `DB=${demo.smokeDir}/smoke.db`,
     );

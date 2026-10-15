@@ -11,9 +11,10 @@
 # Never touches config/ or data/. JOB_AGENT_ENV_FILE=/dev/null stops the CLI from loading the owner's .env (and its API key); the key is also unset (so is BRAVE_API_KEY: linkedin_posts always shows its skip line). No LLM calls: if `enrich` exists it runs without a key, prints its skip line and the "scam rules checked N postings, suspicious M" line (text-only scam rules).
 # bin/smoke --with-jobspy (flag first): also runs ONE LinkedIn and ONE Indeed search (results_wanted <= 10, logged out, via the JobSpy worker)
 # when workers/jobspy/.venv exists. Not part of the default run: a block hurts the owner's home IP (agents only with owner OK).
-# bin/smoke --demo (flag first, combinable with --with-jobspy): also runs `seed-demo` after process, so the queue and the dashboard
-# self-check have a filled fake day (Alex Example persona). Same step on an existing smoke dir: bin/smoke run <smoke dir> seed-demo
-# [--date YYYY-MM-DD]. seed-demo refuses the default DB and anything under data/.
+# bin/smoke --demo (flag first, combinable with --with-jobspy): also runs `seed-demo` on the fresh DB BEFORE discover, so the queue and
+# the dashboard self-check have a filled fake day (Alex Example persona). seed-demo refuses the default DB, anything under data/ (symlinks
+# resolved) and any DB holding a posting whose id does not start with `demo-`: so `bin/smoke run <smoke dir> seed-demo` on a smoke dir
+# that already has public postings is refused (exit 1); only a fresh or demo-only DB can be seeded.
 # JOB_AGENT_CLI overrides the CLI command (used by tests); JOB_AGENT_DASH_CLI the dashboard command (self-check step and `dash`).
 #
 # bin/smoke run <smoke dir> <command...>: run ONE more CLI command against an existing smoke dir (same temp DB and
@@ -72,9 +73,10 @@ fail=0
 step() { echo "== $*"; "${CLI[@]}" "$@" || { echo "!! '$*' exited $?"; return 1; }; }
 
 step fx || true
+# --demo seeds the fresh DB before any discover: seed-demo refuses a DB holding a non-demo posting.
+if [ "$DEMO" = 1 ]; then step seed-demo || fail=1; fi
 for s in "${SOURCES[@]}"; do step discover --force --source "$s" || true; done
 step process || fail=1
-if [ "$DEMO" = 1 ]; then step seed-demo || fail=1; fi
 USAGE="$("${CLI[@]}" 2>&1)"
 if grep -q '^  enrich$' <<< "$USAGE"; then step enrich || true; fi
 if grep -q '^  resolve-apply$' <<< "$USAGE"; then step resolve-apply --limit 3 || true; fi

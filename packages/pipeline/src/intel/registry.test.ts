@@ -60,6 +60,12 @@ describe("pay-policy registry", () => {
     expect(row()?.pay_policy).toBe("unknown");
   });
 
+  it("never overwrites an owner:<date> source even when its policy is unknown", () => {
+    addCompany({ pay_policy: "unknown", pay_policy_source: "owner:2026-10-15" });
+    recordPostingPolicy(db, post("p1"), ex({ payPolicy: "location_agnostic" }));
+    expect(payPolicyFor(db, "c1")).toEqual({ policy: "unknown", source: "owner:2026-10-15" });
+  });
+
   it("a US legal-note range does not set location_agnostic", () => {
     addCompany();
     const reasons = recordPostingPolicy(

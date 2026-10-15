@@ -1,4 +1,5 @@
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { lstatSync, readlinkSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   analysis,
@@ -11,6 +12,7 @@ import {
   unknown_questions,
   type Db,
 } from "@job-agent/core";
+import { sql } from "drizzle-orm";
 import { isDigestDate, jakartaDate } from "./digest/index.ts";
 import { normalizeCompanyName } from "./normalize/index.ts";
 import { DEMO_ANSWERS, DEMO_COMPANIES, DEMO_POSTINGS } from "./seed-demo.fixtures.ts";
@@ -22,12 +24,39 @@ function isUnder(dir: string, path: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
+/**
+ * Realpath of `path`; for a path that does not exist yet, the realpath of its nearest existing ancestor plus the rest.
+ * A dangling symlink is followed to its (missing) target, so a link into a not-yet-created `data/` dir still resolves there.
+ */
+function realpathLoose(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch (e) {
+    const parent = dirname(path);
+    if ((e as NodeJS.ErrnoException).code !== "ENOENT" || parent === path) throw e;
+    const base = resolve(realpathLoose(parent), basename(path));
+    try {
+      if (lstatSync(base).isSymbolicLink())
+        return realpathLoose(resolve(dirname(base), readlinkSync(base)));
+    } catch {
+      // not a link (or unreadable): the plain parent + name is the best answer
+    }
+    return base;
+  }
+}
+
 /** The `data/` directories a demo seed must never write into: this checkout's and, in a worktree, the main checkout's. */
 function protectedDataDirs(): string[] {
   const dirs = [resolve(REPO_ROOT, "data"), resolve("data")];
   const idx = REPO_ROOT.indexOf("/.worktrees/");
   if (idx > 0) dirs.push(resolve(REPO_ROOT.slice(0, idx), "data"));
-  return dirs;
+  return dirs.flatMap((d) => {
+    try {
+      return [d, realpathLoose(d)];
+    } catch {
+      return [d];
+    }
+  });
 }
 
 /** Why the DB path may not be seeded, or null when it is a scratch DB. `dbEnv` is `JOB_AGENT_DB` as given. */
@@ -36,7 +65,15 @@ export function refusalReason(dbEnv: string | undefined): string | null {
     return "the default database (set JOB_AGENT_DB to a smoke DB)";
   if (dbEnv === ":memory:") return null;
   const path = resolve(dbEnv);
-  if (protectedDataDirs().some((d) => isUnder(d, path))) return `a database under data/ (${dbEnv})`;
+  let real: string;
+  try {
+    real = realpathLoose(path);
+  } catch {
+    return `a database whose path cannot be resolved (${dbEnv})`;
+  }
+  if (protectedDataDirs().some((d) => isUnder(d, path) || isUnder(d, real))) {
+    return `a database under data/ (${dbEnv})`;
+  }
   return null;
 }
 
@@ -47,6 +84,13 @@ const normLabel = (s: string) =>
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+/** Thrown before any write when the DB already holds a posting that is not demo data. */
+export class NonDemoDbError extends Error {
+  constructor(count: number) {
+    super(`the database holds ${count} non-demo posting(s)`);
+  }
+}
 
 export interface SeedResult {
   postings: number;
@@ -60,6 +104,14 @@ export function seedDemo(db: Db, date: string): SeedResult {
   let newQuestions = 0;
   db.transaction((tx) => {
     const t = tx as unknown as Db;
+    // First statement of the transaction, before any write: a DB with real postings is never seeded.
+    const foreign =
+      t
+        .select({ n: sql<number>`count(*)` })
+        .from(postings)
+        .where(sql`substr(${postings.id}, 1, 5) <> 'demo-'`)
+        .get()?.n ?? 0;
+    if (foreign > 0) throw new NonDemoDbError(foreign);
     for (const c of DEMO_COMPANIES) {
       t.insert(companies)
         .values({
@@ -260,6 +312,10 @@ export function runSeedDemo(opts: SeedDemoOptions): number {
     const r = seedDemo(db, date);
     opts.out(`seed-demo ${date}: added ${r.postings} postings, ${r.questions} questions\n`);
     return 0;
+  } catch (e) {
+    if (!(e instanceof NonDemoDbError)) throw e;
+    opts.err(`seed-demo: refusing to write, ${e.message} (seed a fresh DB before discover)\n`);
+    return 1;
   } finally {
     db.$client.close();
   }

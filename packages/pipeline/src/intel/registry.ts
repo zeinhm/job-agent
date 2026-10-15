@@ -11,7 +11,11 @@ export interface CompanyPayPolicy {
   source: string | null;
 }
 
-/** Sources a posting must never overwrite (human decision or the company's own careers page). */
+/**
+ * Sources a posting must never overwrite (human decision or the company's own careers page). The owner mark only sets a
+ * known policy, so `owner:` rows are normally caught by the "known policy" branch below; the entry is kept as a guard for
+ * an owner row whose policy is `unknown`, and registry.test.ts fails if it is removed.
+ */
 const PROTECTED_SOURCE = /^(manual|careers:|owner:)/;
 
 /** Registry lookup for the tier card. Unknown company or never-set policy -> `unknown`. */
