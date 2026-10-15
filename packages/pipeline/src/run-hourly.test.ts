@@ -50,11 +50,18 @@ const run = (env: NodeJS.ProcessEnv) =>
   spawnSync("bash", [script], { cwd: repo, encoding: "utf-8", env });
 
 describe("bin/run-hourly", () => {
-  it("runs discover, process, enrich, resolve-apply, digest in order, each logged to data/logs/<command>.log", () => {
+  it("runs discover, process, enrich, resolve-apply, fetch-questions, digest in order, each logged to data/logs/<command>.log", () => {
     const s = setup();
     const res = run(s.env);
     expect(res.status).toBe(0);
-    expect(s.called()).toEqual(["discover", "process", "enrich", "resolve-apply", "digest"]);
+    expect(s.called()).toEqual([
+      "discover",
+      "process",
+      "enrich",
+      "resolve-apply",
+      "fetch-questions",
+      "digest",
+    ]);
     for (const c of s.called())
       expect(readFileSync(join(s.data, "logs", `${c}.log`), "utf-8")).toBe(`output of ${c}\n`);
     expect(existsSync(s.lock)).toBe(false);
@@ -78,7 +85,14 @@ describe("bin/run-hourly", () => {
     expect(s.called()).toEqual(["discover"]); // only the first run's step so far
     writeFileSync(`${gate}.release`, "");
     expect(await firstDone).toBe(0);
-    expect(s.called()).toEqual(["discover", "process", "enrich", "resolve-apply", "digest"]);
+    expect(s.called()).toEqual([
+      "discover",
+      "process",
+      "enrich",
+      "resolve-apply",
+      "fetch-questions",
+      "digest",
+    ]);
     expect(existsSync(s.lock)).toBe(false);
   }, 30_000);
 
@@ -101,7 +115,7 @@ describe("bin/run-hourly", () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("stale lock");
     expect(res.stdout).not.toContain("skipped");
-    expect(s.called()).toHaveLength(5);
+    expect(s.called()).toHaveLength(6);
     expect(existsSync(s.lock)).toBe(false);
   });
 
@@ -128,6 +142,7 @@ describe("bin/run-hourly", () => {
         "process",
         "enrich",
         "resolve-apply",
+        "fetch-questions",
         "digest",
       ]);
       expect(existsSync(s.lock), `round ${i}`).toBe(false);
@@ -155,7 +170,7 @@ describe("bin/run-hourly", () => {
     expect(a.rb.out).toContain(SKIP);
     expect([a.ra.code, a.rb.code]).toEqual([0, 0]);
     expect(s.called().filter((c) => c === "discover")).toHaveLength(1);
-    expect(s.called()).toHaveLength(5);
+    expect(s.called()).toHaveLength(6);
     expect(readdirSync(join(s.data, "locks"))).toEqual([]);
   }, 30_000);
 
@@ -163,7 +178,14 @@ describe("bin/run-hourly", () => {
     const s = setup();
     const res = run({ ...s.env, FAIL_ON: "enrich" });
     expect(res.status).toBe(1);
-    expect(s.called()).toEqual(["discover", "process", "enrich", "resolve-apply", "digest"]);
+    expect(s.called()).toEqual([
+      "discover",
+      "process",
+      "enrich",
+      "resolve-apply",
+      "fetch-questions",
+      "digest",
+    ]);
     expect(existsSync(s.lock)).toBe(false);
   });
 });

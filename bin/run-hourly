@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/run-hourly: the hourly product run. discover -> process -> enrich -> resolve-apply -> digest, each appended to
+# bin/run-hourly: the hourly product run. discover -> process -> enrich -> resolve-apply -> fetch-questions -> digest, each appended to
 # data/logs/<command>.log. A mkdir lock (data/locks/hourly) stops overlapping runs: a run that finds it prints
 # "run-hourly: previous run still active, skipped" and exits 0. A lock older than 3 h is stale (crashed run) and is removed under a short-lived "hourly.takeover" mkdir lock that re-checks the age, so a lock another run just took over is never removed.
 # Steps are separated like `;`: a failing step does not stop the next ones (exit 1 at the end if any failed).
@@ -37,7 +37,7 @@ trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 trap 'exit 143' INT TERM HUP
 read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
 fail=0
-for cmd in discover process enrich resolve-apply digest; do
+for cmd in discover process enrich resolve-apply fetch-questions digest; do
   "${CLI[@]}" "$cmd" >> "$DATA/logs/$cmd.log" 2>&1 || fail=1
 done
 exit "$fail"

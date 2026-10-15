@@ -30,7 +30,7 @@ function run(env: Record<string, string> = {}, flags: string[] = []) {
   writeFileSync(
     cli,
     `#!/usr/bin/env bash
-[ $# -eq 0 ] && { printf 'Usage:\\n  enrich\\n  resolve-apply\\n'; exit 0; } # usage probe
+[ $# -eq 0 ] && { printf 'Usage:\\n  enrich\\n  resolve-apply\\n  fetch-questions\\n'; exit 0; } # usage probe
 echo "$* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-} BRAVE=\${BRAVE_API_KEY:-}" >> "${log}"
 if [ "$1" = discover ] && [ "$4" = remotive ]; then echo "remotive: error, boom"; exit 1; fi
 if [ "$1" = process ] && [ -n "$FAIL_PROCESS" ]; then exit 1; fi
@@ -72,7 +72,14 @@ describe("bin/smoke", () => {
     ]);
     for (const c of calls.filter((c) => c.startsWith("discover"))) expect(c).toContain("--force");
     const order = calls.map((c) => c.split(" ")[0]);
-    expect(order.slice(-5)).toEqual(["process", "enrich", "resolve-apply", "digest", "status"]);
+    expect(order.slice(-6)).toEqual([
+      "process",
+      "enrich",
+      "resolve-apply",
+      "fetch-questions",
+      "digest",
+      "status",
+    ]);
     expect(res.stdout).toContain("remotive: error, boom");
     expect(res.stdout).toContain("web3career: skipped");
   });
@@ -112,7 +119,15 @@ describe("bin/smoke", () => {
     const order = calls.map((c) => c.split(" ")[0]);
     expect(order.indexOf("enrich")).toBeGreaterThan(order.indexOf("process"));
     expect(order.indexOf("resolve-apply")).toBe(order.indexOf("enrich") + 1);
-    expect(order.indexOf("digest")).toBe(order.indexOf("resolve-apply") + 1);
+    expect(order.indexOf("fetch-questions")).toBe(order.indexOf("resolve-apply") + 1);
+    expect(order.indexOf("digest")).toBe(order.indexOf("fetch-questions") + 1);
+  });
+
+  it("runs fetch-questions --limit 3 on the temp DB", () => {
+    const { calls, smokeDir } = run();
+    const call = calls.find((c) => c.startsWith("fetch-questions"));
+    expect(call).toContain("fetch-questions --limit 3 |");
+    expect(call).toContain(`DB=${smokeDir}/smoke.db`);
   });
 
   it("never passes a Brave key on, so linkedin_posts skips", () => {

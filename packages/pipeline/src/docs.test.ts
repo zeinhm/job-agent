@@ -64,6 +64,7 @@ describe("Phase 3 run docs", () => {
         "discover-companies",
         "enrich",
         "resolve-apply",
+        "fetch-questions",
         "process",
         "digest",
         "status",
@@ -221,8 +222,12 @@ describe("Phase 2 run docs", () => {
     expect(cron).not.toMatch(/^[A-Z_]*(KEY|TOKEN)=/m);
     // the hourly script runs the steps in the documented order
     const script = read("bin/run-hourly");
-    expect(script).toContain("for cmd in discover process enrich resolve-apply digest; do");
-    expect(running).toContain("`discover`, `process`, `enrich`, `resolve-apply`, `digest`");
+    expect(script).toContain(
+      "for cmd in discover process enrich resolve-apply fetch-questions digest; do",
+    );
+    expect(running).toContain(
+      "`discover`, `process`, `enrich`, `resolve-apply`, `fetch-questions`, `digest`",
+    );
   });
 
   it("contains no real-looking secrets or personal data", () => {

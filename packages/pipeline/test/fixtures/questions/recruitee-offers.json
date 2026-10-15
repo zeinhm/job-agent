@@ -1,0 +1,914 @@
+{
+  "offers": [
+    {
+      "id": 2783543,
+      "slug": "head-of-product-6",
+      "title": "Head of Product",
+      "careers_url": "https://careers.bunq.com/o/head-of-product-6",
+      "status": "published",
+      "options_cv": "off",
+      "options_cover_letter": "off",
+      "options_phone": "required",
+      "options_photo": "off",
+      "options_salutation": "off",
+      "options_title": "off",
+      "open_questions": [
+        {
+          "id": 4435735,
+          "position": 1,
+          "required": true,
+          "body": "What country do you currently live in?",
+          "kind": "string",
+          "open_question_options": []
+        },
+        {
+          "id": 4435736,
+          "position": 2,
+          "required": false,
+          "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.</p>\n<p><br />🇳🇱 <strong>Netherlands</strong>: You must be a Dutch/EU/EEA/Swiss citizen, or hold a valid Dutch residence permit with full work rights (e.g., refugee status, spousal visa, or permanent residence).</p>\n<p>🇧🇬 <strong>Bulgaria</strong>: You must have the legal right to work in Bulgaria without needing a company-sponsored visa.  </p>\n<p>🇹🇷 <strong>Turkey</strong>: You must be a Turkish citizen, hold a Turquoise Card, refugee status, or a permanent residency/work permit (student/family/temporary residencies are not eligible to work without company sponsorship).</p>\n<p><br /><strong>For this role, we are able to sponsor visas in a few other situations, so feel free to apply.</strong> <strong><strong>🌈</strong></strong></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4435737,
+          "position": 3,
+          "required": true,
+          "body": "Which visa situation fits you best? Please choose according to the office you are applying for: Amsterdam (NL), Istanbul (TR), Sofia (BG).",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832271,
+              "position": 0,
+              "body": "NL: I am a EU/EEA/Swiss citizen"
+            },
+            {
+              "id": 6832272,
+              "position": 1,
+              "body": "NL: I am on a spousal visa / search year visa / under the reduced salary criterion"
+            },
+            {
+              "id": 6832273,
+              "position": 2,
+              "body": "NL: I require visa sponsorship and I am under 29 years of age"
+            },
+            {
+              "id": 6832274,
+              "position": 3,
+              "body": "NL: I require visa sponsorship and I am over 29 years of age"
+            },
+            {
+              "id": 6832275,
+              "position": 4,
+              "body": "BG: I do not require visa sponsorship"
+            },
+            {
+              "id": 6832276,
+              "position": 5,
+              "body": "BG: I require visa sponsorship"
+            }
+          ]
+        },
+        {
+          "id": 4435738,
+          "position": 4,
+          "required": false,
+          "body": "<p><strong>💡 Important Info: At bunq, our working language is English. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4435739,
+          "position": 5,
+          "required": true,
+          "body": "How do you assess your writing and speaking English skills?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832277,
+              "position": 0,
+              "body": "Beginner"
+            },
+            {
+              "id": 6832278,
+              "position": 1,
+              "body": "Intermediate"
+            },
+            {
+              "id": 6832279,
+              "position": 2,
+              "body": "Upper Intermediate"
+            },
+            {
+              "id": 6832280,
+              "position": 3,
+              "body": "Advanced"
+            },
+            {
+              "id": 6832281,
+              "position": 4,
+              "body": "Native"
+            }
+          ]
+        },
+        {
+          "id": 4435740,
+          "position": 6,
+          "required": false,
+          "body": "<p><strong>💡 If successful in the hiring process, the contractual arrangement would look like this: <br /><br />🇳🇱 Netherlands: A first contract of 9 months, extended with a second contract of 12 months, followed by an indefinite contract. <br />🇹🇷 Turkey: A first contract of 9 months, extended with a second contract of 12 months, <strong>followed by</strong> an indefinite contract. <br />🇧🇬 Bulgaria: an indefinite contract. <br /><br />💡 For the first 3 months, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.</strong></strong></p>\n<p><strong><strong><strong><strong><br /><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time.</strong></strong></strong></strong></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4435741,
+          "position": 7,
+          "required": true,
+          "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and standard working hours)?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832282,
+              "position": 0,
+              "body": "Yes, I agree with the proposed setup."
+            },
+            {
+              "id": 6832283,
+              "position": 1,
+              "body": "No, I do not agree with the initial in-office and then hybrid setup"
+            },
+            {
+              "id": 6832284,
+              "position": 2,
+              "body": "No, I do not agree with the contract duration / setup"
+            },
+            {
+              "id": 6832285,
+              "position": 3,
+              "body": "No, I do not agree with the working hours setup"
+            }
+          ]
+        },
+        {
+          "id": 4435742,
+          "position": 8,
+          "required": true,
+          "body": "What are your salary expectations? (gross, annual, in EUR)",
+          "kind": "string",
+          "open_question_options": []
+        },
+        {
+          "id": 4435743,
+          "position": 9,
+          "required": false,
+          "body": "<p>Please double check if the salary expectations is the <strong>yearly</strong> <strong>gross</strong> amount, in <strong>EUR</strong>!</p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4435744,
+          "position": 10,
+          "required": true,
+          "body": "Have you previously worked at bunq?",
+          "kind": "boolean",
+          "open_question_options": []
+        },
+        {
+          "id": 4435745,
+          "position": 11,
+          "required": false,
+          "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace</em></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4435746,
+          "position": 12,
+          "required": true,
+          "body": "How do you usually approach your work, its impact, and solving challenges?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832288,
+              "position": 0,
+              "body": "I don’t have formal work experience yet, but I’ve practiced through studies or small projects"
+            },
+            {
+              "id": 6832289,
+              "position": 1,
+              "body": "I successfully handle defined tasks, follow processes, and ask for guidance when needed"
+            },
+            {
+              "id": 6832290,
+              "position": 2,
+              "body": "I work mostly on my own, support team goals, and deal with common issues"
+            },
+            {
+              "id": 6832291,
+              "position": 3,
+              "body": "I deliver projects from start to finish, tie my work to team results, and suggest fixes"
+            },
+            {
+              "id": 6832292,
+              "position": 4,
+              "body": "I turn bigger goals into initiatives, improve how we work, and prevent problems"
+            },
+            {
+              "id": 6832293,
+              "position": 5,
+              "body": "I lead projects across teams, align people, and create tools that help others solve problems faster"
+            },
+            {
+              "id": 6832294,
+              "position": 6,
+              "body": "I redesign systems across departments, focus on long-term goals, and drive strategic change"
+            }
+          ]
+        },
+        {
+          "id": 4435747,
+          "position": 13,
+          "required": true,
+          "body": "Which of the following statements best describes your approach to using AI in a professional context?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832295,
+              "position": 0,
+              "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment."
+            },
+            {
+              "id": 6832296,
+              "position": 1,
+              "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks."
+            },
+            {
+              "id": 6832297,
+              "position": 2,
+              "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team."
+            },
+            {
+              "id": 6832298,
+              "position": 3,
+              "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI."
+            }
+          ]
+        },
+        {
+          "id": 4435748,
+          "position": 14,
+          "required": true,
+          "body": "Engineering has two options for a new onboarding flow. The full redesign removes every friction point for Evas but takes 10 weeks. An 80/20 version fixes the biggest drop-off step and ships in 3 weeks. What do you do?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832299,
+              "position": 0,
+              "body": "Ship the 80/20 version now and plan the full redesign as phase 2."
+            },
+            {
+              "id": 6832300,
+              "position": 1,
+              "body": "Go with the 80/20 version, since it covers most Evas, and revisit the rest if complaints come in."
+            },
+            {
+              "id": 6832301,
+              "position": 2,
+              "body": "Commit to the full redesign and push engineering to find a faster way to deliver it."
+            },
+            {
+              "id": 6832302,
+              "position": 3,
+              "body": "Ask data to calculate the conversion impact of both options before deciding."
+            },
+            {
+              "id": 6832656,
+              "position": 4,
+              "body": "Let engineering decide, since they own delivery and feasibility."
+            }
+          ]
+        },
+        {
+          "id": 4435749,
+          "position": 15,
+          "required": true,
+          "body": "You are redesigning how your product function works, and AI agents will be part of it. What is your approach?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832303,
+              "position": 0,
+              "body": "Run a pilot in one team and keep the current structure everywhere else until the results are proven."
+            },
+            {
+              "id": 6832304,
+              "position": 1,
+              "body": "Ask each team to try AI tools and share what they find."
+            },
+            {
+              "id": 6832305,
+              "position": 2,
+              "body": "Hire AI specialists into each team to lead the change."
+            },
+            {
+              "id": 6832306,
+              "position": 3,
+              "body": "Map the work, give AI agents the routine parts, keep people for judgment, and size teams on that basis."
+            },
+            {
+              "id": 6832307,
+              "position": 4,
+              "body": "Outsource the routine work to an external provider."
+            }
+          ]
+        },
+        {
+          "id": 4435750,
+          "position": 16,
+          "required": true,
+          "body": "Users are dropping off during onboarding because of a KYC step owned by Compliance Operations. The fix needs Product, Compliance and Engineering. What do you do?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832308,
+              "position": 0,
+              "body": "Set up a working group with all three teams and agree on shared KPIs."
+            },
+            {
+              "id": 6832309,
+              "position": 1,
+              "body": "Agree on a clear RACI first, so every department owns its own part."
+            },
+            {
+              "id": 6832665,
+              "position": 2,
+              "body": "Pass it to Compliance Operations, since they own KYC, and offer support."
+            },
+            {
+              "id": 6832666,
+              "position": 3,
+              "body": "Decide on the fix, get the other leads aligned, and drive it to delivery."
+            },
+            {
+              "id": 6832667,
+              "position": 4,
+              "body": "Escalate to the management board to assign one owner."
+            }
+          ]
+        },
+        {
+          "id": 4435969,
+          "position": 17,
+          "required": true,
+          "body": "A regulator asks you to explain a past product decision within a week, and the documentation is incomplete. What do you do?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832668,
+              "position": 0,
+              "body": "Ask for a short extension so the response is complete and accurate."
+            },
+            {
+              "id": 6832669,
+              "position": 1,
+              "body": "Reconstruct what you can, respond on time, state the gaps openly, and fix how decisions get documented."
+            },
+            {
+              "id": 6832670,
+              "position": 2,
+              "body": "Let Legal lead the response, with your team providing input."
+            },
+            {
+              "id": 6832671,
+              "position": 3,
+              "body": "Respond on time, but only with the parts you can fully document."
+            },
+            {
+              "id": 6832672,
+              "position": 4,
+              "body": "Ask the original team to recreate the missing documents."
+            }
+          ]
+        },
+        {
+          "id": 4435751,
+          "position": 18,
+          "required": true,
+          "body": "Please indicate your proficiency in English (speaking, reading, writing):",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832310,
+              "position": 0,
+              "body": "No proficiency - I do not speak or understand the language."
+            },
+            {
+              "id": 6832311,
+              "position": 1,
+              "body": "Basic - I can understand and use simple phrases; limited for work. (A1–A2)"
+            },
+            {
+              "id": 6832312,
+              "position": 2,
+              "body": "Conversational - I can hold everyday conversations and handle routine tasks. (B1–B2)"
+            },
+            {
+              "id": 6832313,
+              "position": 3,
+              "body": "Fluent / Professional - I can work, present, write, and negotiate comfortably. (C1)"
+            },
+            {
+              "id": 6832314,
+              "position": 4,
+              "body": "Native / Bilingual - Mother tongue or equivalent; full professional and cultural fluency. (C2)"
+            }
+          ]
+        },
+        {
+          "id": 4435752,
+          "position": 19,
+          "required": true,
+          "body": "How did you first hear about this role?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6832315,
+              "position": 0,
+              "body": "I found it myself on bunq's careers website"
+            },
+            {
+              "id": 6832316,
+              "position": 1,
+              "body": "A current bunq employee told me about it"
+            },
+            {
+              "id": 6832317,
+              "position": 2,
+              "body": "A former bunq employee referred me"
+            },
+            {
+              "id": 6832318,
+              "position": 3,
+              "body": "A bunq recruiter reached out to me"
+            },
+            {
+              "id": 6832319,
+              "position": 4,
+              "body": "A job portal (LinkedIn, Glassdoor, Indeed, Google Jobs)"
+            },
+            {
+              "id": 6832320,
+              "position": 5,
+              "body": "A social media post (LinkedIn, Instagram, Facebook, YouTube, X)"
+            },
+            {
+              "id": 6832321,
+              "position": 6,
+              "body": "News or media coverage"
+            },
+            {
+              "id": 6832322,
+              "position": 7,
+              "body": "At an event where bunq was present"
+            },
+            {
+              "id": 6832323,
+              "position": 8,
+              "body": "Through my university (ad, newsletter, event)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2781634,
+      "slug": "senior-product-owner-1",
+      "title": "(Senior) Product Owner",
+      "careers_url": "https://careers.bunq.com/o/senior-product-owner-1",
+      "status": "published",
+      "options_cv": "off",
+      "options_cover_letter": "off",
+      "options_phone": "required",
+      "options_photo": "off",
+      "options_salutation": "off",
+      "options_title": "off",
+      "open_questions": [
+        {
+          "id": 4432839,
+          "position": 1,
+          "required": true,
+          "body": "What country do you currently live in?",
+          "kind": "string",
+          "open_question_options": []
+        },
+        {
+          "id": 4432840,
+          "position": 2,
+          "required": false,
+          "body": "<p>💡 Each country has different rules for eligibility to work without requiring sponsorship.</p>\n<p><br />🇳🇱 <strong>Netherlands</strong>: You must be a Dutch/EU/EEA/Swiss citizen, or hold a valid Dutch residence permit with full work rights (e.g., refugee status, spousal visa, or permanent residence).<br /><br /><strong>For this role, we are able to sponsor visas in a few other situations, so feel free to apply.</strong> <strong><strong>🌈</strong></strong></p>\n\n\n",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4432841,
+          "position": 3,
+          "required": true,
+          "body": "Which visa situation fits you best?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827513,
+              "position": 0,
+              "body": "NL: I am a EU/EEA/Swiss citizen"
+            },
+            {
+              "id": 6827514,
+              "position": 1,
+              "body": "NL: I am on a spousal visa / search year visa / under the reduced salary criterion"
+            },
+            {
+              "id": 6827515,
+              "position": 2,
+              "body": "NL: I require visa sponsorship and I am under 29 years of age"
+            },
+            {
+              "id": 6827516,
+              "position": 3,
+              "body": "NL: I require visa sponsorship and I am over 29 years of age"
+            }
+          ]
+        },
+        {
+          "id": 4432842,
+          "position": 4,
+          "required": false,
+          "body": "<p><strong>💡 Important Info: At bunq, our working language is English. Fluency in both writing and speaking English is a must for all roles in all locations.</strong></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4432843,
+          "position": 5,
+          "required": true,
+          "body": "How do you assess your writing and speaking English skills?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827517,
+              "position": 0,
+              "body": "Beginner"
+            },
+            {
+              "id": 6827518,
+              "position": 1,
+              "body": "Intermediate"
+            },
+            {
+              "id": 6827519,
+              "position": 2,
+              "body": "Upper Intermediate"
+            },
+            {
+              "id": 6827520,
+              "position": 3,
+              "body": "Advanced"
+            },
+            {
+              "id": 6827521,
+              "position": 4,
+              "body": "Native"
+            }
+          ]
+        },
+        {
+          "id": 4432844,
+          "position": 6,
+          "required": false,
+          "body": "<p><strong>💡 If successful in the hiring process, the contractual arrangement would look like this: <br /><br />🇳🇱 Netherlands: A first contract of 9 months, extended with a second contract of 12 months, followed by an indefinite contract. <br /><br />💡 For the first 3 months, all new hires are required to be in the office 5 days a week to complete the onboarding process, get to know everyone, and immerse <strong>themselves in the culture of bunq. After that, the work arrangement will be hybrid, with 3 days in the office and 2 days working from home.</strong></strong></p>\n<p><strong><strong><strong><strong><br /><strong>💡 </strong>Our standard working hours are from 09:00 to 18:00. This ensures that everyone is available and can rely on each other during this time.</strong></strong><br /></strong></strong></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4432845,
+          "position": 7,
+          "required": true,
+          "body": "Do you agree and confirm with the above mentioned terms (contract duration, hybrid way of working, and standard working hours)?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827522,
+              "position": 0,
+              "body": "Yes, I agree with the proposed setup."
+            },
+            {
+              "id": 6827523,
+              "position": 1,
+              "body": "No, I do not agree with the initial in-office and then hybrid setup"
+            },
+            {
+              "id": 6827524,
+              "position": 2,
+              "body": "No, I do not agree with the contract duration / setup"
+            },
+            {
+              "id": 6827525,
+              "position": 3,
+              "body": "No, I do not agree with the working hours setup"
+            }
+          ]
+        },
+        {
+          "id": 4432846,
+          "position": 8,
+          "required": true,
+          "body": "What are your salary expectations? (gross, annual, in EUR)",
+          "kind": "string",
+          "open_question_options": []
+        },
+        {
+          "id": 4432847,
+          "position": 9,
+          "required": false,
+          "body": "<p>Please double check if the salary expectations is the <strong>yearly</strong> <strong>gross</strong> amount, in <strong>EUR</strong>!</p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4432848,
+          "position": 10,
+          "required": true,
+          "body": "Have you previously worked at bunq?",
+          "kind": "boolean",
+          "open_question_options": []
+        },
+        {
+          "id": 4432849,
+          "position": 11,
+          "required": false,
+          "body": "<p><em>All new hires are subject to Pre-employment Screening (PES), which includes checks conducted by our third-party partner, Zinc. This is part of our commitment to a secure and trustworthy workplace</em></p>",
+          "kind": "infobox",
+          "open_question_options": []
+        },
+        {
+          "id": 4432850,
+          "position": 12,
+          "required": true,
+          "body": "How do you usually approach your work, its impact, and solving challenges?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827528,
+              "position": 0,
+              "body": "I don’t have formal work experience yet, but I’ve practiced through studies or small projects"
+            },
+            {
+              "id": 6827529,
+              "position": 1,
+              "body": "I successfully handle defined tasks, follow processes, and ask for guidance when needed"
+            },
+            {
+              "id": 6827530,
+              "position": 2,
+              "body": "I work mostly on my own, support team goals, and deal with common issues"
+            },
+            {
+              "id": 6827531,
+              "position": 3,
+              "body": "I deliver projects from start to finish, tie my work to team results, and suggest fixes"
+            },
+            {
+              "id": 6827532,
+              "position": 4,
+              "body": "I turn bigger goals into initiatives, improve how we work, and prevent problems"
+            },
+            {
+              "id": 6827533,
+              "position": 5,
+              "body": "I lead projects across teams, align people, and create tools that help others solve problems faster"
+            },
+            {
+              "id": 6827534,
+              "position": 6,
+              "body": "I redesign systems across departments, focus on long-term goals, and drive strategic change"
+            }
+          ]
+        },
+        {
+          "id": 4432851,
+          "position": 13,
+          "required": true,
+          "body": "Which of the following statements best describes your approach to using AI in a professional context?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827535,
+              "position": 0,
+              "body": "I have limited to no experience with AI tools and am not yet convinced of their practical benefits in a work environment."
+            },
+            {
+              "id": 6827536,
+              "position": 1,
+              "body": "I consistently use AI tools to improve my personal efficiency, validate the quality of my own work, and build simple automations for my individual tasks."
+            },
+            {
+              "id": 6827537,
+              "position": 2,
+              "body": "I proactively improve team efficiency by designing, building, and maintaining multi-step automated workflows, and I actively share these solutions with my team."
+            },
+            {
+              "id": 6827538,
+              "position": 3,
+              "body": "I strategically redesign core operations by architecting scalable AI systems, coaching others to raise their AI skills, and identifying work that can be entirely eliminated by AI."
+            }
+          ]
+        },
+        {
+          "id": 4432852,
+          "position": 14,
+          "required": true,
+          "body": "How would you rate your practical proficiency with managing the end-to-end product lifecycle, from user research and problem definition to shipping features and iterating with data?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827539,
+              "position": 0,
+              "body": "No experience - I haven’t used it in a work setting."
+            },
+            {
+              "id": 6827540,
+              "position": 1,
+              "body": "Basic - I can perform simple tasks with templates or guidance."
+            },
+            {
+              "id": 6827541,
+              "position": 2,
+              "body": "Intermediate - I work independently on common tasks and solve moderate problems."
+            },
+            {
+              "id": 6827542,
+              "position": 3,
+              "body": "Advanced - I design solutions, optimise performance, and mentor others."
+            }
+          ]
+        },
+        {
+          "id": 4432853,
+          "position": 15,
+          "required": true,
+          "body": "How familiar and practised are you with using data analysis, A/B testing, and user feedback to define and prioritize a product roadmap?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827543,
+              "position": 0,
+              "body": "Not familiar - I am enthusiastic to start learning about it."
+            },
+            {
+              "id": 6827544,
+              "position": 1,
+              "body": "Theoretical - I know the basics but have little hands-on experience."
+            },
+            {
+              "id": 6827545,
+              "position": 2,
+              "body": "Applied - I have applied this knowledge in projects or operations."
+            },
+            {
+              "id": 6827546,
+              "position": 3,
+              "body": "Advanced - I have led implementations, designed processes, taught others."
+            },
+            {
+              "id": 6827547,
+              "position": 4,
+              "body": "Subject-matter expert - I am the go-to-person for complex issues."
+            }
+          ]
+        },
+        {
+          "id": 4432857,
+          "position": 16,
+          "required": true,
+          "body": "Looking at the areas of expertise mentioned in the job description (Payments, AI, Business, Wealth, Stocks, Crypto, Savings, Credit, FinCrime &amp; Security, International Expansion, Growth, UX, Retention, or Propositions), which of these domains best represents your primary area of expertise, and could you briefly explain why?",
+          "kind": "text",
+          "open_question_options": []
+        },
+        {
+          "id": 4432858,
+          "position": 17,
+          "required": true,
+          "body": "How familiar and practised are you with dealing with financial regulators (e.g., DNB, BaFin) and preparing compliance documents for credit products in Europe?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827564,
+              "position": 0,
+              "body": "Not familiar - I have no hands-on experience but I'm eager to learn."
+            },
+            {
+              "id": 6827565,
+              "position": 1,
+              "body": "Theoretical - I understand the basic concepts of financial regulations but have not prepared compliance documents myself."
+            },
+            {
+              "id": 6827566,
+              "position": 2,
+              "body": "Applied - I have been part of projects where I contributed to compliance documentation and interacted with legal teams."
+            },
+            {
+              "id": 6827567,
+              "position": 3,
+              "body": "Advanced - I have independently managed the process of preparing compliance documents and have experience in the communication with regulators for product approval."
+            }
+          ]
+        },
+        {
+          "id": 4432859,
+          "position": 18,
+          "required": true,
+          "body": "How familiar and practised are you with the banking infrastructure and payment systems (e.g., SEPA, local credit bureaus, payment gateways) required to launch and scale a credit product across multiple European markets?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827568,
+              "position": 0,
+              "body": "Not familiar - I am enthusiastic to start learning about it."
+            },
+            {
+              "id": 6827569,
+              "position": 1,
+              "body": "Theoretical - I know the basics but have little hands-on experience."
+            },
+            {
+              "id": 6827570,
+              "position": 2,
+              "body": "Applied - I have applied this knowledge in projects or operations."
+            },
+            {
+              "id": 6827571,
+              "position": 3,
+              "body": "Advanced - I have led implementations, designed processes, taught others."
+            },
+            {
+              "id": 6827572,
+              "position": 4,
+              "body": "Subject-matter expert - I am the go-to-person for complex issues."
+            }
+          ]
+        },
+        {
+          "id": 4432856,
+          "position": 19,
+          "required": true,
+          "body": "How did you first hear about this role?",
+          "kind": "single_choice",
+          "open_question_options": [
+            {
+              "id": 6827555,
+              "position": 0,
+              "body": "I found it myself on bunq's careers website"
+            },
+            {
+              "id": 6827556,
+              "position": 1,
+              "body": "A current bunq employee told me about it"
+            },
+            {
+              "id": 6827557,
+              "position": 2,
+              "body": "A former bunq employee referred me"
+            },
+            {
+              "id": 6827558,
+              "position": 3,
+              "body": "A bunq recruiter reached out to me"
+            },
+            {
+              "id": 6827559,
+              "position": 4,
+              "body": "A job portal (LinkedIn, Glassdoor, Indeed, Google Jobs)"
+            },
+            {
+              "id": 6827560,
+              "position": 5,
+              "body": "A social media post (LinkedIn, Instagram, Facebook, YouTube, X)"
+            },
+            {
+              "id": 6827561,
+              "position": 6,
+              "body": "News or media coverage"
+            },
+            {
+              "id": 6827562,
+              "position": 7,
+              "body": "At an event where bunq was present"
+            },
+            {
+              "id": 6827563,
+              "position": 8,
+              "body": "Through my university (ad, newsletter, event)"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,7 @@ import { freshnessSuffix } from "./digest/freshness.ts";
 import { runDiscoverCompanies } from "./discover-companies.ts";
 import { loadEnvFile } from "./env.ts";
 import { runEnrich } from "./enrich.ts";
+import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
 import { runSeedDemo } from "./seed-demo.ts";
@@ -125,6 +126,22 @@ const commands: Record<string, Command> = {
         out: io.out,
         err: io.err,
       });
+    } finally {
+      db.$client.close();
+    }
+  },
+  "fetch-questions": async (args, io) => {
+    let limit: number | undefined;
+    try {
+      const { values } = parseArgs({ args, options: { limit: { type: "string" } } });
+      if (values.limit !== undefined) limit = Number(values.limit);
+    } catch (e) {
+      io.err(`fetch-questions: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      return await runFetchQuestions({ db, limit, out: io.out, err: io.err });
     } finally {
       db.$client.close();
     }
