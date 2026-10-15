@@ -1,9 +1,11 @@
-# Running the pipeline (Phase 1 to Phase 3)
+# Running the pipeline (Phase 1 to Phase 4)
 
 How to run the pipeline on your Mac: find remote postings (Phase 1, more sources in Phase 3), filter them with rules,
 score them with the LLM stages and write a ranked daily digest (Phase 2), and find the free apply link for each match
-(Phase 3). Everything runs hourly from cron (see "Schedule with cron"). It only reads public job feeds, calls the
-Anthropic API for the LLM stages, and writes local files. It never applies anywhere.
+(Phase 3), then review the day's matches in a local dashboard and keep an answer bank (Phase 4, see "Dashboard and
+review flow"). Everything runs hourly from cron (see "Schedule with cron"). It only reads public job feeds, calls the
+Anthropic API for the LLM stages, and writes local files. It never applies anywhere: "applied" in the dashboard only
+records what you did by hand.
 
 ## Prerequisites
 
@@ -44,7 +46,7 @@ Anthropic API** for fit scoring (that is what the stage is for). It is never log
 `enrich` prints `cv.md not found in the config dir, fit scoring skipped (extraction still runs)` and carries on
 without fit scores.
 
-`config/README.md` lists every example file. `answers.yaml` is read only by `answers import`;
+`config/README.md` lists every example file. `answers.yaml` (copy `config/answers.example.yaml`; see "Answer bank") is read only by `answers import`;
 `private-patterns.txt` is used by the pre-commit hook.
 
 ## Environment variables
@@ -153,6 +155,154 @@ pnpm job-agent digest
 
 Optional, once a week, to grow the company list (needs `BRAVE_API_KEY`): `pnpm job-agent discover-companies`, before
 `discover`.
+
+## Dashboard and review flow
+
+Phase 4 adds a local web dashboard for the day's matches. Nothing in it applies, signs up or contacts anyone.
+
+### Start the dashboard
+
+```sh
+pnpm dashboard              # prints: dashboard: http://127.0.0.1:4510/
+pnpm dashboard --port 4600  # another port
+pnpm dashboard --self-check # starts on a free port, requests /api/health and /api/queue, prints one line each, exits
+```
+
+Open the printed URL. It listens on **127.0.0.1 only** (there is no flag or variable to open another interface), reads
+the same database as the CLI (`JOB_AGENT_DB`, default `data/job-agent.db`) and refuses requests with a foreign `Host`
+or `Origin` header. Stop it with Ctrl-C. A busy port prints `dashboard: cannot listen on 127.0.0.1:<port> (<code>)` and
+exits 1. The page is the web build in `apps/dashboard/dist/web` (`pnpm build:web`; `pnpm check` builds it too). The
+cron run and the dashboard write the same SQLite file; it runs in WAL mode, so both can be active at once.
+
+To try it without real data, seed a throwaway database: `bin/smoke run <smoke dir> seed-demo`, then
+`bin/smoke dash <smoke dir>`.
+
+### Tabs
+
+- **Queue**: the day's matches (Asia/Jakarta date; a date picker shows earlier days). Sections as in the digest: Top
+  matches, Needs a look, Suspicious, Waiting for scoring. One row per posting with fit, tier, ask, apply type, review
+  state and `covered/total` application questions. Click a row for the detail panel (fit reasons, flags, scam reasons,
+  description, review history, actions). "Open only" hides what you already processed.
+- **Answers**: the answer bank (see "Answer bank").
+- **Inbox**: questions no approved answer covers (see "Unknown-questions inbox").
+- **Stats**: the done-when numbers (see "Done-when check").
+
+### Review flow and keyboard keys
+
+Work down Top matches first. The header shows `<n> of <m> processed` and an elapsed timer that starts at the day's
+first review action (not at page load). Keys act on the ticked rows when any are ticked (bulk, one transaction), else
+on the selected row; after a status action the selection moves to the next open row. Keys are ignored while you type in
+a field. `?` lists them in the page.
+
+| Key | Action |
+|---|---|
+| `j` / `k` | next / previous posting (rank order, section by section) |
+| `o` | open the apply link in a new tab (http and https only) |
+| `i` | `interested` |
+| `a` | `applied_manually` |
+| `l` | `later` |
+| `x`, then `1`-`9` or `0` | `not_interested` with a reason: 1 location, 2 timezone, 3 role, 4 seniority, 5 stack, 6 salary, 7 company, 8 domestic company, 9 language, 0 expired. Any other key cancels |
+| `s` | `scam` |
+| `u` | undo the last action (offered for 10 s; appends a restoring row, history is kept) |
+| `?` / `Esc` | show or hide the key list / cancel |
+
+`duplicate`, `scam_suspected` and `other` have no key: use the detail panel or the bulk bar (`other` needs a note).
+
+Actions (each is one appended row in `reviews`; the newest status row is the posting's state):
+
+| Action | Meaning | Extra |
+|---|---|---|
+| `interested` | shortlisted, you apply by hand | none |
+| `applied_manually` | you applied outside the tool | none |
+| `not_interested` | skip | reason (required) |
+| `later` | look again tomorrow, stays in the queue | none |
+| `wrong_apply_link` | stored apply link is wrong | corrected URL (optional) |
+| `pay_policy` | the company's pay policy is known | `location_agnostic` or `location_adjusted` |
+| `scam` / `not_scam` | your scam verdict (stored for learning, `final_decision` does not change) | none |
+| `ask_ok` / `ask_too_high` / `ask_too_low` | check of the salary ask, 20 per tier is the target | none |
+
+`not_interested` reasons: `location`, `timezone`, `role`, `seniority`, `stack`, `salary`, `company`,
+`domestic_company`, `language`, `duplicate`, `expired`, `scam_suspected`, `other`. A posting counts as **processed** once
+it has `interested`, `applied_manually` or `not_interested`; `later`, corrections, ask checks and scam verdicts do not
+count. A corrected apply link is stored with `method = owner` (`resolve-apply` never overwrites it); a pay policy
+updates the company and recomputes tier and ask for its kept postings (no LLM, no network).
+
+### Answer bank
+
+`config/answers.yaml` (private; start from `config/answers.example.yaml`) holds your standard application answers:
+
+```yaml
+profile:
+  full_name:
+    answer: Alex Example
+    approved: true
+work:
+  notice_period:
+    answer: 2 weeks
+    approved: true
+    question: What is your notice period?
+    alternatives: [How soon can you start?]
+    type: text
+```
+
+| Field | Required | Meaning |
+|---|---|---|
+| `<group>.<key>` | yes | the entry key, e.g. `work.notice_period` |
+| `answer` | yes | the answer text |
+| `approved` | yes | only approved answers ever count as covering a question |
+| `question` | no | the canonical wording of the question |
+| `alternatives` | no | list of other phrasings of the same question |
+| `type` | no | `text`, `long_text`, `yes_no`, `number` or `choice` |
+| `choices` | no | the allowed values when `type` is `choice` |
+
+- `pnpm job-agent answers import` loads the file into the database (see Commands). Run it after editing the file.
+- Edits in the dashboard (Answers tab: edit text and question wording, tick approved, add or remove alternatives, add an
+  answer) **stay in the database**; the product never writes `config/`. A row last edited in the dashboard is not
+  overwritten by a later `answers import` (`kept dashboard version: <key>`).
+- **Export YAML** in the Answers tab writes the whole bank to `data/exports/answers-<date>.yaml` (gitignored; the page
+  shows the path and count). Copy what you want back into `config/answers.yaml` by hand.
+- Matching is plain code on normalized wording (case, punctuation, whitespace, trailing `?` and `*` ignored); no fuzzy
+  or LLM matching. Salary questions are never answered from the bank: they use the posting's tier ask and stay in
+  review. Nothing is approved automatically.
+- Answers are personal data: they stay in `config/` and `data/`, never in a commit.
+
+### Unknown-questions inbox
+
+`fetch-questions` stores the application questions of kept ATS postings (Greenhouse, Workable, Recruitee; see Commands)
+and matches them against the approved answers. Questions nothing covers appear in the **Inbox** tab, one row per
+wording with the number of postings that ask it and a few example postings. Per row:
+
+- **Answer**: pick group, key, type and answer (tick approve to approve it at once); it is stored as a dashboard answer.
+- **Link to existing**: add the wording as an alternative phrasing of an existing answer (search by key or wording).
+- **Dismiss**: stop asking about it.
+
+After each action the open postings are re-matched, so the queue's `covered/total` and the inbox update at once.
+Salary-type questions show "Answered by the tier ask, stays in review" and can only be dismissed.
+
+`fetch-questions` runs in the hourly run (`bin/run-hourly`: `discover`, `process`, `enrich`, `resolve-apply`,
+`fetch-questions`, `digest`), at most 50 fetches per run, so the inbox fills by itself. Run
+`pnpm job-agent match-questions` by hand after changing approvals outside the dashboard.
+
+### Eval commands (owner-run, cost money)
+
+`pnpm --filter @job-agent/pipeline eval:extract` and `eval:fit` call the real model only with `--live` **and**
+`ANTHROPIC_API_KEY`; otherwise they print what they would run and exit 0. Spend counts against the $1/day cap and
+`--max-usd` (default and ceiling 0.50). `pnpm job-agent eval-export-reviews` (or `eval:export-reviews`) builds your own
+fit set from your reviews into `data/eval/`, which you score with `eval:fit --set <file> --live`. Details are under
+"Eval scripts". Agents never pass `--live`.
+
+### Done-when check
+
+Phase 4 is done when a day's matches are processed in under 30 minutes. Review one real day, then:
+
+```sh
+pnpm job-agent review-stats                  # today, Asia/Jakarta
+pnpm job-agent review-stats --date 2026-10-16
+```
+
+The last line reads `done-when: <elapsed> min for <n> matches (<met|not met>)`: met means at least one match, all
+processed and elapsed (first to last review action) at most 30 minutes. The Stats tab shows the same numbers, the median
+seconds per posting, action and reason counts, ask checks per tier and the last 7 days.
 
 ## LLM stages and cost cap
 
@@ -335,6 +485,8 @@ your cron jobs) or edit with `crontab -e`.
 | `data/digests/YYYY-MM-DD.md` | The daily ranked digest |
 | `data/logs/<command>.log` | Cron output per command (`fx`, `discover-companies`, `discover`, `process`, `enrich`, `digest`): plain lines plus JSON log lines |
 | `data/job-agent.db` | The SQLite database |
+| `data/exports/answers-YYYY-MM-DD.yaml` | Answer-bank export from the dashboard |
+| `data/eval/reviews-<date>.json` | Your fit eval set from `eval-export-reviews` |
 
 Everything under `data/` is gitignored and may contain personal data. Never commit it.
 

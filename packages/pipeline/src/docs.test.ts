@@ -180,6 +180,40 @@ describe("Phase 3 run docs", () => {
   });
 });
 
+describe("Phase 4 run docs", () => {
+  it("documents the dashboard, review keys, answer bank, inbox, evals and the done-when check", () => {
+    for (const needle of [
+      "pnpm dashboard",
+      "127.0.0.1",
+      "--self-check",
+      "### Review flow and keyboard keys",
+      "applied_manually",
+      "wrong_apply_link",
+      "ask_too_high",
+      "### Answer bank",
+      "alternatives",
+      "answers import",
+      "data/exports/",
+      "### Unknown-questions inbox",
+      "fetch-questions",
+      "### Done-when check",
+      "review-stats",
+      "done-when:",
+      "eval:fit",
+    ]) {
+      expect(running, needle).toContain(needle);
+    }
+  });
+
+  it("documents every dashboard reason key", () => {
+    const keys = read("apps/dashboard/src/web/shortcuts.ts");
+    const reasons = [...keys.matchAll(/^ {2}"\d": "([a-z_]+)",$/gm)].map((m) => m[1] as string);
+    expect(reasons).toHaveLength(10);
+    const section = running.slice(running.indexOf("### Review flow and keyboard keys"));
+    for (const r of reasons) expect(section, r).toContain(r.replaceAll("_", " "));
+  });
+});
+
 describe("Phase 2 run docs", () => {
   it("documents every new command and env var", () => {
     for (const needle of [
