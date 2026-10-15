@@ -43,6 +43,7 @@ import {
   textLinks,
 } from "./posting-text.ts";
 import { isPlaceholderCompany } from "./placeholder.ts";
+import { OWNER_WRONG_REASON } from "./owner.ts";
 import { saveFoundAts } from "./save-ats.ts";
 import { slugCandidates } from "./slugs.ts";
 
@@ -131,7 +132,7 @@ function selectPostings(db: Db, now: Date, limit: number | undefined): Posting[]
           // A stored LLM answer is final (one call per posting); a changed posting loses it in `discover`.
           and(
             eq(apply_links.apply_type, "unknown"),
-            sql`${apply_links.method} <> 'llm'`,
+            sql`${apply_links.method} NOT IN ('llm', 'owner')`,
             lt(apply_links.checked_at, recheckBefore),
           ),
         ),
@@ -552,6 +553,20 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
         const l = await llmStep(p, r);
         if (l === "defer") continue;
         if (l !== null) r = l;
+      }
+      // Re-resolving a link the owner marked wrong found the same URL again: it stays unknown.
+      const prior = db
+        .select({ url: apply_links.apply_url, reason: apply_links.reason })
+        .from(apply_links)
+        .where(eq(apply_links.posting_id, p.id))
+        .get();
+      if (prior?.reason === OWNER_WRONG_REASON && prior.url === r.apply_url) {
+        r = {
+          apply_url: r.apply_url,
+          apply_type: "unknown",
+          method: "source",
+          reason: OWNER_WRONG_REASON,
+        };
       }
     } catch (e) {
       failed++;

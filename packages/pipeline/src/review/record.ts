@@ -10,6 +10,7 @@ import {
   reviews,
   type Db,
 } from "@job-agent/core";
+import { applyOwnerApplyCorrection } from "../apply-links/owner.ts";
 import { jakartaDate } from "../digest/selection.ts";
 import { reviewState, type ReviewState } from "./state.ts";
 
@@ -92,8 +93,8 @@ export interface RecordedReview {
 
 /**
  * Appends one review row for the canonical posting, with a snapshot of what the tool said at review time.
- * Returns null when the posting id is unknown. Feedback side effects of `wrong_apply_link` and
- * `pay_policy` are not applied here.
+ * Returns null when the posting id is unknown. `wrong_apply_link` also corrects the stored apply link; the
+ * `pay_policy` side effect is not applied here.
  */
 export function recordReview(db: Db, input: ReviewInput, now: Date): RecordedReview | null {
   return db.transaction((tx) => {
@@ -120,6 +121,9 @@ export function recordReview(db: Db, input: ReviewInput, now: Date): RecordedRev
       fit_prompt_version: i?.fit_prompt_version ?? null,
     };
     t.insert(reviews).values(row).run();
+    if (input.action === "wrong_apply_link") {
+      applyOwnerApplyCorrection(t, postingId, input.apply_url, now);
+    }
     const history = reviewHistory(t, [postingId]).get(postingId) ?? [];
     return { review: row, state: reviewState(history) };
   });
