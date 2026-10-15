@@ -2,6 +2,9 @@
 
 Date: 2026-10-16. Author: PM (card t_4b0651e2). Status: ready for owner review (t_acf2f9cd).
 
+**Update 2026-10-16 (card t_1267839f):** the fix round is merged and re-audit #11 passed. R1 and A1-A4 are closed; A5 is still
+open. See "Fix round" at the end. Items closed by the fix round are marked **[resolved]** below.
+
 **Summary.** All 20 dev cards and the research card are merged on `main`. You now have:
 - a local dashboard (127.0.0.1 only) with four tabs: Queue, Answers, Inbox and Stats;
 - one-key review actions, with your corrections fed back into the apply-link and pay-policy registries;
@@ -27,11 +30,15 @@ Before you approve, read these three items:
    My `pnpm test` runs on this machine (3 runs at about 03:08-03:10 WIB) therefore may have run logged-out LinkedIn/Indeed
    searches from your IP. That is the same kind of search the hourly run makes, but a test must never do it. I recommend a
    high-risk fix card (below).
+
+   **[resolved]** by F1 (t_af1e9656) and `.prettierignore` (your commit `f6b0146`). See "Fix round".
 3. **Two answer-bank findings matter before Phase 5:**
    - Some salary wordings are not recognized as salary questions, so you could approve a bank answer for them (finding A2).
    - Editing the wording of an approved answer keeps it approved (finding A3).
 
    Neither matters while nothing is filled or submitted.
+
+   **[resolved]** A2 by F2 (t_e8dd3801; a lexical residual is left, see M2 under "Fix round"), A3 by F3 (t_aaa0bf00).
 
 ## What shipped
 
@@ -122,6 +129,9 @@ optional fields (`question`, `alternatives`, `type`, `choices`). Agents cannot e
 D14 dev reports (`data/handoff/t_2d987b85-comment.md`, `data/handoff/t_bb962b1b-comment.md`). A proposed `config/README.md` update
 is in `data/handoff/t_c5832945-comment.md`. The example shape is also documented in `docs/running.md` ("Answer bank").
 
+**[resolved]** for `config/answers.example.yaml`: you committed it in `f6b0146`. The `config/README.md` proposal is not in that
+commit; apply it or tell me to drop it.
+
 ## Test status
 
 **Auditor, clean detached checkout of `33b53d0` (the code on `main` now; `c6be95d` only adds the audit report):**
@@ -192,6 +202,8 @@ Report: `docs/audits/phase-4.md`.
 
 ### Findings from the phase-end audit (all open, no fix cards yet)
 
+Fix round status: A1-A4 **[resolved]**, A5 still open. Details in "Fix round".
+
 | # | Finding | Severity |
 |---|---|---|
 | A1 | `seed-demo.ts:34-41` refuses the real DB by path string only. A symlink into `data/`, or a real DB kept outside `data/`, would get fake rows. Fix: realpath, and refuse any DB holding non-`demo-` postings (same as batch 8 MINOR-2) | minor |
@@ -214,15 +226,15 @@ The next batch audit should diff from `33b53d0`, the audited commit.
 |---|---|---|
 | Batch 8 (t_be35d3bc) MINOR-1 | `e2e.test.ts` / `smoke.test.ts` 5 s timeouts flake under full parallel runs | not seen in the auditor's or my runs; open as hardening |
 | Batch 8 MINOR-2 | `seed-demo` path check | same as A1 |
-| Batch 8 MINOR-3 | `questions/index.ts:63` follows redirects through the shared `httpGet` with no host pinning | open (public JSON GET, low impact) |
-| Batch 9 (t_a7215a83) | `registry.ts:15`: the `owner:` entry in `PROTECTED_SOURCE` cannot be reached and no test covers it | open, harmless |
+| Batch 8 MINOR-3 | `questions/index.ts:63` follows redirects through the shared `httpGet` with no host pinning | **[resolved]** by F4: redirects are never followed |
+| Batch 9 (t_a7215a83) | `registry.ts:15`: the `owner:` entry in `PROTECTED_SOURCE` cannot be reached and no test covers it | **[resolved]** by F4: kept as a guard, now with a test |
 | Batch 9 | no `typecheck` script | not a real gap (see Test status) |
 
 ### New finding from this report (PM)
 
 | # | Finding | Severity |
 |---|---|---|
-| R1 | The test suite starts the real JobSpy worker on a machine where the worker is installed. Path: `cli.test.ts:68` -> `discover --force` -> `jobspy/worker.ts:46`. This breaks the rule that tests never hit live HTTP, and it can send logged-out LinkedIn/Indeed requests from your IP every time `pnpm check` runs in the main checkout. Fix: tests must inject a fake worker path, or the CLI test must exclude JobSpy sources. Add `workers/jobspy/.venv/` to `.prettierignore` | **major** (guardrail; not caught by any audit because review worktrees have no venv) |
+| R1 | The test suite starts the real JobSpy worker on a machine where the worker is installed. Path: `cli.test.ts:68` -> `discover --force` -> `jobspy/worker.ts:46`. This breaks the rule that tests never hit live HTTP, and it can send logged-out LinkedIn/Indeed requests from your IP every time `pnpm check` runs in the main checkout. Fix: tests must inject a fake worker path, or the CLI test must exclude JobSpy sources. Add `workers/jobspy/.venv/` to `.prettierignore` | **major** (guardrail; not caught by any audit because review worktrees have no venv). **[resolved]** by F1 |
 
 ## Known limitations
 
@@ -265,11 +277,13 @@ On demo data it reads `done-when: 0 min for 5 matches (met)`.
 1. **One real review day** and the `review-stats` line (above).
 2. **Fix card for R1** (tests start the real JobSpy worker). I recommend creating it before any more `pnpm check` runs in the
    main checkout. Until then, any QA or merge step that runs tests in the repo root, rather than a worktree, can trigger it.
+   **[resolved]** (F1).
 3. **Fix round for A1-A4** (fix tasks are always high risk). A2 and A3 at least must land before Phase 5 fills any form.
+   **[resolved]** (F2, F3, F4).
 4. **Apply `config/answers.example.yaml` and `config/README.md`** from the dev reports listed under "How to run it", or tell
-   me to drop them.
+   me to drop them. **[resolved]** for `answers.example.yaml`; `config/README.md` still open.
 5. **Audit housekeeping (A5):** set the ledger's last tag, clear the covered rows, and decide whether the Phase 4 tag is `audit-4`
-   (as now) or `audit-11`.
+   (as now) or `audit-11`. **Still open**, see "Fix round", "Still open".
 
 ## Recommendations for Phase 5: Assisted applying (dry-run)
 
@@ -278,7 +292,7 @@ semi-automated JobStreet and YC part is **dropped** (your Phase 3 decisions; `de
 becomes "20-30 dry runs reviewed and correct" only. The Phase 5 plan records this as a decision entry.
 
 1. **Prerequisites from Phase 4:**
-   - fix R1 and A1-A4 first;
+   - fix R1 and A1-A4 first (**[resolved]** in the fix round);
    - your answer bank needs real approved answers (PLAN 9 list: notice period, work authorization, relocation, time zone,
      years per skill, degree, how you heard).
 
@@ -305,3 +319,143 @@ becomes "20-30 dry runs reviewed and correct" only. The Phase 5 plan records thi
 7. **Run Playwright in a worktree-safe way.** Agents use only fake demo postings served from fixtures (recorded HTML of a
    Greenhouse/Lever form). Agents never point the filler at a real employer form. Your 20-30 real dry runs are owner-run
    commands.
+
+## Fix round
+
+Planned in t_2c956655 (`docs/phase-4-fixround-backlog.md`) from your decisions on this report. All four fix cards are merged.
+Re-audit #11 (t_7811202c) **passed** on `af8f72e`: no blocker, no major, three minors (M1-M3).
+
+**Where the reports are:**
+- Re-audit #11: `docs/audits/phase-11.md`. The automation saved it under `phase-` because its title contains "Phase".
+- `docs/audits/batch-11.md` is a different report: batch audit #11 (t_36412184), started automatically during the round. It
+  covered `audit-10..a392311`, after F1 and F4 merged and before F2 and F3 merged.
+
+### Cards and what each changed
+
+| Card | Dev / QA / audit | Risk | Commit | What changed |
+|---|---|---|---|---|
+| F1 | t_af1e9656 / t_f9416d19 / t_1f11c7d9 | high | `15837e4` | R1:<br>- the JobSpy worker spawn is injectable (`spawnFn` through `jobspy/index.ts` and `registry.ts`);<br>- `worker.ts:55` refuses the default spawn whenever `VITEST` is set, before it checks the venv, with no off switch;<br>- every test that reaches the adapters injects a fake worker;<br>- `docs/running.md` says so |
+| F2 | t_e8dd3801 / t_fdd8278c / t_cb0b85be | high | `f006da7` | A2:<br>- one salary detector, `packages/apply/src/salary.ts` (`isSalaryWording`), used by matching, the answer index and the inbox;<br>- English and Indonesian pay words, plus "how much ... expect/want/make";<br>- 89 golden cases;<br>- a salary wording of any answer, approved or not, never enters the answer index;<br>- `match-questions` reclassifies stored rows (open inbox rows that are pay questions are removed);<br>- the Inbox tab offers no answer or link form for them |
+| F3 | t_aaa0bf00 / t_71b92c4c / t_71cebab7 | high | `af8f72e` | A3:<br>- any real change to answer, question, alternatives, type or choices clears approval, even when the same request says `approved: true`;<br>- linking an inbox wording goes through the same path;<br>- `PATCH /api/answers/:key` re-matches, so stored coverage never outlives a cleared approval;<br>- the Answers tab approves as a separate action.<br>A4: the export is written to a 0600 temp file, then renamed (an old 0644 file does not keep its mode); a missing dir is created 0700 |
+| F4 | t_22582616 / t_ab8227b6 / - | medium | `d968504` | A1:<br>- `seed-demo` resolves the realpath (dangling symlinks too) before the `data/` check;<br>- it refuses any DB holding a non-`demo-` posting;<br>- `bin/smoke --demo` now seeds before discover.<br>Batch 8 MINOR-3: `fetch-questions` never follows a redirect.<br>Batch 9: the `owner:` guard in `registry.ts` stays, now with a test |
+
+Also in the round: your commit `f6b0146` (`.prettierignore` gets `workers/jobspy/.venv/`, `config/answers.example.yaml` gets the
+optional fields).
+
+### Status of every item (from re-audit #11)
+
+| Item | Status | Proof |
+|---|---|---|
+| R1 tests start the real JobSpy worker | **closed** | Guard at `worker.ts:55`. Tests in `jobspy/index.test.ts` and `cli.test.ts`.<br>Break (a), guard removed: 3 tests fail |
+| A1 seed-demo path check | **closed** | `seed-demo.ts:31` realpath; `seed-demo.ts:114` non-demo check.<br>Live: on a smoke DB holding public postings, `bin/smoke run <dir> seed-demo` exits 1 with `refusing to write, the database holds 1634 non-demo posting(s)`.<br>Break (d): 2 tests fail |
+| A2 salary wordings | **closed for every wording you listed; partly closed overall** | All four missed wordings from this report are now caught. The detector is still a word list, so the auditor found new misses (M2 below).<br>Break (b), one alternative removed: a golden test fails |
+| A3 edits keep approval | **closed** | `answers-store.ts:174`; `inbox.ts:177`.<br>Break (c): 8 tests fail |
+| A4 export mode | **closed** | `answers-store.ts:220-227`.<br>Break (e): the 0600 test fails |
+| A5 ledger and tags | **open** | See "Still open" |
+| Batch 8 MINOR-3 redirects | **closed** | `questions/index.ts:65` `followRedirects: false`.<br>Test "never follows a redirect (to another host / the same host)" |
+| Batch 9 `registry.ts:15` | **closed** | `registry.ts:19` keeps the guard with a comment.<br>`registry.test.ts` "never overwrites an owner:<date> source even when its policy is unknown" |
+
+Live run by the auditor (`bin/smoke --demo`, no `--with-jobspy`):
+```
+seed-demo 2026-10-16: added 8 postings, 3 questions
+processed 1631, kept 42, rejected 1589 (...)
+answers import: 16 added, 0 updated, 0 unchanged, 0 kept
+match-questions: 3 questions, 2 covered, 0 salary, 1 unknown (1 wordings), 0 changed
+self-check /api/health 200
+self-check /api/queue 200 items=49
+```
+
+### Test totals
+
+| Point | Where | Files | Tests |
+|---|---|---|---|
+| Phase-end audit #4, `33b53d0` | auditor, clean checkout | 116 | 2160 |
+| Batch audit #11, `a392311` (F1 + F4 merged) | auditor, clean checkout | 116 | 2172 |
+| Re-audit #11, `af8f72e` (all fix cards merged) | auditor, clean checkout, full `pnpm check` exit 0 | 117 | 2286 |
+
+The fix round adds 126 tests. I did not run tests in this report run. The numbers are the auditors' runs.
+
+### Will `pnpm check` pass in your main checkout now?
+
+**Expected: yes.** Nobody has run it there since the fix, so this is not proven yet. Both causes of the earlier failure are fixed:
+- **Prettier:** `.prettierignore:9` lists `workers/jobspy/.venv/`, so the 4 venv files are no longer checked. ESLint already passed.
+- **The timeout:** under vitest the default spawn is refused before the venv check, so `cli.test.ts` "discover" can no longer
+  start your real worker. The auditor proved it by breaking the guard. With a fake venv present, 3 tests failed.
+- The only test that looks at your venv is `smoke.test.ts` "--with-jobspy adds one forced linkedin ...". It runs `bin/smoke` against
+  a fake CLI that only logs its arguments. With your executable venv it takes the "venv present" branch and still makes no request.
+  The auditor's fake venv was not executable and made this test fail; that was an artifact of the fake.
+- `scripts/test-python.sh` runs the worker unit tests with JobSpy mocked, using the system `python3`.
+
+Caveat:
+- The auditor could not create an executable fake `python`: `chmod` needs approval in unattended runs.
+- So the "marker file never written" proof is weak on its own.
+- The strong proof is break (a).
+- Your first `pnpm check` in the main checkout is the real confirmation. If anything there looks like a JobSpy run (a long pause in
+  `cli.test.ts`, or a `jobspy` log line), stop it and tell me.
+
+### Still open
+
+1. **A5 ledger and tags: open, and worse than before.** The automation caused this; no agent did.
+   - **My planning edits never reached `main`.** These were the A5 ledger reset and the decisions.md entries ("Audit tags", "Phase
+     4 fix round", F4 medium risk) from t_2c956655.
+   - **Cause:** `bin/agent-step:25-28` (`main_ready`) runs `git stash` on modified tracked files before it commits PM docs. So a
+     PM run can only add new files. Its edits to existing files go to the stash.
+   - **`git stash list` in the main checkout has 4 of these entries:**
+     - `stash@{0}` t_2c956655: `docs/audit-ledger.md`, `docs/decisions.md`;
+     - `stash@{1}` t_a8e6e464: `docs/phase-3-report.md`, so the Phase 3 fix round section was lost the same way;
+     - `stash@{2}` t_c15a704d: `docs/phase-3-fixround-backlog.md`;
+     - `stash@{3}` t_f48dace6: `docs/audit-ledger.md`.
+   - **Ledger:** `docs/audit-ledger.md` still says `Last audit tag: (none yet)` and has the broken `||` lines. It still holds every
+     old row, plus t_22582616.
+   - **Duplicate batch audit:** the stale counts (`medium 6 / 5`) are probably why batch audit #11 (t_36412184) started during
+     the round.
+   - **Tag moved:** `audit-11` was moved by `bin/agent-step:160` (`git tag -f`). It was on `365a7e8` (batch audit #11) and now
+     points at `ccdb5ee` (re-audit #11 report). The batch-11 point no longer has a tag. That is the move the round was meant to
+     prevent.
+2. **M2, A2 residual (minor):** the salary detector is a word list. Re-audit #11 found these pay questions not caught:
+   - "What is your asking number?"
+   - "What is your minimum acceptable offer?"
+   - "What are your financial requirements?"
+   - "What is your price?"
+   - "Current OTC"
+
+   This matters only if such a wording becomes a bank answer's wording; without one it lands in your inbox. The fix is optional:
+   one more high-risk card that adds these wordings with golden cases. It should land before Phase 5 fills forms.
+3. **M3 (minor, noted only):** the R1 guard keys on `VITEST`; vitest is the only test runner.
+4. **Batch audit #11 minors, from before F2 and F3:**
+   - Its approval and salary findings are closed by F3 and F2.
+   - **Still open:**
+     - typed-answer validation (yes_no must be yes/no, a number must be numeric, a choice must be in `choices`) runs only in the
+       inbox path (`inbox.ts:130`). `POST /api/answers` and `PATCH /api/answers/:key` can store and approve an answer like `banana`
+       for a yes_no question. Fix before Phase 5 fills forms (small high-risk card).
+     - the inbox answer/link steps are not one transaction. It heals itself on the next re-match and is documented in
+       decisions.md (2026-10-16 inbox entry).
+5. **Batch 8 MINOR-1** (5 s timeouts in `e2e`/`smoke` tests under load): not seen in any fix-round run. It stays open as hardening.
+6. **`config/README.md` proposal** (`data/handoff/t_c5832945-comment.md`): not applied yet.
+
+### What you still have to do before Phase 5
+
+1. **Real approved answers** in `config/answers.yaml`, then `pnpm job-agent answers import`. Cover the PLAN 9 list: notice period,
+   work authorization, relocation, time zone, years per skill, degree, how you heard.
+   - An answer you edit in the dashboard needs a fresh approval (F3).
+   - Salary is never answered from the bank (F2).
+2. **One real review day** and the `review-stats` line (see "Done-when status"). This is still the only open done-when proof.
+3. **Run `pnpm check` once in your main checkout** to confirm the expectation above.
+4. **`bin/agent-step`:** only you can change this file.
+   - **Tags:** drop `-f` from `git tag -f` at line 160, so an audit tag can never move again. Also tag only on PASS (today a FAIL is
+     tagged too). Better still, take the number from the next free `audit-<n>`, not from the card title. The title approach gave
+     #11 twice this round, and phase reports land under `phase-<n>.md`. This recommendation was meant for decisions.md
+     ("Audit tags"), but that entry was lost in the stash (above). It is recorded only here until it is re-applied.
+   - **PM commits (`main_ready`, lines 25-28):** let a PM or researcher run commit its own changes to tracked files under `docs/`
+     before it stashes the rest. Without that, report updates like this one are lost too.
+5. **A5 cleanup:**
+   - re-apply or redo the ledger reset: `Last audited commit: af8f72e`, every row covered by audits 1-11 removed (t_22582616
+     included), counts `medium 0 / 5 - low 0 / 10`;
+   - restore the decisions.md entries from `stash@{0}` (`git stash show -p 'stash@{0}'`), with the tag facts updated: `audit-11`
+     is now on `ccdb5ee`, and the next free number is 12;
+   - decide whether to re-tag `365a7e8` (for example `audit-11-batch`) or leave it untagged;
+   - look at the other stashes (`stash@{1}` holds the lost Phase 3 fix round report section) and drop the ones you do not want.
+
+   Tell me if you want a PM card for the docs part; I cannot fix the automation.
+6. **Optional before Phase 5:** fix cards for M2 (more salary wordings) and the shared typed-answer validation (item 4 under
+   "Still open"). I recommend both, as high-risk cards, before any filler uses the bank.
