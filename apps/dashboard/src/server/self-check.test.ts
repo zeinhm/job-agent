@@ -15,7 +15,7 @@ describe("selfCheck", () => {
     const lines: string[] = [];
     const code = await selfCheck(openDb(":memory:"), (l) => lines.push(l));
     expect(code).toBe(0);
-    expect(lines).toEqual(["self-check /api/health 200"]);
+    expect(lines).toEqual(["self-check /api/health 200", "self-check /api/queue 200 items=0"]);
   });
 
   it("returns 1 when a request fails", async () => {
@@ -36,7 +36,10 @@ describe("main.ts --self-check", () => {
         encoding: "utf-8",
         env: { ...process.env, JOB_AGENT_DB: join(work, "t.db") },
       });
-      expect(res.stdout.trim()).toBe("self-check /api/health 200");
+      expect(res.stdout.trim().split("\n")).toEqual([
+        "self-check /api/health 200",
+        "self-check /api/queue 200 items=0",
+      ]);
       expect(res.status).toBe(0);
     } finally {
       rmSync(work, { recursive: true, force: true });

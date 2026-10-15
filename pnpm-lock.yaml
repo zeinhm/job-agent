@@ -46,6 +46,9 @@ importers:
       '@job-agent/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@job-agent/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       '@tanstack/react-query':
         specifier: ^5.104.2
         version: 5.104.2(react@19.3.0)

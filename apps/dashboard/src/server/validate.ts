@@ -22,6 +22,10 @@ export function parseQuery<S extends ZodType>(c: Context, schema: S): z.output<S
   return check(schema, c.req.query());
 }
 
+export function parseParams<S extends ZodType>(c: Context, schema: S): z.output<S> {
+  return check(schema, c.req.param());
+}
+
 export async function parseBody<S extends ZodType>(c: Context, schema: S): Promise<z.output<S>> {
   let raw: unknown;
   try {

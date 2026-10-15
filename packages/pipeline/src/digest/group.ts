@@ -47,14 +47,19 @@ export function groupPostings<T extends Groupable>(items: T[]): T[][] {
   return [...groups.values()].map((g) => g.sort(byBest));
 }
 
-/** Distinct locations (case-insensitive, sorted), at most `max` shown, then `+N more`. */
-export function joinLocations(locations: (string | null)[], max = MAX_LOCATIONS): string {
+/** Distinct locations (case-insensitive), sorted. */
+export function distinctLocations(locations: (string | null)[]): string[] {
   const seen = new Map<string, string>();
   for (const l of locations) {
     const t = (l ?? "").replace(/\s+/g, " ").trim();
     if (t !== "" && !seen.has(t.toLowerCase())) seen.set(t.toLowerCase(), t);
   }
-  const all = [...seen.values()].sort((a, b) => a.localeCompare(b));
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** Distinct locations (case-insensitive, sorted), at most `max` shown, then `+N more`. */
+export function joinLocations(locations: (string | null)[], max = MAX_LOCATIONS): string {
+  const all = distinctLocations(locations);
   if (all.length <= max) return all.join("; ");
   return `${all.slice(0, max).join("; ")}; +${all.length - max} more`;
 }

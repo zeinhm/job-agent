@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./review": "./src/review/index.ts",
+    "./seed-demo": "./src/seed-demo.ts"
   },
   "dependencies": {
     "@job-agent/core": "workspace:*",

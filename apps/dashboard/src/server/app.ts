@@ -1,11 +1,26 @@
 import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { z } from "zod";
 import type { Db } from "@job-agent/core";
+import {
+  getPostingDetail,
+  getQueue,
+  isDigestDate,
+  jakartaDate,
+  recordReview,
+  ReviewInputSchema,
+} from "@job-agent/pipeline/review";
 import { hostGuard, mutationGuard, securityHeaders, type PortSource } from "./guards.ts";
 import { staticHandler } from "./static.ts";
+import { parseBody, parseParams, parseQuery } from "./validate.ts";
+
+const QueueQuery = z.strictObject({ date: z.string().refine(isDigestDate).optional() });
+const PostingParams = z.object({ id: z.string().min(1).max(200) });
 
 export interface AppOptions {
+  /** Clock, for the default day and review timestamps. */
+  now?: () => Date;
   port: PortSource;
   /** Built web app (Vite output). Defaults to apps/dashboard/dist/web. */
   webDir?: string;
@@ -31,6 +46,27 @@ export function createApp(db: Db, opts: AppOptions): Hono {
       return c.json({ ok: false, db: "error" }, 503);
     }
     return c.json({ ok: true, db: "ok" });
+  });
+
+  const today = () => jakartaDate((opts.now ?? (() => new Date()))());
+
+  app.get("/api/queue", (c) => {
+    const { date } = parseQuery(c, QueueQuery);
+    return c.json(getQueue(db, date ?? today()));
+  });
+
+  app.get("/api/postings/:id", (c) => {
+    const { id } = parseParams(c, PostingParams);
+    const detail = getPostingDetail(db, id);
+    if (detail === null) return c.json({ error: "not found" }, 404);
+    return c.json(detail);
+  });
+
+  app.post("/api/reviews", async (c) => {
+    const input = await parseBody(c, ReviewInputSchema);
+    const recorded = recordReview(db, input, (opts.now ?? (() => new Date()))());
+    if (recorded === null) return c.json({ error: "not found" }, 404);
+    return c.json(recorded, 201);
   });
 
   // Last resort for anything no route matched: static files, SPA fallback, JSON 404 for /api.

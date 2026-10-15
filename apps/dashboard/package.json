@@ -9,6 +9,7 @@
   "dependencies": {
     "@hono/node-server": "^1.19.0",
     "@job-agent/core": "workspace:*",
+    "@job-agent/pipeline": "workspace:*",
     "@tanstack/react-query": "^5.104.2",
     "@tanstack/react-table": "^9.3.1",
     "hono": "^4.9.0",
