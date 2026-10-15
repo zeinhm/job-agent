@@ -71,3 +71,4 @@ Last audit tag: (none yet)
 | t_47589c2e | linkedin_posts disabled by default (Brave does not index LinkedIn posts) | medium | 3eef570 | 2026-10-15 |
 | t_ce49d729 | Owner-only holds labelled OWNER, real error in hold reasons | medium | 3e01a18 | 2026-10-15 |
 | t_1099c9eb | Phase 4 schema: reviews, answer_bank, posting_questions, unknown_questions; SQLite WAL | medium | 1b7a414 | 2026-10-15 |
+| t_99deaa3f | Demo seed: seed-demo fills a smoke DB with fake queue data | medium | bcee7d0 | 2026-10-15 |
