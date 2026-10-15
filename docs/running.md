@@ -44,8 +44,8 @@ Anthropic API** for fit scoring (that is what the stage is for). It is never log
 `enrich` prints `cv.md not found in the config dir, fit scoring skipped (extraction still runs)` and carries on
 without fit scores.
 
-`config/README.md` lists every example file. The other examples (`answers`, `private-patterns`) are not read by the
-pipeline commands; `private-patterns.txt` is used by the pre-commit hook.
+`config/README.md` lists every example file. `answers.yaml` is read only by `answers import`;
+`private-patterns.txt` is used by the pre-commit hook.
 
 ## Environment variables
 
@@ -110,6 +110,7 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 
 | Command | What it does |
 |---|---|
+| `answers import` | Loads `config/answers.yaml` (`<group>: <key>: { answer, approved, question?, alternatives?, type?, choices? }`, strict: an invalid file exits 1 and names the key path, never a value) and upserts every entry into the `answer_bank` table as `source = config`, key `<group>.<key>`. A row last edited in the dashboard is never overwritten (`kept dashboard version: <key>`). Entries removed from the file stay in the DB. A missing file prints `answers.yaml not found, answer bank empty`. Prints `answers import: <n> added, <n> updated, <n> unchanged, <n> kept`; a re-run with no change is a no-op. Never prints answer text. |
 | `fx` | Fetches today's USD exchange rates (IDR, EUR, GBP, SGD, AUD, CAD, CHF) and stores them. Salaries are converted with the latest stored rate on or before the analysis date, so run it daily. Without a stored IDR rate, `enrich` parks kept postings as `fx_wait` (digest: "Waiting for scoring"); after `fx` the next `enrich` tiers them without any LLM call. |
 | `discover [--source <name>] [--force]` | Polls every source that is due and stores new postings. Each source has a minimum poll interval enforced in code; a source polled too recently is recorded as `skipped` and gets no request. `--source` runs one source (see "Sources"); `--force` ignores the interval (manual use only). Exits 1 if any source errored. |
 | `discover-companies` | Finds new companies to poll: runs a fixed list of 12 web searches (Brave Search API, at most 20 requests per run, one every 2 seconds) for Greenhouse, Lever, Ashby, SmartRecruiters, Workable and Recruitee board URLs, checks each new board with one request and stores it in the database (`verified` only if the board answered). Companies already known are skipped. The search part needs `BRAVE_API_KEY` (without it: `BRAVE_API_KEY not set, search discovery skipped`). Prints `discover-companies: <q> queries (<n> failed), <c> candidates, <v> new verified, <n> not found, <k> known, <e> verify errors`. Exits 1 if every search query failed (an error line says so). Run it weekly (Monday 07:00 WIB in `scripts/crontab.example`); the next `discover` polls the verified companies. Companies already stored with `discovered_via = yc_directory` stay and are polled through their own ATS APIs; nothing reads ycombinator.com. |

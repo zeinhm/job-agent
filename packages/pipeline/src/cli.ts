@@ -11,6 +11,7 @@ import {
   openDb,
   source_runs,
 } from "@job-agent/core";
+import { importAnswers, loadAnswers } from "@job-agent/apply";
 import { buildAdapters } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runResolveApply } from "./apply-links/index.ts";
@@ -273,6 +274,25 @@ const commands: Record<string, Command> = {
         );
       }
       return 0;
+    } finally {
+      db.$client.close();
+    }
+  },
+  answers: (args, io) => {
+    if (args[0] !== "import" || args.length !== 1) {
+      io.err("Usage: job-agent answers import\n");
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      const entries = loadAnswers(process.env["JOB_AGENT_CONFIG_DIR"] ?? "config", (l) =>
+        io.out(`${l}\n`),
+      );
+      importAnswers(db, entries, (l) => io.out(`${l}\n`));
+      return 0;
+    } catch (e) {
+      io.err(`answers import failed: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
     } finally {
       db.$client.close();
     }

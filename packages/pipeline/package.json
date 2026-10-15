@@ -14,6 +14,7 @@
     "eval:export-reviews": "tsx src/eval/export-reviews-cli.ts"
   },
   "dependencies": {
+    "@job-agent/apply": "workspace:*",
     "@job-agent/core": "workspace:*",
     "@job-agent/sources": "workspace:*",
     "drizzle-orm": "^0.45.3",
