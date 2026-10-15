@@ -24,4 +24,9 @@ gpush()    { local t; t="$(gh_token)" || { echo "gpush: no Keychain token (job-a
 dev_branch() { local b; b="$(body_of "$1" | grep -m1 -oE 'Branch: *task/t_[0-9a-f]+-[A-Za-z0-9._-]+' | sed -E 's/^Branch: *//')"
                [ -n "$b" ] && { echo "$b"; return; }; echo "task/$1-$(slugify "$(title_of "$1")")"; }
 cloud_allowed() { [ ! -f "$STATE/cloud-off" ] && [[ "$(date +%F)" < "$CLOUD_UNTIL" ]]; }
+# Holds only the owner can fix are labelled OWNER (NEEDS-ZEIN.md lists only [OWNER] holds): git push or token
+# problems, private config values, account or usage limits, anything needing a login.
+owner_cause() { printf '%s' "$1" | grep -qiE 'push|keychain|token|jpush|not on github|authenticat|permission denied|credential|username|\b40[13]\b|config/|private config|api key|usage limit|rate limit|limit reached|out of (usage|credits)|credit|log ?in|logged in|password|captcha|subscription'; }
+# the last lines of a failing command's output, on one line, for a hold reason
+errtail() { printf '%s' "$1" | grep -v '^[[:space:]]*$' | tail -n "${2:-3}" | tr '\n' ' ' | cut -c1-400; }
 pro_paused()    { local u; u="$(cat "$STATE/pro-paused-until" 2>/dev/null)"; [ -n "$u" ] && [ "$(now)" -lt "$u" ]; }

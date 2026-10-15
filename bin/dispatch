@@ -15,8 +15,9 @@ cd "$REPO"
 ONCE=0; [ "${1:-}" = "--once" ] && ONCE=1
 ROLES=" dev qa auditor researcher pm "
 
-hold() { # $1 id, $2 DOCTOR|OWNER, $3 text  (unique reason -> never triage)
+hold() { # $1 id, $2 DOCTOR|OWNER, $3 text  (unique reason -> never triage); owner-only causes are always OWNER
   local k; k="$(counter notes "$1.hold")"
+  if owner_cause "$3" || [[ "$3" == OWNER:* ]]; then set -- "$1" OWNER "$3"; fi
   hk block "$1" "HELD #$k [$2]: $3" >/dev/null; log "hold $1 [$2]: $3"; }
 wait_on() { # $1 id, $2 new parent id, $3 why -> card back to todo, waiting for the parent
   local k; k="$(counter notes "$1.wait")"
@@ -73,7 +74,7 @@ run_local() { # $1 role, $2 id
       hold "$id" DOCTOR "$(v QUESTION)" ;;
     *)
       if [ "$(counter errors "$id")" -ge "$LOCAL_MAX_TRIES" ]; then
-        hold "$id" DOCTOR "$role run ended without a result $LOCAL_MAX_TRIES times (exit $rc), see data/dispatch/notes/$id-last.txt"
+        hold "$id" DOCTOR "$role run ended without a result $LOCAL_MAX_TRIES times (exit $rc), see data/dispatch/notes/$id-last.txt. Last output: $(errtail "$out")"
       else hk reclaim "$id" >/dev/null 2>&1; log "no result for $role $id (exit $rc): will retry"; fi ;;
   esac
 }
@@ -88,7 +89,8 @@ start_cloud() { # $1 id, $2 attempt -> 0 started, 43 credit out, 1 failed
     hk comment "$id" "Cloud attempt $n started: $url" >/dev/null; log "cloud $id attempt $n: $url"; return 0
   fi
   [ $rc -eq 43 ] && { touch "$STATE/cloud-off"; log "cloud credit used up: the Dev now runs on Pro"; return 43; }
-  log "cloud launch failed for $id: $(printf '%s' "$out" | tail -1)"; return 1
+  printf '%s\n' "$out" > "$STATE/notes/$id.cloud-err"
+  log "cloud launch failed for $id:$(printf '%s' "$out" | tail -1)"; return 1
 }
 poll_cloud() {
   local f id n started url br ref subj hit=""
@@ -164,7 +166,7 @@ EOF
       [ $rc -eq 0 ] && continue
       if [ $rc -ne 43 ]; then
         hk reclaim "$id" >/dev/null 2>&1
-        [ "$(counter errors "$id")" -ge 3 ] && hold "$id" DOCTOR "the cloud session could not be started 3 times (see data/dispatch/dispatch.log)"
+        [ "$(counter errors "$id")" -ge 3 ] && hold "$id" DOCTOR "the cloud session could not be started 3 times. Last error: $(errtail "$(cat "$STATE/notes/$id.cloud-err" 2>/dev/null)")"
         continue
       fi
       hk reclaim "$id" >/dev/null 2>&1      # credit out: fall through to a local Pro run below on the next pass

@@ -26,9 +26,9 @@ main_ready(){ git checkout -q main 2>/dev/null || question "could not check out 
               if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
                 git stash push -q -m "agent-step $ID: owner's uncommitted changes" && log "stashed uncommitted changes in main for $ID (git stash list)"
               fi
-              git pull -q --ff-only origin main || question "git pull on main failed (diverged?)"
+              PE="$(git pull -q --ff-only origin main 2>&1)" || question "git pull on main failed (diverged?): $(errtail "$PE")"
               # local main must equal GitHub: a squash into a main with unpushed commits conflicts in a way no cloud sync can fix
-              { "$HOME/projects/job-agent-ops/bin/push-main" >/dev/null 2>&1; [ -z "$(git rev-list origin/main..main 2>/dev/null)" ]; } || question "local main has commits that are not on GitHub (git log origin/main..main): the owner must run jpush in the repo, then release this card"; }
+              { PE="$("$HOME/projects/job-agent-ops/bin/push-main" 2>&1)"; [ -z "$(git rev-list origin/main..main 2>/dev/null)" ]; } || question "local main has commits that are not on GitHub (git log origin/main..main): the owner must run jpush in the repo, then release this card. push-main said: $(errtail "$PE")"; }
 post_comment(){ local f="$COMMENTF"; [ -s "$f" ] || { printf 'Report (no comment file), last lines:\n\n%s\n' "$(tail -40 "$OUTF")" > "$H/$ID-fallback.md"; f="$H/$ID-fallback.md"; }
                 hk comment "$ID" "$(cat "$f")" >/dev/null; }
 task_branch(){ local b; b="$(git branch --list "task/$1-*" --format='%(refname:short)' | head -1)"
@@ -42,8 +42,8 @@ squash_merge(){ # $1 branch, $2 commit title -> merged and pushed, or a sync rew
     cf="$(git diff --name-only --diff-filter=U)"; git reset -q --hard HEAD; unlock_main; sync_rework "$br" "$cf"
   fi
   git diff --cached --quiet && { unlock_main; complete "Nothing to merge: $br is already in main"; }
-  git commit -q -m "$2 ($ID, squash of $br)" || { git reset -q --hard HEAD; unlock_main; question "the squash commit of $br was refused by the pre-commit hook: see $OUTF"; }
-  gpush -q origin main || { git reset -q --hard HEAD~1; unlock_main; question "push of main failed after merging $br"; }
+  CE="$(git commit -q -m "$2 ($ID, squash of $br)" 2>&1)" || { git reset -q --hard HEAD; unlock_main; question "the squash commit of $br was refused by the pre-commit hook: $(errtail "$CE")"; }
+  PE="$(gpush -q origin main 2>&1)" || { git reset -q --hard HEAD~1; unlock_main; question "push of main failed after merging $br: $(errtail "$PE")"; }
 }
 sync_rework(){ # $1 branch, $2 conflicting files
   local f="$H/$ID-sync.md"
@@ -129,7 +129,7 @@ post_comment
 case "$ROLE" in
   dev)
     [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the dev run"
-    gpush -q -u origin "$BR" 2>/dev/null || gpush -q -u origin "$BR" || question "could not push $BR"
+    PE="$(gpush -q -u origin "$BR" 2>&1)" || PE="$(gpush -q -u origin "$BR" 2>&1)" || question "could not push $BR: $(errtail "$PE")"
     complete "$VSUM" ;;
   qa)
     [ "$VERDICT" = FAIL ] && fail_rework
@@ -166,7 +166,7 @@ case "$ROLE" in
     if [ "$ROLE" = researcher ]; then git add docs/research 2>/dev/null; else git add docs 2>/dev/null; fi
     if ! git diff --cached --quiet; then
       git commit -q -m "docs($ROLE): $ID" || { git reset -q; unlock_main; question "the pre-commit hook refused the $ROLE docs: see $OUTF"; }
-      gpush -q origin main || { unlock_main; question "push of the $ROLE docs failed"; }
+      PE="$(gpush -q origin main 2>&1)" || { unlock_main; question "push of the $ROLE docs failed: $(errtail "$PE")"; }
     fi
     unlock_main; complete "$VSUM" ;;
 esac
