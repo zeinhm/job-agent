@@ -75,3 +75,4 @@ Last audit tag: (none yet)
 | t_c269b5ab | Dashboard web app skeleton: Vite + React + TanStack Query, four tabs, build and tests in pnpm check | medium | 8667a6d | 2026-10-15 |
 | t_22e91591 | Fetch application questions from public ATS job APIs (fetch-questions) | medium | e4918fa | 2026-10-15 |
 | t_53073918 | Review queue API: shared day-selection module, queue and posting detail, POST /api/reviews | medium | 4bb9649 | 2026-10-15 |
+| t_f413f9ea | Eval script eval:extract with a committed golden set (owner-run, --live only) | medium | d365399 | 2026-10-15 |
