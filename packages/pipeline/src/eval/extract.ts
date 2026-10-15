@@ -41,12 +41,16 @@ function loadSet(path: URL | string): EvalSet {
   return EvalSetSchema.parse(JSON.parse(readFileSync(path, "utf8")));
 }
 
-/** Cost of this run's `eval_extract` calls, from the shared `llm_calls` ledger. */
-function runCost(db: Db, since: string): { usd: number; calls: number } {
+/** Cost of this run's calls with the given eval purpose, from the shared `llm_calls` ledger. */
+export function runCost(
+  db: Db,
+  since: string,
+  purpose: "eval_extract" | "eval_fit" = "eval_extract",
+): { usd: number; calls: number } {
   const rows = db
     .select({ cost: llm_calls.cost_usd })
     .from(llm_calls)
-    .where(and(eq(llm_calls.purpose, "eval_extract"), gte(llm_calls.created_at, since)))
+    .where(and(eq(llm_calls.purpose, purpose), gte(llm_calls.created_at, since)))
     .all();
   return { usd: rows.reduce((sum, r) => sum + Number(r.cost), 0), calls: rows.length };
 }

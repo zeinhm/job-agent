@@ -71,7 +71,7 @@ export function failedFitRuns(resolvedReasons: string | null): number {
 export const fitAttemptMarker = (n: number): string => `fit_attempt:${n}`;
 
 export interface FitInput {
-  postingId: string;
+  postingId?: string;
   title: string;
   companyName: string;
   locationText: string | null;
@@ -99,18 +99,23 @@ export function buildFitInput(p: FitInput): string {
 }
 
 /** One Sonnet call; throws BudgetExceededError, MissingApiKeyError, LlmOutputError or LlmApiError. */
-export function scoreFit(p: FitInput, cv: string, deps: LlmDeps): Promise<Fit> {
+export function scoreFit(
+  p: FitInput,
+  cv: string,
+  deps: LlmDeps,
+  purpose: "fit" | "eval_fit" = "fit",
+): Promise<Fit> {
   return callStructured(
     {
       model: FIT_MODEL,
-      purpose: "fit",
+      purpose,
       system: FIT_SYSTEM_PROMPT,
       cacheablePrefix: buildCvPrefix(cv),
       input: buildFitInput(p),
       schema: FitSchema,
       map: normalizeFit,
       maxTokens: FIT_MAX_TOKENS,
-      postingId: p.postingId,
+      ...(p.postingId !== undefined ? { postingId: p.postingId } : {}),
     },
     deps,
   );

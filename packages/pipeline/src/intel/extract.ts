@@ -218,7 +218,7 @@ export function buildExtractInput(p: ExtractInput): string {
 export function extractFacts(
   p: ExtractInput,
   deps: LlmDeps,
-  purpose: "extract" | "eval_extract" = "extract",
+  purpose: "extract" | "eval_extract" | "eval_fit" = "extract",
 ): Promise<Extraction> {
   return callStructured(
     {

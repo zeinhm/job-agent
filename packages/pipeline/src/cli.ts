@@ -1,4 +1,4 @@
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
@@ -24,6 +24,7 @@ import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
 import { computeDayStats, formatStats, isDigestDate, jakartaDate } from "./review/index.ts";
+import { runExportReviews } from "./eval/export-reviews.ts";
 import { runSeedDemo } from "./seed-demo.ts";
 
 export interface Io {
@@ -212,6 +213,14 @@ const commands: Record<string, Command> = {
       db.$client.close();
     }
   },
+  "eval-export-reviews": (args, io) =>
+    runExportReviews({
+      args,
+      openDb: () => openDb(defaultDbPath()),
+      repoRoot: resolve(dirname(fileURLToPath(import.meta.url)), "../../.."),
+      out: io.out,
+      err: io.err,
+    }),
   "seed-demo": (args, io) => {
     let date: string | undefined;
     try {

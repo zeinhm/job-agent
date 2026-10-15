@@ -1,0 +1,222 @@
+{
+  "version": 1,
+  "persona": "example",
+  "cases": [
+    {
+      "id": "fit-h01",
+      "title": "Senior Frontend Engineer",
+      "company": "Northwind Labs (fictional)",
+      "location": "Remote (worldwide)",
+      "salaryText": null,
+      "description": "We build a design-system-driven analytics product. You will own our React and TypeScript front end, lead table and chart components, and mentor two mid-level engineers. Next.js, TanStack Query and Vitest are our daily tools. 6+ years of frontend experience required.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h02",
+      "title": "Senior React Engineer",
+      "company": "Contoso Cloud (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Join a product team shipping a B2B dashboard. Day to day: React 18, TypeScript, Next.js app router, performance work on large data grids. You should have shipped complex UI at scale and be comfortable reviewing others' code.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h03",
+      "title": "Staff Frontend Engineer",
+      "company": "Globex Software (fictional)",
+      "location": "Remote, Asia-friendly",
+      "salaryText": "USD 90,000 - 120,000 per year",
+      "description": "Lead the architecture of our customer-facing web app (React, TypeScript, Next.js). You will set standards, run design reviews and pair with product. Experience with schema-driven forms and tables is a strong plus.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h04",
+      "title": "Senior Frontend Developer (TypeScript)",
+      "company": "Initech Apps (fictional)",
+      "location": "Remote (global)",
+      "salaryText": null,
+      "description": "Our team of 12 builds a scheduling platform used by 40k businesses. Stack: TypeScript, React, TanStack Query, Playwright. You will own features end to end, from API contract to polished UI. Senior level, 5+ years.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h05",
+      "title": "Senior Full-Stack Engineer (React-heavy)",
+      "company": "Umbrella Studio (fictional)",
+      "location": "Remote worldwide",
+      "salaryText": null,
+      "description": "70% frontend, 30% Node backend. React and Next.js on the front, TypeScript throughout, Postgres behind. We want someone who cares about component APIs and accessibility.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h06",
+      "title": "Lead Frontend Engineer",
+      "company": "Hooli Works (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Lead a squad of four frontend engineers on a fintech web app. React, TypeScript, Next.js, design tokens. You will own technical direction, hiring input and delivery. 7+ years, with experience leading.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h07",
+      "title": "Senior Frontend Engineer, Data Visualization",
+      "company": "Stark Metrics (fictional)",
+      "location": "Remote (worldwide)",
+      "salaryText": "EUR 80,000 - 100,000 per year",
+      "description": "Build interactive dashboards with React and TypeScript: virtualized tables, charts, filters, saved views. Next.js and TanStack Query on our stack. You enjoy performance profiling and clean component design.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h08",
+      "title": "Senior Web Engineer (React)",
+      "company": "Wayne Interfaces (fictional)",
+      "location": "Remote, any timezone",
+      "salaryText": null,
+      "description": "We are a distributed product company. As a senior web engineer you will build and maintain our React/TypeScript front end, improve our build tooling, and help define our testing approach with Vitest and Playwright.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h09",
+      "title": "Senior Frontend Engineer - Design Systems",
+      "company": "Pied Piper Tools (fictional)",
+      "location": "Remote (APAC and Europe)",
+      "salaryText": null,
+      "description": "Own our component library built on React and TypeScript, documented in Storybook and consumed by five product teams. Next.js experience helps. Seniority: senior, 6+ years.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h10",
+      "title": "Senior Software Engineer, Frontend",
+      "company": "Soylent Systems (fictional)",
+      "location": "Remote worldwide",
+      "salaryText": null,
+      "description": "Work on a collaborative editing product in TypeScript and React. Focus on state management, rendering performance and offline behavior. TanStack Query and Next.js in use. Senior-level ownership expected.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h11",
+      "title": "Senior Frontend Engineer (Next.js)",
+      "company": "Vandelay Commerce (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "We run a headless commerce storefront on Next.js and TypeScript. You will improve Core Web Vitals, build checkout flows in React, and mentor juniors. 5+ years frontend.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-h12",
+      "title": "Principal Frontend Engineer",
+      "company": "Cyberdyne Web (fictional)",
+      "location": "Remote, worldwide",
+      "salaryText": "USD 140,000 - 170,000 per year",
+      "description": "Set the frontend direction for a 30-engineer organisation: React, TypeScript, Next.js, micro-frontends. You will write less code and unblock more people. Long record of shipping large React applications required.",
+      "expected": "high"
+    },
+    {
+      "id": "fit-l01",
+      "title": "Senior Backend Engineer (Go)",
+      "company": "Tyrell Data (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Design and run high-throughput Go services on Kubernetes. Deep experience with gRPC, Postgres tuning and distributed tracing. No frontend work in this role.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l02",
+      "title": "Junior Frontend Developer",
+      "company": "Oscorp Digital (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Entry-level role for someone with 0-1 years of experience. You will fix small UI bugs in a React codebase under close supervision. Training provided.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l03",
+      "title": "iOS Engineer (Swift)",
+      "company": "Massive Dynamic Mobile (fictional)",
+      "location": "Remote, Americas",
+      "salaryText": null,
+      "description": "Build native iOS features in Swift and SwiftUI. Strong knowledge of UIKit, Core Data and App Store release processes required. Android experience is a plus.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l04",
+      "title": "Machine Learning Engineer",
+      "company": "Gringotts AI (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Train and deploy ranking models with PyTorch. You will own the feature pipeline, offline evaluation and serving infrastructure. Python and distributed training experience required.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l05",
+      "title": "Senior DevOps Engineer",
+      "company": "Aperture Infra (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Own our Terraform, AWS and CI/CD estate. On-call rotation, incident response and cost optimisation. Strong Linux and networking background required; no application development.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l06",
+      "title": "Senior Java Developer",
+      "company": "Prestige Banking Tech (fictional)",
+      "location": "Hybrid, Frankfurt",
+      "salaryText": null,
+      "description": "Maintain core banking services in Java 17 and Spring Boot. Oracle databases, SOAP integrations and on-site presence three days per week.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l07",
+      "title": "Senior Product Designer",
+      "company": "Pendant Studio (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Lead UX for our consumer app: research, flows, prototypes in Figma. You will partner with engineers but not write production code.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l08",
+      "title": "Embedded Firmware Engineer",
+      "company": "Nakatomi Devices (fictional)",
+      "location": "On-site, Osaka",
+      "salaryText": null,
+      "description": "C and C++ firmware for low-power sensors. Experience with RTOS, bootloaders and hardware bring-up required. Relocation support offered.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l09",
+      "title": "Data Engineer",
+      "company": "Monarch Analytics (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Build ETL pipelines with Airflow, Spark and dbt on a Snowflake warehouse. SQL mastery and data modelling experience are essential. Python is the main language.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l10",
+      "title": "Security Engineer",
+      "company": "Black Mesa Security (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Run application security reviews, threat modelling and penetration tests. Familiarity with OWASP, SAST tooling and incident handling. Scripting in Python.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l11",
+      "title": "Frontend Intern",
+      "company": "Dunder Software (fictional)",
+      "location": "Remote",
+      "salaryText": null,
+      "description": "Three-month internship for students. Work on small React components with a mentor. Part-time, stipend only.",
+      "expected": "low"
+    },
+    {
+      "id": "fit-l12",
+      "title": "Senior Ruby on Rails Engineer",
+      "company": "Bluth Marketplace (fictional)",
+      "location": "Remote (US only)",
+      "salaryText": null,
+      "description": "Own backend features of a Rails monolith: ActiveRecord, Sidekiq, Postgres. Limited frontend work (ERB templates, some Stimulus). Ruby experience of 6+ years required.",
+      "expected": "low"
+    }
+  ]
+}

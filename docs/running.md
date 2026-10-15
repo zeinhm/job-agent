@@ -119,6 +119,7 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | `enrich [--limit <n>] [--no-reextract \| --reextract-only]` | Runs the LLM stages on kept postings, newest first, one posting at a time: extract facts (Haiku) -> resolve unclear flags -> scam score -> pay-policy registry -> fit score against `config/cv.md` (Sonnet, only for postings that were kept) -> tier and salary ask. Postings already done are not redone. `--limit` caps how many postings this run handles (new and re-extracted together). `--no-reextract` skips the re-extraction below, `--reextract-only` runs only it (the two cannot be combined). Prints `enriched <n>, budget_wait <n>, failed <n>, spent $<x> today`. Exits 0 except for an invalid `--limit`. Details below. |
 | `review-stats [--date YYYY-MM-DD]` | Phase 4 done-when measurement for a day (default: today in Asia/Jakarta). Prints counts and times only: matches (Top + Suspicious), processed, open, first/last review time, elapsed minutes, median seconds per processed posting (gap to the review action before it), actions and `not_interested` reasons recorded that day, ask checks per tier (ok / too_high / too_low, total against 20, counted over all days up to the date), and the last line `done-when: <elapsed> min for <n> matches (<met\|not met>)`; met = at least one match, all processed, elapsed <= 30. The same numbers, plus the last 7 days, are in the dashboard Stats tab and `GET /api/stats?date=`. |
 | `seed-demo [--date YYYY-MM-DD]` | Dev tool: writes a fake day (made-up companies on `example.com`, postings, analysis, intel with fit scores and scam reasons, one apply link per apply type, ATS questions, a few answers) into the database so the digest and dashboard have Top matches, Needs a look, Suspicious and Waiting for scoring rows without an API key. Default date: today in Asia/Jakarta. Idempotent per date. Refuses (exit 2, `seed-demo: refusing to write <reason>`) when `JOB_AGENT_DB` is unset or points at `data/` or anywhere under it; use it only through `bin/smoke run <smoke dir> seed-demo`. |
+| `eval-export-reviews` | Writes your review decisions as a fit eval set to `data/eval/reviews-<date>.json` and prints only the path and counts (cases, high, low, skipped). Same as `pnpm --filter @job-agent/pipeline eval:export-reviews`; options and mapping in "Eval scripts". |
 | `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
 | `digest [--date YYYY-MM-DD] [--out-dir <dir>] [--include-unpaid]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored at 60 or more, ranked, no why line; see "Reading the ranked digest"), Scored, not a fit (fit-scored below 60, one line each), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. `--include-unpaid` appends one last section, Volunteer / unpaid, listing postings rejected as unpaid, volunteer or equity-only in the last 24h (title, company, pay type, location, link, posted date); they are not fit-scored, and without the flag the digest is unchanged. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. Each Top match shows `- Apply: <url> (<apply_type>)` from the `apply_links` row of the entry's lead posting (types `ats`, `company_form`, `paid_aggregator`, `signup_required`, `unknown`) and `- Found on: <source> — <listing url>`; without a row it shows the posting's own link as `(unknown, not resolved yet)`. A `paid_aggregator` job keeps its fit-based rank and section, with ` (paid-only apply)` after the title. Scored-not-a-fit and Waiting lines end with the apply URL when one is resolved. |
 
@@ -212,14 +213,31 @@ reasons; keep / reject, scam score, tier and ask are decided by plain code.
 
 ## Eval scripts
 
-Every LLM stage is meant to have an optional eval script (`pnpm --filter @job-agent/pipeline eval:<stage>`) that runs
-the real model on a golden set, only with an explicit `--live` flag and `ANTHROPIC_API_KEY` set, and prints accuracy
-and cost. No eval script is shipped yet, so there is nothing to run. Until then:
+Optional eval scripts (`pnpm --filter @job-agent/pipeline eval:<name>`) run the real model on a golden set, only with
+an explicit `--live` flag and `ANTHROPIC_API_KEY` set; without both they print what they would run and exit 0. They
+print accuracy, misses by id and cost, never posting text. `--max-usd <n>` lowers the per-run cap (default $0.50).
+
+- `eval:extract`: extraction accuracy per field on `fixtures/eval/extract.json` (purpose `eval_extract`).
+- `eval:fit [--live] [--max-usd <n>] [--set <path>]`: fit scoring against expected bands (`high` = fit 60 or more,
+  `low` = below) on `fixtures/eval/fit.json`, 24 fake postings scored against the fake persona `config/cv.example.md`
+  (purpose `eval_fit`; each case costs an extract call and a fit call). Prints band accuracy, the confusion counts,
+  the ids of misses and the cost. A relative `--set` path is read from where you ran the command.
+- `eval:export-reviews [--since YYYY-MM-DD] [--out-dir <dir>]`: builds your own fit set from your reviews. `interested`
+  and `applied_manually` count as `high`; `not_interested` with reason `role`, `stack` or `seniority` counts as `low`;
+  every other decision and reason is skipped. Only the newest status decision per posting counts; `--since` keeps
+  decisions made on or after the date (Asia/Jakarta day). The file holds posting text, so it goes to
+  `data/eval/reviews-<date>.json` (gitignored); the command prints the path and counts only and refuses any
+  `--out-dir` inside the repo outside `data/`.
+- Your check: `pnpm --filter @job-agent/pipeline eval:export-reviews`, then
+  `pnpm --filter @job-agent/pipeline eval:fit --set data/eval/reviews-<date>.json --live`. That set is scored against
+  your own `cv.md` (config dir).
+
+Besides the evals:
 
 - `pnpm test` checks the rule and decision code (resolve, scam score, tier and ask) against the golden sets in
   `fixtures/golden/*.json`. These never call the model.
 - All tests mock the Anthropic API; no test makes a live call.
-- Evals cost real money and are run by you, not by the agents. When one exists it counts against the same daily cap.
+- Evals cost real money and are run by you, not by the agents. Evals count against the same daily cap.
 
 ## Smoke test
 
