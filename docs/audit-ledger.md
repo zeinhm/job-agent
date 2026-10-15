@@ -70,3 +70,4 @@ Last audit tag: (none yet)
 | t_172f1d5e | Source poll intervals: slack below the hourly schedule (indeed LATE fix) | medium | 6eacd65 | 2026-10-15 |
 | t_47589c2e | linkedin_posts disabled by default (Brave does not index LinkedIn posts) | medium | 3eef570 | 2026-10-15 |
 | t_ce49d729 | Owner-only holds labelled OWNER, real error in hold reasons | medium | 3e01a18 | 2026-10-15 |
+| t_1099c9eb | Phase 4 schema: reviews, answer_bank, posting_questions, unknown_questions; SQLite WAL | medium | 1b7a414 | 2026-10-15 |
