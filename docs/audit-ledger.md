@@ -67,3 +67,4 @@ Last audit tag: (none yet)
 | t_4eaabb57 | Freshness proof: Source health shows last run and max gap for LinkedIn and Indeed; schedule notes for Tier 2 | medium | e36976b | 2026-10-14 |
 | t_1700ae4a | End-to-end test for the Phase 3 pipeline and bin/smoke coverage of the new keyless sources | medium | 2a85c60 | 2026-10-14 |
 | t_9192fcfc | Update run docs, cron example and env example for Phase 3 | low | 5a1197b | 2026-10-14 |
+| t_172f1d5e | Source poll intervals: slack below the hourly schedule (indeed LATE fix) | medium | 6eacd65 | 2026-10-15 |
