@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "fit-001",
+      "title": "Senior Frontend Engineer",
+      "company": "Acme Fake Labs",
+      "location": "Remote (worldwide)",
+      "description": "Build our React and TypeScript dashboard. Next.js, TanStack Query, 5+ years frontend experience.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-002",
+      "title": "Senior React Engineer",
+      "company": "Northwind Example",
+      "location": "Remote",
+      "description": "Own the table and form components of a React/TypeScript design system. Schema-driven UIs a plus.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-003",
+      "title": "Staff Frontend Engineer",
+      "company": "Globex Sample",
+      "location": "Remote (worldwide)",
+      "description": "Lead frontend architecture in TypeScript and React. Mentor engineers, set standards for Next.js apps.",
+      "extraction": { "roleFamily": "frontend", "seniority": "lead", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-004",
+      "title": "Frontend Developer (Next.js)",
+      "company": "Initech Demo",
+      "location": "Remote",
+      "description": "Next.js, TypeScript, React Query. 4+ years. Build marketing and app surfaces for a SaaS product.",
+      "extraction": { "roleFamily": "frontend", "seniority": "mid", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-005",
+      "title": "Senior Software Engineer, Web Platform",
+      "company": "Umbra Example",
+      "location": "Remote (Europe/Asia)",
+      "description": "Our web platform is React and TypeScript. You will build data-heavy tables and own performance.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "region" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-006",
+      "title": "Senior Frontend Engineer, Data Tables",
+      "company": "Tabular Fake Inc",
+      "location": "Remote",
+      "description": "Build a high-performance table engine in React and TypeScript: virtualization, column configs, server-driven schemas.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-007",
+      "title": "Full-Stack Engineer (React/Node)",
+      "company": "Brightside Example",
+      "location": "Remote",
+      "description": "React and TypeScript front end with a light Node API. Frontend-leaning, 5+ years.",
+      "extraction": {
+        "roleFamily": "fullstack",
+        "seniority": "senior",
+        "hiringScope": "worldwide"
+      },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-008",
+      "title": "Senior TypeScript Engineer",
+      "company": "Lumen Sample",
+      "location": "Remote (worldwide)",
+      "description": "TypeScript across a React web app. Strong testing habits, component libraries, accessibility.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-009",
+      "title": "Lead Frontend Engineer",
+      "company": "Quark Demo Co",
+      "location": "Remote",
+      "description": "Lead a team of four building React applications. TypeScript, Next.js, hands-on coding.",
+      "extraction": { "roleFamily": "frontend", "seniority": "lead", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-010",
+      "title": "Senior Frontend Engineer (Design Systems)",
+      "company": "Pixelworks Example",
+      "location": "Remote",
+      "description": "Design system in React, TypeScript and Storybook. Drive adoption across 10 product teams.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-011",
+      "title": "Senior Web Engineer",
+      "company": "Harbor Fake",
+      "location": "Remote",
+      "description": "React, Next.js and TypeScript. Own checkout and account flows. 6+ years.",
+      "extraction": { "roleFamily": "frontend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-012",
+      "title": "Frontend Engineer, Internal Tools",
+      "company": "Orbit Sample Ltd",
+      "location": "Remote",
+      "description": "Build internal tools in React and TypeScript with TanStack Query. Mid to senior.",
+      "extraction": { "roleFamily": "frontend", "seniority": "mid", "hiringScope": "worldwide" },
+      "expectedBand": "high"
+    },
+    {
+      "id": "fit-013",
+      "title": "Senior Backend Engineer (Go)",
+      "company": "Gopher Example",
+      "location": "Remote",
+      "description": "Design Go microservices, Kafka and PostgreSQL. No frontend work. 6+ years backend.",
+      "extraction": { "roleFamily": "backend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-014",
+      "title": "Senior iOS Engineer",
+      "company": "Appleseed Fake",
+      "location": "Remote",
+      "description": "Swift and SwiftUI for our consumer iOS app. 5+ years native iOS.",
+      "extraction": { "roleFamily": "mobile", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-015",
+      "title": "Machine Learning Engineer",
+      "company": "Tensor Sample",
+      "location": "Remote",
+      "description": "Train and serve models in Python and PyTorch. Research background preferred.",
+      "extraction": { "roleFamily": "data_ml", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-016",
+      "title": "DevOps Engineer",
+      "company": "Pipeline Example",
+      "location": "Remote",
+      "description": "Terraform, Kubernetes, AWS. On-call rotation. Build CI/CD for 60 services.",
+      "extraction": { "roleFamily": "devops_sre", "seniority": "mid", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-017",
+      "title": "Product Marketing Manager",
+      "company": "Billboard Demo",
+      "location": "Remote",
+      "description": "Own positioning and launches for a developer tools company. No coding.",
+      "extraction": {
+        "roleFamily": "non_engineering",
+        "seniority": "senior",
+        "hiringScope": "worldwide"
+      },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-018",
+      "title": "Junior Frontend Developer",
+      "company": "Starter Fake Co",
+      "location": "Remote",
+      "description": "First role welcome. HTML, CSS and basic JavaScript. Training provided. 0-1 years of experience.",
+      "extraction": { "roleFamily": "frontend", "seniority": "mid", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-019",
+      "title": "Senior Android Engineer",
+      "company": "Droid Example",
+      "location": "Remote",
+      "description": "Kotlin and Jetpack Compose. Own the Android app and release process.",
+      "extraction": { "roleFamily": "mobile", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-020",
+      "title": "Senior Data Engineer",
+      "company": "Lakehouse Sample",
+      "location": "Remote",
+      "description": "Spark, Airflow and Snowflake pipelines. SQL and Python. No UI work.",
+      "extraction": { "roleFamily": "data_ml", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-021",
+      "title": "Security Engineer",
+      "company": "Bastion Fake",
+      "location": "Remote",
+      "description": "Threat modeling, penetration testing, incident response. Offensive security background.",
+      "extraction": { "roleFamily": "security", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-022",
+      "title": "Senior Rust Systems Engineer",
+      "company": "Ferrous Example",
+      "location": "Remote",
+      "description": "Low-level Rust for a storage engine. Linux kernel and networking experience.",
+      "extraction": { "roleFamily": "backend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-023",
+      "title": "Customer Support Specialist",
+      "company": "Helpdesk Demo",
+      "location": "Remote",
+      "description": "Answer tickets and calls in English. Shift work, weekends included.",
+      "extraction": {
+        "roleFamily": "non_engineering",
+        "seniority": "mid",
+        "hiringScope": "worldwide"
+      },
+      "expectedBand": "low"
+    },
+    {
+      "id": "fit-024",
+      "title": "Senior Java Backend Engineer",
+      "company": "Bean Counter Fake",
+      "location": "Remote",
+      "description": "Java 21, Spring Boot and Oracle. Banking domain. Backend only.",
+      "extraction": { "roleFamily": "backend", "seniority": "senior", "hiringScope": "worldwide" },
+      "expectedBand": "low"
+    }
+  ]
+}

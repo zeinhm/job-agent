@@ -19,6 +19,7 @@ import { runDiscover } from "./discover.ts";
 import { freshnessSuffix } from "./digest/freshness.ts";
 import { runDiscoverCompanies } from "./discover-companies.ts";
 import { loadEnvFile } from "./env.ts";
+import { runExportReviews } from "./eval/export-reviews.ts";
 import { runEnrich } from "./enrich.ts";
 import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
@@ -191,6 +192,20 @@ const commands: Record<string, Command> = {
     } catch (e) {
       io.err(`digest failed: ${e instanceof Error ? e.message : String(e)}\n`);
       return 1;
+    } finally {
+      db.$client.close();
+    }
+  },
+  "eval-export-reviews": (args, io) => {
+    const db = openDb(defaultDbPath());
+    try {
+      return runExportReviews({
+        args,
+        db,
+        repoRoot: join(dirname(fileURLToPath(import.meta.url)), "../../.."),
+        out: io.out,
+        err: io.err,
+      });
     } finally {
       db.$client.close();
     }

@@ -9,7 +9,9 @@
     "./seed-demo": "./src/seed-demo.ts"
   },
   "scripts": {
-    "eval:extract": "tsx src/eval/extract-cli.ts"
+    "eval:extract": "tsx src/eval/extract-cli.ts",
+    "eval:fit": "tsx src/eval/fit-cli.ts",
+    "eval:export-reviews": "tsx src/eval/export-reviews-cli.ts"
   },
   "dependencies": {
     "@job-agent/core": "workspace:*",
