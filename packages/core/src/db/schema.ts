@@ -127,7 +127,7 @@ export const llm_calls = sqliteTable("llm_calls", {
   day: text("day").notNull(), // YYYY-MM-DD, Asia/Jakarta
   model: text("model").notNull(),
   purpose: text("purpose", {
-    enum: ["extract", "company_research", "fit", "apply_link"],
+    enum: ["extract", "company_research", "fit", "apply_link", "eval_extract", "eval_fit"],
   }).notNull(),
   posting_id: text("posting_id").references(() => postings.id),
   company_id: text("company_id").references(() => companies.id),
@@ -181,6 +181,7 @@ export const APPLY_METHODS = [
   "posting_text",
   "llm",
   "source",
+  "owner",
 ] as const;
 
 export const apply_links = sqliteTable("apply_links", {
@@ -197,6 +198,122 @@ export const apply_links = sqliteTable("apply_links", {
   found_on: text("found_on").notNull(), // source name of the discovery listing
   reason: text("reason"),
   checked_at: text("checked_at").notNull(), // ISO 8601 UTC
+});
+
+export const REVIEW_STATUS_ACTIONS = [
+  "interested",
+  "applied_manually",
+  "not_interested",
+  "later",
+] as const;
+export const REVIEW_ACTIONS = [
+  ...REVIEW_STATUS_ACTIONS,
+  "wrong_apply_link",
+  "pay_policy",
+  "scam",
+  "not_scam",
+  "ask_ok",
+  "ask_too_high",
+  "ask_too_low",
+] as const;
+export const NOT_INTERESTED_REASONS = [
+  "location",
+  "timezone",
+  "role",
+  "seniority",
+  "stack",
+  "salary",
+  "company",
+  "domestic_company",
+  "language",
+  "duplicate",
+  "expired",
+  "scam_suspected",
+  "other",
+] as const;
+export const ANSWER_TYPES = ["text", "long_text", "yes_no", "number", "choice"] as const;
+export const ANSWER_SOURCES = ["config", "dashboard"] as const;
+export const UNKNOWN_QUESTION_STATUSES = ["open", "answered", "linked", "dismissed"] as const;
+
+// Append-only review history; the newest status-action row per posting is its current state.
+export const reviews = sqliteTable(
+  "reviews",
+  {
+    id: text("id").primaryKey(),
+    posting_id: text("posting_id")
+      .notNull()
+      .references(() => postings.id), // canonical posting
+    action: text("action", { enum: REVIEW_ACTIONS }).notNull(),
+    reason: text("reason", { enum: NOT_INTERESTED_REASONS }), // not_interested only
+    note: text("note"),
+    apply_url: text("apply_url"), // wrong_apply_link: optional corrected URL
+    pay_policy: text("pay_policy", { enum: ["location_agnostic", "location_adjusted"] }),
+    reviewed_at: text("reviewed_at").notNull(), // ISO 8601 UTC
+    review_day: text("review_day").notNull(), // YYYY-MM-DD, Asia/Jakarta
+    // Snapshot of what the tool said at review time (PLAN 5.5)
+    fit_score: integer("fit_score"),
+    final_decision: text("final_decision", { enum: ["keep", "reject", "suspicious"] }),
+    tier: text("tier", { enum: ["indonesia", "regional", "global_adjusted", "global_flat"] }),
+    apply_type: text("apply_type", { enum: APPLY_TYPES }),
+    extract_prompt_version: text("extract_prompt_version"),
+    fit_prompt_version: text("fit_prompt_version"),
+  },
+  (table) => ({
+    reviews_posting: index("reviews_posting").on(table.posting_id, table.reviewed_at),
+    reviews_day: index("reviews_day").on(table.review_day),
+  }),
+);
+
+export const answer_bank = sqliteTable("answer_bank", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(), // group.key
+  group: text("group").notNull(),
+  question: text("question"),
+  answer: text("answer").notNull(),
+  type: text("type", { enum: ANSWER_TYPES }),
+  choices: text("choices"), // JSON text array
+  alternatives: text("alternatives"), // JSON text array of other phrasings
+  approved: integer("approved", { mode: "boolean" }).notNull().default(false),
+  approved_at: text("approved_at"), // ISO 8601 UTC, nullable
+  source: text("source", { enum: ANSWER_SOURCES }).notNull(),
+  updated_at: text("updated_at").notNull(), // ISO 8601 UTC
+});
+
+export const posting_questions = sqliteTable(
+  "posting_questions",
+  {
+    id: text("id").primaryKey(),
+    posting_id: text("posting_id")
+      .notNull()
+      .references(() => postings.id),
+    ats_type: text("ats_type").notNull(),
+    question_id: text("question_id").notNull(), // the ATS's own id
+    label: text("label").notNull(),
+    required: integer("required", { mode: "boolean" }).notNull(),
+    type: text("type").notNull(),
+    options: text("options"), // JSON text
+    normalized_label: text("normalized_label").notNull(),
+    matched_key: text("matched_key"), // answer_bank.key, nullable
+    fetched_at: text("fetched_at").notNull(), // ISO 8601 UTC
+  },
+  (table) => ({
+    posting_questions_posting_question: unique("posting_questions_posting_question").on(
+      table.posting_id,
+      table.question_id,
+    ),
+    posting_questions_label: index("posting_questions_label").on(table.normalized_label),
+  }),
+);
+
+export const unknown_questions = sqliteTable("unknown_questions", {
+  id: text("id").primaryKey(),
+  normalized_label: text("normalized_label").notNull().unique(),
+  label: text("label").notNull(), // first seen wording
+  posting_count: integer("posting_count").notNull(),
+  first_seen_at: text("first_seen_at").notNull(), // ISO 8601 UTC
+  last_seen_at: text("last_seen_at").notNull(), // ISO 8601 UTC
+  status: text("status", { enum: UNKNOWN_QUESTION_STATUSES }).notNull().default("open"),
+  answer_key: text("answer_key"), // answer_bank.key, nullable
 });
 
 // Inferred types for inserts and selects
@@ -223,3 +340,15 @@ export type NewIntel = InferInsertModel<typeof intel>;
 
 export type ApplyLink = InferSelectModel<typeof apply_links>;
 export type NewApplyLink = InferInsertModel<typeof apply_links>;
+
+export type Review = InferSelectModel<typeof reviews>;
+export type NewReview = InferInsertModel<typeof reviews>;
+
+export type AnswerBankRow = InferSelectModel<typeof answer_bank>;
+export type NewAnswerBankRow = InferInsertModel<typeof answer_bank>;
+
+export type PostingQuestion = InferSelectModel<typeof posting_questions>;
+export type NewPostingQuestion = InferInsertModel<typeof posting_questions>;
+
+export type UnknownQuestion = InferSelectModel<typeof unknown_questions>;
+export type NewUnknownQuestion = InferInsertModel<typeof unknown_questions>;

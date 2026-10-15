@@ -30,9 +30,20 @@ export {
   type NewSourceRun,
   type Posting,
   type SourceRun,
+  type AnswerBankRow,
+  type NewAnswerBankRow,
+  type NewPostingQuestion,
+  type NewReview,
+  type NewUnknownQuestion,
+  type PostingQuestion,
+  type Review,
+  type UnknownQuestion,
 } from "./db/index.ts";
 export {
   analysis,
+  ANSWER_SOURCES,
+  ANSWER_TYPES,
+  answer_bank,
   apply_links,
   APPLY_METHODS,
   APPLY_TYPES,
@@ -40,8 +51,15 @@ export {
   fx_rates,
   intel,
   llm_calls,
+  NOT_INTERESTED_REASONS,
+  posting_questions,
   postings,
+  REVIEW_ACTIONS,
+  REVIEW_STATUS_ACTIONS,
+  reviews,
   source_runs,
+  UNKNOWN_QUESTION_STATUSES,
+  unknown_questions,
 } from "./db/schema.ts";
 export { fetchAndStoreFx, getRate, toIdr, FX_QUOTES, type StoredFxRate } from "./fx/index.ts";
 export {

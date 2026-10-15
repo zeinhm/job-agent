@@ -56,13 +56,17 @@ describe("openDb", () => {
       .sort();
     expect(tableNames).toEqual([
       "analysis",
+      "answer_bank",
       "apply_links",
       "companies",
       "fx_rates",
       "intel",
       "llm_calls",
+      "posting_questions",
       "postings",
+      "reviews",
       "source_runs",
+      "unknown_questions",
     ]);
     db.$client.close();
   });

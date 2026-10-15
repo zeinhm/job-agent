@@ -22,6 +22,14 @@ import type {
   NewSourceRun,
   Posting,
   SourceRun,
+  AnswerBankRow,
+  NewAnswerBankRow,
+  NewPostingQuestion,
+  NewReview,
+  NewUnknownQuestion,
+  PostingQuestion,
+  Review,
+  UnknownQuestion,
 } from "./schema.ts";
 
 const migrationsFolder = fileURLToPath(new URL("../../drizzle", import.meta.url));
@@ -33,6 +41,8 @@ export function defaultDbPath(): string {
 export function openDb(path: string) {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const sqlite = new Database(path);
+  if (path !== ":memory:") sqlite.pragma("journal_mode = WAL");
+  sqlite.pragma("busy_timeout = 5000");
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder });
   return db;
@@ -58,4 +68,12 @@ export type {
   NewSourceRun,
   Posting,
   SourceRun,
+  AnswerBankRow,
+  NewAnswerBankRow,
+  NewPostingQuestion,
+  NewReview,
+  NewUnknownQuestion,
+  PostingQuestion,
+  Review,
+  UnknownQuestion,
 };

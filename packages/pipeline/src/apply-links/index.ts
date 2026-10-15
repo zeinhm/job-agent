@@ -583,7 +583,7 @@ export async function runResolveApply(opts: ResolveApplyOptions): Promise<number
   out(
     `resolve-apply: checked ${selected.length}, methods: ${count(
       methods,
-      APPLY_METHODS.filter((m) => m !== "llm"),
+      APPLY_METHODS.filter((m) => m !== "llm" && m !== "owner"), // owner rows are never written here
     )}${llmCalls > 0 ? `, llm ${methods.get("llm") ?? 0}` : ""}; types: ${count(types, APPLY_TYPES)}; requests ${http.requests}${deferred > 0 ? `, deferred ${deferred}` : ""}${failed > 0 ? `, failed ${failed}` : ""}\n`,
   );
   let saveCode = 0;
