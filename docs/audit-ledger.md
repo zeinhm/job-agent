@@ -85,3 +85,4 @@ Last audit tag: (none yet)
 | t_2d987b85 | Answer bank: answers.yaml loader, fake example, answers import | medium | 79350f5 | 2026-10-16 |
 | t_627338ac | Docs: config/*.example.* changes are owner-applied (agents cannot read or edit config/) | medium | 738c887 | 2026-10-16 |
 | t_da6ce498 | Answer bank tab: list, edit, approve, alternatives, YAML export to data/exports | medium | 6cc826e | 2026-10-16 |
+| t_8140d1bc | Match application questions to the answer bank; fill the unknown-questions inbox | medium | 77e37ce | 2026-10-16 |
