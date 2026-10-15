@@ -24,6 +24,7 @@ export {
   type QuestionMatch,
   type StandardField,
 } from "./match.ts";
+export { isSalaryWording } from "./salary.ts";
 export {
   matchQuestions,
   questionCounts,

@@ -141,9 +141,8 @@ describe("matchQuestion golden table", () => {
   });
 
   it("never returns an answer-bank key for a salary question", () => {
-    expect(index.get(normalizeQuestion("What are your salary expectations?"))).toBe(
-      "money.expectation",
-    );
+    // The index itself refuses to hold a salary wording, so the bank cannot cover it even if matching changes.
+    expect(index.get(normalizeQuestion("What are your salary expectations?"))).toBeUndefined();
     expect(matchQuestion(normalizeQuestion("What are your salary expectations?"), index)).toEqual({
       kind: "salary",
     });

@@ -95,6 +95,21 @@ describe("Inbox tab", () => {
     expect(within(row).getByRole("button", { name: "Dismiss Expected salary?" })).toBeTruthy();
   });
 
+  it("renders no answer form and no link picker for any salary row, even after clicking around", async () => {
+    items = [
+      item({ id: "s1", label: "How much do you expect to be paid?", salary: true }),
+      item({ id: "s2", label: "Berapa gaji yang Anda harapkan?", salary: true }),
+    ];
+    renderTab();
+    for (const label of items.map((i) => i.label)) {
+      const row = await screen.findByRole("listitem", { name: label });
+      expect(within(row).getByText("Answered by the tier ask, stays in review.")).toBeTruthy();
+      expect(within(row).queryByRole("button", { name: /Answer|Link/u })).toBeNull();
+    }
+    expect(screen.queryByRole("form")).toBeNull();
+    expect(screen.queryByLabelText("Search answers")).toBeNull();
+  });
+
   it("answers a yes/no question with a select and approve ticked", async () => {
     const user = userEvent.setup();
     renderTab();

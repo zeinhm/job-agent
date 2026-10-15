@@ -8,6 +8,8 @@ export function normalizeQuestion(label: string): string {
     .trim();
 }
 
+import { isSalaryWording } from "./salary.ts";
+
 export const STANDARD_FIELDS = [
   "name",
   "email",
@@ -70,10 +72,6 @@ const STANDARD = new Map<string, StandardField>(
   STANDARD_FIELDS.flatMap((f) => STANDARD_WORDINGS[f].map((w) => [w, f] as const)),
 );
 
-/** Any mention of pay. Deliberately broad: a salary question must never be answered from the bank. */
-const SALARY =
-  /\b(salary|salaries|compensation|remuneration|ctc|pay expectations?|expected pay|desired pay|pay range|hourly rate|day rate|expected rate|rate expectations?)\b/;
-
 export type QuestionMatch =
   { kind: "salary" } | { kind: "standard"; field: StandardField } | { kind: "answer"; key: string };
 
@@ -84,7 +82,7 @@ export interface BankWording {
   approved: boolean;
 }
 
-/** normalized wording -> answer key, from approved answers only. The first key (sorted) wins a shared wording. */
+/** normalized wording -> answer key, from approved answers only; a salary wording is never indexed. The first key (sorted) wins a shared wording. */
 export type AnswerIndex = ReadonlyMap<string, string>;
 
 export function buildAnswerIndex(bank: readonly BankWording[]): AnswerIndex {
@@ -92,7 +90,7 @@ export function buildAnswerIndex(bank: readonly BankWording[]): AnswerIndex {
   for (const e of [...bank].sort((a, b) => a.key.localeCompare(b.key))) {
     if (!e.approved) continue;
     for (const w of [e.question, ...(e.alternatives ?? [])]) {
-      if (w === null) continue;
+      if (w === null || isSalaryWording(w)) continue;
       const n = normalizeQuestion(w);
       if (n !== "" && !index.has(n)) index.set(n, e.key);
     }
@@ -102,7 +100,7 @@ export function buildAnswerIndex(bank: readonly BankWording[]): AnswerIndex {
 
 /** `normalized` is a `normalizeQuestion` result. Salary wins over standard fields, which win over the bank. */
 export function matchQuestion(normalized: string, index: AnswerIndex): QuestionMatch | null {
-  if (SALARY.test(normalized)) return { kind: "salary" };
+  if (isSalaryWording(normalized)) return { kind: "salary" };
   const field = STANDARD.get(normalized);
   if (field !== undefined) return { kind: "standard", field };
   const key = index.get(normalized);

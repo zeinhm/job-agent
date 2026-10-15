@@ -140,6 +140,41 @@ describe("matchQuestions", () => {
     expect(db.select().from(unknown_questions).all()).toHaveLength(0);
   });
 
+  it("re-files rows stored under the old pattern: leaves the inbox, no longer covered", () => {
+    // State an old build left behind: a bank answer for a pay wording the old pattern missed counted the posting
+    // covered, and an unanswered pay wording sat open in the inbox.
+    addAnswer("money.annual", "Desired annual pay", true);
+    const a = addPosting();
+    const covered = addQuestion(a, "Desired annual pay");
+    const open = addQuestion(a, "How much do you expect to be paid?");
+    db.update(posting_questions)
+      .set({ matched_key: "money.annual" })
+      .where(eq(posting_questions.id, covered))
+      .run();
+    db.insert(unknown_questions)
+      .values({
+        id: "u-old",
+        normalized_label: "how much do you expect to be paid",
+        label: "How much do you expect to be paid?",
+        posting_count: 1,
+        first_seen_at: "2026-10-13T01:00:00.000Z",
+        last_seen_at: "2026-10-13T01:00:00.000Z",
+      })
+      .run();
+    expect(questionCounts(db, [a]).get(a)).toMatchObject({ covered: 1, salary: 0 });
+
+    const s = matchQuestions(db);
+    expect(s).toMatchObject({ salary: 2, covered: 0, unknown: 0 });
+    expect(keys()).toEqual({ [covered]: "salary", [open]: "salary" });
+    expect(questionCounts(db, [a]).get(a)).toEqual({
+      total: 2,
+      covered: 0,
+      unknown: 0,
+      salary: 2,
+    });
+    expect(db.select().from(unknown_questions).all()).toHaveLength(0);
+  });
+
   it("is idempotent: a second run changes nothing", () => {
     addAnswer("work.notice", "What is your notice period?", true);
     const a = addPosting();

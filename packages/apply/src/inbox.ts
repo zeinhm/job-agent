@@ -14,7 +14,8 @@ import {
   listAnswers,
   updateAnswer,
 } from "./answers-store.ts";
-import { matchQuestion, normalizeQuestion } from "./match.ts";
+import { normalizeQuestion } from "./match.ts";
+import { isSalaryWording } from "./salary.ts";
 import { matchQuestions } from "./match-questions.ts";
 
 /** Body of `POST /api/inbox/:id/answer`: the wording itself becomes the answer's canonical question. */
@@ -72,9 +73,6 @@ function openCount(db: Db): number {
     .length;
 }
 
-const isSalary = (label: string) =>
-  matchQuestion(normalizeQuestion(label), new Map())?.kind === "salary";
-
 /** Open wordings, most-asked first, each with up to three postings that ask it. */
 export function listInbox(db: Db): InboxList {
   const rows = db
@@ -103,7 +101,7 @@ export function listInbox(db: Db): InboxList {
       postingCount: r.posting_count,
       firstSeenAt: r.first_seen_at,
       lastSeenAt: r.last_seen_at,
-      salary: isSalary(r.label),
+      salary: isSalaryWording(r.label),
       examples,
     };
   });
@@ -114,8 +112,7 @@ function openRow(db: Db, id: string) {
   const row = db.select().from(unknown_questions).where(eq(unknown_questions.id, id)).get();
   if (row === undefined) throw new InboxError("not_found");
   if (row.status !== "open") throw new InboxError("not_open");
-  if (isSalary(row.label)) return { row, salary: true };
-  return { row, salary: false };
+  return { row, salary: isSalaryWording(row.label) };
 }
 
 function decide(

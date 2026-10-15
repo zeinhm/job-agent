@@ -228,6 +228,46 @@ describe("POST /api/inbox/:id/answer", () => {
   });
 });
 
+describe("salary wordings in the inbox", () => {
+  const WORDINGS = [
+    "How much do you expect to be paid?",
+    "What is your expected base?",
+    "Desired annual pay",
+    "Berapa gaji yang Anda harapkan?",
+    "Expected hourly rate",
+    "Total cash expectation",
+  ];
+
+  it.each(WORDINGS)("400 salary for answer and link: %s", async (label) => {
+    await seed();
+    db.insert(unknown_questions)
+      .values({
+        id: "u-pay",
+        normalized_label: label
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, " ")
+          .trim(),
+        label,
+        posting_count: 1,
+        first_seen_at: "2026-10-13T01:00:00.000Z",
+        last_seen_at: "2026-10-13T01:00:00.000Z",
+      })
+      .run();
+    expect((await inbox()).items.find((i) => i.id === "u-pay")?.salary).toBe(true);
+    const answer = await post("/api/inbox/u-pay/answer", {
+      group: "pay",
+      key: "ask",
+      answer: "1",
+      type: "number",
+    });
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toEqual({ error: "invalid request", issues: [{ path: "salary" }] });
+    const link = await post("/api/inbox/u-pay/link", { key: "legal.visa" });
+    expect(link.status).toBe(400);
+    expect(await link.json()).toEqual({ error: "invalid request", issues: [{ path: "salary" }] });
+  });
+});
+
 describe("POST /api/inbox/:id/link", () => {
   it("adds the wording as an alternative; an approved target then covers the postings", async () => {
     await seed();
