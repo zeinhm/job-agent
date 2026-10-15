@@ -81,3 +81,4 @@ Last audit tag: (none yet)
 | t_55e60eeb | Review stats: review-stats CLI and Stats tab (done-when timing, ask checks per tier) | medium | 043b2aa | 2026-10-15 |
 | t_8f401a3b | Digest: reviewed postings leave Top matches; review line with counts and dashboard link | medium | f2f3e3e | 2026-10-15 |
 | t_731c5fc6 | Fast triage: keyboard shortcuts, auto-advance, bulk not-interested, undo, elapsed timer | medium | df056fb | 2026-10-15 |
+| t_33bd7696 | Eval script eval:fit (fake persona) and eval:export-reviews to data/eval | medium | ad86c0e | 2026-10-15 |
