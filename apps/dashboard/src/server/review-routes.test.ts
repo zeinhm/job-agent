@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { openDb, reviews, type Db, type SalaryConfig } from "@job-agent/core";
 import { seedDemo } from "@job-agent/pipeline/seed-demo";
+import { getStats } from "@job-agent/pipeline/review";
 import { createApp } from "./app.ts";
 
 const PORT = 4510;
@@ -269,5 +270,33 @@ describe("POST /api/reviews", () => {
     });
     expect(res.status).toBe(403);
     expect(db.select().from(reviews).all()).toHaveLength(0);
+  });
+});
+
+describe("GET /api/stats", () => {
+  it("matches the stats function for the date, with the last 7 days", async () => {
+    await post({ posting_id: TOP, action: "interested" });
+    await post({ posting_id: TOP, action: "ask_ok" });
+    const res = await get(`/api/stats?date=${DATE}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { week: { date: string }[] };
+    expect(body).toEqual(JSON.parse(JSON.stringify(getStats(db, DATE))));
+    expect(body).toMatchObject({
+      date: DATE,
+      matches: 5,
+      processed: 1,
+      open: 4,
+      elapsedMinutes: 0,
+      doneWhenMet: false,
+      actions: { interested: 1, ask_ok: 1 },
+    });
+    expect(body.week).toHaveLength(7);
+    expect(body.week[6]?.date).toBe(DATE);
+  });
+
+  it("defaults to today (Jakarta) and rejects a bad date", async () => {
+    expect(((await (await get("/api/stats")).json()) as { date: string }).date).toBe(DATE);
+    expect((await get("/api/stats?date=2026-02-30")).status).toBe(400);
+    expect((await get("/api/stats?date=2026-03-10&x=1")).status).toBe(400);
   });
 });

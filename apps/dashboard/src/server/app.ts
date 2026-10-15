@@ -6,6 +6,7 @@ import type { Db, SalaryConfig } from "@job-agent/core";
 import {
   getPostingDetail,
   getQueue,
+  getStats,
   isDigestDate,
   jakartaDate,
   recordReview,
@@ -56,6 +57,11 @@ export function createApp(db: Db, opts: AppOptions): Hono {
   app.get("/api/queue", (c) => {
     const { date } = parseQuery(c, QueueQuery);
     return c.json(getQueue(db, date ?? today()));
+  });
+
+  app.get("/api/stats", (c) => {
+    const { date } = parseQuery(c, QueueQuery);
+    return c.json(getStats(db, date ?? today()));
   });
 
   app.get("/api/postings/:id", (c) => {

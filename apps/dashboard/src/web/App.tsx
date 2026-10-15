@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DayPicker } from "./components/DayPicker.tsx";
 import { QueueTab } from "./components/QueueTab.tsx";
+import { StatsTab } from "./components/StatsTab.tsx";
 import { HealthIndicator } from "./components/HealthIndicator.tsx";
 import { jakartaDate } from "./day.ts";
 
@@ -45,6 +46,8 @@ export function App({ now = () => new Date() }: { now?: () => Date }) {
         <h2>{active.label}</h2>
         {active.id === "queue" ? (
           <QueueTab day={day} />
+        ) : active.id === "stats" ? (
+          <StatsTab day={day} />
         ) : (
           <p className="empty">
             {active.empty} ({day})

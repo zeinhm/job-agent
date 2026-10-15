@@ -23,6 +23,7 @@ import { runEnrich } from "./enrich.ts";
 import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
+import { computeDayStats, formatStats, isDigestDate, jakartaDate } from "./review/index.ts";
 import { runSeedDemo } from "./seed-demo.ts";
 
 export interface Io {
@@ -190,6 +191,23 @@ const commands: Record<string, Command> = {
     } catch (e) {
       io.err(`digest failed: ${e instanceof Error ? e.message : String(e)}\n`);
       return 1;
+    } finally {
+      db.$client.close();
+    }
+  },
+  "review-stats": (args, io) => {
+    let date: string | undefined;
+    try {
+      date = parseArgs({ args, options: { date: { type: "string" } } }).values.date;
+      if (date !== undefined && !isDigestDate(date)) throw new Error(`invalid --date ${date}`);
+    } catch (e) {
+      io.err(`review-stats: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      io.out(formatStats(computeDayStats(db, date ?? jakartaDate(new Date()))));
+      return 0;
     } finally {
       db.$client.close();
     }

@@ -153,12 +153,54 @@ export interface ReviewBody {
   pay_policy?: PayPolicy;
 }
 
+const AskCheckSchema = z.object({
+  ok: z.number(),
+  too_high: z.number(),
+  too_low: z.number(),
+  total: z.number(),
+  enough: z.boolean(),
+});
+
+export const StatsSchema = z.object({
+  date: z.string(),
+  matches: z.number(),
+  processed: z.number(),
+  open: z.number(),
+  firstReviewAt: z.string().nullable(),
+  lastReviewAt: z.string().nullable(),
+  elapsedMinutes: z.number(),
+  medianSecondsPerPosting: z.number().nullable(),
+  actions: z.record(z.string(), z.number()),
+  reasons: z.record(z.string(), z.number()),
+  askChecks: z.object({
+    indonesia: AskCheckSchema,
+    regional: AskCheckSchema,
+    global_adjusted: AskCheckSchema,
+    global_flat: AskCheckSchema,
+    target: z.number(),
+  }),
+  doneWhenMet: z.boolean(),
+  week: z.array(
+    z.object({
+      date: z.string(),
+      matches: z.number(),
+      processed: z.number(),
+      open: z.number(),
+      elapsedMinutes: z.number(),
+      doneWhenMet: z.boolean(),
+    }),
+  ),
+});
+export type Stats = z.infer<typeof StatsSchema>;
+
 const RecordedSchema = z.object({ state: ReviewStateSchema });
 
 export const api = {
   health: (): Promise<Health> => apiGet("/api/health", HealthSchema),
   queue: (day: string): Promise<Queue> =>
     apiGet(`/api/queue?date=${encodeURIComponent(day)}`, QueueSchema),
+  stats: (day: string): Promise<Stats> =>
+    apiGet(`/api/stats?date=${encodeURIComponent(day)}`, StatsSchema),
   posting: (id: string): Promise<PostingDetail> =>
     apiGet(`/api/postings/${encodeURIComponent(id)}`, PostingDetailSchema),
   review: (body: ReviewBody) => apiPost("/api/reviews", body, RecordedSchema),

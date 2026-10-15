@@ -2,11 +2,13 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fx_rates, openDb, source_runs } from "@job-agent/core";
+import { fx_rates, openDb, reviews, source_runs } from "@job-agent/core";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
+import { getQueue } from "./review/queue.ts";
+import { seedDemo } from "./seed-demo.ts";
 
 const server = setupServer();
 
@@ -149,6 +151,49 @@ describe("fx command", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("review-stats command", () => {
+  const DATE = "2026-03-10";
+
+  it("prints counts, times and the done-when line for --date", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "job-agent-stats-"));
+    vi.stubEnv("JOB_AGENT_DB", join(dir, "t.db"));
+    try {
+      const db = openDb(join(dir, "t.db"));
+      seedDemo(db, DATE);
+      const q = getQueue(db, DATE);
+      const ids = [...q.sections.top, ...q.sections.suspicious].map((i) => i.postingId);
+      ids.forEach((id, i) =>
+        db
+          .insert(reviews)
+          .values({
+            id: `r${i}`,
+            posting_id: id,
+            action: "interested",
+            reviewed_at: `2026-03-10T03:${String(i * 4).padStart(2, "0")}:00.000Z`,
+            review_day: DATE,
+          })
+          .run(),
+      );
+      db.$client.close();
+
+      const c = capture();
+      expect(await main(["review-stats", "--date", DATE], c.io)).toBe(0);
+      const text = c.out.join("");
+      expect(text).toContain("matches: 5, processed: 5, open: 0");
+      expect(text).toContain("elapsed: 16 min, median per processed posting: 240 s");
+      expect(text.trimEnd().split("\n").at(-1)).toBe("done-when: 16 min for 5 matches (met)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an invalid --date with exit 1", async () => {
+    const c = capture();
+    expect(await main(["review-stats", "--date", "2026-02-30"], c.io)).toBe(1);
+    expect(c.err.join("")).toContain("review-stats: invalid --date");
   });
 });
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -10,8 +10,51 @@ import { ApiError, api } from "./api.ts";
 import { ExternalLink } from "./components/ExternalLink.tsx";
 import { isDay, jakartaDate } from "./day.ts";
 
+const askCount = (ok: number, too_high: number, too_low: number) => ({
+  ok,
+  too_high,
+  too_low,
+  total: ok + too_high + too_low,
+  enough: ok + too_high + too_low >= 20,
+});
+
+const statsFor = (date: string) => ({
+  date,
+  matches: 12,
+  processed: 12,
+  open: 0,
+  firstReviewAt: "2026-10-16T03:00:00.000Z",
+  lastReviewAt: "2026-10-16T03:24:30.000Z",
+  elapsedMinutes: 24.5,
+  medianSecondsPerPosting: 95,
+  actions: { interested: 5, not_interested: 7, ask_ok: 3 },
+  reasons: { role: 4, stack: 3 },
+  askChecks: {
+    indonesia: askCount(3, 1, 0),
+    regional: askCount(0, 0, 0),
+    global_adjusted: askCount(0, 0, 0),
+    global_flat: askCount(10, 8, 4),
+    target: 20,
+  },
+  doneWhenMet: true,
+  week: [
+    {
+      date: "2026-10-15",
+      matches: 9,
+      processed: 4,
+      open: 5,
+      elapsedMinutes: 41,
+      doneWhenMet: false,
+    },
+    { date, matches: 12, processed: 12, open: 0, elapsedMinutes: 24.5, doneWhenMet: true },
+  ],
+});
+
 const server = setupServer(
   http.get("http://localhost:3000/api/health", () => HttpResponse.json({ ok: true, db: "ok" })),
+  http.get("http://localhost:3000/api/stats", ({ request }) =>
+    HttpResponse.json(statsFor(new URL(request.url).searchParams.get("date") ?? "")),
+  ),
   http.get("http://localhost:3000/api/queue", () =>
     HttpResponse.json({
       date: "2026-10-16",
@@ -59,9 +102,29 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: "Inbox" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/No unknown questions/)).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Stats" }));
-    expect(screen.getByText(/No stats for this day/)).toBeTruthy();
+    expect(await screen.findByLabelText("Done-when")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Answers" }));
     expect(screen.getByText(/No answers yet/)).toBeTruthy();
+  });
+
+  it("Stats tab shows the day numbers, ask checks per tier and the last 7 days", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(screen.getByRole("tab", { name: "Stats" }));
+    expect((await screen.findByLabelText("Done-when")).textContent).toBe(
+      "done-when: 24.5 min for 12 matches (met)",
+    );
+    expect(screen.getByText(/Matches: 12, processed: 12, open: 0/)).toBeTruthy();
+    expect(screen.getByText(/median per processed posting: 95 s/)).toBeTruthy();
+    expect(screen.getByText(/Actions: ask_ok 3, interested 5, not_interested 7/)).toBeTruthy();
+    expect(screen.getByText(/Not interested reasons: role 4, stack 3/)).toBeTruthy();
+    const ask = within(screen.getByRole("table", { name: "Ask checks" }));
+    expect(ask.getByText("22/20")).toBeTruthy();
+    expect(ask.getByText("4/20")).toBeTruthy();
+    const week = within(screen.getByRole("table", { name: "Last 7 days" }));
+    expect(week.getByText("2026-10-15")).toBeTruthy();
+    expect(week.getByText("not met")).toBeTruthy();
+    expect(week.getByText("met")).toBeTruthy();
   });
 
   it("day picker starts on the Jakarta date, caps at today and changes the day", async () => {
