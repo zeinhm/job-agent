@@ -22,6 +22,144 @@ export async function apiGet<S extends z.ZodType>(path: string, schema: S): Prom
   return schema.parse(await res.json());
 }
 
+// Same-origin JSON POST. The browser adds the Origin header the server's mutation guard checks.
+export async function apiPost<S extends z.ZodType>(
+  path: string,
+  body: unknown,
+  schema: S,
+): Promise<z.infer<S>> {
+  const res = await fetch(new URL(path, window.location.origin), {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, path);
+  return schema.parse(await res.json());
+}
+
+export const REVIEW_STATUSES = [
+  "open",
+  "interested",
+  "applied_manually",
+  "not_interested",
+  "later",
+] as const;
+
+export const NOT_INTERESTED_REASONS = [
+  "location",
+  "timezone",
+  "role",
+  "seniority",
+  "stack",
+  "salary",
+  "company",
+  "domestic_company",
+  "language",
+  "duplicate",
+  "expired",
+  "scam_suspected",
+  "other",
+] as const;
+export type NotInterestedReason = (typeof NOT_INTERESTED_REASONS)[number];
+
+export const PAY_POLICIES = ["location_agnostic", "location_adjusted"] as const;
+export type PayPolicy = (typeof PAY_POLICIES)[number];
+
+export const SIMPLE_ACTIONS = [
+  "interested",
+  "applied_manually",
+  "later",
+  "scam",
+  "not_scam",
+] as const;
+export const ASK_ACTIONS = ["ask_ok", "ask_too_high", "ask_too_low"] as const;
+
+const ReviewStateSchema = z.object({
+  status: z.enum(REVIEW_STATUSES),
+  reason: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+  processed: z.boolean(),
+});
+export type ReviewState = z.infer<typeof ReviewStateSchema>;
+
+export const QueueItemSchema = z.object({
+  postingId: z.string(),
+  kind: z.string(),
+  title: z.string(),
+  company: z.string(),
+  locations: z.array(z.string()),
+  locationClass: z.string(),
+  fitScore: z.number().nullable(),
+  fitReasons: z.array(z.string()),
+  flags: z.array(z.string()),
+  tier: z.string().nullable(),
+  ask: z.string().nullable(),
+  askText: z.string().nullable(),
+  listedSalary: z.string(),
+  scamScore: z.number().nullable(),
+  scamReason: z.string().nullable(),
+  applyUrl: z.string(),
+  applyType: z.string(),
+  review: ReviewStateSchema,
+});
+export type QueueItem = z.infer<typeof QueueItemSchema>;
+
+export const QueueSchema = z.object({
+  date: z.string(),
+  sections: z.object({
+    top: z.array(QueueItemSchema),
+    needs_a_look: z.array(QueueItemSchema),
+    suspicious: z.array(QueueItemSchema),
+    waiting: z.array(QueueItemSchema),
+  }),
+});
+export type Queue = z.infer<typeof QueueSchema>;
+
+const ReviewRowSchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  reason: z.string().nullable(),
+  note: z.string().nullable(),
+  apply_url: z.string().nullable(),
+  pay_policy: z.string().nullable(),
+  reviewed_at: z.string(),
+});
+
+export const PostingDetailSchema = QueueItemSchema.extend({
+  descriptionText: z.string().nullable(),
+  reasons: z.object({
+    fit: z.array(z.string()),
+    scam: z.array(z.string()),
+    resolved: z.array(z.string()),
+    rules: z.array(z.string()),
+  }),
+  history: z.array(ReviewRowSchema),
+});
+export type PostingDetail = z.infer<typeof PostingDetailSchema>;
+
+/** Body of POST /api/reviews (mirrors the server's ReviewInputSchema). */
+export interface ReviewBody {
+  posting_id: string;
+  action:
+    | (typeof SIMPLE_ACTIONS)[number]
+    | (typeof ASK_ACTIONS)[number]
+    | "not_interested"
+    | "wrong_apply_link"
+    | "pay_policy";
+  reason?: NotInterestedReason;
+  note?: string;
+  apply_url?: string;
+  pay_policy?: PayPolicy;
+}
+
+const RecordedSchema = z.object({ state: ReviewStateSchema });
+
 export const api = {
   health: (): Promise<Health> => apiGet("/api/health", HealthSchema),
+  queue: (day: string): Promise<Queue> =>
+    apiGet(`/api/queue?date=${encodeURIComponent(day)}`, QueueSchema),
+  posting: (id: string): Promise<PostingDetail> =>
+    apiGet(`/api/postings/${encodeURIComponent(id)}`, PostingDetailSchema),
+  review: (body: ReviewBody) => apiPost("/api/reviews", body, RecordedSchema),
 };

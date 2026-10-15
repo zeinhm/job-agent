@@ -12,6 +12,12 @@ import { isDay, jakartaDate } from "./day.ts";
 
 const server = setupServer(
   http.get("http://localhost:3000/api/health", () => HttpResponse.json({ ok: true, db: "ok" })),
+  http.get("http://localhost:3000/api/queue", () =>
+    HttpResponse.json({
+      date: "2026-10-16",
+      sections: { top: [], needs_a_look: [], suspicious: [], waiting: [] },
+    }),
+  ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
@@ -48,7 +54,7 @@ describe("App", () => {
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(tabs).toEqual(["Queue", "Answers", "Inbox", "Stats"]);
     expect(screen.getByRole("tab", { name: "Queue" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByText(/No postings in the queue/)).toBeTruthy();
+    expect(await screen.findByText(/No postings in the queue/)).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Inbox" }));
     expect(screen.getByRole("tab", { name: "Inbox" }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText(/No unknown questions/)).toBeTruthy();
@@ -58,14 +64,14 @@ describe("App", () => {
     expect(screen.getByText(/No answers yet/)).toBeTruthy();
   });
 
-  it("day picker starts on the Jakarta date, caps at today and changes the day", () => {
+  it("day picker starts on the Jakarta date, caps at today and changes the day", async () => {
     renderApp();
     const input = screen.getByLabelText<HTMLInputElement>("Day (Asia/Jakarta)");
     expect(input.value).toBe("2026-10-16");
     expect(input.max).toBe("2026-10-16");
     fireEvent.change(input, { target: { value: "2026-10-10" } });
     expect(input.value).toBe("2026-10-10");
-    expect(screen.getByText(/\(2026-10-10\)/)).toBeTruthy();
+    expect(await screen.findByText(/\(2026-10-10\)/)).toBeTruthy();
   });
 
   it("health indicator reports ok from /api/health", async () => {

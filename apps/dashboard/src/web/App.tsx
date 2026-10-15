@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DayPicker } from "./components/DayPicker.tsx";
+import { QueueTab } from "./components/QueueTab.tsx";
 import { HealthIndicator } from "./components/HealthIndicator.tsx";
 import { jakartaDate } from "./day.ts";
 
@@ -42,9 +43,13 @@ export function App({ now = () => new Date() }: { now?: () => Date }) {
       </div>
       <main role="tabpanel" id="panel" aria-labelledby={`tab-${active.id}`}>
         <h2>{active.label}</h2>
-        <p className="empty">
-          {active.empty} ({day})
-        </p>
+        {active.id === "queue" ? (
+          <QueueTab day={day} />
+        ) : (
+          <p className="empty">
+            {active.empty} ({day})
+          </p>
+        )}
       </main>
     </>
   );
