@@ -205,6 +205,7 @@ export const REVIEW_STATUS_ACTIONS = [
   "applied_manually",
   "not_interested",
   "later",
+  "reopen", // undo of a posting's first status action: back to open
 ] as const;
 export const REVIEW_ACTIONS = [
   ...REVIEW_STATUS_ACTIONS,

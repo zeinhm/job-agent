@@ -7,9 +7,15 @@ export {
   type QueueItem,
 } from "./queue.ts";
 export {
+  BulkReviewInputSchema,
   canonicalPostingId,
+  recordBulkReview,
   recordReview,
+  ReviewBatchError,
   ReviewInputSchema,
+  undoReviews,
+  UndoInputSchema,
+  type BulkReviewInput,
   ReviewRejectedError,
   type RecordOptions,
   type RecordedReview,

@@ -131,6 +131,7 @@ describe("Phase 4 schema migration", () => {
       "applied_manually",
       "not_interested",
       "later",
+      "reopen",
     ]);
     expect(REVIEW_ACTIONS).toEqual([
       ...REVIEW_STATUS_ACTIONS,

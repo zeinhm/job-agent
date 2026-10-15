@@ -9,8 +9,13 @@ import {
   getStats,
   isDigestDate,
   jakartaDate,
+  BulkReviewInputSchema,
+  recordBulkReview,
   recordReview,
+  ReviewBatchError,
   ReviewInputSchema,
+  undoReviews,
+  UndoInputSchema,
   ReviewRejectedError,
 } from "@job-agent/pipeline/review";
 import { hostGuard, mutationGuard, securityHeaders, type PortSource } from "./guards.ts";
@@ -84,6 +89,30 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     }
     if (recorded === null) return c.json({ error: "not found" }, 404);
     return c.json(recorded, 201);
+  });
+
+  // Bulk and undo are all-or-nothing per request: any failure records nothing.
+  const batchRoute = <T>(run: (now: Date) => T) => {
+    try {
+      return { ok: true as const, value: run((opts.now ?? (() => new Date()))()) };
+    } catch (e) {
+      if (e instanceof ReviewBatchError) return { ok: false as const, kind: e.kind };
+      throw e;
+    }
+  };
+
+  app.post("/api/reviews/bulk", async (c) => {
+    const input = await parseBody(c, BulkReviewInputSchema);
+    const r = batchRoute((now) => recordBulkReview(db, input, now));
+    if (!r.ok) return c.json({ error: r.kind }, 404);
+    return c.json({ recorded: r.value }, 201);
+  });
+
+  app.post("/api/reviews/undo", async (c) => {
+    const input = await parseBody(c, UndoInputSchema);
+    const r = batchRoute((now) => undoReviews(db, input.posting_ids, now));
+    if (!r.ok) return c.json({ error: r.kind }, r.kind === "not_found" ? 404 : 409);
+    return c.json({ recorded: r.value }, 201);
   });
 
   // Last resort for anything no route matched: static files, SPA fallback, JSON 404 for /api.

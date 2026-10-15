@@ -45,7 +45,7 @@ export function App({ now = () => new Date() }: { now?: () => Date }) {
       <main role="tabpanel" id="panel" aria-labelledby={`tab-${active.id}`}>
         <h2>{active.label}</h2>
         {active.id === "queue" ? (
-          <QueueTab day={day} />
+          <QueueTab day={day} now={now} />
         ) : active.id === "stats" ? (
           <StatsTab day={day} />
         ) : (

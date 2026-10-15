@@ -59,6 +59,7 @@ const server = setupServer(
     HttpResponse.json({
       date: "2026-10-16",
       sections: { top: [], needs_a_look: [], suspicious: [], waiting: [] },
+      firstReviewAt: null,
     }),
   ),
 );

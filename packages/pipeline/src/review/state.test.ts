@@ -65,4 +65,15 @@ describe("reviewState", () => {
     });
     expect(reviewState([row(action, "01:00")]).status).toBe("open");
   });
+
+  it("reopen (the undo of a first action) puts the posting back to open", () => {
+    expect(reviewState([row("interested", "01:00"), row("reopen", "02:00")])).toMatchObject({
+      status: "open",
+      reason: null,
+      processed: false,
+    });
+    expect(
+      reviewState([row("interested", "01:00"), row("reopen", "02:00"), row("later", "03:00")]),
+    ).toMatchObject({ status: "later" });
+  });
 });

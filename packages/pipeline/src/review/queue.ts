@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { analysis, intel, postings, type Db } from "@job-agent/core";
 import { parseList } from "../digest/format.ts";
 import { describePosting, selectDay, type Entry, type PostingView } from "../digest/selection.ts";
-import { canonicalPostingId, reviewHistory, type ReviewRow } from "./record.ts";
+import { canonicalPostingId, firstReviewAt, reviewHistory, type ReviewRow } from "./record.ts";
 import { reviewState, type ReviewState } from "./state.ts";
 
 export interface QueueItem extends PostingView {
@@ -18,6 +18,8 @@ export interface Queue {
     suspicious: QueueItem[];
     waiting: QueueItem[];
   };
+  /** First review action recorded for this day (any action), null before the first one; drives the elapsed timer. */
+  firstReviewAt: string | null;
 }
 
 /** The day's matches for the dashboard: what the digest for `date` lists, plus each posting's review state. */
@@ -37,6 +39,7 @@ export function getQueue(db: Db, date: string): Queue {
       suspicious: day.suspicious.map(item),
       waiting: day.waiting.map(item),
     },
+    firstReviewAt: firstReviewAt(db, date),
   };
 }
 

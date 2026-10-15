@@ -5,7 +5,7 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { QueueItem } from "../api.ts";
 
 export interface QueueRow extends QueueItem {
@@ -31,16 +31,50 @@ export function SectionTable({
   rows,
   selectedId,
   onSelect,
+  checked,
+  onCheck,
 }: {
   label: string;
   rows: QueueRow[];
   selectedId: string | null;
   onSelect: (postingId: string) => void;
+  /** Postings ticked for a bulk action. */
+  checked: ReadonlySet<string>;
+  onCheck: (postingIds: string[], value: boolean) => void;
 }) {
+  const anchor = useRef<string | null>(null);
+  // Shift-click ticks (or unticks) every row between the last clicked checkbox and this one, in the shown order.
+  const click = (ids: string[], id: string, shift: boolean, value: boolean) => {
+    const from = anchor.current === null ? -1 : ids.indexOf(anchor.current);
+    const to = ids.indexOf(id);
+    anchor.current = id;
+    if (!shift || from < 0) return onCheck([id], value);
+    onCheck(ids.slice(Math.min(from, to), Math.max(from, to) + 1), value);
+  };
+  const shownIds = useRef<string[]>([]);
   const columns = useMemo(
     () =>
       helper.columns([
-        helper.accessor("rank", { header: "Rank", sortUndefined: "last" }),
+        helper.accessor("rank", {
+          header: "Rank",
+          sortUndefined: "last",
+          cell: (ctx) => {
+            const id = ctx.row.original.postingId;
+            const on = checked.has(id);
+            return (
+              <>
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${ctx.row.original.title}`}
+                  checked={on}
+                  onChange={() => undefined}
+                  onClick={(e) => click(shownIds.current, id, e.shiftKey, !on)}
+                />{" "}
+                {ctx.getValue()}
+              </>
+            );
+          },
+        }),
         helper.accessor("title", {
           header: "Title",
           enableSorting: false,
@@ -79,7 +113,7 @@ export function SectionTable({
           enableSorting: false,
         }),
       ]),
-    [onSelect],
+    [onSelect, checked, onCheck],
   );
   const table = useTable({
     features,
@@ -87,6 +121,8 @@ export function SectionTable({
     data: rows,
     initialState: { sorting: [{ id: "rank", desc: false }] },
   });
+
+  shownIds.current = table.getRowModel().rows.map((r) => r.original.postingId);
 
   return (
     <table aria-label={label}>

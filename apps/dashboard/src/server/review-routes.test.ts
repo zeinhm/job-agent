@@ -273,6 +273,193 @@ describe("POST /api/reviews", () => {
   });
 });
 
+const postTo = (path: string, body: unknown, at: Date = NOW) =>
+  createApp(db, { port: PORT, now: () => at, logError: (l) => logs.push(l) }).request(
+    `http://x${path}`,
+    {
+      method: "POST",
+      headers: { Host: HOST, "Content-Type": "application/json", Origin: `http://${HOST}` },
+      body: JSON.stringify(body),
+    },
+  );
+const queueIds = async (): Promise<string[]> => {
+  const q = (await (await get(`/api/queue?date=${DATE}`)).json()) as {
+    sections: { top: { postingId: string }[] };
+  };
+  return q.sections.top.map((i) => i.postingId);
+};
+const stateOf = async (id: string) =>
+  (
+    (await (await get(`/api/postings/${id}`)).json()) as {
+      review: { status: string; reason: string | null };
+    }
+  ).review;
+
+describe("POST /api/reviews/bulk", () => {
+  it("records one row per posting with the same reason and returns the new states", async () => {
+    const [a, b] = await queueIds();
+    const res = await postTo("/api/reviews/bulk", {
+      posting_ids: [a, b],
+      action: "not_interested",
+      reason: "salary",
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { recorded: { review: { posting_id: string } }[] };
+    expect(body.recorded.map((r) => r.review.posting_id)).toEqual([a, b]);
+    const rows = db.select().from(reviews).all();
+    expect(rows.map((r) => [r.posting_id, r.action, r.reason])).toEqual([
+      [a, "not_interested", "salary"],
+      [b, "not_interested", "salary"],
+    ]);
+    expect(await stateOf(a ?? "")).toMatchObject({ status: "not_interested", reason: "salary" });
+  });
+
+  it("is all or nothing: one unknown posting records nothing (404)", async () => {
+    const [a] = await queueIds();
+    const res = await postTo("/api/reviews/bulk", {
+      posting_ids: [a, "nope"],
+      action: "not_interested",
+      reason: "role",
+    });
+    expect(res.status).toBe(404);
+    expect(db.select().from(reviews).all()).toHaveLength(0);
+  });
+
+  it("validates like a single review, and a 400 records nothing", async () => {
+    const [a] = await queueIds();
+    const bad: unknown[] = [
+      { posting_ids: [a], action: "not_interested" },
+      { posting_ids: [a], action: "not_interested", reason: "other" },
+      { posting_ids: [a], action: "interested", reason: "role" },
+      { posting_ids: [a], action: "wrong_apply_link" },
+      { posting_ids: [a], action: "pay_policy", pay_policy: "location_agnostic" },
+      { posting_ids: [a], action: "reopen" },
+      { posting_ids: [a], action: "interested", extra: "SECRET-VALUE" },
+      { posting_ids: [], action: "interested" },
+      { posting_ids: Array.from({ length: 201 }, (_, i) => `p${i}`), action: "later" },
+      { posting_ids: ["", a], action: "later" },
+      { action: "later" },
+    ];
+    for (const b of bad) {
+      const res = await postTo("/api/reviews/bulk", b);
+      expect(res.status).toBe(400);
+      expect(JSON.stringify(await res.json())).not.toContain("SECRET-VALUE");
+    }
+    expect(db.select().from(reviews).all()).toHaveLength(0);
+  });
+
+  it("records a posting once when two ids map to the same canonical posting", async () => {
+    const { postings } = await import("@job-agent/core");
+    const [a] = await queueIds();
+    db.insert(postings)
+      .values({
+        id: "dup-2",
+        source: "remoteok",
+        external_id: "d2",
+        url: "https://dup.example.com/2",
+        title: "Senior Backend Engineer",
+        company_name: "Northwind Demo Labs",
+        first_seen_at: "2026-03-10T03:00:00.000Z",
+        last_seen_at: "2026-03-10T03:00:00.000Z",
+        canonical_posting_id: a ?? null,
+      })
+      .run();
+    await postTo("/api/reviews/bulk", { posting_ids: [a, "dup-2"], action: "later" });
+    expect(db.select().from(reviews).all()).toHaveLength(1);
+  });
+
+  it("keeps the mutation guard", async () => {
+    const res = await app().request("http://x/api/reviews/bulk", {
+      method: "POST",
+      headers: { Host: HOST, "Content-Type": "application/json", Origin: "http://evil.example" },
+      body: JSON.stringify({ posting_ids: [TOP], action: "later" }),
+    });
+    expect(res.status).toBe(403);
+    expect(db.select().from(reviews).all()).toHaveLength(0);
+  });
+});
+
+describe("POST /api/reviews/undo", () => {
+  const SOON = new Date(NOW.getTime() + 5_000);
+
+  it("restores open with a new row and keeps both rows in the history", async () => {
+    await post({ posting_id: TOP, action: "interested" });
+    const res = await postTo("/api/reviews/undo", { posting_ids: [TOP] }, SOON);
+    expect(res.status).toBe(201);
+    expect(await stateOf(TOP)).toMatchObject({ status: "open" });
+    expect(
+      db
+        .select()
+        .from(reviews)
+        .all()
+        .map((r) => r.action),
+    ).toEqual(["interested", "reopen"]);
+    const d = (await (await get(`/api/postings/${TOP}`)).json()) as {
+      history: { action: string }[];
+    };
+    expect(d.history.map((h) => h.action)).toEqual(["reopen", "interested"]);
+  });
+
+  it("restores the previous status and reason", async () => {
+    await post({ posting_id: TOP, action: "not_interested", reason: "stack" });
+    await post({ posting_id: TOP, action: "scam" }); // not a status action: ignored
+    await post({ posting_id: TOP, action: "later" });
+    await postTo("/api/reviews/undo", { posting_ids: [TOP] }, SOON);
+    expect(await stateOf(TOP)).toMatchObject({ status: "not_interested", reason: "stack" });
+    const last = db.select().from(reviews).all().at(-1);
+    expect(last).toMatchObject({ action: "not_interested", reason: "stack" });
+  });
+
+  it("undoes a bulk action for all its postings", async () => {
+    const [a, b] = await queueIds();
+    await postTo("/api/reviews/bulk", { posting_ids: [a, b], action: "applied_manually" });
+    const res = await postTo("/api/reviews/undo", { posting_ids: [a, b] }, SOON);
+    expect(res.status).toBe(201);
+    expect(await stateOf(a ?? "")).toMatchObject({ status: "open" });
+    expect(await stateOf(b ?? "")).toMatchObject({ status: "open" });
+  });
+
+  it("409s after the undo window and records nothing", async () => {
+    await post({ posting_id: TOP, action: "interested" });
+    const late = new Date(NOW.getTime() + 16_000);
+    const res = await postTo("/api/reviews/undo", { posting_ids: [TOP] }, late);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "undo_expired" });
+    expect(db.select().from(reviews).all()).toHaveLength(1);
+  });
+
+  it("409s when there is nothing to undo, and is all or nothing across postings", async () => {
+    const [a, b] = await queueIds();
+    await post({ posting_id: a, action: "interested" });
+    const res = await postTo("/api/reviews/undo", { posting_ids: [a, b] }, SOON);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "nothing_to_undo" });
+    expect(db.select().from(reviews).all()).toHaveLength(1);
+    expect(await stateOf(a ?? "")).toMatchObject({ status: "interested" });
+  });
+
+  it("404s an unknown posting and 400s a bad body", async () => {
+    expect((await postTo("/api/reviews/undo", { posting_ids: ["nope"] })).status).toBe(404);
+    expect((await postTo("/api/reviews/undo", { posting_ids: [] })).status).toBe(400);
+    expect((await postTo("/api/reviews/undo", { posting_ids: [TOP], x: 1 })).status).toBe(400);
+  });
+});
+
+describe("firstReviewAt in GET /api/queue", () => {
+  const first = async (date = DATE) =>
+    ((await (await get(`/api/queue?date=${date}`)).json()) as { firstReviewAt: string | null })
+      .firstReviewAt;
+
+  it("is null before any review and the first review of the day afterwards", async () => {
+    expect(await first()).toBeNull();
+    await postTo("/api/reviews", { posting_id: TOP, action: "later" }, NOW);
+    const later = new Date(NOW.getTime() + 60_000);
+    await postTo("/api/reviews", { posting_id: TOP, action: "interested" }, later);
+    expect(await first()).toBe(NOW.toISOString());
+    expect(await first("2026-03-09")).toBeNull();
+  });
+});
+
 describe("GET /api/stats", () => {
   it("matches the stats function for the date, with the last 7 days", async () => {
     await post({ posting_id: TOP, action: "interested" });

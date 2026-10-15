@@ -113,6 +113,7 @@ export const QueueSchema = z.object({
     suspicious: z.array(QueueItemSchema),
     waiting: z.array(QueueItemSchema),
   }),
+  firstReviewAt: z.string().nullable(),
 });
 export type Queue = z.infer<typeof QueueSchema>;
 
@@ -194,6 +195,22 @@ export const StatsSchema = z.object({
 export type Stats = z.infer<typeof StatsSchema>;
 
 const RecordedSchema = z.object({ state: ReviewStateSchema });
+const BatchRecordedSchema = z.object({ recorded: z.array(z.object({ state: ReviewStateSchema })) });
+
+export const STATUS_ACTIONS = [
+  "interested",
+  "applied_manually",
+  "not_interested",
+  "later",
+] as const;
+
+/** Body of POST /api/reviews/bulk (mirrors the server's BulkReviewInputSchema). */
+export interface BulkBody {
+  posting_ids: string[];
+  action: (typeof STATUS_ACTIONS)[number];
+  reason?: NotInterestedReason;
+  note?: string;
+}
 
 export const api = {
   health: (): Promise<Health> => apiGet("/api/health", HealthSchema),
@@ -204,4 +221,7 @@ export const api = {
   posting: (id: string): Promise<PostingDetail> =>
     apiGet(`/api/postings/${encodeURIComponent(id)}`, PostingDetailSchema),
   review: (body: ReviewBody) => apiPost("/api/reviews", body, RecordedSchema),
+  bulk: (body: BulkBody) => apiPost("/api/reviews/bulk", body, BatchRecordedSchema),
+  undo: (postingIds: string[]) =>
+    apiPost("/api/reviews/undo", { posting_ids: postingIds }, BatchRecordedSchema),
 };

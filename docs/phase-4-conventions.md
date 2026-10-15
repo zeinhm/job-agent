@@ -96,6 +96,11 @@ Status actions (`interested`, `applied_manually`, `not_interested`, `later`) set
 and ask actions are extra rows and do not change it. A posting counts as **processed** when it has a status action other
 than `later`.
 
+Fast triage (t_731c5fc6): keyboard `j`/`k`, `o`, `i`, `a`, `l`, `x` + number, `s`, `u`, `?`; the selection moves to the next
+open row after a status action; ticked rows take a bulk action (`POST /api/reviews/bulk`); undo within 10 s
+(`POST /api/reviews/undo`, appends a restoring row, `reopen` when the posting had no earlier status); the queue response
+carries `firstReviewAt` for the elapsed timer. Details and limits: decisions.md, 2026-10-15 entry for t_731c5fc6.
+
 ## 6. Feedback into the registries (Phase 3 report recommendation 4)
 - `wrong_apply_link` with a URL: the `apply_links` row becomes `method = owner` (new enum value), type decided by the
   existing code (`decideApplyType` / host lists), `reason = "owner correction <date>"`. `resolve-apply` never overwrites

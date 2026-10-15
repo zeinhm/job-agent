@@ -8,6 +8,7 @@ import {
   NOT_INTERESTED_REASONS,
   postings,
   REVIEW_ACTIONS,
+  REVIEW_STATUS_ACTIONS,
   reviews,
   type Db,
   type SalaryConfig,
@@ -30,7 +31,26 @@ const httpUrl = z
     }
   });
 
-/** Body of POST /api/reviews. Which extra fields an action needs or allows is checked below. */
+interface Fields {
+  action: string;
+  reason?: string | undefined;
+  note?: string | undefined;
+  apply_url?: string | undefined;
+  pay_policy?: string | undefined;
+}
+
+/** Which extra fields an action needs or allows. Shared by the single and the bulk body. */
+function checkFields(v: Fields, ctx: z.RefinementCtx): void {
+  const bad = (path: string) => ctx.addIssue({ code: "custom", path: [path], message: "invalid" });
+  if (v.action === "not_interested" && v.reason === undefined) bad("reason");
+  if (v.action !== "not_interested" && v.reason !== undefined) bad("reason");
+  if (v.reason === "other" && (v.note === undefined || v.note.trim() === "")) bad("note");
+  if (v.action === "pay_policy" && v.pay_policy === undefined) bad("pay_policy");
+  if (v.action !== "pay_policy" && v.pay_policy !== undefined) bad("pay_policy");
+  if (v.action !== "wrong_apply_link" && v.apply_url !== undefined) bad("apply_url");
+}
+
+/** Body of POST /api/reviews. */
 export const ReviewInputSchema = z
   .strictObject({
     posting_id: z.string().min(1).max(200),
@@ -40,17 +60,39 @@ export const ReviewInputSchema = z
     apply_url: httpUrl.optional(),
     pay_policy: z.enum(["location_agnostic", "location_adjusted"]).optional(),
   })
-  .superRefine((v, ctx) => {
-    const bad = (path: string) =>
-      ctx.addIssue({ code: "custom", path: [path], message: "invalid" });
-    if (v.action === "not_interested" && v.reason === undefined) bad("reason");
-    if (v.action !== "not_interested" && v.reason !== undefined) bad("reason");
-    if (v.reason === "other" && (v.note === undefined || v.note.trim() === "")) bad("note");
-    if (v.action === "pay_policy" && v.pay_policy === undefined) bad("pay_policy");
-    if (v.action !== "pay_policy" && v.pay_policy !== undefined) bad("pay_policy");
-    if (v.action !== "wrong_apply_link" && v.apply_url !== undefined) bad("apply_url");
-  });
+  .superRefine(checkFields);
 export type ReviewInput = z.infer<typeof ReviewInputSchema>;
+
+const MAX_BATCH = 200;
+const batchIds = z.array(z.string().min(1).max(200)).min(1).max(MAX_BATCH);
+
+/** Body of POST /api/reviews/bulk: one status action (with its reason) for several postings. */
+export const BulkReviewInputSchema = z
+  .strictObject({
+    posting_ids: batchIds,
+    action: z.enum(["interested", "applied_manually", "not_interested", "later"]),
+    reason: z.enum(NOT_INTERESTED_REASONS).optional(),
+    note: z.string().max(2000).optional(),
+  })
+  .superRefine(checkFields);
+export type BulkReviewInput = z.infer<typeof BulkReviewInputSchema>;
+
+/** Body of POST /api/reviews/undo: take back the latest status action of each posting. */
+export const UndoInputSchema = z.strictObject({ posting_ids: batchIds });
+export type UndoInput = z.infer<typeof UndoInputSchema>;
+
+/** How long after a status action it can still be undone (the web app offers 10 s; this is the server's limit). */
+export const UNDO_WINDOW_MS = 15_000;
+
+/** A bulk or undo request failed as a whole; nothing was recorded. */
+export class ReviewBatchError extends Error {
+  readonly kind: "not_found" | "nothing_to_undo" | "undo_expired";
+  constructor(kind: ReviewBatchError["kind"]) {
+    super(kind);
+    this.name = "ReviewBatchError";
+    this.kind = kind;
+  }
+}
 
 const MAX_CANONICAL_HOPS = 5;
 
@@ -93,6 +135,14 @@ export function reviewHistory(db: Db, postingIds: readonly string[]): Map<string
 export interface RecordedReview {
   review: ReviewRow;
   state: ReviewState;
+}
+
+interface NewRow {
+  action: ReviewRow["action"];
+  reason?: ReviewRow["reason"] | undefined;
+  note?: string | null | undefined;
+  apply_url?: string | undefined;
+  pay_policy?: ReviewRow["pay_policy"] | undefined;
 }
 
 /** The review cannot be applied as asked (maps to HTTP 400). Nothing was stored. */
@@ -152,6 +202,46 @@ function applyPayPolicy(
   }
 }
 
+/** Appends one review row for an existing canonical posting, with a snapshot of what the tool says now. */
+function insertReview(
+  t: Db,
+  postingId: string,
+  input: NewRow,
+  now: Date,
+  opts: RecordOptions = {},
+): RecordedReview {
+  // Read before the recompute: the review row shows what the tool said when the owner looked.
+  const i = t.select().from(intel).where(eq(intel.posting_id, postingId)).get();
+  const link = t.select().from(apply_links).where(eq(apply_links.posting_id, postingId)).get();
+  if (input.action === "pay_policy" && input.pay_policy != null) {
+    if (opts.salary === undefined) throw new Error("salary config not available");
+    applyPayPolicy(t, postingId, input.pay_policy, opts.salary(), now);
+  }
+  const row: ReviewRow = {
+    id: randomUUID(),
+    posting_id: postingId,
+    action: input.action,
+    reason: input.reason ?? null,
+    note: input.note ?? null,
+    apply_url: input.apply_url ?? null,
+    pay_policy: input.pay_policy ?? null,
+    reviewed_at: now.toISOString(),
+    review_day: jakartaDate(now),
+    fit_score: i?.fit_score ?? null,
+    final_decision: i?.final_decision ?? null,
+    tier: i?.tier ?? null,
+    apply_type: link?.apply_type ?? null,
+    extract_prompt_version: i?.extract_prompt_version ?? null,
+    fit_prompt_version: i?.fit_prompt_version ?? null,
+  };
+  t.insert(reviews).values(row).run();
+  if (input.action === "wrong_apply_link") {
+    applyOwnerApplyCorrection(t, postingId, input.apply_url, now);
+  }
+  const history = reviewHistory(t, [postingId]).get(postingId) ?? [];
+  return { review: row, state: reviewState(history) };
+}
+
 /**
  * Appends one review row for the canonical posting, with a snapshot of what the tool said at review time.
  * Returns null when the posting id is unknown; throws ReviewRejectedError for a `pay_policy` mark on a posting
@@ -168,35 +258,67 @@ export function recordReview(
     const t = tx as unknown as Db;
     const postingId = canonicalPostingId(t, input.posting_id);
     if (postingId === null) return null;
-    // Read before the recompute: the review row shows what the tool said when the owner looked.
-    const i = t.select().from(intel).where(eq(intel.posting_id, postingId)).get();
-    const link = t.select().from(apply_links).where(eq(apply_links.posting_id, postingId)).get();
-    if (input.action === "pay_policy" && input.pay_policy !== undefined) {
-      if (opts.salary === undefined) throw new Error("salary config not available");
-      applyPayPolicy(t, postingId, input.pay_policy, opts.salary(), now);
-    }
-    const row: ReviewRow = {
-      id: randomUUID(),
-      posting_id: postingId,
-      action: input.action,
-      reason: input.reason ?? null,
-      note: input.note ?? null,
-      apply_url: input.apply_url ?? null,
-      pay_policy: input.pay_policy ?? null,
-      reviewed_at: now.toISOString(),
-      review_day: jakartaDate(now),
-      fit_score: i?.fit_score ?? null,
-      final_decision: i?.final_decision ?? null,
-      tier: i?.tier ?? null,
-      apply_type: link?.apply_type ?? null,
-      extract_prompt_version: i?.extract_prompt_version ?? null,
-      fit_prompt_version: i?.fit_prompt_version ?? null,
-    };
-    t.insert(reviews).values(row).run();
-    if (input.action === "wrong_apply_link") {
-      applyOwnerApplyCorrection(t, postingId, input.apply_url, now);
-    }
-    const history = reviewHistory(t, [postingId]).get(postingId) ?? [];
-    return { review: row, state: reviewState(history) };
+    return insertReview(t, postingId, input, now, opts);
   });
+}
+
+/** The distinct canonical ids of the given posting ids, in order. Throws `not_found` for an unknown id. */
+function canonicalIds(t: Db, ids: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const id of ids) {
+    const canonical = canonicalPostingId(t, id);
+    if (canonical === null) throw new ReviewBatchError("not_found");
+    out.add(canonical);
+  }
+  return [...out];
+}
+
+/** One status action for every posting, all or nothing: an unknown id records nothing. */
+export function recordBulkReview(db: Db, input: BulkReviewInput, now: Date): RecordedReview[] {
+  return db.transaction((tx) => {
+    const t = tx as unknown as Db;
+    return canonicalIds(t, input.posting_ids).map((id) =>
+      insertReview(t, id, { action: input.action, reason: input.reason, note: input.note }, now),
+    );
+  });
+}
+
+const isStatus = (r: ReviewRow) => (REVIEW_STATUS_ACTIONS as readonly string[]).includes(r.action);
+
+/**
+ * Takes back the latest status action of every posting by appending a row that restores the state before it
+ * (`reopen` when there was none); history keeps both rows. All or nothing: a posting with nothing to undo, or
+ * whose action is older than the undo window, records nothing for the whole request.
+ */
+export function undoReviews(db: Db, ids: readonly string[], now: Date): RecordedReview[] {
+  return db.transaction((tx) => {
+    const t = tx as unknown as Db;
+    const targets = canonicalIds(t, ids);
+    const history = reviewHistory(t, targets);
+    const plans = targets.map((id) => {
+      const rows = history.get(id) ?? [];
+      const at = rows.findLastIndex(isStatus);
+      const latest = rows[at];
+      if (latest === undefined) throw new ReviewBatchError("nothing_to_undo");
+      if (now.getTime() - Date.parse(latest.reviewed_at) > UNDO_WINDOW_MS)
+        throw new ReviewBatchError("undo_expired");
+      const before = rows.slice(0, at).findLast(isStatus);
+      const restore: NewRow =
+        before === undefined || before.action === "reopen"
+          ? { action: "reopen" }
+          : { action: before.action, reason: before.reason, note: before.note };
+      return { id, restore };
+    });
+    return plans.map((p) => insertReview(t, p.id, p.restore, now));
+  });
+}
+
+/** ISO time of the first review row of the day (any action), or null when nothing was reviewed that day. */
+export function firstReviewAt(db: Db, day: string): string | null {
+  const row = db
+    .select({ at: sql<string | null>`min(${reviews.reviewed_at})` })
+    .from(reviews)
+    .where(eq(reviews.review_day, day))
+    .get();
+  return row?.at ?? null;
 }

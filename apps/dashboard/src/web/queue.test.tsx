@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.tsx";
-import type { PostingDetail, QueueItem, ReviewBody } from "./api.ts";
+import type { BulkBody, PostingDetail, QueueItem, ReviewBody } from "./api.ts";
 
 const BASE = "http://localhost:3000";
 const NOW = () => new Date("2026-10-15T08:00:00Z"); // Jakarta 2026-10-15
@@ -40,8 +40,16 @@ let sections: Record<"top" | "needs_a_look" | "suspicious" | "waiting", string[]
 let history: Record<string, PostingDetail["history"]>;
 let posted: ReviewBody[];
 let failNext: boolean;
+let firstReviewAt: string | null;
+let bulkPosted: BulkBody[];
+let undone: string[][];
+let prior: Record<string, QueueItem["review"]>;
 
 beforeEach(() => {
+  firstReviewAt = null;
+  bulkPosted = [];
+  undone = [];
+  prior = {};
   items = {
     p1: item({
       postingId: "p1",
@@ -72,6 +80,20 @@ function get(id: string): QueueItem {
   return found;
 }
 
+/** Sets a posting's status the way the server would, remembering the state before for undo. */
+function applyStatus(id: string, action: string, reason?: string): QueueItem["review"] {
+  const prev = get(id);
+  prior[id] = prev.review;
+  const review = {
+    status: action as QueueItem["review"]["status"],
+    reason: reason ?? null,
+    reviewedAt: "2026-10-15T08:00:00.000Z",
+    processed: action !== "later",
+  };
+  items[id] = { ...prev, review };
+  return review;
+}
+
 function detail(id: string): PostingDetail {
   return {
     ...get(id),
@@ -94,8 +116,23 @@ const server = setupServer(
       sections: Object.fromEntries(
         Object.entries(sections).map(([k, ids]) => [k, ids.map((id) => items[id])]),
       ),
+      firstReviewAt,
     }),
   ),
+  http.post(`${BASE}/api/reviews/bulk`, async ({ request }) => {
+    const body = (await request.json()) as BulkBody;
+    if (failNext) return HttpResponse.json({ error: "internal error" }, { status: 500 });
+    bulkPosted.push(body);
+    for (const id of body.posting_ids) applyStatus(id, body.action, body.reason);
+    return HttpResponse.json({ recorded: [] }, { status: 201 });
+  }),
+  http.post(`${BASE}/api/reviews/undo`, async ({ request }) => {
+    const body = (await request.json()) as { posting_ids: string[] };
+    if (failNext) return HttpResponse.json({ error: "undo_expired" }, { status: 409 });
+    undone.push(body.posting_ids);
+    for (const id of body.posting_ids) items[id] = { ...get(id), review: prior[id] ?? OPEN };
+    return HttpResponse.json({ recorded: [] }, { status: 201 });
+  }),
   http.get(`${BASE}/api/postings/:id`, ({ params }) => {
     const id = String(params.id);
     return items[id] === undefined
@@ -109,14 +146,8 @@ const server = setupServer(
     const prev = get(body.posting_id);
     const statusActions = ["interested", "applied_manually", "not_interested", "later"];
     const review = statusActions.includes(body.action)
-      ? {
-          status: body.action as QueueItem["review"]["status"],
-          reason: body.reason ?? null,
-          reviewedAt: "2026-10-15T08:00:00.000Z",
-          processed: body.action !== "later",
-        }
+      ? applyStatus(body.posting_id, body.action, body.reason)
       : prev.review;
-    items[body.posting_id] = { ...prev, review };
     history[body.posting_id] = [
       {
         id: `r${posted.length}`,
@@ -453,5 +484,397 @@ describe("actions", () => {
       "Saving failed. Nothing was recorded.",
     );
     expect(posted).toEqual([]);
+  });
+});
+
+describe("keyboard shortcuts", () => {
+  const selectedTitle = async () =>
+    (
+      await within(await screen.findByRole("complementary", { name: "Posting detail" })).findByRole(
+        "heading",
+        { level: 3 },
+      )
+    ).textContent;
+
+  async function ready() {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    return user;
+  }
+
+  it("j and k move through the postings in queue order", async () => {
+    const user = await ready();
+    await user.keyboard("j");
+    expect(await selectedTitle()).toContain("Backend Engineer");
+    await user.keyboard("j");
+    await waitFor(async () => expect(await selectedTitle()).toContain("Platform Engineer"));
+    await user.keyboard("jj");
+    await waitFor(async () => expect(await selectedTitle()).toContain("Unscored Role"));
+    await user.keyboard("j"); // stays on the last row
+    await user.keyboard("k");
+    await waitFor(async () => expect(await selectedTitle()).toContain("Sketchy Role"));
+  });
+
+  it("o opens the apply link in a new tab, only for http(s)", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    items.p2 = { ...get("p2"), applyUrl: "javascript:alert(1)" };
+    const user = await ready();
+    await user.keyboard("o"); // nothing selected
+    await user.keyboard("j");
+    await user.keyboard("o");
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledWith(
+      "https://example.com/jobs/1",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    await user.keyboard("j");
+    await user.keyboard("o");
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+  });
+
+  it.each([
+    ["i", "interested"],
+    ["a", "applied_manually"],
+    ["l", "later"],
+  ])("%s records %s for the selected posting", async (key, action) => {
+    const user = await ready();
+    await user.keyboard("j");
+    await selectedTitle();
+    await user.keyboard(key);
+    await waitFor(() => expect(posted).toEqual([{ posting_id: "p1", action }]));
+  });
+
+  it("x then a number key records not interested with that reason", async () => {
+    const user = await ready();
+    await user.keyboard("j");
+    await selectedTitle();
+    await user.keyboard("x");
+    expect(screen.getByRole("status", { name: "Not interested reason" }).textContent).toContain(
+      "5 stack",
+    );
+    await user.keyboard("5");
+    await waitFor(() =>
+      expect(posted).toEqual([{ posting_id: "p1", action: "not_interested", reason: "stack" }]),
+    );
+    expect(screen.queryByRole("status", { name: "Not interested reason" })).toBeNull();
+  });
+
+  it.each([
+    ["1", "location"],
+    ["2", "timezone"],
+    ["3", "role"],
+    ["4", "seniority"],
+    ["6", "salary"],
+    ["7", "company"],
+    ["8", "domestic_company"],
+    ["9", "language"],
+    ["0", "expired"],
+  ])("x then %s is %s", async (key, reason) => {
+    const user = await ready();
+    await user.keyboard("j");
+    await selectedTitle();
+    await user.keyboard(`x${key}`);
+    await waitFor(() => expect(posted[0]?.reason).toBe(reason));
+  });
+
+  it("x then another key cancels and records nothing", async () => {
+    const user = await ready();
+    await user.keyboard("j");
+    await selectedTitle();
+    await user.keyboard("xq");
+    await user.keyboard("5"); // not in x mode any more
+    expect(posted).toEqual([]);
+    expect(screen.queryByRole("status", { name: "Not interested reason" })).toBeNull();
+  });
+
+  it("s records scam without moving the selection", async () => {
+    const user = await ready();
+    await user.keyboard("j");
+    await selectedTitle();
+    await user.keyboard("s");
+    await waitFor(() => expect(posted).toEqual([{ posting_id: "p1", action: "scam" }]));
+    expect(await selectedTitle()).toContain("Backend Engineer");
+  });
+
+  it("? shows the shortcut list and Escape closes it", async () => {
+    const user = await ready();
+    expect(screen.queryByRole("region", { name: "Keyboard shortcuts" })).toBeNull();
+    await user.keyboard("?");
+    const list = within(screen.getByRole("region", { name: "Keyboard shortcuts" }));
+    for (const keys of ["j / k", "o", "i", "a", "l", "x, then 1-9 or 0", "s", "u", "?"])
+      expect(list.getByText(keys)).toBeTruthy();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Keyboard shortcuts" })).toBeNull();
+  });
+
+  it("ignores keys while typing in an input", async () => {
+    const user = await ready();
+    await user.keyboard("j");
+    const panel = within(await screen.findByRole("complementary", { name: "Posting detail" }));
+    await user.click(await panel.findByRole("button", { name: "not interested" }));
+    const note = panel.getByRole("textbox", { name: /Note/ });
+    await user.type(note, "jilxs?o");
+    expect((note as HTMLTextAreaElement).value).toBe("jilxs?o");
+    expect(posted).toEqual([]);
+    expect(screen.queryByRole("region", { name: "Keyboard shortcuts" })).toBeNull();
+    expect(await selectedTitle()).toContain("Backend Engineer");
+  });
+
+  it("ignores keys with ctrl, meta or alt held", async () => {
+    const user = await ready();
+    await user.keyboard("j");
+    await selectedTitle();
+    await user.keyboard("{Control>}i{/Control}{Meta>}a{/Meta}");
+    expect(posted).toEqual([]);
+  });
+
+  it("does nothing for an action key when no posting is selected", async () => {
+    const user = await ready();
+    await user.keyboard("ial");
+    expect(posted).toEqual([]);
+  });
+});
+
+describe("auto-advance", () => {
+  const heading = (panel: HTMLElement) => within(panel).getByRole("heading", { level: 3 });
+
+  it("moves the selection to the next open row after a status action", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.keyboard("ji");
+    await waitFor(() => expect(posted).toHaveLength(1));
+    const panel = await screen.findByRole("complementary", { name: "Posting detail" });
+    await waitFor(() => expect(heading(panel).textContent).toContain("Platform Engineer"));
+    await user.keyboard("l"); // later stays open but still moves on
+    await waitFor(() => expect(posted).toHaveLength(2));
+    await waitFor(() => expect(heading(panel).textContent).toContain("Sketchy Role"));
+    expect(posted.map((p) => p.posting_id)).toEqual(["p1", "p2"]);
+  });
+
+  it("skips processed rows and wraps to an earlier open row", async () => {
+    items.p3 = { ...get("p3"), review: { ...OPEN, status: "interested", processed: true } };
+    items.p4 = { ...get("p4"), review: { ...OPEN, status: "interested", processed: true } };
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.click(screen.getByRole("checkbox", { name: "Open only" })); // show processed rows too
+    await user.keyboard("jj"); // p2
+    await user.keyboard("i");
+    await waitFor(() => expect(posted).toEqual([{ posting_id: "p2", action: "interested" }]));
+    const panel = await screen.findByRole("complementary", { name: "Posting detail" });
+    await waitFor(() => expect(heading(panel).textContent).toContain("Backend Engineer"));
+  });
+
+  it("closes the panel when no open row is left", async () => {
+    sections = { top: ["p1"], needs_a_look: [], suspicious: [], waiting: [] };
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.keyboard("ji");
+    await waitFor(() => expect(posted).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.queryByRole("complementary", { name: "Posting detail" })).toBeNull(),
+    );
+  });
+});
+
+describe("bulk not interested", () => {
+  beforeEach(() => {
+    items.p5 = item({ postingId: "p5", title: "Third Role" });
+    sections.top = ["p1", "p2", "p5"];
+  });
+  const box = (title: string) =>
+    within(section("Top matches")).getByRole<HTMLInputElement>("checkbox", {
+      name: `Select ${title}`,
+    });
+  const bulk = () => screen.getByRole("group", { name: "Bulk actions" });
+
+  it("applies one reason to every ticked posting with one request", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    expect(screen.queryByRole("group", { name: "Bulk actions" })).toBeNull();
+    await user.click(box("Backend Engineer"));
+    await user.click(box("Third Role"));
+    expect(within(bulk()).getByText("2 selected")).toBeTruthy();
+    await user.selectOptions(within(bulk()).getByRole("combobox", { name: /Reason/ }), "salary");
+    await user.click(within(bulk()).getByRole("button", { name: "Not interested (2)" }));
+    await waitFor(() =>
+      expect(bulkPosted).toEqual([
+        { posting_ids: ["p1", "p5"], action: "not_interested", reason: "salary" },
+      ]),
+    );
+    expect(posted).toEqual([]);
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Bulk actions" })).toBeNull());
+    await waitFor(() => expect(titles("Top matches")).toEqual(["Platform Engineer"]));
+  });
+
+  it("shift-click ticks the range between two checkboxes in the shown order", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.click(box("Backend Engineer"));
+    await user.keyboard("{Shift>}");
+    await user.click(box("Third Role"));
+    await user.keyboard("{/Shift}");
+    expect(within(bulk()).getByText("3 selected")).toBeTruthy();
+    for (const t of ["Backend Engineer", "Platform Engineer", "Third Role"])
+      expect(box(t).checked).toBe(true);
+    await user.click(within(bulk()).getByRole("button", { name: "Clear selection" }));
+    expect(screen.queryByRole("group", { name: "Bulk actions" })).toBeNull();
+  });
+
+  it("needs a reason, and a note for other", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.click(box("Backend Engineer"));
+    await user.click(within(bulk()).getByRole("button", { name: "Not interested (1)" }));
+    expect(screen.getByRole("alert").textContent).toBe("Pick a reason.");
+    await user.selectOptions(within(bulk()).getByRole("combobox", { name: /Reason/ }), "other");
+    await user.click(within(bulk()).getByRole("button", { name: "Not interested (1)" }));
+    expect(screen.getByRole("alert").textContent).toBe("A note is required for other.");
+    expect(bulkPosted).toEqual([]);
+    await user.type(within(bulk()).getByRole("textbox", { name: /Note/ }), "Needs relocation");
+    await user.click(within(bulk()).getByRole("button", { name: "Not interested (1)" }));
+    await waitFor(() =>
+      expect(bulkPosted).toEqual([
+        {
+          posting_ids: ["p1"],
+          action: "not_interested",
+          reason: "other",
+          note: "Needs relocation",
+        },
+      ]),
+    );
+  });
+
+  it("the keyboard actions apply to all ticked postings", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.click(box("Backend Engineer"));
+    await user.click(box("Platform Engineer"));
+    await user.keyboard("j"); // opens the detail panel; the ticked rows still win
+    await user.keyboard("x6");
+    await waitFor(() =>
+      expect(bulkPosted).toEqual([
+        { posting_ids: ["p1", "p2"], action: "not_interested", reason: "salary" },
+      ]),
+    );
+    expect(posted).toEqual([]);
+  });
+
+  it("reports a failed bulk request and keeps the selection", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.click(box("Backend Engineer"));
+    await user.selectOptions(within(bulk()).getByRole("combobox", { name: /Reason/ }), "role");
+    failNext = true;
+    await user.click(within(bulk()).getByRole("button", { name: "Not interested (1)" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Saving failed. Nothing was recorded.",
+    );
+    expect(within(bulk()).getByText("1 selected")).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Undo" })).toBeNull();
+  });
+});
+
+describe("undo", () => {
+  it("the undo button takes back the last action", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.keyboard("ji");
+    const bar = await screen.findByRole("status", { name: "Undo" });
+    expect(bar.textContent).toContain("Recorded interested (1)");
+    await waitFor(() => expect(titles("Top matches")).toEqual(["Platform Engineer"]));
+    await user.click(within(bar).getByRole("button", { name: /Undo/ }));
+    await waitFor(() => expect(undone).toEqual([["p1"]]));
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Undo" })).toBeNull());
+    await waitFor(() =>
+      expect(titles("Top matches")).toEqual(["Backend Engineer", "Platform Engineer"]),
+    );
+    expect(screen.getByRole("status", { name: "Progress" }).textContent).toBe("0 of 3 processed");
+  });
+
+  it("u undoes a bulk action for all its postings", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    const top = within(section("Top matches")); // Backend Engineer is also listed under Needs a look
+    await user.click(top.getByRole("checkbox", { name: "Select Backend Engineer" }));
+    await user.click(top.getByRole("checkbox", { name: "Select Platform Engineer" }));
+    await user.keyboard("j");
+    await user.keyboard("x3");
+    await waitFor(() => expect(bulkPosted).toHaveLength(1));
+    await screen.findByRole("status", { name: "Undo" });
+    await user.keyboard("u");
+    await waitFor(() => expect(undone).toEqual([["p1", "p2"]]));
+  });
+
+  it("the offer disappears after 10 seconds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
+      renderApp();
+      await screen.findByRole("region", { name: "Top matches" });
+      await user.keyboard("ji");
+      await screen.findByRole("status", { name: "Undo" });
+      await act(async () => {
+        vi.advanceTimersByTime(9_000);
+      });
+      expect(screen.queryByRole("status", { name: "Undo" })).not.toBeNull();
+      await act(async () => {
+        vi.advanceTimersByTime(1_500);
+      });
+      expect(screen.queryByRole("status", { name: "Undo" })).toBeNull();
+      await user.keyboard("u");
+      expect(undone).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports a refused undo", async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    await user.keyboard("ji");
+    await screen.findByRole("status", { name: "Undo" });
+    failNext = true;
+    await user.keyboard("u");
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Undo failed. Nothing was changed.",
+    );
+  });
+});
+
+describe("elapsed timer", () => {
+  it("counts from the first review action of the day as the API reports it", async () => {
+    firstReviewAt = "2026-10-15T07:30:00.000Z"; // NOW is 08:00
+    renderApp();
+    const timer = await screen.findByRole("timer", { name: "Elapsed" });
+    expect(timer.textContent).toBe("Elapsed: 30:00");
+  });
+
+  it("shows hours after the first hour", async () => {
+    firstReviewAt = "2026-10-15T06:45:30.000Z";
+    renderApp();
+    expect((await screen.findByRole("timer", { name: "Elapsed" })).textContent).toBe(
+      "Elapsed: 1:14:30",
+    );
+  });
+
+  it("has not started before the first review", async () => {
+    renderApp();
+    expect((await screen.findByRole("timer", { name: "Elapsed" })).textContent).toContain(
+      "starts with the first review",
+    );
   });
 });

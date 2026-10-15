@@ -10,7 +10,7 @@ export interface ReviewStateInput {
 
 export interface ReviewState {
   /** `open` until a status action is recorded. */
-  status: "open" | StatusAction;
+  status: "open" | Exclude<StatusAction, "reopen">;
   reason: string | null;
   reviewedAt: string | null;
   /** A status action other than `later` was recorded. */
@@ -30,6 +30,8 @@ export function reviewState(history: readonly ReviewStateInput[]): ReviewState {
   if (last === undefined)
     return { status: "open", reason: null, reviewedAt: null, processed: false };
   const status = last.action as StatusAction;
+  if (status === "reopen")
+    return { status: "open", reason: null, reviewedAt: last.reviewed_at, processed: false };
   return {
     status,
     reason: status === "not_interested" ? last.reason : null,
