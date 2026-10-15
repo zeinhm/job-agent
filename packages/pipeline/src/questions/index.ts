@@ -11,6 +11,7 @@ import {
   postings,
   type Db,
 } from "@job-agent/core";
+import { matchQuestions } from "@job-agent/apply";
 import { atsLinkOf } from "../apply-links/ats-links.ts";
 import { ATS_SOURCE_NAMES } from "../filters/keywords.ts";
 import { normalizeLabel } from "./normalize.ts";
@@ -413,6 +414,10 @@ export async function runFetchQuestions(opts: FetchQuestionsOptions): Promise<nu
   for (const [host, status] of http.blockedHosts) {
     out(`fetch-questions: ${host} answered HTTP ${status}, no more requests to it this run\n`);
   }
+  const m = matchQuestions(db);
+  out(
+    `fetch-questions: matched ${m.covered} covered, ${m.salary} salary, ${m.unknown} unknown (${m.unknownWordings} wordings)\n`,
+  );
   out(`fetch-questions: requests ${http.requests}${errors > 0 ? `, errors ${errors}` : ""}\n`);
   return errors > 0 ? 1 : 0;
 }

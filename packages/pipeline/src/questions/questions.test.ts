@@ -18,6 +18,7 @@ import {
   posting_questions,
   postings,
   reviews,
+  unknown_questions,
   type Db,
 } from "@job-agent/core";
 import { main } from "../cli.ts";
@@ -506,6 +507,19 @@ describe("fetch-questions", () => {
     expect(rows(reopened)).toHaveLength(13);
   });
 
+  it("matches the stored questions after fetching: standard fields covered, the rest in the inbox", async () => {
+    gh200();
+    const id = ghPosting();
+    const r = await run();
+    expect(r.out).toMatch(/fetch-questions: matched \d+ covered, \d+ salary, \d+ unknown/);
+    const stored = rows(id);
+    const unknown = stored.filter((q) => q.matched_key === null);
+    expect(unknown.length).toBeGreaterThan(0);
+    expect(db.select().from(unknown_questions).all()).toHaveLength(
+      new Set(unknown.map((q) => q.normalized_label)).size,
+    );
+  });
+
   it("a refetch replaces the rows, drops removed questions and keeps a matched key while the label is unchanged", async () => {
     gh200();
     const id = ghPosting();
@@ -513,14 +527,9 @@ describe("fetch-questions", () => {
     const stored = rows(id);
     const linkedin = stored.find((q) => q.question_id === "question_38624168002");
     const phone = stored.find((q) => q.question_id === "phone");
-    db.update(posting_questions)
-      .set({ matched_key: "links.linkedin" })
-      .where(eq(posting_questions.id, linkedin?.id ?? ""))
-      .run();
-    db.update(posting_questions)
-      .set({ matched_key: "contact.phone" })
-      .where(eq(posting_questions.id, phone?.id ?? ""))
-      .run();
+    // The fetch ends with a match run, which recomputes keys: a stale key set by hand would be replaced.
+    expect(linkedin?.matched_key).toBe("standard.linkedin");
+    expect(phone?.matched_key).toBe("standard.phone");
     const changed = structuredClone(fixture("greenhouse-job.json")) as {
       questions: Array<{ label: string; fields: Array<{ name: string }> }>;
     };
@@ -534,12 +543,12 @@ describe("fetch-questions", () => {
     expect(after).toHaveLength(12);
     expect(after.find((q) => q.question_id === "question_38624173002")).toBeUndefined();
     expect(after.find((q) => q.question_id === "question_38624168002")?.matched_key).toBe(
-      "links.linkedin",
+      "standard.linkedin",
     );
     expect(after.find((q) => q.question_id === "question_38624168002")?.id).toBe(linkedin?.id);
     expect(after.find((q) => q.question_id === "phone")).toMatchObject({
       label: "Mobile number",
-      matched_key: null,
+      matched_key: "standard.phone",
     });
   });
 

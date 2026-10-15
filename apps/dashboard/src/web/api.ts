@@ -154,6 +154,12 @@ export const QueueItemSchema = z.object({
   applyUrl: z.string(),
   applyType: z.string(),
   review: ReviewStateSchema,
+  questions: z.object({
+    total: z.number(),
+    covered: z.number(),
+    unknown: z.number(),
+    salary: z.number(),
+  }),
 });
 export type QueueItem = z.infer<typeof QueueItemSchema>;
 

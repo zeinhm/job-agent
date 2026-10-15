@@ -83,6 +83,7 @@ describe("GET /api/queue", () => {
       firstSeenAt: expect.any(String),
       sources: ["greenhouse"],
       review: { status: "open", reason: null, reviewedAt: null, processed: false },
+      questions: { total: 3, covered: 2, unknown: 1, salary: 0 },
     });
     expect(q.sections["suspicious"]?.[0]).toMatchObject({ scamScore: 85 });
     expect(q.sections["suspicious"]?.[0]?.["scamReason"]).toBe("asks for a payment before hiring");

@@ -1,3 +1,4 @@
+import { questionCounts, type QuestionCounts } from "@job-agent/apply";
 import { eq } from "drizzle-orm";
 import { analysis, intel, postings, type Db } from "@job-agent/core";
 import { parseList } from "../digest/format.ts";
@@ -5,8 +6,12 @@ import { describePosting, selectDay, type Entry, type PostingView } from "../dig
 import { canonicalPostingId, firstReviewAt, reviewHistory, type ReviewRow } from "./record.ts";
 import { reviewState, type ReviewState } from "./state.ts";
 
+const NO_QUESTIONS: QuestionCounts = { total: 0, covered: 0, unknown: 0, salary: 0 };
+
 export interface QueueItem extends PostingView {
   review: ReviewState;
+  /** What the approved answer bank covers of this posting's stored application questions. */
+  questions: QuestionCounts;
 }
 
 export interface Queue {
@@ -27,9 +32,11 @@ export function getQueue(db: Db, date: string): Queue {
   const day = selectDay(db, date, { stamp: false });
   const ids = [...day.top, ...day.waiting, ...day.suspicious].map((e) => e.view.postingId);
   const history = reviewHistory(db, ids);
+  const counts = questionCounts(db, ids);
   const item = (e: Entry): QueueItem => ({
     ...e.view,
     review: reviewState(history.get(e.view.postingId) ?? []),
+    questions: counts.get(e.view.postingId) ?? NO_QUESTIONS,
   });
   return {
     date,
@@ -72,6 +79,7 @@ export function getPostingDetail(db: Db, id: string): PostingDetail | null {
   return {
     ...view,
     review: reviewState(rows),
+    questions: questionCounts(db, [view.postingId]).get(view.postingId) ?? NO_QUESTIONS,
     descriptionText: row.p.description_text,
     reasons: {
       fit: parseList(row.i?.fit_reasons ?? null),

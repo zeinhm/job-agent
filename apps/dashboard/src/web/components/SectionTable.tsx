@@ -102,6 +102,14 @@ export function SectionTable({
         }),
         helper.accessor("listedSalary", { header: "Salary", enableSorting: false }),
         helper.accessor("applyType", { header: "Apply", enableSorting: false }),
+        helper.accessor(
+          (r) => (r.questions.total === 0 ? "-" : `${r.questions.covered}/${r.questions.total}`),
+          {
+            id: "questions",
+            header: "Questions",
+            enableSorting: false,
+          },
+        ),
         helper.accessor((r) => r.flags.join(", "), {
           id: "flags",
           header: "Flags",

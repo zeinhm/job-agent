@@ -31,6 +31,7 @@ function item(over: Partial<QueueItem> & { postingId: string; title: string }): 
     applyUrl: "https://example.com/jobs/1",
     applyType: "ats",
     review: OPEN,
+    questions: { total: 0, covered: 0, unknown: 0, salary: 0 },
     ...over,
   };
 }
@@ -214,6 +215,7 @@ describe("queue sections", () => {
       "Tier / ask",
       "Salary",
       "Apply",
+      "Questions",
       "Flags",
       "Review",
     ]);
@@ -239,6 +241,19 @@ describe("queue sections", () => {
     expect(titles("Top matches")).toEqual(["Platform Engineer", "Backend Engineer"]); // rank 2, 1
     await user.click(within(top).getByRole("button", { name: /^Rank/ }));
     expect(titles("Top matches")).toEqual(["Backend Engineer", "Platform Engineer"]); // rank 1, 2
+  });
+
+  it("shows covered/total questions per posting, a dash when none are stored", async () => {
+    items.p1 = { ...get("p1"), questions: { total: 5, covered: 3, unknown: 1, salary: 1 } };
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    const rows = within(section("Top matches")).getAllByRole("row");
+    const cell = (title: string): string | undefined => {
+      const row = rows.find((r) => r.textContent?.includes(title));
+      return within(row as HTMLElement).getAllByRole("cell")[7]?.textContent ?? undefined;
+    };
+    expect(cell("Backend Engineer")).toBe("3/5");
+    expect(cell("Platform Engineer")).toBe("-");
   });
 
   it("shows an empty state when the day has no postings", async () => {

@@ -1,3 +1,4 @@
+import { normalizeQuestion } from "@job-agent/apply";
 import { decodeEntities } from "../apply-links/ats-links.ts";
 
 /** Question text as plain text: markup removed, entities decoded, whitespace collapsed. */
@@ -12,8 +13,5 @@ export function plainText(raw: string): string {
  * "*" do not matter.
  */
 export function normalizeLabel(label: string): string {
-  return plainText(label)
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
+  return normalizeQuestion(plainText(label));
 }

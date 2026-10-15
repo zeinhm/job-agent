@@ -11,7 +11,7 @@ import {
   openDb,
   source_runs,
 } from "@job-agent/core";
-import { importAnswers, loadAnswers } from "@job-agent/apply";
+import { importAnswers, loadAnswers, matchQuestions } from "@job-agent/apply";
 import { buildAdapters } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runResolveApply } from "./apply-links/index.ts";
@@ -145,6 +145,22 @@ const commands: Record<string, Command> = {
     const db = openDb(defaultDbPath());
     try {
       return await runFetchQuestions({ db, limit, out: io.out, err: io.err });
+    } finally {
+      db.$client.close();
+    }
+  },
+  "match-questions": (args, io) => {
+    if (args.length > 0) {
+      io.err("Usage: job-agent match-questions\n");
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      const m = matchQuestions(db);
+      io.out(
+        `match-questions: ${m.questions} questions, ${m.covered} covered, ${m.salary} salary, ${m.unknown} unknown (${m.unknownWordings} wordings), ${m.changed} changed\n`,
+      );
+      return 0;
     } finally {
       db.$client.close();
     }
