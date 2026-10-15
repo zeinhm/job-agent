@@ -77,8 +77,24 @@ afterEach(() => {
 });
 
 describe("linkedin_posts adapter", () => {
-  it("is registered with a 170 minute interval", () => {
-    const found = buildAdapters(makeConfig()).filter((a) => a.name === "linkedin_posts");
+  it("is not registered by default and makes zero Brave requests", async () => {
+    for (const config of [
+      makeConfig(),
+      { ...makeConfig(), sources: {} },
+      { ...makeConfig(), sources: { linkedin_posts: false } },
+    ]) {
+      const adapters = buildAdapters(config);
+      expect(adapters.filter((a) => a.name === "linkedin_posts")).toEqual([]);
+      // The only adapter that talks to Brave is gone: nothing left to call (others hit their own hosts, not run here).
+      expect(adapters.map((a) => a.name)).not.toContain("linkedin_posts");
+    }
+    expect(calls).toBe(0);
+  });
+
+  it("is registered with a 170 minute interval when sources.linkedin_posts is true", () => {
+    const found = buildAdapters({ ...makeConfig(), sources: { linkedin_posts: true } }).filter(
+      (a) => a.name === "linkedin_posts",
+    );
     expect(found).toHaveLength(1);
     expect(found[0]?.minIntervalMinutes).toBe(170);
   });

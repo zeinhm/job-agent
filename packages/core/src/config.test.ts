@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { loadConfig, loadCv } from "./config.ts";
+import { loadConfig, loadCv, loadDisabledSources } from "./config.ts";
 
 const exampleDir = join(dirname(fileURLToPath(import.meta.url)), "../../../config");
 
@@ -163,6 +163,22 @@ describe("loadConfig", () => {
       "companies:\n  - { name: X, ats: lever, slug: x, extra: 1 }\n",
     );
     expect(() => loadConfig(dir)).toThrow(/companies\.yaml/);
+  });
+});
+
+describe("loadDisabledSources", () => {
+  it("lists linkedin_posts unless companies.yaml switches it on, and a missing file means off", () => {
+    expect(loadDisabledSources(dir)).toEqual(["linkedin_posts"]);
+    seed();
+    expect(loadDisabledSources(dir)).toEqual(["linkedin_posts"]);
+    writeFileSync(join(dir, "companies.yaml"), "companies: []\nsources:\n  linkedin_posts: true\n");
+    expect(loadDisabledSources(dir)).toEqual([]);
+    expect(loadConfig(dir).sources).toEqual({ linkedin_posts: true });
+  });
+
+  it("rejects an unknown source key", () => {
+    writeFileSync(join(dir, "companies.yaml"), "companies: []\nsources:\n  nope: true\n");
+    expect(() => loadDisabledSources(dir)).toThrow(/companies\.yaml/);
   });
 });
 

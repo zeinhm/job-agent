@@ -2,7 +2,15 @@ import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 import { sql } from "drizzle-orm";
-import { defaultDbPath, fetchAndStoreFx, loadConfig, openDb, source_runs } from "@job-agent/core";
+import {
+  defaultDbPath,
+  disabledSources,
+  fetchAndStoreFx,
+  loadConfig,
+  loadDisabledSources,
+  openDb,
+  source_runs,
+} from "@job-agent/core";
 import { buildAdapters } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runResolveApply } from "./apply-links/index.ts";
@@ -35,6 +43,7 @@ const commands: Record<string, Command> = {
       return await runDiscover({
         db,
         adapters: buildAdapters(config, loadPollableCompanies(db)),
+        disabled: disabledSources(config),
         source: values.source,
         force: values.force,
         out: io.out,
@@ -152,6 +161,7 @@ const commands: Record<string, Command> = {
     const db = openDb(defaultDbPath());
     try {
       runDigest({
+        disabledSources: loadDisabledSources(),
         ...(values["include-unpaid"] === true ? { includeUnpaid: true } : {}),
         db,
         ...(values.date !== undefined ? { date: values.date } : {}),
@@ -183,7 +193,12 @@ const commands: Record<string, Command> = {
       const runs = db.select().from(source_runs).orderBy(source_runs.started_at).all();
       const latest = new Map(runs.map((r) => [r.source, r]));
       io.out("source status (latest run)\n");
+      const disabled = loadDisabledSources();
       for (const r of [...latest.values()].sort((a, b) => a.source.localeCompare(b.source))) {
+        if (disabled.includes(r.source)) {
+          io.out(`  ${r.source}: disabled\n`);
+          continue;
+        }
         const detail = r.error_message ? `, ${r.error_message}` : "";
         const fresh = freshnessSuffix(db, r.source, new Date());
         io.out(

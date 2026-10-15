@@ -82,9 +82,13 @@ recorded as `skipped` and gets no request, so the hourly cron never sends extra 
 | `web3career` | `WEB3_CAREER_TOKEN` (without it the run is an `error`) | 5 min |
 | `linkedin` | none; needs the JobSpy worker (see "LinkedIn and Indeed through JobSpy") | 50 min |
 | `indeed` | none; needs the JobSpy worker | 2 h |
-| `linkedin_posts` | `BRAVE_API_KEY` (without it the run is `skipped`) | 3 h |
+| `linkedin_posts` | off by default; `sources.linkedin_posts: true` in `companies.yaml` and `BRAVE_API_KEY` (without the key the run is `skipped`) | 3 h |
 
 ### LinkedIn hiring posts (`linkedin_posts`) and Brave cost
+
+**Disabled by default** (Brave does not index linkedin.com/posts, so it only used up the Brave cap). It makes no Brave
+request and Source health shows `disabled` until `companies.yaml` has a `sources:` block with `linkedin_posts: true`.
+Everything below applies only when it is switched on.
 
 `discover --source linkedin_posts` runs 4 Brave queries per run (`MAX_POST_QUERIES_PER_RUN`, `freshness=pd`, rotating
 through 5 `site:linkedin.com/posts hiring ...` queries) and polls at most every 3 hours. It never requests a

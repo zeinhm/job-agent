@@ -22,6 +22,8 @@ import { STALE_ANALYZED_AT } from "./stale.ts";
 export interface DiscoverOptions {
   db: Db;
   adapters: SourceAdapter[];
+  /** Default-off sources that are not switched on: `--source <name>` prints a "disabled" line and exits 0. */
+  disabled?: readonly string[];
   /** Run only the adapter with this name. */
   source?: string | undefined;
   /** Ignore the poll interval. */
@@ -187,6 +189,12 @@ export async function runDiscover(opts: DiscoverOptions): Promise<number> {
   let selected = adapters;
   if (opts.source !== undefined) {
     selected = adapters.filter((a) => a.name === opts.source);
+    if (selected.length === 0 && opts.disabled?.includes(opts.source)) {
+      out(
+        `${opts.source}: disabled (opt in with sources.${opts.source}: true in companies.yaml)\n`,
+      );
+      return 0;
+    }
     if (selected.length === 0) {
       const names = adapters.map((a) => a.name).join(", ") || "(none registered)";
       err(`Unknown source: ${opts.source}. Valid sources: ${names}\n`);

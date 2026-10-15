@@ -39,6 +39,8 @@ export interface DigestOptions {
   capUsd?: number;
   /** Adds a "Volunteer / unpaid" section listing postings rejected as unpaid. Default off. */
   includeUnpaid?: boolean;
+  /** Default-off sources that are not switched on; Source health shows them as "disabled", never skipped or LATE. */
+  disabledSources?: readonly string[];
   out: (text: string) => void;
 }
 
@@ -349,12 +351,14 @@ function needsALook(entries: Entry[]): string[] {
   ];
 }
 
-function sourceHealth(db: Db, now: Date): string[] {
+function sourceHealth(db: Db, now: Date, disabled: readonly string[] = []): string[] {
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const all = db.select().from(source_runs).all();
-  const names = [...new Set(all.map((r) => r.source))].sort();
+  const names = [...new Set(all.map((r) => r.source))].filter((n) => !disabled.includes(n)).sort();
   const lines = ["## Source health", ""];
-  if (names.length === 0) return [...lines, "No source runs recorded.", ""];
+  const disabledLines = [...disabled].sort().map((n) => `- **${n}**: disabled`);
+  if (names.length === 0 && disabledLines.length === 0)
+    return [...lines, "No source runs recorded.", ""];
   for (const name of names) {
     const recent = all
       .filter((r) => r.source === name && r.started_at >= since && r.status !== "skipped")
@@ -374,7 +378,7 @@ function sourceHealth(db: Db, now: Date): string[] {
       `- **${name}**: ${text}${fresh !== undefined ? ` — ${fresh}` : ""}${noOk ? " — NO SUCCESSFUL RUN" : ""}`,
     );
   }
-  return [...lines, ""];
+  return [...lines, ...disabledLines, ""];
 }
 
 /** Pay type from the stored extraction ("unpaid" or "equity_only"); "unpaid" when it cannot be read. */
@@ -549,7 +553,7 @@ export function runDigest(opts: DigestOptions): string {
     ...section("Waiting for scoring", waiting),
     ...needsALook([...top, ...waiting]),
     ...section("Suspicious", suspicious),
-    ...sourceHealth(db, now),
+    ...sourceHealth(db, now, opts.disabledSources),
     ...spendSection(db, date, opts.capUsd ?? effectiveCapUsd(process.env, (m) => log.warn(m))),
     ...(opts.includeUnpaid === true ? unpaidSection(unpaidRows) : []),
   ].join("\n");

@@ -29,7 +29,16 @@ const salaryConfigSchema = z.strictObject({
   review_salary_answers: z.boolean(),
 });
 
+/** Sources that are off unless `sources.<name>: true` is set in `companies.yaml`. */
+export const DEFAULT_OFF_SOURCES = ["linkedin_posts"] as const;
+
+const sourcesConfigSchema = z.strictObject({
+  /** Off by default: Brave does not index linkedin.com/posts, so every run only used up the shared Brave cap. */
+  linkedin_posts: z.boolean().optional(),
+});
+
 const companiesConfigSchema = z.strictObject({
+  sources: sourcesConfigSchema.optional(),
   companies: z.array(
     z.strictObject({
       name: z.string().min(1),
@@ -44,7 +53,14 @@ export type CompanyConfig = z.infer<typeof companiesConfigSchema>["companies"][n
 export type AppConfig = {
   salary: SalaryConfig;
   companies: CompanyConfig[];
+  /** Opt-in switches for default-off sources (see `DEFAULT_OFF_SOURCES`). Missing = all off. */
+  sources?: z.infer<typeof sourcesConfigSchema> | undefined;
 };
+
+/** Names of the default-off sources the config has not switched on. */
+export function disabledSources(config: Pick<AppConfig, "sources">): string[] {
+  return DEFAULT_OFF_SOURCES.filter((n) => config.sources?.[n] !== true);
+}
 
 /** Parses and validates the text of `companies.yaml`. Errors never include file content. */
 export function parseCompaniesYaml(text: string): CompanyConfig[] {
@@ -109,9 +125,27 @@ export function loadCv(dir: string = process.env.JOB_AGENT_CONFIG_DIR ?? "config
   return text.trim() === "" ? null : text;
 }
 
+/**
+ * Default-off sources that `companies.yaml` has not switched on, for commands that need no other config
+ * (digest, status). A missing file means nothing is switched on; an invalid file throws like `loadConfig`.
+ */
+export function loadDisabledSources(
+  dir: string = process.env.JOB_AGENT_CONFIG_DIR ?? "config",
+): string[] {
+  try {
+    return disabledSources(loadYamlFile(dir, "companies.yaml", companiesConfigSchema));
+  } catch (err) {
+    if ((err as { cause?: NodeJS.ErrnoException }).cause?.code === "ENOENT")
+      return disabledSources({});
+    throw err;
+  }
+}
+
 export function loadConfig(dir: string = process.env.JOB_AGENT_CONFIG_DIR ?? "config"): AppConfig {
+  const companies = loadYamlFile(dir, "companies.yaml", companiesConfigSchema);
   return {
     salary: loadYamlFile(dir, "salary.yaml", salaryConfigSchema),
-    companies: loadYamlFile(dir, "companies.yaml", companiesConfigSchema).companies,
+    companies: companies.companies,
+    sources: companies.sources,
   };
 }

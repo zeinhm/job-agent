@@ -84,7 +84,8 @@ export const buildAdapters = (
   const jobspySmoke = process.env[JOBSPY_SMOKE_ENV] === "1";
   adapters.push(createLinkedInAdapter({ smoke: jobspySmoke }));
   adapters.push(createIndeedAdapter({ smoke: jobspySmoke }));
-  adapters.push(createLinkedinPostsAdapter());
+  // Off by default (Brave does not index linkedin.com/posts): not built, so it makes no Brave request.
+  if (config.sources?.linkedin_posts === true) adapters.push(createLinkedinPostsAdapter());
 
   return adapters;
 };
