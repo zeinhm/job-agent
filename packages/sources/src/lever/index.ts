@@ -15,7 +15,7 @@ const SOURCE = "lever";
 const BASE_URL = "https://api.lever.co/v0/postings";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
-const MIN_INTERVAL_MINUTES = 60;
+const MIN_INTERVAL_MINUTES = 50;
 
 const envelopeSchema = z.array(z.unknown());
 

@@ -20,7 +20,7 @@ export const UNKNOWN_COMPANY = "(unknown)";
 const FRESHNESS = "pd";
 /** Research t_788d14a9 section 1: 4 of the post queries per 3 h slot. */
 export const MAX_POST_QUERIES_PER_RUN = 4;
-const MIN_INTERVAL_MINUTES = 180;
+const MIN_INTERVAL_MINUTES = 170;
 
 /** Research queries 1-5 (query 6 targets /in/ profile pages, which this adapter ignores). */
 export const POST_QUERIES: readonly string[] = [

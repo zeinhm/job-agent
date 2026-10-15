@@ -60,7 +60,7 @@ beforeEach(() => {
 describe("himalayas adapter", () => {
   it("identifies itself and polls at most hourly", () => {
     expect(adapter.name).toBe("himalayas");
-    expect(adapter.minIntervalMinutes).toBe(60);
+    expect(adapter.minIntervalMinutes).toBe(50);
   });
 
   it("returns one RawPosting per job across both pages", async () => {

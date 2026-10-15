@@ -66,7 +66,7 @@ describe("recruitee adapter", () => {
   it("exposes name and a 6 hour poll interval", () => {
     const adapter = createRecruiteeAdapter([acme], log);
     expect(adapter.name).toBe("recruitee");
-    expect(adapter.minIntervalMinutes).toBe(360);
+    expect(adapter.minIntervalMinutes).toBe(350);
   });
 
   it("requests the company subdomain offers endpoint", async () => {

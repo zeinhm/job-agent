@@ -43,10 +43,10 @@ beforeEach(() => {
 });
 
 describe("remoteok adapter", () => {
-  it("is registered once with a 240 minute interval", () => {
+  it("is registered once with a 230 minute interval", () => {
     const all = buildAdapters(makeConfig()).filter((a) => a.name === "remoteok");
     expect(all).toHaveLength(1);
-    expect(all[0]?.minIntervalMinutes).toBe(240);
+    expect(all[0]?.minIntervalMinutes).toBe(230);
   });
 
   it("returns one RawPosting per job and none for the legal notice, without warning", async () => {

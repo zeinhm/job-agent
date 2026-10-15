@@ -52,7 +52,7 @@ describe("arbeitnow adapter", () => {
   it("has the expected name and the interval from the research doc", () => {
     const adapter = createArbeitnowAdapter();
     expect(adapter.name).toBe("arbeitnow");
-    expect(adapter.minIntervalMinutes).toBe(360);
+    expect(adapter.minIntervalMinutes).toBe(350);
     expect(fixture.data.length).toBeLessThanOrEqual(20);
   });
 

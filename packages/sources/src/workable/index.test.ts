@@ -98,8 +98,8 @@ describe("workable adapter", () => {
     expect(postings.map((p) => p.externalId)).toEqual(["A1B2C3D4E5", "ZZ00000001"]);
   });
 
-  it("has a 360 minute interval (R3)", () => {
-    expect(adapterFor("alpha").minIntervalMinutes).toBe(360);
+  it("has a 350 minute interval (R3)", () => {
+    expect(adapterFor("alpha").minIntervalMinutes).toBe(350);
   });
 
   it("skips a 404 slug with a warn, reports it as a warning, and errors when all are 404", async () => {

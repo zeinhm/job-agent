@@ -12,7 +12,7 @@ const SOURCE = "himalayas";
 const BASE_URL = "https://himalayas.app/jobs/api";
 const PAGE_SIZE = 20;
 const MAX_PAGES = 10;
-const MIN_INTERVAL_MINUTES = 60;
+const MIN_INTERVAL_MINUTES = 50;
 
 const envelopeSchema = z.object({
   jobs: z.array(z.unknown()),

@@ -110,7 +110,7 @@ describe("indeed through discover", () => {
     ).toBeNull();
   });
 
-  it("a second run within 2 h records skipped without calling the worker", async () => {
+  it("a second run within 110 min records skipped without calling the worker", async () => {
     let calls = 0;
     const adapter = createIndeedAdapter({
       sleep: async () => undefined,
@@ -122,10 +122,10 @@ describe("indeed through discover", () => {
     });
     expect(await discover(adapter, T0)).toBe(0);
     expect(calls).toBe(2);
-    expect(await discover(adapter, new Date(T0.getTime() + minutes(119)))).toBe(0);
+    expect(await discover(adapter, new Date(T0.getTime() + minutes(109)))).toBe(0);
     expect(runs().map((r) => r.status)).toEqual(["ok", "skipped"]);
     expect(calls).toBe(2);
-    await discover(adapter, new Date(T0.getTime() + minutes(120)));
+    await discover(adapter, new Date(T0.getTime() + minutes(110)));
     expect(runs().map((r) => r.status)).toEqual(["ok", "skipped", "ok"]);
     expect(calls).toBe(4);
   });

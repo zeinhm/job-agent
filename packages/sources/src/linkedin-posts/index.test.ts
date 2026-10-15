@@ -77,10 +77,10 @@ afterEach(() => {
 });
 
 describe("linkedin_posts adapter", () => {
-  it("is registered with a 180 minute interval", () => {
+  it("is registered with a 170 minute interval", () => {
     const found = buildAdapters(makeConfig()).filter((a) => a.name === "linkedin_posts");
     expect(found).toHaveLength(1);
-    expect(found[0]?.minIntervalMinutes).toBe(180);
+    expect(found[0]?.minIntervalMinutes).toBe(170);
   });
 
   it("maps a hiring post to a posting holding only the URL and own facts", async () => {

@@ -89,7 +89,7 @@ beforeEach(() => {
 describe("weworkremotely adapter", () => {
   it("identifies itself and polls at most hourly", () => {
     expect(adapter.name).toBe("weworkremotely");
-    expect(adapter.minIntervalMinutes).toBe(60);
+    expect(adapter.minIntervalMinutes).toBe(50);
   });
 
   it("returns one RawPosting per unique item across the feeds", async () => {

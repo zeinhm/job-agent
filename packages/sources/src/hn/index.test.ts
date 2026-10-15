@@ -74,8 +74,8 @@ beforeEach(() => {
 });
 
 describe("hn adapter", () => {
-  it("is named hn with a 360 minute interval", () => {
-    expect(createHnAdapter()).toMatchObject({ name: "hn", minIntervalMinutes: 360 });
+  it("is named hn with a 350 minute interval", () => {
+    expect(createHnAdapter()).toMatchObject({ name: "hn", minIntervalMinutes: 350 });
   });
 
   it("returns one RawPosting per top-level comment; replies produce none", async () => {

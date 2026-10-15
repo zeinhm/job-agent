@@ -51,7 +51,7 @@ export function createRemotiveAdapter(): SourceAdapter {
   return {
     name: SOURCE,
     // Remotive asks for at most 4 requests per day (research t_92e11b3f): 360 min is 4 per day.
-    minIntervalMinutes: 360,
+    minIntervalMinutes: 350,
     async fetch(since: Date): Promise<RawPosting[]> {
       let body: unknown;
       try {

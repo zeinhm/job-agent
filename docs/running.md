@@ -252,7 +252,7 @@ The `indeed` source (`pnpm job-agent discover --source indeed`) uses the same wo
 does two remote searches, 10 s apart, the same lookback window, at most 50 results each: "global remote" (`country_indeed = usa`
 with `is_remote`; Indeed has no worldwide site, so this one is US-scoped) and "Indonesia remote" (`location = Indonesia`,
 `country_indeed = indonesia`, `is_remote`), term `senior frontend OR "full stack" OR react OR typescript`. The poll
-interval is 2 hours: a run started sooner is recorded as `skipped` (`indeed: skipped (polled less than 120 min ago)`).
+interval is 110 minutes: a run started sooner is recorded as `skipped` (`indeed: skipped (polled less than 110 min ago)`).
 Indeed dates are whole days, so postings dated more than 48 h before the run are dropped. The apply link is
 `job_url_direct` when Indeed has one; Indeed is a board, so an ATS copy of the same job always wins in dedupe, and a
 domestic Indonesian company's posting is rejected by the Indonesia rule as for every source.

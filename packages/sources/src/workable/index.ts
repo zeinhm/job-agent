@@ -13,7 +13,7 @@ import { fetchAllBoards } from "../boards.ts";
 const SOURCE = "workable";
 const BASE_URL = "https://apply.workable.com/api/v1/widget/accounts";
 /** R3 (t_bb8a60de): no published limits, responses are cached; poll slowly. */
-const MIN_INTERVAL_MINUTES = 360;
+const MIN_INTERVAL_MINUTES = 350;
 
 const envelopeSchema = z.object({ jobs: z.array(z.unknown()) });
 

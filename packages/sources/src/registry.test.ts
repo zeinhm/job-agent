@@ -20,10 +20,10 @@ describe("buildAdapters", () => {
     expect(linkedin[0]?.minIntervalMinutes).toBe(50);
   });
 
-  it("always includes one indeed adapter with a 2 hour interval", () => {
+  it("always includes one indeed adapter with a 110 minute interval", () => {
     const indeed = buildAdapters(makeConfig()).filter((a) => a.name === "indeed");
     expect(indeed).toHaveLength(1);
-    expect(indeed[0]?.minIntervalMinutes).toBe(120);
+    expect(indeed[0]?.minIntervalMinutes).toBe(110);
   });
 
   it("always includes exactly one remoteok adapter", () => {
@@ -42,19 +42,19 @@ describe("buildAdapters", () => {
     const adapters = buildAdapters(makeConfig([{ name: "R", ats: "recruitee", slug: "r" }]));
     const recruitee = adapters.filter((a) => a.name === "recruitee");
     expect(recruitee).toHaveLength(1);
-    expect(recruitee[0]?.minIntervalMinutes).toBe(360);
+    expect(recruitee[0]?.minIntervalMinutes).toBe(350);
   });
 
-  it("always includes exactly one himalayas adapter with a 60 minute interval", () => {
+  it("always includes exactly one himalayas adapter with a 50 minute interval", () => {
     const himalayas = buildAdapters(makeConfig()).filter((a) => a.name === "himalayas");
     expect(himalayas).toHaveLength(1);
-    expect(himalayas[0]?.minIntervalMinutes).toBe(60);
+    expect(himalayas[0]?.minIntervalMinutes).toBe(50);
   });
 
-  it("always includes exactly one arbeitnow adapter with a 360 minute interval", () => {
+  it("always includes exactly one arbeitnow adapter with a 350 minute interval", () => {
     const arbeitnow = buildAdapters(makeConfig()).filter((a) => a.name === "arbeitnow");
     expect(arbeitnow).toHaveLength(1);
-    expect(arbeitnow[0]?.minIntervalMinutes).toBe(360);
+    expect(arbeitnow[0]?.minIntervalMinutes).toBe(350);
   });
 
   it("returns exactly one lever adapter when the config has lever companies", () => {
@@ -66,13 +66,13 @@ describe("buildAdapters", () => {
     );
     const levers = adapters.filter((a) => a.name === "lever");
     expect(levers).toHaveLength(1);
-    expect(levers[0]?.minIntervalMinutes).toBe(60);
+    expect(levers[0]?.minIntervalMinutes).toBe(50);
   });
 
   it("always includes exactly one hn adapter with a monthly-thread interval", () => {
     const hn = buildAdapters(makeConfig()).filter((a) => a.name === "hn");
     expect(hn).toHaveLength(1);
-    expect(hn[0]?.minIntervalMinutes).toBe(360);
+    expect(hn[0]?.minIntervalMinutes).toBe(350);
   });
 
   it("returns one adapter per configured ATS", () => {
@@ -93,6 +93,25 @@ describe("buildAdapters", () => {
     const adapters = buildAdapters(makeConfig()).filter((a) => a.name === "web3career");
     expect(adapters).toHaveLength(1);
     expect(adapters[0]?.minIntervalMinutes).toBe(5);
+  });
+});
+
+describe("poll interval slack", () => {
+  // bin/run-hourly fires every 60 min, so a run lands a little under or over 60 min after the last
+  // ok run. A minimum that is a whole multiple of 60 would skip the run just under it and wait a
+  // full extra hour (indeed showed "max gap 181 min, LATE" with a 120 min minimum).
+  it("no source's minimum interval is a whole multiple of 60 minutes", () => {
+    const config = makeConfig(
+      (["greenhouse", "lever", "ashby", "recruitee", "workable", "smartrecruiters"] as const).map(
+        (ats) => ({ name: ats, ats, slug: ats }),
+      ),
+    );
+    const adapters = buildAdapters(config);
+    expect(adapters.map((a) => a.name)).toEqual(
+      expect.arrayContaining(["linkedin", "indeed", "greenhouse", "lever", "smartrecruiters"]),
+    );
+    const noSlack = adapters.filter((a) => a.minIntervalMinutes % 60 === 0);
+    expect(noSlack.map((a) => `${a.name}=${a.minIntervalMinutes}`)).toEqual([]);
   });
 });
 
@@ -187,7 +206,7 @@ describe("buildAdapters workable", () => {
 });
 
 describe("buildAdapters smartrecruiters", () => {
-  it("returns one smartrecruiters adapter (360 minute interval) only with smartrecruiters companies", () => {
+  it("returns one smartrecruiters adapter (350 minute interval) only with smartrecruiters companies", () => {
     expect(
       buildAdapters(makeConfig([{ name: "A", ats: "lever", slug: "a" }])).map((a) => a.name),
     ).not.toContain("smartrecruiters");
@@ -198,6 +217,6 @@ describe("buildAdapters smartrecruiters", () => {
       ]),
     ).filter((a) => a.name === "smartrecruiters");
     expect(adapters).toHaveLength(1);
-    expect(adapters[0]?.minIntervalMinutes).toBe(360);
+    expect(adapters[0]?.minIntervalMinutes).toBe(350);
   });
 });

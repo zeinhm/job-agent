@@ -9,7 +9,7 @@ import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { z } from "zod";
 
 const SOURCE = "weworkremotely";
-const MIN_INTERVAL_MINUTES = 60;
+const MIN_INTERVAL_MINUTES = 50;
 
 const FEED_URLS = [
   "https://weworkremotely.com/categories/remote-front-end-programming-jobs.rss",

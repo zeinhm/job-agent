@@ -63,7 +63,7 @@ describe("ashby adapter", () => {
   it("exposes name and poll interval", () => {
     const adapter = createAshbyAdapter([acme], log);
     expect(adapter.name).toBe("ashby");
-    expect(adapter.minIntervalMinutes).toBe(60);
+    expect(adapter.minIntervalMinutes).toBe(50);
   });
 
   it("maps every listed job and requests compensation", async () => {

@@ -10,7 +10,7 @@ import { z } from "zod";
 
 const SOURCE = "remoteok";
 const API_URL = "https://remoteok.com/api";
-const MIN_INTERVAL_MINUTES = 240;
+const MIN_INTERVAL_MINUTES = 230;
 
 const envelopeSchema = z.array(z.unknown());
 

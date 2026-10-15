@@ -49,7 +49,7 @@ describe("remotive adapter", () => {
   it("has the expected name and the interval justified in the research doc", () => {
     const adapter = createRemotiveAdapter();
     expect(adapter.name).toBe("remotive");
-    expect(adapter.minIntervalMinutes).toBe(360);
+    expect(adapter.minIntervalMinutes).toBe(350);
   });
 
   it("maps every fixture job and requests the software-dev category", async () => {

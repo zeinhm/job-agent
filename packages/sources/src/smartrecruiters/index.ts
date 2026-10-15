@@ -14,7 +14,7 @@ const SOURCE = "smartrecruiters";
 const BASE_URL = "https://api.smartrecruiters.com/v1/companies";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
-const MIN_INTERVAL_MINUTES = 360;
+const MIN_INTERVAL_MINUTES = 350;
 /** Gap between requests to the API host; the detail call is one request per posting. */
 const REQUEST_INTERVAL_MS = 2000;
 

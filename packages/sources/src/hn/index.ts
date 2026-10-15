@@ -13,7 +13,7 @@ const API = "https://hn.algolia.com/api/v1";
 const SEARCH_URL = `${API}/search_by_date?tags=story,author_whoishiring&hitsPerPage=5`;
 const THREAD_TITLE_RE = /^Ask HN: Who is hiring\?/i;
 // The thread is monthly; polling more often than every 6 hours only wastes requests.
-const MIN_INTERVAL_MINUTES = 360;
+const MIN_INTERVAL_MINUTES = 350;
 
 const searchSchema = z.object({ hits: z.array(z.unknown()) });
 const hitSchema = z.object({ objectID: z.string().min(1), title: z.string() });

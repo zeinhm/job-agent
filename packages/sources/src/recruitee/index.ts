@@ -171,7 +171,7 @@ export function createRecruiteeAdapter(
   let warnings: string[] = [];
   return {
     name: SOURCE,
-    minIntervalMinutes: 360,
+    minIntervalMinutes: 350,
     async fetch(since: Date): Promise<RawPosting[]> {
       warnings = [];
       const result = await fetchAllBoards(SOURCE, companies, (company) =>

@@ -73,7 +73,7 @@ describe("indeed searches", () => {
         country: "indonesia",
       },
     ]);
-    expect(INDEED_MIN_INTERVAL_MINUTES).toBe(120);
+    expect(INDEED_MIN_INTERVAL_MINUTES).toBe(110);
     expect(INDEED_RESULTS_WANTED).toBeLessThanOrEqual(50);
   });
 
@@ -85,7 +85,7 @@ describe("indeed searches", () => {
     });
     await adapter.fetch(NOW);
     expect(adapter.name).toBe("indeed");
-    expect(adapter.minIntervalMinutes).toBe(120);
+    expect(adapter.minIntervalMinutes).toBe(110);
     // since = now -> 1 h lookback on top of the fixed searches
     expect(seen).toEqual(INDEED_SEARCHES.map((x) => ({ ...x, hours_old: 1 })));
   });

@@ -12,7 +12,7 @@ const BASE_URL = "https://www.arbeitnow.com/api/job-board-api";
 // Research t_bb8a60de: 100 jobs per page, newest first, hourly refresh, rate limit header 50.
 // At most 5 pages per run; the shared HTTP client spaces requests to the same host.
 const MAX_PAGES = 5;
-const MIN_INTERVAL_MINUTES = 360;
+const MIN_INTERVAL_MINUTES = 350;
 
 const envelopeSchema = z.object({
   data: z.array(z.unknown()),

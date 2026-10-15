@@ -44,7 +44,7 @@ export const LINKEDIN_SEARCHES: readonly WorkerSearch[] = [
  * postings dated more than 48 h before the run are dropped in TS.
  */
 export const INDEED_RESULTS_WANTED = 50;
-export const INDEED_MIN_INTERVAL_MINUTES = 120;
+export const INDEED_MIN_INTERVAL_MINUTES = 110;
 export const INDEED_MAX_AGE_HOURS = 48;
 export const INDEED_SEARCH_TERM = 'senior frontend OR "full stack" OR react OR typescript';
 export const INDEED_SEARCHES: readonly WorkerSearch[] = [

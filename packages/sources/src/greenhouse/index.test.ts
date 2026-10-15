@@ -49,7 +49,7 @@ describe("greenhouse adapter", () => {
   it("has the expected name and interval", () => {
     const adapter = createGreenhouseAdapter([acme]);
     expect(adapter.name).toBe("greenhouse");
-    expect(adapter.minIntervalMinutes).toBe(60);
+    expect(adapter.minIntervalMinutes).toBe(50);
   });
 
   it("maps every fixture job and requests the board with content=true", async () => {

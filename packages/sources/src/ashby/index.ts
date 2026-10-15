@@ -173,7 +173,7 @@ export function createAshbyAdapter(
   let warnings: string[] = [];
   return {
     name: SOURCE,
-    minIntervalMinutes: 60,
+    minIntervalMinutes: 50,
     async fetch(since: Date): Promise<RawPosting[]> {
       warnings = [];
       const result = await fetchAllBoards(SOURCE, companies, (company) =>
