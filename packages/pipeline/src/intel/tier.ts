@@ -142,6 +142,9 @@ export function decideTierAndAsk(
   let askText: string | null = null;
   let configuredUsdYear: number | null = null;
   const notes: string[] = [];
+  if (payPolicy.source?.startsWith("owner:")) {
+    notes.push(`pay policy from owner ${payPolicy.source.slice("owner:".length)}`);
+  }
   // Unknown pay policy (including a US legal note): the owner's own ask, else the regional one. The floor check below
   // still applies. The tier label stays `regional`.
   const unknownAsk = salary.unknown_tier_ask?.ask_idr_month;

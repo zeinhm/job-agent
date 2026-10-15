@@ -7,12 +7,12 @@ export type PayPolicy = KnownPayPolicy | "unknown";
 
 export interface CompanyPayPolicy {
   policy: PayPolicy;
-  /** `posting:<id>`, `careers:<url>`, `manual`, or null when never set. */
+  /** `posting:<id>`, `careers:<url>`, `manual`, `owner:<YYYY-MM-DD>`, or null when never set. */
   source: string | null;
 }
 
 /** Sources a posting must never overwrite (human decision or the company's own careers page). */
-const PROTECTED_SOURCE = /^(manual|careers:)/;
+const PROTECTED_SOURCE = /^(manual|careers:|owner:)/;
 
 /** Registry lookup for the tier card. Unknown company or never-set policy -> `unknown`. */
 export function payPolicyFor(db: Db, companyId: string | null): CompanyPayPolicy {

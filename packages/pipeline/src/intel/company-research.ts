@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, like, not, or } from "drizzle-orm";
 import { isPlaceholderCompany } from "../apply-links/placeholder.ts";
 import {
   callStructured,
@@ -26,8 +26,8 @@ const MIN_INTERVAL_MS = 2000;
 /** A company is looked up at most once per this many days (PLAN 5.3). */
 export const RESEARCH_INTERVAL_DAYS = 90;
 const DAY_MS = 86_400_000;
-/** The registry never replaces a human decision. */
-const PROTECTED_SOURCE = /^manual/;
+/** The registry never replaces a human decision (`manual`, or the owner's dashboard mark `owner:<date>`). */
+const PROTECTED_SOURCE = /^(manual|owner:)/;
 /** Public pages the company itself publishes; tried in order, at most MAX_PAGES. */
 /** `pay_policy_source` marker written by a check that had no domain to look at. */
 const NO_DOMAIN_SOURCE = "research:no domain";
@@ -212,10 +212,18 @@ export function isDueForResearch(
 
 const squash = (s: string): string => s.replace(/\s+/g, " ").trim().toLowerCase();
 
+/** The company row, unless an owner mark protects it (the owner may mark while a lookup is in flight). */
+function notOwnerMarked(companyId: string) {
+  return and(
+    eq(companies.id, companyId),
+    or(isNull(companies.pay_policy_source), not(like(companies.pay_policy_source, "owner:%"))),
+  );
+}
+
 function markChecked(db: Db, companyId: string, at: Date, source: string): void {
   db.update(companies)
     .set({ pay_policy_checked_at: at.toISOString(), pay_policy_source: source })
-    .where(eq(companies.id, companyId))
+    .where(notOwnerMarked(companyId))
     .run();
 }
 
@@ -334,14 +342,16 @@ export async function researchCompanyPayPolicy(
     ) {
       const source = `careers:${page.url}`;
       const quote = result.quote.replace(/\s+/g, " ").trim();
-      db.update(companies)
+      const written = db
+        .update(companies)
         .set({
           pay_policy: result.classification,
           pay_policy_source: source,
           pay_policy_checked_at: now.toISOString(),
         })
-        .where(eq(companies.id, companyId))
+        .where(notOwnerMarked(companyId))
         .run();
+      if (written.changes === 0) return { kind: "skipped", reason: "policy set by the owner" };
       log.info("company research", {
         company_id: companyId,
         outcome: "found",

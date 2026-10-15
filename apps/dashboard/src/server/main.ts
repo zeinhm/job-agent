@@ -1,4 +1,4 @@
-import { defaultDbPath, openDb } from "@job-agent/core";
+import { defaultDbPath, loadConfig, openDb } from "@job-agent/core";
 import { parseArgs } from "./args.ts";
 import { selfCheck } from "./self-check.ts";
 import { startServer } from "./server.ts";
@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     process.exit(await selfCheck(db, (line) => console.log(line)));
   }
   try {
-    const server = await startServer(db, { port: args.port });
+    const server = await startServer(db, { port: args.port, salary: () => loadConfig().salary });
     console.log(`dashboard: http://127.0.0.1:${server.port}/`);
     const stop = () => void server.close().then(() => process.exit(0));
     process.on("SIGINT", stop);

@@ -145,6 +145,34 @@ describe("company pay-policy research", () => {
     expect(apiCalls).toBe(0);
   });
 
+  it("never overwrites an owner mark, even when the research disagrees", async () => {
+    // Owner marked adjusted; the careers page (fixture) says location_agnostic.
+    const owner = {
+      pay_policy: "location_adjusted",
+      pay_policy_source: "owner:2026-10-08",
+      pay_policy_checked_at: "2026-10-08T00:00:00.000Z",
+    } as const;
+    db.update(companies).set(owner).run();
+    expect(isDueForResearch({ ...owner, domain: "acme.example" }, NOW)).toBe(false);
+    expect((await researchCompanyPayPolicy("c1", deps())).kind).toBe("skipped");
+    expect(row()).toMatchObject(owner);
+    expect(apiCalls).toBe(0);
+
+    // The owner marks while a lookup is in flight: the write after the model call is refused.
+    db.update(companies)
+      .set({ pay_policy: "unknown", pay_policy_source: null, pay_policy_checked_at: null })
+      .run();
+    respond = () => {
+      db.update(companies).set(owner).run();
+      return HttpResponse.json(fixture("company-research-flat.json"));
+    };
+    expect(await researchCompanyPayPolicy("c1", deps())).toEqual({
+      kind: "skipped",
+      reason: "policy set by the owner",
+    });
+    expect(row()).toMatchObject(owner);
+  });
+
   it("fetch failure keeps the policy unknown, sets checked_at, logs the reason, makes no LLM call", async () => {
     pageHandler = () => new HttpResponse("nope", { status: 404 });
     const out = await researchCompanyPayPolicy("c1", deps());

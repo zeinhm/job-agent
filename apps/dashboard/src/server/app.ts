@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import type { Db } from "@job-agent/core";
+import type { Db, SalaryConfig } from "@job-agent/core";
 import {
   getPostingDetail,
   getQueue,
@@ -10,6 +10,7 @@ import {
   jakartaDate,
   recordReview,
   ReviewInputSchema,
+  ReviewRejectedError,
 } from "@job-agent/pipeline/review";
 import { hostGuard, mutationGuard, securityHeaders, type PortSource } from "./guards.ts";
 import { staticHandler } from "./static.ts";
@@ -22,6 +23,8 @@ export interface AppOptions {
   /** Clock, for the default day and review timestamps. */
   now?: () => Date;
   port: PortSource;
+  /** Salary config, read only when an owner pay-policy mark needs a tier recompute. Throwing gives a 500. */
+  salary?: () => SalaryConfig;
   /** Built web app (Vite output). Defaults to apps/dashboard/dist/web. */
   webDir?: string;
   /** Error log sink; one line per error, never bodies or row content. */
@@ -64,7 +67,15 @@ export function createApp(db: Db, opts: AppOptions): Hono {
 
   app.post("/api/reviews", async (c) => {
     const input = await parseBody(c, ReviewInputSchema);
-    const recorded = recordReview(db, input, (opts.now ?? (() => new Date()))());
+    let recorded;
+    try {
+      recorded = recordReview(db, input, (opts.now ?? (() => new Date()))(), {
+        ...(opts.salary !== undefined ? { salary: opts.salary } : {}),
+      });
+    } catch (e) {
+      if (e instanceof ReviewRejectedError) return c.json({ error: e.message }, 400);
+      throw e;
+    }
     if (recorded === null) return c.json({ error: "not found" }, 404);
     return c.json(recorded, 201);
   });

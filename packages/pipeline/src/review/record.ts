@@ -1,17 +1,21 @@
 import { randomUUID } from "node:crypto";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   apply_links,
+  companies,
   intel,
   NOT_INTERESTED_REASONS,
   postings,
   REVIEW_ACTIONS,
   reviews,
   type Db,
+  type SalaryConfig,
 } from "@job-agent/core";
 import { applyOwnerApplyCorrection } from "../apply-links/owner.ts";
 import { jakartaDate } from "../digest/selection.ts";
+import { computeTier } from "../enrich.ts";
+import type { KnownPayPolicy } from "../intel/registry.ts";
 import { reviewState, type ReviewState } from "./state.ts";
 
 const httpUrl = z
@@ -91,18 +95,86 @@ export interface RecordedReview {
   state: ReviewState;
 }
 
+/** The review cannot be applied as asked (maps to HTTP 400). Nothing was stored. */
+export class ReviewRejectedError extends Error {}
+
+export interface RecordOptions {
+  /** Salary config for the `pay_policy` recompute; read only when such a review comes in. */
+  salary?: () => SalaryConfig;
+}
+
+/**
+ * Owner pay-policy mark: sets the company's registry policy (source `owner:<date>`), then recomputes tier and ask for
+ * every kept intel row of that company with the pure tier function. No LLM, no network. A row without a stored FX
+ * rate keeps its old values (the next `enrich` fills it).
+ */
+function applyPayPolicy(
+  t: Db,
+  postingId: string,
+  policy: KnownPayPolicy,
+  salary: SalaryConfig,
+  now: Date,
+): void {
+  const posting = t.select().from(postings).where(eq(postings.id, postingId)).get();
+  const company =
+    posting?.company_id == null
+      ? undefined
+      : t.select().from(companies).where(eq(companies.id, posting.company_id)).get();
+  if (company === undefined) throw new ReviewRejectedError("posting has no company");
+  const at = now.toISOString();
+  t.update(companies)
+    .set({
+      pay_policy: policy,
+      pay_policy_source: `owner:${jakartaDate(now)}`,
+      pay_policy_checked_at: at,
+    })
+    .where(eq(companies.id, company.id))
+    .run();
+  const rows = t
+    .select({ posting: postings, intel })
+    .from(intel)
+    .innerJoin(postings, eq(postings.id, intel.posting_id))
+    .where(
+      and(
+        eq(postings.company_id, company.id),
+        eq(intel.final_decision, "keep"),
+        isNotNull(intel.extraction),
+      ),
+    )
+    .all();
+  for (const r of rows) {
+    const tier = computeTier(t, r.posting, r.intel.extraction as string, salary, now);
+    if (tier === null) continue;
+    t.update(intel)
+      .set({ ...tier, updated_at: at })
+      .where(eq(intel.id, r.intel.id))
+      .run();
+  }
+}
+
 /**
  * Appends one review row for the canonical posting, with a snapshot of what the tool said at review time.
- * Returns null when the posting id is unknown. `wrong_apply_link` also corrects the stored apply link; the
- * `pay_policy` side effect is not applied here.
+ * Returns null when the posting id is unknown; throws ReviewRejectedError for a `pay_policy` mark on a posting
+ * without a company. A `pay_policy` review also corrects the registry and recomputes tier and ask for the company.
+ * `wrong_apply_link` also corrects the stored apply link.
  */
-export function recordReview(db: Db, input: ReviewInput, now: Date): RecordedReview | null {
+export function recordReview(
+  db: Db,
+  input: ReviewInput,
+  now: Date,
+  opts: RecordOptions = {},
+): RecordedReview | null {
   return db.transaction((tx) => {
     const t = tx as unknown as Db;
     const postingId = canonicalPostingId(t, input.posting_id);
     if (postingId === null) return null;
+    // Read before the recompute: the review row shows what the tool said when the owner looked.
     const i = t.select().from(intel).where(eq(intel.posting_id, postingId)).get();
     const link = t.select().from(apply_links).where(eq(apply_links.posting_id, postingId)).get();
+    if (input.action === "pay_policy" && input.pay_policy !== undefined) {
+      if (opts.salary === undefined) throw new Error("salary config not available");
+      applyPayPolicy(t, postingId, input.pay_policy, opts.salary(), now);
+    }
     const row: ReviewRow = {
       id: randomUUID(),
       posting_id: postingId,

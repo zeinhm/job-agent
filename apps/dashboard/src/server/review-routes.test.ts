@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { openDb, reviews, type Db } from "@job-agent/core";
+import { openDb, reviews, type Db, type SalaryConfig } from "@job-agent/core";
 import { seedDemo } from "@job-agent/pipeline/seed-demo";
 import { createApp } from "./app.ts";
 
@@ -17,7 +17,27 @@ beforeEach(() => {
   logs = [];
 });
 
-const app = () => createApp(db, { port: PORT, now: () => NOW, logError: (l) => logs.push(l) });
+// Fake salary config (the dashboard reads the owner's salary.yaml; tests never do).
+const SALARY: SalaryConfig = {
+  floor_idr_month: 10_000_000,
+  position_in_listed_range: 0.5,
+  tiers: {
+    indonesia: { ask_idr_month: 12_000_000 },
+    regional: { ask_idr_month: 20_000_000 },
+    global_adjusted: { ask_idr_month: 30_000_000 },
+    global_flat: { ask_usd_year: 60_000 },
+  },
+  unknown_policy: "ask",
+  text_field_answer: "negotiable",
+  review_salary_answers: true,
+};
+const app = () =>
+  createApp(db, {
+    port: PORT,
+    now: () => NOW,
+    salary: () => SALARY,
+    logError: (l) => logs.push(l),
+  });
 const get = (path: string) => app().request(`http://x${path}`, { headers: { Host: HOST } });
 const post = (body: unknown, raw = false) =>
   app().request("http://x/api/reviews", {
@@ -158,6 +178,35 @@ describe("POST /api/reviews", () => {
       "pay_policy",
       "wrong_apply_link",
     ]);
+  });
+
+  it("pay_policy sets the company's registry row with an owner source", async () => {
+    const res = await post({
+      posting_id: TOP,
+      action: "pay_policy",
+      pay_policy: "location_agnostic",
+    });
+    expect(res.status).toBe(201);
+    const company = db.$client
+      .prepare("select c.* from companies c join postings p on p.company_id = c.id where p.id = ?")
+      .get(TOP);
+    expect(company).toMatchObject({
+      pay_policy: "location_agnostic",
+      pay_policy_source: "owner:2026-03-10",
+      pay_policy_checked_at: NOW.toISOString(),
+    });
+  });
+
+  it("pay_policy on a posting without a company is a 400 and stores nothing", async () => {
+    db.$client.prepare("update postings set company_id = null where id = ?").run(TOP);
+    const res = await post({
+      posting_id: TOP,
+      action: "pay_policy",
+      pay_policy: "location_agnostic",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "posting has no company" });
+    expect(db.select().from(reviews).all()).toHaveLength(0);
   });
 
   it("maps a non-canonical id to the canonical posting", async () => {

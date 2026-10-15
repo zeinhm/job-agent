@@ -10,6 +10,8 @@ export {
   canonicalPostingId,
   recordReview,
   ReviewInputSchema,
+  ReviewRejectedError,
+  type RecordOptions,
   type RecordedReview,
   type ReviewInput,
 } from "./record.ts";
