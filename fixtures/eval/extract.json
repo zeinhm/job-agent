@@ -1,0 +1,548 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "gs-001",
+      "title": "Senior Software Engineer - Predict",
+      "company": "Consensys",
+      "location": "195 countries",
+      "salaryText": null,
+      "description": "While we have a pretty good idea of what we need, we're ready for you to challenge our thinking on who needs to be in this role. The salary range listed for this role applies to US-based candidates only. Compensation for candidates based outside the US (including Canada, EMEA, and LATAM) will be determined based on location, experience, and skills during the interview process, and may differ from the listed US range. US pay range (not including bonus, equity or other benefits) $156,884—$220,520 USD In the rapidly evolving Web3 space, we believe that everyone is a builder. This",
+      "expected": {
+        "listedSalary": {
+          "min": 156884,
+          "max": 220520,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "region",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "web3_protocol",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-002",
+      "title": "Fullstack Engineer (TypeScript), AI Engineering: Duo Client SDK",
+      "company": "GitLab",
+      "location": null,
+      "salaryText": null,
+      "description": "Remote-Global The base salary range for this role’s listed level is currently for residents of the United States only. This range is intended to reflect the role's base salary rate in locations throughout the US. Grade level and salary ranges are det […] United States Salary Range $115,200 — $194,400 USD How GitLab Supports Full-Time Employees",
+      "expected": {
+        "listedSalary": {
+          "min": 115200,
+          "max": 194400,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": null,
+        "companyType": "product"
+      }
+    },
+    {
+      "id": "gs-004",
+      "title": "Senior Software Engineer, Stablecoins",
+      "company": "Coinbase",
+      "location": "United States",
+      "salaryText": null,
+      "description": "human oversight to deliver business-ready outputs and drive measurable improvements in workflow efficiency, cost, and quality. Pay Transparency Notice: Base salary varies by location (see range below). Total compensation may also include equity and bonus eligibility, and benefits (medical, dental, vision, 401(k)). Annual base salary range (excluding equity and bonus): $186,065—$218,900 USD Application Limit: Candidates may submit a maximum of 3 applications within a 6-month period. Equal Opportunity Employer: Coinbase is an Equal Opportunity Employer. All qualified applicants will",
+      "expected": {
+        "listedSalary": {
+          "min": 186065,
+          "max": 218900,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "enterprise",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-006",
+      "title": "Seeq (HN who-is-hiring comment)",
+      "company": "Seeq",
+      "location": null,
+      "salaryText": "170000-205000 USD per year",
+      "description": "Seeq | [link] | Staff/Principal Software Engineer (Full-Stack, AI, Backend, Platform) | REMOTE (Some crossover w/ PST required) | Full-time | $170k-$205k + annual cash bonus + equity. Salary range for US-based; local adjustments for other countries. Seeq creates cutting-edge data analytics software for industrial process data, serving sectors like pharmaceuticals, energy, and manufacturing. Our core product is a robust calculation engine capable of executing advanced math and machine learning algorithms on streaming time-series data. By leveraging generative AI, we enhance",
+      "expected": {
+        "listedSalary": {
+          "min": 170000,
+          "max": 205000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": "lead",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-007",
+      "title": "Senior Software Engineer, Frontend",
+      "company": "Phantom",
+      "location": null,
+      "salaryText": null,
+      "description": "Take time when you need it (and we really mean it!) - 401(k) retirement plan - Wellness benefit - Daily lunch benefit The target base salary for this role will range between $180,000 to $220,000 with the addition of equity and benefits. This is determined by a few factors including your skillset, prior relevant experience, quality of interviews and market factors (such as location) at the point in time of offer. #LI-DNP We strongly encourage candidates of all backgrounds to apply. We believe that our work is stronger with a variety of perspectives, and we’re eager to further",
+      "expected": {
+        "listedSalary": {
+          "min": 180000,
+          "max": 220000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": null,
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "web3_protocol",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-011",
+      "title": "Senior Frontend Developer",
+      "company": "Ooga Booga",
+      "location": "United States",
+      "salaryText": "100000-999999 USD per year",
+      "description": "our vision of a more inclusive and transparent financial ecosystem. Let's embark on this transformative journey together! Salary: 100K - 999,999 USD a year Originally posted on Himalayas",
+      "expected": {
+        "listedSalary": {
+          "min": 100000,
+          "max": 999999,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": null,
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "web3_protocol"
+      }
+    },
+    {
+      "id": "gs-013",
+      "title": "Contract Staff Front End Engineer (Web Conference/Screen Sharing)",
+      "company": "Mozilla",
+      "location": null,
+      "salaryText": null,
+      "description": "(browser-chrome, mochitest) Experience using AI tooling effectively in front-end development Open source environment experience Hiring Ranges: Canada Tier 1 Locations $145,000 — $170,800 CAD Canada Tier 2 Locations $154,000 — $168,000 USD",
+      "expected": {
+        "listedSalary": {
+          "min": 145000,
+          "max": 170800,
+          "currency": "CAD",
+          "period": "year"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": "contractor",
+        "seniority": "lead",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-014",
+      "title": "Sr./Staff/Principal Software Engineer (Frontend/Fullstack)",
+      "company": "Voltaiq",
+      "location": "United States",
+      "salaryText": null,
+      "description": "similar design tools Experience with Django Experience with numpy and pandas Experience with generative AI a plus Voltaiq is a remote-first company, and salaries are adjusted for cost of labor in each city. The salary range for this position is $120,000 - $180,000 + equity, depending on location and experience. Voltaiq is an equal opportunity employer and is committed to achieving a diverse workforce through application of its equal opportunity and nondiscrimination policy, in all aspects of employment. Originally posted on Himalayas",
+      "expected": {
+        "listedSalary": {
+          "min": 120000,
+          "max": 180000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": "lead",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-017",
+      "title": "Staff Backend Software Engineer - Loki | Singapore | Remote",
+      "company": "Grafana Labs",
+      "location": "Singapore",
+      "salaryText": null,
+      "description": "to learn. Familiarity with being on-call and performing operations/SRE tasks or with the concept of infrastructure as code. Compensation & Rewards: In Singapore, the Base compensation range for this role is SGD 167,000 to SGD 209,000. Actual compensation may vary based on level, experience, and skillset as assessed in the interview process. Benefits include equity, bonus (if applicable) and other benefits listed here. *Compensation ranges are country specific. If you are applying for this role from a different location than listed above, your recruiter will discuss your specific",
+      "expected": {
+        "listedSalary": {
+          "min": 167000,
+          "max": 209000,
+          "currency": "SGD",
+          "period": "year"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": "lead",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-018",
+      "title": "SerpApi (HN who-is-hiring comment)",
+      "company": "SerpApi",
+      "location": null,
+      "salaryText": "150000-180000 USD per year",
+      "description": "SerpApi | [link] | Junior to Senior Fullstack Engineer multiple positions | Customer Success Engineer | Hiring Coordinator | Python/Ruby/PHP/Js/Rust/Kotlin/C#/Crystal/Nim/Elixir Developer Advocate positions | Based in Austin, TX but remote-first structure | Full-time | ONSITE or FULLY REMOTE | $150K - 180K a year 1099 for US or local avg + 20% for outside the US SerpApi is the leading API to scrape and parse search engine results. We provide 100+ APIs to Google, Google Maps, Google Images, Bing, Baidu, and more. Our current stack is Ruby, Rails, MongoDB, and React.JS. We",
+      "expected": {
+        "listedSalary": {
+          "min": 150000,
+          "max": 180000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": "location_adjusted",
+        "employment": "contractor",
+        "seniority": "senior",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-020",
+      "title": "Lead Engineer, AI Platform",
+      "company": "(client of Jobgether)",
+      "location": null,
+      "salaryText": null,
+      "description": "equivalent to CEFR C2 / ILR 5. Strong alignment with a collaborative, ownership-oriented engineering culture. Benefits: Annual cash compensation of $170,000 USD, benchmarked to U.S. compensation levels regardless of location. Equity in the company, including ongoing refresh grants. 35 days of paid time off per year. Fully remote work environment. Significant flexibility and autonomy in how you organize your work. Twice-yearly company retreats in international destinations. Benefits supporting health, wellbeing, and professional development. Opportunity to lead and grow an AI Quality",
+      "expected": {
+        "listedSalary": {
+          "min": 170000,
+          "max": 170000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": "location_agnostic",
+        "employment": null,
+        "seniority": "lead",
+        "companyType": "talent_marketplace"
+      }
+    },
+    {
+      "id": "gs-021",
+      "title": "Tech Job Finder (HN who-is-hiring comment)",
+      "company": "Tech Job Finder",
+      "location": null,
+      "salaryText": null,
+      "description": "GROWTH HACKER - GLOBAL - $50/HR Tech Job Finder is building an end-to-end platform for software engineers to get ready for all stages of interviewing. We recently raised a small seed round and now looking for a Growth Hacker to do B2C marketing for us. Think of it as a HackerRank challenger, packing many more features and all at a price of lunch. Since launching earlier this year, we have helped more than 100 software engineers to get ready for their next DSA interview. We realise it isn't a lot, but we are already post pmf. Ideally you have DevRel experience. Reach out with a",
+      "expected": {
+        "listedSalary": {
+          "min": 50,
+          "max": 50,
+          "currency": "USD",
+          "period": "hour"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": null,
+        "companyType": "product"
+      }
+    },
+    {
+      "id": "gs-022",
+      "title": "Search Atlas (HN who-is-hiring comment)",
+      "company": "Search Atlas",
+      "location": null,
+      "salaryText": null,
+      "description": "Search Atlas | Product Engineer (Product Manager role, not a Full-stack role) | REMOTE (anywhere, EST hours) | Full-time contractor | $23-$34 USD/hour | [link] We're ~160 people, fully remote, building an AI marketing platform. Our main product is OTTO, which runs a site's SEO on its own - it reads live search data and pushes the technical and on-page fixes itself, nobody queues them up. Around that we've got ad automation for Google and Meta, GBP management for multi-location brands, content gen, and LLM visibility tracking",
+      "expected": {
+        "listedSalary": {
+          "min": 23,
+          "max": 34,
+          "currency": "USD",
+          "period": "hour"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": null,
+        "companyType": "product"
+      }
+    },
+    {
+      "id": "gs-023",
+      "title": "Privy.pro (HN who-is-hiring comment)",
+      "company": "Privy.pro",
+      "location": null,
+      "salaryText": null,
+      "description": "Privy.pro | Growth Marketing Engineer (AI-First) | REMOTE (Americas: US or LatAm) | Part-time contract, path to full-time | $3,500-$5,000 USD/month Privy.pro is an established software platform for residential real estate investors and agents, with a paying user base and seven-figure recurring revenue. Our intelligence is live: we track investor activity and market changes as they happen, and our patented algorithms turn that into personalized deal and market intelligence. We're looking for someone who builds growth systems with AI rather than just running campaigns. You'll work",
+      "expected": {
+        "listedSalary": {
+          "min": 3500,
+          "max": 5000,
+          "currency": "USD",
+          "period": "month"
+        },
+        "hiringScope": "region",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": null,
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-024",
+      "title": "AssumeAI (HN who-is-hiring comment)",
+      "company": "AssumeAI",
+      "location": null,
+      "salaryText": null,
+      "description": "AssumeAI | AI Engineer (£30/hr) and Senior AI Engineer (£50/hr) | Contract | REMOTE (UK) | [link] We are a fast-growing AI startup. We help SMEs find where AI will produce a measurable return, then build the systems that deliver it: AI agents, Claude skills and production-grade business software, up to full business and enterprise systems. Stack: Claude Code, Vercel, Supabase. A good fit for software engineers moving into AI engineering: - Two weeks of paid AI training in our framework and methods before your first project. - Projects typically run over several months,",
+      "expected": {
+        "listedSalary": {
+          "min": 30,
+          "max": 50,
+          "currency": "GBP",
+          "period": "hour"
+        },
+        "hiringScope": "countries",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": null,
+        "companyType": "agency",
+        "companyHq": "UK"
+      }
+    },
+    {
+      "id": "gs-025",
+      "title": "Support Engineer (APAC)",
+      "company": "Supabase",
+      "location": null,
+      "salaryText": null,
+      "description": "a required location in APAC time zones (we don’t believe in sustainability of overnight shifts). WHAT WE OFFER - Fully Remote We hire globally. We believe you can do your best work from anywhere. There are no Supabase offices, but we provide a WeWork membership or co-working allowance you can use anywhere in the world. - ESOP Every team member receives ESOP (equity ownership) in the company. We want everyone to share in the upside of what we’re building together. - Tech Allowance Use this budget to set up your ideal work environment—laptop, monitor, headphones, or whatever helps you",
+      "expected": {
+        "listedSalary": null,
+        "hiringScope": "region",
+        "payPolicy": null,
+        "employment": null,
+        "seniority": null,
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-026",
+      "title": "Partnerships Manager, Ecosystem",
+      "company": "Supabase",
+      "location": null,
+      "salaryText": null,
+      "description": "- Hands-on experience building with Supabase or AI-powered tools (Lovable, Bolt, Figma, v0, etc.) We Offer - 100% remote, no location-based salary adjustments - Autonomous work environment - Comprehensive health, vision, and dental — 100% for employees, 80% for dependents - Tech Allowance + Annual Education Allowance - Annual company off-sites WHAT WE OFFER - Fully Remote We hire globally. We believe you can do your best work from anywhere. There are no Supabase offices, but we provide a WeWork membership or co-working allowance you can use anywhere in the world. - ESOP Every team",
+      "expected": {
+        "listedSalary": null,
+        "hiringScope": "region",
+        "payPolicy": "location_agnostic",
+        "employment": null,
+        "seniority": null,
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-030",
+      "title": "Senior Frontend Engineer",
+      "company": "GitLab",
+      "location": null,
+      "salaryText": null,
+      "description": "every single qualification. If you're excited about this role, please apply and allow our recruiters to assess your application. Country Hiring Guidelines: GitLab hires new team members in countries around the world. All of our roles are remote, however some roles may carry specific location-based eligibility requirements. Our Talent Acquisition team can help answer any questions about location after starting the recruiting process. Privacy Policy: Please review our Recruitment Privacy Policy. Your privacy is important to us. GitLab is proud to be an equal opportunity workplace and",
+      "expected": {
+        "listedSalary": null,
+        "hiringScope": "countries",
+        "payPolicy": null,
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "product"
+      }
+    },
+    {
+      "id": "gs-036",
+      "title": "Sales Manager: Indonesia",
+      "company": "Kate Worthington (recruiter for an unnamed client)",
+      "location": "Indonesia",
+      "salaryText": "58000000-70000000 IDR per month",
+      "description": "(Contract Development and Manufacturing Organization), and Vaccines .) Working Condition : WFA Location : Jakarta, Indonesia Pay Rate : IDR 58M to IDR 70M Sales Manager Indonesia Our client is seeking a Sales Manager to drive growth and expand our footprint within Indonesia. Our client provides cutting-edge solutions to the life science sector, focusing on areas such as Pharma, Biotech, Cell and Gene Therapy, CDMO, Vaccines, and more. By offering Best-in-Class Manufacturing Execution Systems, our client supports companies in advancing toward Pharma 4.0 and achieving digital",
+      "expected": {
+        "listedSalary": {
+          "min": 58000000,
+          "max": 70000000,
+          "currency": "IDR",
+          "period": "month"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "agency",
+        "indonesiaExplicit": true
+      }
+    },
+    {
+      "id": "gs-038",
+      "title": "Fullstack Ruby on Rails Software Engineer (Remote Contractor - APAC Region)",
+      "company": "Major League Hacking",
+      "location": "53 countries",
+      "salaryText": "1500000-2600000 INR per year",
+      "description": "You'll implement and benefit from industry best-practices including code reviews, pair programming, CI/CD, testing, and more. Debug and resolve production issues as they arise Collaborate with product and design on feature specifications and technical approach About Major League Hacking (MLH): Major League Hacking (MLH) is rethinking technical education for the modern world. Now that every company is a technology company, we need faster and more effective ways to train the talent that everyone depends on. Our unique hands-on, community-driven approach has helped more than 1,000,000",
+      "expected": {
+        "listedSalary": {
+          "min": 1500000,
+          "max": 2600000,
+          "currency": "INR",
+          "period": "year"
+        },
+        "hiringScope": "region",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": null,
+        "companyType": "enterprise",
+        "companyHq": "US",
+        "indonesiaExplicit": true
+      }
+    },
+    {
+      "id": "gs-041",
+      "title": "🌴 Collections & Customer Support Specialist - Job Code: 1791226066217",
+      "company": "Coconut",
+      "location": "Philippines",
+      "salaryText": null,
+      "description": "in their work. We're currently looking for top talent to fill the role below: Role : Collections & Customer Support Specialist Monthly Rate : $1250 - $2150/month Availability : Full-time - 40 hours/week Time Zone : PDT Business Hours ================================================== To streamline your application, please carefully review and complete ALL THREE items below before proceeding to the application form. What to Prepare: 1️⃣ English Proficiency Rating – You will need to enter your CEFR English proficiency level in the application form. If you’re unsure of your rating, you",
+      "expected": {
+        "listedSalary": {
+          "min": 1250,
+          "max": 2150,
+          "currency": "USD",
+          "period": "month"
+        },
+        "hiringScope": "countries",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": null,
+        "companyType": "talent_marketplace"
+      }
+    },
+    {
+      "id": "gs-043",
+      "title": "AI Engineer | India",
+      "company": "Volga Partners",
+      "location": "India",
+      "salaryText": null,
+      "description": "latency, and cost. Work effectively with distributed global teams and adapt to evolving priorities. Compensation & Benefits Annual Compensation: ₹15,00,000-₹22,00,000 (15-22 LPA), based on experience and technical expertise. Contract and payment administration facilitated through Deel. 90-day probationary period. Benefits eligibility upon successful completion of probation, including: Paid Time Off (PTO) in accordance with company policy. Holiday pay for company-observed holidays. Career growth and professional development opportunities. Work Environment This is a fully remote",
+      "expected": {
+        "listedSalary": {
+          "min": 1500000,
+          "max": 2200000,
+          "currency": "INR",
+          "period": "year"
+        },
+        "hiringScope": "countries",
+        "payPolicy": "location_adjusted",
+        "employment": "eor",
+        "seniority": null,
+        "companyType": "agency"
+      }
+    },
+    {
+      "id": "gs-044",
+      "title": "Senior Backend Engineer",
+      "company": "Surfe",
+      "location": "",
+      "salaryText": null,
+      "description": "Health insurance and other benefits applicable to your place of residence, if contract of employment in France or elsewhere via Deel Employer of record Possibility to work as a freelancer Originally posted on Himalayas",
+      "expected": {
+        "listedSalary": null,
+        "hiringScope": "region",
+        "payPolicy": null,
+        "employment": "eor",
+        "seniority": "senior",
+        "companyType": "product"
+      }
+    },
+    {
+      "id": "gs-049",
+      "title": "Software Engineer - 6 to 12 month contract",
+      "company": "Unify America",
+      "location": "United States",
+      "salaryText": "50-75 USD per hour",
+      "description": "We're looking for a mid-level Software Engineer on a contract basis to help build and extend the platforms that power our programs. You'll work alongside our senior engineers on well-scoped features across the stack, contributing production-quality code from early on and working with a high degree of independence as you ramp up. About Unify America We’re on a mission to replace political fighting with collaborative problem-solving. Yeah, we know it sounds audacious. It is. But we’re doing it—by creating civic experiences that reduce polarization, teaching essential civic skills, and",
+      "expected": {
+        "listedSalary": {
+          "min": 50,
+          "max": 75,
+          "currency": "USD",
+          "period": "hour"
+        },
+        "hiringScope": "countries",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": "mid",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    },
+    {
+      "id": "gs-050",
+      "title": "Frontend Developer",
+      "company": "Satoshi Solutions (recruiter for a DeFi client)",
+      "location": "United States",
+      "salaryText": null,
+      "description": "of Blockchain start-ups, to industry leading organisations looking for their next great hire, currently we are looking for: Vacancy: Frontend Developer Salary Range: 70,000-120,000 USD Paid in Stablecoin Contract: Remote (ideally CET), Monthly Contract (freelance style, but a long term position) Client Description: We are looking for an experienced Frontend Developer for our client, a fast growing DeFi Ecosystem built on Ethereum. They are a fast pace, process-lite, high autonomy environment. They are distributed around the globe so feel free to apply no matter where you're located.",
+      "expected": {
+        "listedSalary": {
+          "min": 70000,
+          "max": 120000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": null,
+        "employment": "contractor",
+        "seniority": "senior",
+        "companyType": "agency"
+      }
+    },
+    {
+      "id": "gs-052",
+      "title": "Senior Product Manager - Publishing",
+      "company": "Kit",
+      "location": null,
+      "salaryText": null,
+      "description": "and West Coast teammates are online. Fridays are focus days, with no recurring meetings. COMPENSATION + PERKS + BENEFITS Kit has standardized salaries based on position, no matter where you live. For this role, we're hiring at our level 4 ($173,000). Level is determined based on experience and our interview process. PERKS + BENEFITS INCLUDE: - Profit Sharing [link] - Kit equity - 401k with a 5% match - We cover up to $2,100 per month toward medical premiums, with dental and vision premiums fully covered. We offer",
+      "expected": {
+        "listedSalary": {
+          "min": 173000,
+          "max": 173000,
+          "currency": "USD",
+          "period": "year"
+        },
+        "hiringScope": "worldwide",
+        "payPolicy": "location_agnostic",
+        "employment": null,
+        "seniority": "senior",
+        "companyType": "product",
+        "companyHq": "US"
+      }
+    }
+  ]
+}

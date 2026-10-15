@@ -191,7 +191,8 @@ export function toExtraction(w: ExtractionWire): Extraction {
 }
 
 export interface ExtractInput {
-  postingId: string;
+  /** Absent for eval cases: they are not postings in the DB, so the call is recorded without one. */
+  postingId?: string | undefined;
   title: string;
   companyName: string;
   locationText: string | null;
@@ -214,17 +215,21 @@ export function buildExtractInput(p: ExtractInput): string {
 }
 
 /** One Haiku call; throws BudgetExceededError, MissingApiKeyError, LlmOutputError or LlmApiError. */
-export function extractFacts(p: ExtractInput, deps: LlmDeps): Promise<Extraction> {
+export function extractFacts(
+  p: ExtractInput,
+  deps: LlmDeps,
+  purpose: "extract" | "eval_extract" = "extract",
+): Promise<Extraction> {
   return callStructured(
     {
       model: EXTRACT_MODEL,
-      purpose: "extract",
+      purpose,
       system: EXTRACT_SYSTEM_PROMPT,
       input: buildExtractInput(p),
       schema: ExtractionWireSchema,
       map: toExtraction,
       maxTokens: EXTRACT_MAX_TOKENS,
-      postingId: p.postingId,
+      ...(p.postingId !== undefined ? { postingId: p.postingId } : {}),
     },
     deps,
   );

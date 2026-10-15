@@ -8,6 +8,9 @@
     "./review": "./src/review/index.ts",
     "./seed-demo": "./src/seed-demo.ts"
   },
+  "scripts": {
+    "eval:extract": "tsx src/eval/extract-cli.ts"
+  },
   "dependencies": {
     "@job-agent/core": "workspace:*",
     "@job-agent/sources": "workspace:*",
