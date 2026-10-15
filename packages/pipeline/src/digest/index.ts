@@ -15,6 +15,8 @@ import { classifyLanguage } from "../filters/language.ts";
 import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { UNPAID_REASON } from "../intel/resolve.ts";
+import { reviewHistory } from "../review/record.ts";
+import { reviewState } from "../review/state.ts";
 import { freshnessSuffix } from "./freshness.ts";
 import { isAtsSource, parseList } from "./format.ts";
 import {
@@ -43,8 +45,12 @@ export interface DigestOptions {
   includeUnpaid?: boolean;
   /** Default-off sources that are not switched on; Source health shows them as "disabled", never skipped or LATE. */
   disabledSources?: readonly string[];
+  /** Where the review line points; default the dashboard's default address. */
+  dashboardUrl?: string;
   out: (text: string) => void;
 }
+
+const DEFAULT_DASHBOARD_URL = "http://127.0.0.1:4510/";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -137,15 +143,29 @@ export function runDigest(opts: DigestOptions): string {
   if (!isDigestDate(date)) throw new Error(`Invalid date "${date}", expected YYYY-MM-DD`);
 
   const {
-    top,
+    top: allTop,
     notAFit,
     waiting,
     suspicious,
-    needsALook: flagged,
+    needsALook: allFlagged,
   } = selectDay(db, date, {
     stamp: true,
   });
-  const kept = top.length + notAFit.length + waiting.length;
+
+  // Postings the owner already processed (not `later`) leave Top matches and Needs a look.
+  const dayIds = [...allTop, ...waiting, ...suspicious].map((e) => e.view.postingId);
+  const history = reviewHistory(db, dayIds);
+  const processedIds = new Set(dayIds.filter((id) => reviewState(history.get(id) ?? []).processed));
+  const top = allTop.filter((e) => !processedIds.has(e.view.postingId));
+  const flagged = allFlagged.filter((e) => !processedIds.has(e.view.postingId));
+  const reviewLine =
+    history.size === 0
+      ? []
+      : [
+          `Reviewed: ${processedIds.size} processed, ${dayIds.length - processedIds.size} open — ${opts.dashboardUrl ?? DEFAULT_DASHBOARD_URL}`,
+          "",
+        ];
+  const kept = allTop.length + notAFit.length + waiting.length;
 
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const rejectedRows = db
@@ -181,6 +201,7 @@ export function runDigest(opts: DigestOptions): string {
   const body = [
     `# Job digest ${date}`,
     "",
+    ...reviewLine,
     `- Top matches: ${top.length}`,
     `- Scored, not a fit: ${notAFit.length}`,
     `- Waiting for scoring: ${waiting.length}`,
