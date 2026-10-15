@@ -76,3 +76,4 @@ Last audit tag: (none yet)
 | t_22e91591 | Fetch application questions from public ATS job APIs (fetch-questions) | medium | e4918fa | 2026-10-15 |
 | t_53073918 | Review queue API: shared day-selection module, queue and posting detail, POST /api/reviews | medium | 4bb9649 | 2026-10-15 |
 | t_f413f9ea | Eval script eval:extract with a committed golden set (owner-run, --live only) | medium | d365399 | 2026-10-15 |
+| t_add8c02f | Review queue UI: table per section, detail panel, action buttons with reason picker | medium | 495acf7 | 2026-10-15 |
