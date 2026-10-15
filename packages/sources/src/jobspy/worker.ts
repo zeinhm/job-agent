@@ -6,6 +6,8 @@ import { SourceError, SourceSkippedError } from "@job-agent/core";
 export const WORKER_DIR = fileURLToPath(new URL("../../../../workers/jobspy/", import.meta.url));
 export const DEFAULT_PYTHON = `${WORKER_DIR}.venv/bin/python`;
 export const WORKER_SCRIPT = `${WORKER_DIR}run.py`;
+export const DISABLED_UNDER_TESTS =
+  "jobspy worker disabled under the test runner (VITEST is set); inject a spawn function";
 export const NOT_INSTALLED = "jobspy worker not installed (see workers/jobspy/README.md)";
 export const WORKER_TIMEOUT_MS = 120_000;
 const MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
@@ -35,6 +37,11 @@ export interface SpawnWorkerOptions {
   python?: string;
   script?: string;
   timeoutMs?: number;
+  /**
+   * Replaces node's spawn. Under the test runner (VITEST set) the default spawn is refused;
+   * only an injected function runs.
+   */
+  spawnFn?: typeof spawn;
 }
 
 /** Spawns the venv python on run.py with the search as JSON on stdin. Missing venv = SourceSkippedError. */
@@ -42,12 +49,17 @@ export function createSpawnRunner(opts: SpawnWorkerOptions): WorkerRunner {
   const python = opts.python ?? DEFAULT_PYTHON;
   const script = opts.script ?? WORKER_SCRIPT;
   const timeoutMs = opts.timeoutMs ?? WORKER_TIMEOUT_MS;
+  const spawnProcess = opts.spawnFn ?? spawn;
   return (search) => {
+    // Checked before existsSync, so it holds with or without the venv. No option or env variable switches it off.
+    if (opts.spawnFn === undefined && process.env["VITEST"]) {
+      return Promise.reject(new SourceSkippedError(opts.source, DISABLED_UNDER_TESTS));
+    }
     if (!existsSync(python) || !existsSync(script)) {
       return Promise.reject(new SourceSkippedError(opts.source, NOT_INSTALLED));
     }
     return new Promise<WorkerOutput>((resolve, reject) => {
-      const child = spawn(python, [script], { stdio: ["pipe", "pipe", "ignore"] });
+      const child = spawnProcess(python, [script], { stdio: ["pipe", "pipe", "ignore"] });
       let stdout = "";
       let settled = false;
       const finish = (fn: () => void) => {

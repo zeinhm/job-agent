@@ -414,6 +414,7 @@ LinkedIn and Indeed) is the time since the start of the source's last ok run plu
 hours and clamped to 1 to 24 hours; with no ok run yet it is 24. Errors, blocks and backoff-skipped runs do not advance
 it, so nothing posted in such a gap is missed (dedupe absorbs the overlap). Without the venv the
 run is recorded as `skipped` ("jobspy worker not installed (see workers/jobspy/README.md)"), never as `ok`.
+Tests never start the worker: the spawn is refused when `VITEST` is set (the run is `skipped`), and tests inject a fake worker instead.
 
 A block (HTTP 429 / 999 / 403, authwall, CAPTCHA) is recorded as an `error` run (`blocked: ...`) and the source is then
 `skipped` for 6 hours (`backoff after block until <time>`), also with `--force`. Nothing is retried and nothing is

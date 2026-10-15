@@ -8,7 +8,12 @@ import {
   type SourceAdapter,
 } from "@job-agent/core";
 import { z } from "zod";
-import { createSpawnRunner, type WorkerRunner, type WorkerSearch } from "./worker.ts";
+import {
+  createSpawnRunner,
+  type SpawnWorkerOptions,
+  type WorkerRunner,
+  type WorkerSearch,
+} from "./worker.ts";
 
 type Site = "linkedin" | "indeed";
 
@@ -167,6 +172,8 @@ export interface JobspyAdapterOptions {
   python?: string;
   script?: string;
   timeoutMs?: number;
+  /** Replaces node's spawn (tests); see SpawnWorkerOptions. */
+  spawnFn?: SpawnWorkerOptions["spawnFn"];
   /** Defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
   /** The clock for the lookback window (both sites) and the Indeed age filter. */
@@ -210,6 +217,7 @@ function createJobspyAdapter(config: SiteConfig, opts: JobspyAdapterOptions): So
       ...(opts.python ? { python: opts.python } : {}),
       ...(opts.script ? { script: opts.script } : {}),
       ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}),
+      ...(opts.spawnFn ? { spawnFn: opts.spawnFn } : {}),
     });
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const searches: readonly WorkerSearch[] = opts.smoke

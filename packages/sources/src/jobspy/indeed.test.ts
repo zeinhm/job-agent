@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -191,7 +192,10 @@ describe("indeed failures", () => {
   });
 
   it("missing venv -> skipped", async () => {
-    const err = await createIndeedAdapter({ python: "/nonexistent/.venv/bin/python" })
+    const err = await createIndeedAdapter({
+      python: "/nonexistent/.venv/bin/python",
+      spawnFn: spawn,
+    })
       .fetch(NOW)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SourceSkippedError);
@@ -209,7 +213,12 @@ describe("indeed failures", () => {
     const script = join(dir, "run.py");
     writeFileSync(script, "");
     await expect(
-      createIndeedAdapter({ python, script, sleep: async () => undefined }).fetch(NOW),
+      createIndeedAdapter({
+        python,
+        script,
+        spawnFn: spawn,
+        sleep: async () => undefined,
+      }).fetch(NOW),
     ).rejects.toBeInstanceOf(SourceBlockedError);
   });
 });

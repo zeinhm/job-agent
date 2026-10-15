@@ -26,6 +26,20 @@ describe("buildAdapters", () => {
     expect(indeed[0]?.minIntervalMinutes).toBe(110);
   });
 
+  it("passes the jobspy options (a fake worker) to linkedin and indeed", async () => {
+    const calls: string[] = [];
+    const runWorker = async (s: { site: string }) => {
+      calls.push(s.site);
+      return { exitCode: 0, stdout: "" };
+    };
+    const adapters = buildAdapters(makeConfig(), [], {
+      jobspy: { runWorker, sleep: async () => undefined },
+    }).filter((a) => a.name === "linkedin" || a.name === "indeed");
+    expect(adapters).toHaveLength(2);
+    for (const a of adapters) await a.fetch(new Date());
+    expect(new Set(calls)).toEqual(new Set(["linkedin", "indeed"]));
+  });
+
   it("always includes exactly one remoteok adapter", () => {
     expect(names(makeConfig()).filter((n) => n === "remoteok")).toHaveLength(1);
   });

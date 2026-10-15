@@ -96,6 +96,11 @@ describe("discover command", () => {
     try {
       const c = capture();
       expect(await main(["discover", "--force"], c.io)).toBe(0);
+      // The real JobSpy worker is refused under the test runner, venv or not: reported as skipped, not run.
+      const text = c.out.join("");
+      for (const site of ["linkedin", "indeed"]) {
+        expect(text).toContain(`${site}: skipped (jobspy worker disabled under the test runner`);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

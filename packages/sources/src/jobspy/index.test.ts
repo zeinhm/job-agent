@@ -1,4 +1,5 @@
-import { chmodSync, mkdtempSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -16,7 +17,12 @@ import {
   createLinkedInAdapter,
   lookbackHours,
 } from "./index.ts";
-import { NOT_INSTALLED, type WorkerRunner, type WorkerSearch } from "./worker.ts";
+import {
+  DISABLED_UNDER_TESTS,
+  NOT_INSTALLED,
+  type WorkerRunner,
+  type WorkerSearch,
+} from "./worker.ts";
 
 const job = (n: number, extra: Record<string, unknown> = {}) => ({
   id: `li-${n}`,
@@ -269,8 +275,45 @@ describe("real worker process", () => {
     return { python: py, script };
   };
 
+  it("the default spawn is refused under the test runner and never starts the process", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "fake-python-"));
+    const marker = join(dir, "marker");
+    const python = join(dir, "python");
+    writeFileSync(python, `#!/bin/sh\ncat > /dev/null\ntouch '${marker}'\n`);
+    chmodSync(python, 0o755);
+    const script = join(dir, "run.py");
+    writeFileSync(script, "");
+    expect(process.env["VITEST"]).toBeTruthy();
+
+    const err = await createLinkedInAdapter({ python, script, sleep: async () => undefined })
+      .fetch(new Date())
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SourceSkippedError);
+    expect((err as SourceSkippedError).reason).toBe(DISABLED_UNDER_TESTS);
+    expect(existsSync(marker)).toBe(false);
+
+    // Same fake through an injected spawn function: it runs, so the assertion above can fail.
+    await createLinkedInAdapter({
+      python,
+      script,
+      spawnFn: spawn,
+      sleep: async () => undefined,
+    }).fetch(new Date());
+    expect(existsSync(marker)).toBe(true);
+  });
+
+  it("the guard holds when the venv is missing too", async () => {
+    const err = await createLinkedInAdapter({ python: "/nonexistent/.venv/bin/python" })
+      .fetch(new Date())
+      .catch((e: unknown) => e);
+    expect((err as SourceSkippedError).reason).toBe(DISABLED_UNDER_TESTS);
+  });
+
   it("missing venv -> skipped", async () => {
-    const adapter = createLinkedInAdapter({ python: "/nonexistent/.venv/bin/python" });
+    const adapter = createLinkedInAdapter({
+      python: "/nonexistent/.venv/bin/python",
+      spawnFn: spawn,
+    });
     const err = await adapter.fetch(new Date()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SourceSkippedError);
     expect((err as SourceSkippedError).reason).toBe(NOT_INSTALLED);
@@ -281,6 +324,7 @@ describe("real worker process", () => {
     const result = await createLinkedInAdapter({
       python,
       script,
+      spawnFn: spawn,
       sleep: async () => undefined,
     }).fetch(new Date());
     expect(result.map((p) => p.externalId)).toEqual(["7"]);
@@ -291,7 +335,12 @@ describe("real worker process", () => {
       `echo '{"error":"status code 999","kind":"blocked"}'; exit 2`,
     );
     await expect(
-      createLinkedInAdapter({ python, script, sleep: async () => undefined }).fetch(new Date()),
+      createLinkedInAdapter({
+        python,
+        script,
+        spawnFn: spawn,
+        sleep: async () => undefined,
+      }).fetch(new Date()),
     ).rejects.toBeInstanceOf(SourceBlockedError);
   });
 
@@ -301,6 +350,7 @@ describe("real worker process", () => {
     const err = await createLinkedInAdapter({
       python,
       script,
+      spawnFn: spawn,
       timeoutMs: 200,
       sleep: async () => undefined,
     })

@@ -5,7 +5,12 @@ import { createGreenhouseAdapter } from "./greenhouse/index.ts";
 import { createHimalayasAdapter } from "./himalayas/index.ts";
 import { createHnAdapter } from "./hn/index.ts";
 import { createLinkedinPostsAdapter } from "./linkedin-posts/index.ts";
-import { JOBSPY_SMOKE_ENV, createIndeedAdapter, createLinkedInAdapter } from "./jobspy/index.ts";
+import {
+  JOBSPY_SMOKE_ENV,
+  createIndeedAdapter,
+  createLinkedInAdapter,
+  type JobspyAdapterOptions,
+} from "./jobspy/index.ts";
 import { createLeverAdapter } from "./lever/index.ts";
 import { createRecruiteeAdapter } from "./recruitee/index.ts";
 import { createRemoteOkAdapter } from "./remoteok/index.ts";
@@ -48,10 +53,16 @@ export const pollingCompanies = (
   return result;
 };
 
+export interface BuildAdaptersOptions {
+  /** Worker command, spawn function or runner for linkedin and indeed (tests pass a fake worker). */
+  jobspy?: JobspyAdapterOptions;
+}
+
 /** Builds every enabled adapter. Each adapter task adds one entry here and starts using `companies`. */
 export const buildAdapters = (
   config: AppConfig,
   discovered: readonly DiscoveredCompany[] = [],
+  options: BuildAdaptersOptions = {},
 ): SourceAdapter[] => {
   const adapters: SourceAdapter[] = [];
   const companies = pollingCompanies(config, discovered);
@@ -82,8 +93,8 @@ export const buildAdapters = (
   adapters.push(createHnAdapter());
   adapters.push(createArbeitnowAdapter());
   const jobspySmoke = process.env[JOBSPY_SMOKE_ENV] === "1";
-  adapters.push(createLinkedInAdapter({ smoke: jobspySmoke }));
-  adapters.push(createIndeedAdapter({ smoke: jobspySmoke }));
+  adapters.push(createLinkedInAdapter({ smoke: jobspySmoke, ...options.jobspy }));
+  adapters.push(createIndeedAdapter({ smoke: jobspySmoke, ...options.jobspy }));
   // Off by default (Brave does not index linkedin.com/posts): not built, so it makes no Brave request.
   if (config.sources?.linkedin_posts === true) adapters.push(createLinkedinPostsAdapter());
 
