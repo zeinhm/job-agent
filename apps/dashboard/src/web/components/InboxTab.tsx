@@ -152,6 +152,12 @@ function LinkPicker({
   );
   return (
     <div>
+      <p>
+        <small>
+          Linking adds this wording to the answer and clears its approval until you approve it
+          again.
+        </small>
+      </p>
       <input
         type="search"
         placeholder="search answers"

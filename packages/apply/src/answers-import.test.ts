@@ -3,6 +3,7 @@ import { answer_bank, openDb, type Db } from "@job-agent/core";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AnswerEntry } from "./answers.ts";
 import { importAnswers } from "./answers-import.ts";
+import { updateAnswer } from "./answers-store.ts";
 
 const T1 = new Date("2026-10-15T10:00:00Z");
 const T2 = new Date("2026-10-16T10:00:00Z");
@@ -108,6 +109,18 @@ describe("importAnswers", () => {
       "answers import: 0 added, 0 updated, 0 unchanged, 1 kept",
     ]);
     expect(rows()[0]).toMatchObject({ source: "dashboard", answer: "FAKE-DASHBOARD-EDIT" });
+  });
+
+  it("does not re-approve an approved answer the dashboard edited, even if the file says approved", () => {
+    importAnswers(db, [entry()], out, T1);
+    updateAnswer(db, "work_setup.notice_period", { alternatives: ["Notice?"] }, T1);
+    expect(rows()[0]).toMatchObject({ approved: false, approved_at: null, source: "dashboard" });
+    importAnswers(db, [entry({ approved: true })], out, T2);
+    expect(rows()[0]).toMatchObject({
+      approved: false,
+      approved_at: null,
+      alternatives: '["Notice?"]',
+    });
   });
 
   it("leaves rows missing from the file alone", () => {

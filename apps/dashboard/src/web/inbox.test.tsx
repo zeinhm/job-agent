@@ -203,6 +203,20 @@ describe("Inbox tab", () => {
     await waitFor(() => expect(screen.queryByText("Work permit?")).toBeNull());
   });
 
+  it("the link picker says that linking clears the answer's approval", async () => {
+    const user = userEvent.setup();
+    renderTab();
+    expect(screen.queryByText(/clears its approval/)).toBeNull();
+    await user.click(
+      await screen.findByRole("button", { name: "Link Work permit? to an existing answer" }),
+    );
+    expect(
+      await screen.findByText(
+        "Linking adds this wording to the answer and clears its approval until you approve it again.",
+      ),
+    ).toBeTruthy();
+  });
+
   it("says so when the search finds nothing", async () => {
     const user = userEvent.setup();
     renderTab();

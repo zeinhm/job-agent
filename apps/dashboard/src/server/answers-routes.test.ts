@@ -1,4 +1,14 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -119,19 +129,61 @@ describe("PATCH /api/answers/:key", () => {
     });
   });
 
-  it("changing the answer text and approving in the same request keeps it approved", async () => {
-    await create();
-    const res = await patch({ answer: "FAKE-ANSWER-one-month", approved: true });
-    expect(await res.json()).toMatchObject({ approved: true, approvedAt: NOW.toISOString() });
-  });
-
-  it("re-sending the same text keeps approval; other fields keep it too", async () => {
+  it("an edit plus approved:true in one request stores approved false; a separate approve sets it", async () => {
     await create({ approved: true });
-    expect(await (await patch({ answer: NEW.answer })).json()).toMatchObject({ approved: true });
-    expect(await (await patch({ alternatives: ["x?", "y?"] })).json()).toMatchObject({
-      approved: true,
+    const edited = await patch({ alternatives: ["x?", "y?"], approved: true });
+    expect(await edited.json()).toMatchObject({
+      approved: false,
+      approvedAt: null,
       alternatives: ["x?", "y?"],
     });
+    const approved = await patch({ approved: true });
+    expect(await approved.json()).toMatchObject({ approved: true, approvedAt: NOW.toISOString() });
+  });
+
+  // One case per approval-relevant field: each real change clears approval, also with approved:true.
+  const FIELD_CHANGES: [string, Record<string, unknown>][] = [
+    ["answer", { answer: "FAKE-ANSWER-one-month" }],
+    ["question", { question: "New wording?" }],
+    ["alternatives", { alternatives: ["When can you start?", "Another wording?"] }],
+    ["type", { type: "number" }],
+    ["choices", { type: "choice", choices: ["a", "b"] }],
+  ];
+  it.each(FIELD_CHANGES)("a real change to %s clears approval", async (_f, change) => {
+    await create({ approved: true });
+    const res = await patch(change);
+    expect(await res.json()).toMatchObject({ approved: false, approvedAt: null });
+  });
+  it.each(FIELD_CHANGES)(
+    "a real change to %s with approved:true still clears approval",
+    async (_f, change) => {
+      await create({ approved: true });
+      const res = await patch({ ...change, approved: true });
+      expect(await res.json()).toMatchObject({ approved: false, approvedAt: null });
+    },
+  );
+
+  it("choices change alone on a choice answer clears approval", async () => {
+    await create({ approved: true, type: "choice", choices: ["a", "b"], alternatives: null });
+    expect(await (await patch({ choices: ["a", "b", "c"], approved: true })).json()).toMatchObject({
+      approved: false,
+    });
+  });
+
+  it("a no-op patch keeps approval; reordered or re-cased alternatives are unchanged", async () => {
+    await create({ approved: true, alternatives: ["When can you start?", "Notice?"] });
+    for (const noop of [
+      { answer: NEW.answer },
+      { question: NEW.question },
+      { type: "text" },
+      { alternatives: ["notice?", "When can you START?"] },
+      { alternatives: ["When can you start?", "Notice?"], approved: true },
+    ]) {
+      expect(await (await patch(noop)).json()).toMatchObject({
+        approved: true,
+        approvedAt: NOW.toISOString(),
+      });
+    }
   });
 
   it("toggles approval off and on", async () => {
@@ -174,6 +226,22 @@ describe("POST /api/answers/export", () => {
     expect(readdirSync(exportsDir)).toEqual(["answers-2026-10-16.yaml"]);
     const text = readFileSync(join(exportsDir, "answers-2026-10-16.yaml"), "utf8");
     expect(text).toContain("work_setup:\n  notice_period:\n    answer: FAKE-ANSWER-two-weeks");
+  });
+
+  it("writes the file 0600, also over an existing 0644 file, and creates the dir 0700", async () => {
+    await create({ approved: true });
+    const exportsDir = join(dir, "exports");
+    const file = join(exportsDir, "answers-2026-10-16.yaml");
+    await mutate("POST", "/api/answers/export");
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(statSync(exportsDir).mode & 0o777).toBe(0o700);
+    writeFileSync(file, "old", { mode: 0o644 });
+    chmodSync(file, 0o644);
+    expect(statSync(file).mode & 0o777).toBe(0o644);
+    await mutate("POST", "/api/answers/export");
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(readFileSync(file, "utf8")).toContain("notice_period");
+    expect(readdirSync(exportsDir)).toEqual(["answers-2026-10-16.yaml"]);
   });
 
   it("the exported file loads back through the answers.yaml loader", async () => {

@@ -98,6 +98,11 @@ function AnswerCells({
           />{" "}
           approved
         </label>
+        {!answer.approved && (
+          <div>
+            <small>needs approval</small>
+          </div>
+        )}
       </td>
       <td>
         <ul aria-label={`Alternatives for ${answer.key}`}>

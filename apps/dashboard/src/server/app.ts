@@ -17,6 +17,7 @@ import {
   linkInbox,
   listAnswers,
   listInbox,
+  matchQuestions,
   updateAnswer,
 } from "@job-agent/apply";
 import type { Db, SalaryConfig } from "@job-agent/core";
@@ -171,7 +172,10 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     const patch = await parseBody(c, AnswerPatchSchema);
     try {
       const updated = updateAnswer(db, key, patch, now());
-      return updated === null ? c.json({ error: "not found" }, 404) : c.json(updated);
+      if (updated === null) return c.json({ error: "not found" }, 404);
+      // An edit can clear approval, so coverage stored on posting questions is recomputed at once.
+      matchQuestions(db);
+      return c.json(updated);
     } catch (e) {
       return answerError(c, e);
     }

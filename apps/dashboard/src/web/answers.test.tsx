@@ -58,14 +58,18 @@ const server = setupServer(
     patches.push({ key, body });
     const prev = store.find((a) => a.key === key);
     if (prev === undefined) return HttpResponse.json({ error: "not found" }, { status: 404 });
-    // Mirrors the server rule: new text clears approval unless the request approves.
-    const textChanged = body.answer !== undefined && body.answer !== prev.answer;
+    // Mirrors the server rule: any real change clears approval, even when the request says approved.
+    const changed =
+      (body.answer !== undefined && body.answer !== prev.answer) ||
+      (body.question !== undefined && body.question !== prev.question) ||
+      (body.alternatives !== undefined &&
+        JSON.stringify(body.alternatives) !== JSON.stringify(prev.alternatives));
     const next: Answer = {
       ...prev,
       ...(body.answer !== undefined ? { answer: body.answer } : {}),
       ...(body.question !== undefined ? { question: body.question } : {}),
       ...(body.alternatives !== undefined ? { alternatives: body.alternatives } : {}),
-      approved: body.approved ?? (textChanged ? false : prev.approved),
+      approved: changed ? false : (body.approved ?? prev.approved),
       source: "dashboard",
       updatedAt: `2026-10-16T10:00:0${patches.length}.000Z`,
     };
@@ -160,6 +164,39 @@ describe("Answers tab", () => {
     expect(
       (screen.getByRole("checkbox", { name: "Approved links.site" }) as HTMLInputElement).checked,
     ).toBe(false);
+    // The edited, previously approved answer is flagged, and the edit never carried an approved flag.
+    expect(screen.getAllByText("needs approval").length).toBeGreaterThan(0);
+    expect(patches.every((p) => !("approved" in p.body))).toBe(true);
+  });
+
+  it("an edit of an approved answer shows needs approval; approving is its own PATCH with only approved", async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByRole("table", { name: "Answers" });
+    const row = screen.getByText("https://example.com").closest("tr") as HTMLElement;
+    expect(within(row).queryByText("needs approval")).toBeNull();
+    await user.type(
+      screen.getByRole("textbox", { name: "New alternative for links.site" }),
+      "Website?",
+    );
+    await user.click(screen.getByRole("button", { name: "Add alternative to links.site" }));
+    await waitFor(() =>
+      expect(
+        within(screen.getByText("https://example.com").closest("tr") as HTMLElement).getByText(
+          "needs approval",
+        ),
+      ).toBeTruthy(),
+    );
+    expect(patches).toEqual([{ key: "links.site", body: { alternatives: ["Website?"] } }]);
+    await user.click(screen.getByRole("checkbox", { name: "Approved links.site" }));
+    await waitFor(() =>
+      expect(patches[1]).toEqual({ key: "links.site", body: { approved: true } }),
+    );
+    await waitFor(() =>
+      expect(
+        (screen.getByRole("checkbox", { name: "Approved links.site" }) as HTMLInputElement).checked,
+      ).toBe(true),
+    );
   });
 
   it("adds and removes alternatives", async () => {

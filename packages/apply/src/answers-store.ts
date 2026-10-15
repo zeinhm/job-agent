@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ANSWER_TYPES, answer_bank, type AnswerBankRow, type Db } from "@job-agent/core";
 import { eq } from "drizzle-orm";
 import { stringify } from "yaml";
 import { z } from "zod";
+import { normalizeQuestion } from "./match.ts";
 
 // Same naming rule as the YAML loader: a dot in a part would make `group.key` ambiguous.
 const part = z.string().regex(/^[A-Za-z0-9_-]+$/);
@@ -129,9 +130,22 @@ export function createAnswer(db: Db, input: NewAnswer, now: Date = new Date()): 
   });
 }
 
+const sameList = (a: string[] | null, b: string[] | null): boolean =>
+  a === null || b === null ? a === b : a.length === b.length && a.every((v, i) => v === b[i]);
+
+/** Alternatives count as unchanged when the set of normalized wordings is the same (order, repeats, case). */
+function sameWordings(a: string[] | null, b: string[] | null): boolean {
+  const set = (l: string[] | null) => new Set((l ?? []).map(normalizeQuestion));
+  const x = set(a);
+  const y = set(b);
+  return x.size === y.size && [...x].every((v) => y.has(v));
+}
+
 /**
- * Edits one entry; any edit marks it `source = dashboard`. Changing the answer text clears `approved` unless the
- * same request approves it. Returns null for an unknown key.
+ * Edits one entry; any edit marks it `source = dashboard`. A real change to the answer, question, alternatives
+ * (compared as a set of normalized wordings), type or choices clears `approved` and `approved_at`, even when the
+ * same request says `approved: true`: approval is only set by a request that changes none of those fields. A
+ * no-op patch keeps approval. Returns null for an unknown key.
  */
 export function updateAnswer(
   db: Db,
@@ -148,14 +162,22 @@ export function updateAnswer(
     checkTypeChoices(type, choices);
 
     const answer = patch.answer ?? row.answer;
-    const textChanged = answer !== row.answer;
-    const approved = patch.approved ?? (textChanged ? false : row.approved);
+    const question = patch.question === undefined ? row.question : patch.question;
+    const alternatives =
+      patch.alternatives === undefined ? parseList(row.alternatives) : patch.alternatives;
+    const changed =
+      answer !== row.answer ||
+      question !== row.question ||
+      type !== row.type ||
+      !sameList(choices, parseList(row.choices)) ||
+      !sameWordings(alternatives, parseList(row.alternatives));
+    const approved = changed ? false : (patch.approved ?? row.approved);
     const approvedAt = !approved ? null : row.approved ? row.approved_at : stamp;
     const updated = tx
       .update(answer_bank)
       .set({
         answer,
-        question: patch.question === undefined ? row.question : patch.question,
+        question,
         type,
         choices: json(choices),
         alternatives:
@@ -191,11 +213,17 @@ export function answersToYaml(answers: AnswerView[]): string {
   return stringify(doc);
 }
 
-/** Writes `answers-<date>.yaml` into `dir` (created if missing). Returns the path and entry count. */
+/**
+ * Writes `answers-<date>.yaml` into `dir` (created 0700 if missing) with mode 0600, also over an existing file
+ * (a new file is written and renamed over it, so an old 0644 file never keeps its mode).
+ */
 export function exportAnswers(db: Db, dir: string, date: string): { path: string; count: number } {
   const answers = listAnswers(db);
-  mkdirSync(dir, { recursive: true });
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
   const path = join(dir, `answers-${date}.yaml`);
-  writeFileSync(path, answersToYaml(answers), "utf8");
+  const tmp = `${path}.${randomUUID()}.tmp`;
+  writeFileSync(tmp, answersToYaml(answers), { encoding: "utf8", mode: 0o600 });
+  chmodSync(tmp, 0o600);
+  renameSync(tmp, path);
   return { path, count: answers.length };
 }

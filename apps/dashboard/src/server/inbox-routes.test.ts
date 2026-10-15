@@ -269,19 +269,51 @@ describe("salary wordings in the inbox", () => {
 });
 
 describe("POST /api/inbox/:id/link", () => {
-  it("adds the wording as an alternative; an approved target then covers the postings", async () => {
+  const patchAnswer = (key: string, body: unknown) =>
+    app().request(`http://x/api/answers/${key}`, {
+      method: "PATCH",
+      headers: { Host: HOST, "Content-Type": "application/json", Origin: `http://${HOST}` },
+      body: JSON.stringify(body),
+    });
+  const visa = async () =>
+    (
+      (await (await get("/api/answers")).json()) as {
+        answers: { key: string; approved: boolean; approvedAt: string | null }[];
+      }
+    ).answers.find((a) => a.key === "legal.visa");
+
+  it("adds the wording as an alternative and clears the target's approval until approved again", async () => {
     await seed();
+    ask(addPosting(), "Do you need visa sponsorship?");
+    matchQuestions(db);
+    expect(matched("legal.visa")).toBe(1);
     const id = await idOf("Work permit?");
     const res = await post(`/api/inbox/${id}/link`, { key: "legal.visa" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ openCount: 2, key: "legal.visa" });
+    expect(await res.json()).toEqual({ openCount: 3, key: "legal.visa" });
     const answers = (await (await get("/api/answers")).json()) as {
       answers: { key: string; alternatives: string[] | null }[];
     };
     expect(answers.answers.find((a) => a.key === "legal.visa")?.alternatives).toEqual([
       "Work permit?",
     ]);
+    expect(await visa()).toMatchObject({ approved: false, approvedAt: null });
+    // The posting covered only through that answer is uncovered again, and so is the linked wording.
+    expect(matched("legal.visa")).toBe(0);
+    // A separate approve covers both wordings.
+    const approve = await patchAnswer("legal.visa", { approved: true });
+    expect(await approve.json()).toMatchObject({ approved: true });
+    expect(matched("legal.visa")).toBe(2);
+  });
+
+  it("a PATCH edit that clears approval uncovers its postings at once", async () => {
+    await seed();
+    ask(addPosting(), "Do you need visa sponsorship?");
+    matchQuestions(db);
     expect(matched("legal.visa")).toBe(1);
+    await patchAnswer("legal.visa", { answer: "FAKE-CHANGED", approved: true });
+    expect(await visa()).toMatchObject({ approved: false });
+    expect(matched("legal.visa")).toBe(0);
   });
 
   it("does not duplicate a wording the answer already has", async () => {
@@ -299,6 +331,18 @@ describe("POST /api/inbox/:id/link", () => {
     expect(answers.answers.find((a) => a.key === "legal.visa")?.alternatives).toEqual([
       "work permit",
     ]);
+  });
+
+  it("linking a wording the answer already has keeps its approval", async () => {
+    await seed();
+    ask(addPosting(), "Do you need visa sponsorship?");
+    matchQuestions(db);
+    const id = await idOf("Work permit?");
+    await patchAnswer("legal.visa", { alternatives: ["work permit"] });
+    await patchAnswer("legal.visa", { approved: true });
+    await post(`/api/inbox/${id}/link`, { key: "legal.visa" });
+    expect(await visa()).toMatchObject({ approved: true });
+    expect(matched("legal.visa")).toBe(2);
   });
 
   it("404 for an unknown answer key, nothing decided", async () => {
