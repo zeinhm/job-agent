@@ -56,6 +56,7 @@ const server = setupServer(
     HttpResponse.json(statsFor(new URL(request.url).searchParams.get("date") ?? "")),
   ),
   http.get("http://localhost:3000/api/answers", () => HttpResponse.json({ answers: [] })),
+  http.get("http://localhost:3000/api/inbox", () => HttpResponse.json({ openCount: 0, items: [] })),
   http.get("http://localhost:3000/api/queue", () =>
     HttpResponse.json({
       date: "2026-10-16",
@@ -102,7 +103,7 @@ describe("App", () => {
     expect(await screen.findByText(/No postings in the queue/)).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Inbox" }));
     expect(screen.getByRole("tab", { name: "Inbox" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByText(/No unknown questions/)).toBeTruthy();
+    expect(await screen.findByText(/No unknown questions/)).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Stats" }));
     expect(await screen.findByLabelText("Done-when")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Answers" }));

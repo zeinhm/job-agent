@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AnswersTab } from "./components/AnswersTab.tsx";
+import { InboxTab } from "./components/InboxTab.tsx";
 import { DayPicker } from "./components/DayPicker.tsx";
 import { QueueTab } from "./components/QueueTab.tsx";
 import { StatsTab } from "./components/StatsTab.tsx";
@@ -49,12 +50,10 @@ export function App({ now = () => new Date() }: { now?: () => Date }) {
           <QueueTab day={day} now={now} />
         ) : active.id === "answers" ? (
           <AnswersTab />
-        ) : active.id === "stats" ? (
-          <StatsTab day={day} />
+        ) : active.id === "inbox" ? (
+          <InboxTab />
         ) : (
-          <p className="empty">
-            {active.empty} ({day})
-          </p>
+          <StatsTab day={day} />
         )}
       </main>
     </>

@@ -6,10 +6,17 @@ import {
   AnswerKeySchema,
   AnswerPatchSchema,
   AnswerStoreError,
+  InboxAnswerSchema,
+  InboxError,
+  InboxLinkSchema,
   NewAnswerSchema,
+  answerInbox,
   createAnswer,
+  dismissInbox,
   exportAnswers,
+  linkInbox,
   listAnswers,
+  listInbox,
   updateAnswer,
 } from "@job-agent/apply";
 import type { Db, SalaryConfig } from "@job-agent/core";
@@ -35,6 +42,7 @@ import { parseBody, parseParams, parseQuery } from "./validate.ts";
 const QueueQuery = z.strictObject({ date: z.string().refine(isDigestDate).optional() });
 const PostingParams = z.object({ id: z.string().min(1).max(200) });
 const AnswerParams = z.object({ key: AnswerKeySchema });
+const InboxParams = z.object({ id: z.string().min(1).max(200) });
 
 export interface AppOptions {
   /** Clock, for the default day and review timestamps. */
@@ -167,6 +175,38 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     } catch (e) {
       return answerError(c, e);
     }
+  });
+
+  // Every inbox action re-runs matching and answers with the new open count.
+  const inboxAction = (c: Context, run: () => unknown) => {
+    try {
+      return c.json(run());
+    } catch (e) {
+      if (!(e instanceof InboxError)) return answerError(c, e);
+      if (e.kind === "not_found") return c.json({ error: "not found" }, 404);
+      if (e.kind === "not_open") return c.json({ error: "not open" }, 409);
+      return c.json({ error: "invalid request", issues: e.paths.map((path) => ({ path })) }, 400);
+    }
+  };
+
+  app.get("/api/inbox", (c) => c.json(listInbox(db)));
+
+  app.post("/api/inbox/:id/answer", async (c) => {
+    const { id } = parseParams(c, InboxParams);
+    const input = await parseBody(c, InboxAnswerSchema);
+    return inboxAction(c, () => answerInbox(db, id, input, now()));
+  });
+
+  app.post("/api/inbox/:id/link", async (c) => {
+    const { id } = parseParams(c, InboxParams);
+    const { key } = await parseBody(c, InboxLinkSchema);
+    return inboxAction(c, () => linkInbox(db, id, key, now()));
+  });
+
+  app.post("/api/inbox/:id/dismiss", async (c) => {
+    const { id } = parseParams(c, InboxParams);
+    await parseBody(c, z.strictObject({}));
+    return inboxAction(c, () => dismissInbox(db, id));
   });
 
   // Last resort for anything no route matched: static files, SPA fallback, JSON 404 for /api.

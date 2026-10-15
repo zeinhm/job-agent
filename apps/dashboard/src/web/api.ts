@@ -90,6 +90,31 @@ export interface NewAnswerBody {
   question?: string;
 }
 
+export const InboxItemSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  postingCount: z.number(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+  salary: z.boolean(),
+  examples: z.array(z.object({ postingId: z.string(), title: z.string(), company: z.string() })),
+});
+export type InboxItem = z.infer<typeof InboxItemSchema>;
+
+const InboxSchema = z.object({ openCount: z.number(), items: z.array(InboxItemSchema) });
+export type Inbox = z.infer<typeof InboxSchema>;
+const InboxResultSchema = z.object({ openCount: z.number(), key: z.string().nullable() });
+
+/** Body of POST /api/inbox/:id/answer. */
+export interface InboxAnswerBody {
+  group: string;
+  key: string;
+  answer: string;
+  type: (typeof ANSWER_TYPES)[number];
+  choices?: string[];
+  approved?: boolean;
+}
+
 export const REVIEW_STATUSES = [
   "open",
   "interested",
@@ -285,6 +310,13 @@ export const api = {
     apiPatch(`/api/answers/${encodeURIComponent(key)}`, body, AnswerSchema),
   createAnswer: (body: NewAnswerBody) => apiPost("/api/answers", body, AnswerSchema),
   exportAnswers: () => apiPost("/api/answers/export", {}, ExportedSchema),
+  inbox: (): Promise<Inbox> => apiGet("/api/inbox", InboxSchema),
+  answerInbox: (id: string, body: InboxAnswerBody) =>
+    apiPost(`/api/inbox/${encodeURIComponent(id)}/answer`, body, InboxResultSchema),
+  linkInbox: (id: string, key: string) =>
+    apiPost(`/api/inbox/${encodeURIComponent(id)}/link`, { key }, InboxResultSchema),
+  dismissInbox: (id: string) =>
+    apiPost(`/api/inbox/${encodeURIComponent(id)}/dismiss`, {}, InboxResultSchema),
   undo: (postingIds: string[]) =>
     apiPost("/api/reviews/undo", { posting_ids: postingIds }, BatchRecordedSchema),
 };

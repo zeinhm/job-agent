@@ -1,6 +1,20 @@
 export { loadAnswers, type AnswerEntry } from "./answers.ts";
 export { importAnswers, type ImportSummary } from "./answers-import.ts";
 export {
+  InboxAnswerSchema,
+  InboxError,
+  InboxLinkSchema,
+  answerInbox,
+  dismissInbox,
+  linkInbox,
+  listInbox,
+  type InboxAnswer,
+  type InboxExample,
+  type InboxItem,
+  type InboxList,
+  type InboxResult,
+} from "./inbox.ts";
+export {
   buildAnswerIndex,
   matchedKeyOf,
   matchQuestion,
