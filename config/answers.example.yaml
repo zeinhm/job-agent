@@ -1,15 +1,24 @@
 # Example answer bank (fake persona). Copy to answers.yaml and fill with your real, truthful answers.
+# Optional fields per entry: question (canonical wording), alternatives (other phrasings),
+# type (text | long_text | yes_no | number | choice), choices (only for type: choice).
 contact:
   full_name:  { answer: "Alex Example", approved: true }
-  email:      { answer: "alex@example.com", approved: true }
-  location:   { answer: "Somewhere, Earth", approved: true }
-  timezone:   { answer: "GMT+0", approved: true }
+  email:      { answer: "alex@example.com", approved: true, question: "Email", type: text }
+  location:   { answer: "Somewhere, Earth", approved: true, question: "Where are you located?", alternatives: ["Current location", "City and country"], type: text }
+  timezone:   { answer: "GMT+0", approved: true, question: "What time zone are you in?", alternatives: ["Your time zone", "Which timezone do you work from?"], type: text }
 work_setup:
-  remote_only:            { answer: "Yes", approved: true }
-  notice_period:          { answer: "2 weeks", approved: true }
-  working_hours_overlap:  { answer: "Full overlap with Europe", approved: true }
+  remote_only:            { answer: "Yes", approved: true, question: "Are you looking for a fully remote role?", type: yes_no }
+  notice_period:          { answer: "2 weeks", approved: true, question: "What is your notice period?", alternatives: ["When can you start?", "Earliest start date"], type: text }
+  working_hours_overlap:  { answer: "Full overlap with Europe", approved: true, question: "Which working hours can you overlap with?", alternatives: ["Can you work in our time zone?"], type: text }
+  work_authorization:     { answer: "Authorized to work in my country of residence; contractor or EOR elsewhere", approved: true, question: "Are you legally authorized to work in the country where this role is based?", alternatives: ["Do you have the right to work?", "Work authorization"], type: text }
+  requires_sponsorship:   { answer: "No", approved: true, question: "Will you now or in the future require visa sponsorship?", alternatives: ["Do you require sponsorship?"], type: yes_no }
+  relocation:             { answer: "No, remote only", approved: true, question: "Are you willing to relocate?", alternatives: ["Open to relocation?"], type: text }
 experience:
-  total_years_professional: { answer: "7+ years", approved: true }
-  years_react:              { answer: "7", approved: true }
+  total_years_professional: { answer: "7+ years", approved: true, question: "How many years of professional experience do you have?", type: text }
+  years_react:              { answer: "7", approved: true, question: "How many years of experience do you have with React?", alternatives: ["Years of React experience"], type: number }
+  years_typescript:         { answer: "6", approved: true, question: "How many years of experience do you have with TypeScript?", alternatives: ["Years of TypeScript experience"], type: number }
 education:
-  has_bachelors_degree:     { answer: "Yes", approved: true }
+  has_bachelors_degree:     { answer: "Yes", approved: true, question: "Do you have a bachelor's degree?", alternatives: ["Bachelor's degree completed?"], type: yes_no }
+  degree:                   { answer: "BSc Computer Science, Example University", approved: true, question: "Highest level of education", alternatives: ["Education", "Degree"], type: text }
+application:
+  how_heard:                { answer: "Job board", approved: true, question: "How did you hear about this role?", alternatives: ["How did you find us?"], type: choice, choices: ["Job board", "LinkedIn", "Company website", "Referral", "Other"] }

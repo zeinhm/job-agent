@@ -6,3 +6,4 @@ dist/
 packages/core/drizzle/
 pnpm-lock.yaml
 *.md
+workers/jobspy/.venv/
