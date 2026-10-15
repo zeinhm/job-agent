@@ -74,3 +74,4 @@ Last audit tag: (none yet)
 | t_99deaa3f | Demo seed: seed-demo fills a smoke DB with fake queue data | medium | bcee7d0 | 2026-10-15 |
 | t_c269b5ab | Dashboard web app skeleton: Vite + React + TanStack Query, four tabs, build and tests in pnpm check | medium | 8667a6d | 2026-10-15 |
 | t_22e91591 | Fetch application questions from public ATS job APIs (fetch-questions) | medium | e4918fa | 2026-10-15 |
+| t_53073918 | Review queue API: shared day-selection module, queue and posting detail, POST /api/reviews | medium | 4bb9649 | 2026-10-15 |
