@@ -22,6 +22,7 @@ import { loadEnvFile } from "./env.ts";
 import { runEnrich } from "./enrich.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
+import { runSeedDemo } from "./seed-demo.ts";
 
 export interface Io {
   out: (text: string) => void;
@@ -175,6 +176,22 @@ const commands: Record<string, Command> = {
     } finally {
       db.$client.close();
     }
+  },
+  "seed-demo": (args, io) => {
+    let date: string | undefined;
+    try {
+      date = parseArgs({ args, options: { date: { type: "string" } } }).values.date;
+    } catch (e) {
+      io.err(`seed-demo: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    return runSeedDemo({
+      dbEnv: process.env["JOB_AGENT_DB"],
+      ...(date !== undefined ? { date } : {}),
+      openDb: () => openDb(defaultDbPath()),
+      out: io.out,
+      err: io.err,
+    });
   },
   status: (_args, io) => {
     const db = openDb(defaultDbPath());
