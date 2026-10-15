@@ -1,0 +1,12 @@
+{
+  "name": "@job-agent/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@job-agent/core": "workspace:*",
+    "hono": "^4.9.0",
+    "zod": "^4.6.5"
+  }
+}

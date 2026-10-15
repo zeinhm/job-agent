@@ -153,6 +153,51 @@ describe("bin/smoke", () => {
     for (const c of calls) expect(c).toContain("ENVFILE=/dev/null ");
   });
 
+  it("`dash` runs the dashboard command with the smoke DB and configs, no keys, and passes args on", () => {
+    const work = mkdtempSync(join(tmpdir(), "job-agent-smoke-test-"));
+    dirs.push(work);
+    const dir = join(work, "smoke");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "smoke.db"), "");
+    const fake = join(work, "fake-dash");
+    writeFileSync(
+      fake,
+      `#!/usr/bin/env bash
+echo "ARGS=$* DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-} BRAVE=\${BRAVE_API_KEY:-}"
+`,
+    );
+    chmodSync(fake, 0o755);
+    const res = spawnSync(
+      "bash",
+      [join(repo, "bin/smoke"), "dash", dir, "--self-check", "--port", "4511"],
+      {
+        cwd: repo,
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          JOB_AGENT_DASH_CLI: fake,
+          ANTHROPIC_API_KEY: "sk-x",
+          BRAVE_API_KEY: "b-x",
+        },
+      },
+    );
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain(
+      `ARGS=--self-check --port 4511 DB=${dir}/smoke.db CFG=${dir}/config ENVFILE=/dev/null KEY= BRAVE=\n`,
+    );
+  });
+
+  it("`dash` refuses a dir without smoke.db", () => {
+    const work = mkdtempSync(join(tmpdir(), "job-agent-smoke-test-"));
+    dirs.push(work);
+    const res = spawnSync("bash", [join(repo, "bin/smoke"), "dash", work], {
+      cwd: repo,
+      encoding: "utf-8",
+    });
+    expect(res.status).toBe(2);
+    expect(res.stdout).toContain("no smoke.db");
+  });
+
   it("with the real CLI and a fake .env holding a key, `bin/smoke run enrich` still skips (no key seen)", () => {
     const work = mkdtempSync(join(tmpdir(), "job-agent-smoke-test-"));
     dirs.push(work);

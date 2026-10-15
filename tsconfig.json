@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/sources" },
-    { "path": "packages/pipeline" }
+    { "path": "packages/pipeline" },
+    { "path": "apps/dashboard" }
   ]
 }

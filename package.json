@@ -14,6 +14,7 @@
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm lint && pnpm test && bash .githooks/test-pre-commit.sh && bash bin/test-hold.sh && bash scripts/test-python.sh",
     "job-agent": "tsx packages/pipeline/src/cli.ts",
+    "dashboard": "tsx apps/dashboard/src/server/main.ts",
     "db:generate": "drizzle-kit generate",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },

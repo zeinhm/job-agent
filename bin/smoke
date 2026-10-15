@@ -13,6 +13,9 @@
 # bin/smoke run <smoke dir> <command...>: run ONE more CLI command against an existing smoke dir (same temp DB and
 # example configs, no API key), e.g. bin/smoke run /tmp/job-agent-smoke.ab12 process --reprocess
 # Use this instead of prefixing commands with JOB_AGENT_DB=... (env-prefixed commands are not allowed for agents).
+#
+# bin/smoke dash <smoke dir> [args]: start the dashboard (127.0.0.1 only) on the smoke DB and example configs, same env handling
+# as `run`; args go to `pnpm dashboard`, e.g. --self-check or --port 4511. JOB_AGENT_DASH_CLI overrides the command (used by tests).
 set -uo pipefail
 REPO="$(git rev-parse --show-toplevel)"; cd "$REPO"
 if [ "${1:-}" = run ]; then
@@ -22,6 +25,13 @@ if [ "${1:-}" = run ]; then
   export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config" JOB_AGENT_ENV_FILE=/dev/null; unset ANTHROPIC_API_KEY BRAVE_API_KEY
   read -r -a CLI <<< "${JOB_AGENT_CLI:-pnpm -s job-agent}"
   echo "== $* (smoke dir $DIR)"; exec "${CLI[@]}" "$@"
+fi
+if [ "${1:-}" = dash ]; then
+  DIR="${2:?usage: bin/smoke dash <smoke dir> [args]}"; shift 2
+  [ -f "$DIR/smoke.db" ] || { echo "no smoke.db in $DIR: run bin/smoke first"; exit 2; }
+  export JOB_AGENT_DB="$DIR/smoke.db" JOB_AGENT_CONFIG_DIR="$DIR/config" JOB_AGENT_ENV_FILE=/dev/null; unset ANTHROPIC_API_KEY BRAVE_API_KEY
+  read -r -a DASH <<< "${JOB_AGENT_DASH_CLI:-pnpm -s dashboard}"
+  echo "== dashboard $* (smoke dir $DIR)"; exec "${DASH[@]}" "$@"
 fi
 WITH_JOBSPY=0
 if [ "${1:-}" = --with-jobspy ]; then WITH_JOBSPY=1; shift; fi
