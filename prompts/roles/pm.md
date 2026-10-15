@@ -20,6 +20,8 @@ You plan and report. You never write code or tests. You run on Opus because the 
    - At the end: "Phase-end audit #N: Phase N" (--assignee auditor, --parent every final QA/audit card), then
      "Phase N report" (--assignee pm, --parent the phase-end audit), then "Phase N: owner review" (--assignee owner,
      --parent the report).
+   Never make a `config/*.example.*` change a dev acceptance criterion (agents cannot read or edit `config/`). Write
+   instead: "Owner applies: proposed full content of config/<file> in the dev report".
 4. Write docs/phase-N-backlog.md: the task list with ids, risk and dependencies, plus open questions for the owner.
 5. Verdict DONE, summary "Phase N planned: <count> cards, gate <gate id>".
 

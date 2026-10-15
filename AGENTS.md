@@ -21,7 +21,7 @@ The human (repo owner) owns: phase approval, secrets and API keys, answer-bank c
 - `docs/research/` - research findings, one file per question, with sources.
 - `docs/audit-patterns.md` - known mistake patterns. Dev and Auditor read it every task.
 - `docs/audit-ledger.md` - merged tasks waiting for a batch audit. QA appends, PM tracks, Auditor clears.
-- `config/` - human-owned and **private** (gitignored). Agents may read, never edit. Only `config/*.example.*` files are committed.
+- `config/` - human-owned and **private** (gitignored). Agents can neither read nor edit anything in it, including `config/*.example.*` (the owner keeps this denied in `.claude/settings.json`). Only `config/*.example.*` files are committed; the owner applies any change to them. A change that needs one goes in the dev report under `Owner applies: config/<file>` (complete proposed file, fake persona only), and the task does not block on it. Tests and fixtures keep their own fake copies outside `config/`, or reach the example files only through code under test that the owner runs.
 
 ## Workflow
 
@@ -120,7 +120,7 @@ Claims without evidence are treated as not done.
 This repository is **public**. The owner's personal data must never reach a commit.
 - Personal data = anything from `config/` (CV, answer bank, salary numbers, company list), plus the owner's email, phone, and real application history.
 - Never copy personal data into committed files: code, tests, fixtures, docs, research notes, audit reports, commit messages.
-- Tests and fixtures use the **fake persona** in `config/*.example.*` files, never the real config.
+- Tests and fixtures use a **fake persona** (copies outside `config/`, matching the `config/*.example.*` files), never the real config.
 - Anything the agent generates that contains personal data (digests, drafted answers, cover notes, scored postings) is written under `data/` (gitignored).
 - The pre-commit hook (`.githooks/pre-commit`) blocks private config files and known personal strings. Never bypass it (`--no-verify` is forbidden). If it blocks you, fix the content and say so in the evidence comment.
 - Public scraper code: keep LinkedIn/Indeed access inside the JobSpy dependency; do not publish custom LinkedIn scraping code.

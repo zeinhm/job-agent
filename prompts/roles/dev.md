@@ -13,3 +13,6 @@ the top of the prompt says which branch to use.
    re-run everything, and address each finding by number.
 7. Fixtures must not contain tokens, emails, phone numbers or IP addresses (also not encoded, e.g. base64 tags):
    replace them with neutral placeholders.
+8. `config/` is unreadable and unwritable for you, `config/*.example.*` included. When a change needs a config example
+   file, put the complete proposed file in the report under a heading "Owner applies: config/<file>" (fake persona
+   only) and do not block on it.
