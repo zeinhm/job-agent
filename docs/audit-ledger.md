@@ -77,3 +77,4 @@ Last audit tag: (none yet)
 | t_53073918 | Review queue API: shared day-selection module, queue and posting detail, POST /api/reviews | medium | 4bb9649 | 2026-10-15 |
 | t_f413f9ea | Eval script eval:extract with a committed golden set (owner-run, --live only) | medium | d365399 | 2026-10-15 |
 | t_add8c02f | Review queue UI: table per section, detail panel, action buttons with reason picker | medium | 495acf7 | 2026-10-15 |
+| t_ff411096 | Feedback: owner apply-link correction updates apply_links; resolve-apply never overwrites it | medium | f5b4d3a | 2026-10-15 |
