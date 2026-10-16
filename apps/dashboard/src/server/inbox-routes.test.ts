@@ -116,7 +116,7 @@ describe("GET /api/inbox", () => {
   });
 
   it("is empty with no questions", async () => {
-    expect(await inbox()).toEqual({ openCount: 0, items: [] });
+    expect(await inbox()).toEqual({ openCount: 0, items: [], mappings: [] });
   });
 });
 

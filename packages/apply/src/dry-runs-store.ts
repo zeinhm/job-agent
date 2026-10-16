@@ -338,6 +338,27 @@ export function approveChoiceMapping(
   return row === undefined ? null : mappingView(row);
 }
 
+/** Every mapping of every answer, ordered by answer key, label, then option hash. */
+export function listAllChoiceMappings(db: Db): ChoiceMappingView[] {
+  return db
+    .select()
+    .from(choice_mappings)
+    .all()
+    .sort(
+      (a, b) =>
+        a.answer_key.localeCompare(b.answer_key) ||
+        a.normalized_label.localeCompare(b.normalized_label) ||
+        a.options_hash.localeCompare(b.options_hash),
+    )
+    .map(mappingView);
+}
+
+/** Deletes one mapping. Returns false when it does not exist. */
+export function removeChoiceMapping(db: Db, ref: ChoiceMappingRef): boolean {
+  const r = ChoiceMappingRefSchema.parse(ref);
+  return db.delete(choice_mappings).where(keyOf(r)).returning().all().length > 0;
+}
+
 /** Every mapping for one answer key (approved or not), ordered by label then option hash. */
 export function listChoiceMappings(db: Db, answerKey: string): ChoiceMappingView[] {
   const key = AnswerKeySchema.parse(answerKey);

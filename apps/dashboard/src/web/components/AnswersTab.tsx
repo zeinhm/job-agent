@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Fragment, useMemo, useState } from "react";
-import { api, type Answer, type AnswerPatchBody } from "../api.ts";
+import { api, type Answer, type AnswerPatchBody, type ChoiceMapping } from "../api.ts";
 
 const features = tableFeatures({ rowSortingFeature, sortedRowModel: createSortedRowModel() });
 const helper = createColumnHelper<typeof features, Answer>();
@@ -15,11 +15,15 @@ const helper = createColumnHelper<typeof features, Answer>();
 /** Everything an inline edit can change, plus the add/remove alternatives controls, for one row. */
 function AnswerCells({
   answer,
+  mappings,
   save,
+  removeMapping,
   busy,
 }: {
   answer: Answer;
+  mappings: ChoiceMapping[];
   save: (key: string, patch: AnswerPatchBody) => void;
+  removeMapping: (m: ChoiceMapping) => void;
   busy: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -140,6 +144,29 @@ function AnswerCells({
           Add alternative to {answer.key}
         </button>
       </td>
+      <td>
+        <ul aria-label={`Choice mappings for ${answer.key}`}>
+          {mappings.map((m) => (
+            <li key={m.optionsHash}>
+              {m.normalizedLabel}: <span className="answer-text">{m.chosen.join(", ")}</span>
+              {!m.approved && (
+                <>
+                  {" "}
+                  <small>needs approval, save it again in the Inbox</small>
+                </>
+              )}{" "}
+              <button
+                type="button"
+                disabled={busy}
+                aria-label={`Remove mapping ${m.normalizedLabel} for ${answer.key}`}
+                onClick={() => removeMapping(m)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </td>
     </>
   );
 }
@@ -198,11 +225,29 @@ export function AnswersTab() {
   const [exported, setExported] = useState<{ path: string; count: number } | null>(null);
   const q = useQuery({ queryKey: ["answers"], queryFn: api.answers });
 
+  const mappingsQuery = useQuery({ queryKey: ["choice-mappings"], queryFn: api.choiceMappings });
+
   const refresh = () => client.invalidateQueries({ queryKey: ["answers"] });
+  // An edit can clear an answer's approval and with it its mappings, which moves the inbox and the queue counts.
+  const refreshAll = () =>
+    Promise.all(
+      ["answers", "choice-mappings", "inbox", "queue", "posting"].map((k) =>
+        client.invalidateQueries({ queryKey: [k] }),
+      ),
+    );
+  const removeMapping = useMutation({
+    mutationFn: (m: ChoiceMapping) =>
+      api.removeChoiceMapping({
+        answer_key: m.answerKey,
+        label: m.normalizedLabel,
+        options: m.options,
+      }),
+    onSuccess: refreshAll,
+  });
   const patch = useMutation({
     mutationFn: ({ key, body }: { key: string; body: AnswerPatchBody }) =>
       api.patchAnswer(key, body),
-    onSuccess: refresh,
+    onSuccess: refreshAll,
   });
   const add = useMutation({ mutationFn: api.createAnswer, onSuccess: refresh });
   const exportMut = useMutation({ mutationFn: api.exportAnswers, onSuccess: setExported });
@@ -221,8 +266,8 @@ export function AnswersTab() {
   if (q.isPending) return <p>Loading...</p>;
   if (q.isError) return <p role="alert">Could not load the answers.</p>;
 
-  const failed = patch.isError || add.isError || exportMut.isError;
-  const busy = patch.isPending || add.isPending;
+  const failed = patch.isError || add.isError || exportMut.isError || removeMapping.isError;
+  const busy = patch.isPending || add.isPending || removeMapping.isPending;
   const shown = table.getRowModel().rows;
 
   return (
@@ -258,6 +303,7 @@ export function AnswersTab() {
               <th>Type</th>
               <th>Approval</th>
               <th>Alternatives</th>
+              <th>Choice mappings</th>
             </tr>
           </thead>
           <tbody>
@@ -268,7 +314,7 @@ export function AnswersTab() {
                 <Fragment key={row.id}>
                   {newGroup && (
                     <tr className="group-row">
-                      <th colSpan={5} scope="colgroup">
+                      <th colSpan={6} scope="colgroup">
                         {a.group}
                       </th>
                     </tr>
@@ -278,8 +324,10 @@ export function AnswersTab() {
                       // Remounts when the saved row changes so edit boxes never show stale text.
                       key={`${a.key}-${a.updatedAt}`}
                       answer={a}
+                      mappings={(mappingsQuery.data ?? []).filter((m) => m.answerKey === a.key)}
                       busy={busy}
                       save={(key, body) => patch.mutate({ key, body })}
+                      removeMapping={(m) => removeMapping.mutate(m)}
                     />
                   </tr>
                 </Fragment>

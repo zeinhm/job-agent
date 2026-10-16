@@ -109,9 +109,9 @@ describe("matchQuestions", () => {
     });
     expect(questionCounts(db, [a, b, "none"])).toEqual(
       new Map([
-        [a, { total: 4, covered: 2, unknown: 1, salary: 1 }],
-        [b, { total: 1, covered: 0, unknown: 1, salary: 0 }],
-        ["none", { total: 0, covered: 0, unknown: 0, salary: 0 }],
+        [a, { total: 4, covered: 2, needsMapping: 0, unknown: 1, salary: 1 }],
+        [b, { total: 1, covered: 0, needsMapping: 0, unknown: 1, salary: 0 }],
+        ["none", { total: 0, covered: 0, needsMapping: 0, unknown: 0, salary: 0 }],
       ]),
     );
     const inbox = db.select().from(unknown_questions).all();
@@ -169,6 +169,7 @@ describe("matchQuestions", () => {
     expect(questionCounts(db, [a]).get(a)).toEqual({
       total: 2,
       covered: 0,
+      needsMapping: 0,
       unknown: 0,
       salary: 2,
     });

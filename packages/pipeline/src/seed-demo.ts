@@ -263,6 +263,7 @@ export function seedDemo(db: Db, date: string): SeedResult {
             label: q.label,
             required: q.required,
             type: q.type,
+            options: q.options === undefined ? null : JSON.stringify(q.options),
             normalized_label: label,
             matched_key: q.matchedKey ?? null,
             fetched_at: at("04:20"),

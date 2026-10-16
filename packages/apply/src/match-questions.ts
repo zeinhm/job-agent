@@ -7,12 +7,15 @@ import {
   type Db,
 } from "@job-agent/core";
 import { eq, inArray, isNull } from "drizzle-orm";
+import { approvedMappingIds, choiceOptions, mappingId } from "./choice-coverage.ts";
 import { buildAnswerIndex, matchedKeyOf, matchQuestion, normalizeQuestion } from "./match.ts";
 
 export interface MatchSummary {
   questions: number;
-  /** Standard fields and approved answers. */
+  /** Standard fields, approved answers, and choice questions whose answer also has an approved mapping. */
   covered: number;
+  /** Matched to an approved answer, but a choice question without an approved mapping for its option set. */
+  needsMapping: number;
   salary: number;
   unknown: number;
   /** Distinct unknown wordings. */
@@ -24,6 +27,8 @@ export interface MatchSummary {
 export interface QuestionCounts {
   total: number;
   covered: number;
+  /** Matched to an approved answer, waiting for the owner's choice mapping. */
+  needsMapping: number;
   /** No match: waiting in the inbox. */
   unknown: number;
   salary: number;
@@ -43,6 +48,18 @@ function parseList(text: string): string[] {
   } catch {
     return [];
   }
+}
+
+interface ChoiceRow {
+  type: string;
+  options: string | null;
+  normalized_label: string;
+}
+
+/** A choice question matched to answer `key` is covered only with an approved mapping for its option set. */
+function needsMapping(q: ChoiceRow, key: string, approved: ReadonlySet<string>): boolean {
+  const options = choiceOptions(q.type, q.options);
+  return options !== null && !approved.has(mappingId(key, q.normalized_label, options));
 }
 
 /**
@@ -80,11 +97,13 @@ export function matchQuestions(db: Db): MatchSummary {
     const summary: MatchSummary = {
       questions: rows.length,
       covered: 0,
+      needsMapping: 0,
       salary: 0,
       unknown: 0,
       unknownWordings: 0,
       changed: 0,
     };
+    const approvedMappings = approvedMappingIds(tx);
     const unknown = new Map<string, Wording>();
     for (const r of rows) {
       const normalized = normalizeQuestion(r.normalized_label);
@@ -113,6 +132,8 @@ export function matchQuestions(db: Db): MatchSummary {
         }
       } else if (match.kind === "salary") {
         summary.salary++;
+      } else if (match.kind === "answer" && needsMapping(r, match.key, approvedMappings)) {
+        summary.needsMapping++;
       } else {
         summary.covered++;
       }
@@ -173,20 +194,28 @@ export function matchQuestions(db: Db): MatchSummary {
 /** Per posting: how many of its stored questions are covered, unknown, salary. Postings without questions get zeros. */
 export function questionCounts(db: Db, postingIds: readonly string[]): Map<string, QuestionCounts> {
   const out = new Map<string, QuestionCounts>(
-    postingIds.map((id) => [id, { total: 0, covered: 0, unknown: 0, salary: 0 }]),
+    postingIds.map((id) => [id, { total: 0, covered: 0, needsMapping: 0, unknown: 0, salary: 0 }]),
   );
   if (postingIds.length === 0) return out;
   const rows = db
-    .select({ id: posting_questions.posting_id, key: posting_questions.matched_key })
+    .select({
+      id: posting_questions.posting_id,
+      key: posting_questions.matched_key,
+      type: posting_questions.type,
+      options: posting_questions.options,
+      normalized_label: posting_questions.normalized_label,
+    })
     .from(posting_questions)
     .where(inArray(posting_questions.posting_id, [...postingIds]))
     .all();
+  const approved = approvedMappingIds(db);
   for (const r of rows) {
     const c = out.get(r.id);
     if (c === undefined) continue;
     c.total++;
     if (r.key === null) c.unknown++;
     else if (r.key === "salary") c.salary++;
+    else if (!r.key.startsWith("standard.") && needsMapping(r, r.key, approved)) c.needsMapping++;
     else c.covered++;
   }
   return out;

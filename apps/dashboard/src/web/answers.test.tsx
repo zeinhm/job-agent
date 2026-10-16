@@ -52,6 +52,7 @@ beforeEach(() => {
 
 const server = setupServer(
   http.get(`${BASE}/api/answers`, () => HttpResponse.json({ answers: store })),
+  http.get(`${BASE}/api/choice-mappings`, () => HttpResponse.json({ mappings: [] })),
   http.patch(`${BASE}/api/answers/:key`, async ({ params, request }) => {
     const key = String(params.key);
     const body = (await request.json()) as AnswerPatchBody;

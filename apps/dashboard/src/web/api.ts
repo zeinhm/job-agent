@@ -101,7 +101,45 @@ export const InboxItemSchema = z.object({
 });
 export type InboxItem = z.infer<typeof InboxItemSchema>;
 
-const InboxSchema = z.object({ openCount: z.number(), items: z.array(InboxItemSchema) });
+export const MappingNeedSchema = z.object({
+  answerKey: z.string(),
+  label: z.string(),
+  normalizedLabel: z.string(),
+  options: z.array(z.string()),
+  multi: z.boolean(),
+  answerText: z.string(),
+  postingCount: z.number(),
+  examples: z.array(z.object({ postingId: z.string(), title: z.string(), company: z.string() })),
+  picked: z.array(z.string()).nullable(),
+});
+export type MappingNeed = z.infer<typeof MappingNeedSchema>;
+
+export const ChoiceMappingSchema = z.object({
+  answerKey: z.string(),
+  normalizedLabel: z.string(),
+  optionsHash: z.string(),
+  options: z.array(z.string()),
+  chosen: z.array(z.string()),
+  approved: z.boolean(),
+  approvedAt: z.string().nullable(),
+  updatedAt: z.string(),
+});
+export type ChoiceMapping = z.infer<typeof ChoiceMappingSchema>;
+const ChoiceMappingsSchema = z.object({ mappings: z.array(ChoiceMappingSchema) });
+
+/** Body of POST /api/choice-mappings and POST /api/choice-mappings/remove (the latter without `chosen`). */
+export interface ChoiceMappingBody {
+  answer_key: string;
+  label: string;
+  options: string[];
+  chosen: string[];
+}
+
+const InboxSchema = z.object({
+  openCount: z.number(),
+  items: z.array(InboxItemSchema),
+  mappings: z.array(MappingNeedSchema),
+});
 export type Inbox = z.infer<typeof InboxSchema>;
 const InboxResultSchema = z.object({ openCount: z.number(), key: z.string().nullable() });
 
@@ -182,6 +220,7 @@ export const QueueItemSchema = z.object({
   questions: z.object({
     total: z.number(),
     covered: z.number(),
+    needsMapping: z.number(),
     unknown: z.number(),
     salary: z.number(),
   }),
@@ -317,6 +356,12 @@ export const api = {
     apiPost(`/api/inbox/${encodeURIComponent(id)}/link`, { key }, InboxResultSchema),
   dismissInbox: (id: string) =>
     apiPost(`/api/inbox/${encodeURIComponent(id)}/dismiss`, {}, InboxResultSchema),
+  choiceMappings: (): Promise<ChoiceMapping[]> =>
+    apiGet("/api/choice-mappings", ChoiceMappingsSchema).then((r) => r.mappings),
+  saveChoiceMapping: (body: ChoiceMappingBody) =>
+    apiPost("/api/choice-mappings", body, ChoiceMappingSchema),
+  removeChoiceMapping: (body: Omit<ChoiceMappingBody, "chosen">) =>
+    apiPost("/api/choice-mappings/remove", body, z.object({ removed: z.boolean() })),
   undo: (postingIds: string[]) =>
     apiPost("/api/reviews/undo", { posting_ids: postingIds }, BatchRecordedSchema),
 };

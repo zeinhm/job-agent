@@ -179,7 +179,7 @@ const commands: Record<string, Command> = {
     try {
       const m = matchQuestions(db);
       io.out(
-        `match-questions: ${m.questions} questions, ${m.covered} covered, ${m.salary} salary, ${m.unknown} unknown (${m.unknownWordings} wordings), ${m.changed} changed\n`,
+        `match-questions: ${m.questions} questions, ${m.covered} covered, ${m.needsMapping} need a choice mapping, ${m.salary} salary, ${m.unknown} unknown (${m.unknownWordings} wordings), ${m.changed} changed\n`,
       );
       return 0;
     } finally {

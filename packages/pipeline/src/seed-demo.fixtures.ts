@@ -39,7 +39,15 @@ export interface DemoPosting {
     | { kind: "waiting"; status: "pending" | "budget_wait" | "failed" | "fx_wait" }
     | { kind: "suspicious"; score: number; reasons: string[] }
     | { kind: "none" };
-  questions?: { id: string; label: string; type: string; required: boolean; matchedKey?: string }[];
+  questions?: {
+    id: string;
+    label: string;
+    type: string;
+    required: boolean;
+    matchedKey?: string;
+    /** The form's options of a choice question, stored as `posting_questions.options`. */
+    options?: string[];
+  }[];
 }
 
 export const DEMO_COMPANIES: DemoCompany[] = [
@@ -89,6 +97,14 @@ export const DEMO_POSTINGS: DemoPosting[] = [
         type: "input_text",
         required: true,
         matchedKey: "availability.notice",
+      },
+      {
+        id: "q_setup",
+        label: "Preferred work arrangement",
+        type: "choice",
+        required: true,
+        matchedKey: "availability.work_setup",
+        options: ["On-site", "Hybrid", "Fully remote", "Flexible"],
       },
       {
         id: "q_why",
@@ -225,6 +241,13 @@ export const DEMO_ANSWERS = [
     group: "availability",
     question: "Notice period",
     answer: "2 weeks",
+    type: "text" as const,
+  },
+  {
+    key: "availability.work_setup",
+    group: "availability",
+    question: "Preferred work arrangement",
+    answer: "Remote",
     type: "text" as const,
   },
 ];

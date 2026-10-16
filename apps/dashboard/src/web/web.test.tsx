@@ -56,7 +56,9 @@ const server = setupServer(
     HttpResponse.json(statsFor(new URL(request.url).searchParams.get("date") ?? "")),
   ),
   http.get("http://localhost:3000/api/answers", () => HttpResponse.json({ answers: [] })),
-  http.get("http://localhost:3000/api/inbox", () => HttpResponse.json({ openCount: 0, items: [] })),
+  http.get("http://localhost:3000/api/inbox", () =>
+    HttpResponse.json({ openCount: 0, items: [], mappings: [] }),
+  ),
   http.get("http://localhost:3000/api/queue", () =>
     HttpResponse.json({
       date: "2026-10-16",

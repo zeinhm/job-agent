@@ -6,7 +6,13 @@ import { describePosting, selectDay, type Entry, type PostingView } from "../dig
 import { canonicalPostingId, firstReviewAt, reviewHistory, type ReviewRow } from "./record.ts";
 import { reviewState, type ReviewState } from "./state.ts";
 
-const NO_QUESTIONS: QuestionCounts = { total: 0, covered: 0, unknown: 0, salary: 0 };
+const NO_QUESTIONS: QuestionCounts = {
+  total: 0,
+  covered: 0,
+  needsMapping: 0,
+  unknown: 0,
+  salary: 0,
+};
 
 export interface QueueItem extends PostingView {
   review: ReviewState;

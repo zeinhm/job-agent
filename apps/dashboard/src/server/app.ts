@@ -6,6 +6,9 @@ import {
   AnswerKeySchema,
   AnswerPatchSchema,
   AnswerStoreError,
+  ChoiceMappingRefSchema,
+  ChoiceMappingSaveSchema,
+  DryRunStoreError,
   InboxAnswerSchema,
   InboxError,
   InboxLinkSchema,
@@ -15,9 +18,12 @@ import {
   dismissInbox,
   exportAnswers,
   linkInbox,
+  listAllChoiceMappings,
   listAnswers,
   listInbox,
   matchQuestions,
+  removeChoiceMapping,
+  saveChoiceMapping,
   updateAnswer,
 } from "@job-agent/apply";
 import type { Db, SalaryConfig } from "@job-agent/core";
@@ -217,6 +223,30 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     const { id } = parseParams(c, InboxParams);
     await parseBody(c, z.strictObject({}));
     return inboxAction(c, () => dismissInbox(db, id));
+  });
+
+  // Choice mappings: the store throws field names only, so no response echoes an answer or an option text.
+  const mappingError = (c: Context, e: unknown) => {
+    if (!(e instanceof DryRunStoreError)) throw e;
+    if (e.kind === "not_found") return c.json({ error: "not found" }, 404);
+    return c.json({ error: "invalid request", issues: e.paths.map((path) => ({ path })) }, 400);
+  };
+
+  app.get("/api/choice-mappings", (c) => c.json({ mappings: listAllChoiceMappings(db) }));
+
+  app.post("/api/choice-mappings", async (c) => {
+    const input = await parseBody(c, ChoiceMappingSaveSchema);
+    try {
+      return c.json(saveChoiceMapping(db, input, now()), 201);
+    } catch (e) {
+      return mappingError(c, e);
+    }
+  });
+
+  app.post("/api/choice-mappings/remove", async (c) => {
+    const ref = await parseBody(c, ChoiceMappingRefSchema);
+    if (!removeChoiceMapping(db, ref)) return c.json({ error: "not found" }, 404);
+    return c.json({ removed: true });
   });
 
   // Last resort for anything no route matched: static files, SPA fallback, JSON 404 for /api.

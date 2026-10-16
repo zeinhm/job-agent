@@ -15,6 +15,7 @@ import {
   listAnswers,
   updateAnswer,
 } from "./answers-store.ts";
+import { listMappingNeeds, type MappingNeed } from "./choice-mapping.ts";
 import { normalizeQuestion } from "./match.ts";
 import { isSalaryWording } from "./salary.ts";
 import { matchQuestions } from "./match-questions.ts";
@@ -53,6 +54,8 @@ export interface InboxItem {
 export interface InboxList {
   openCount: number;
   items: InboxItem[];
+  /** Matched choice questions waiting for the owner's option mapping. */
+  mappings: MappingNeed[];
 }
 
 /** Field names only, never values. */
@@ -111,7 +114,7 @@ export function listInbox(db: Db): InboxList {
       examples,
     };
   });
-  return { openCount: items.length, items };
+  return { openCount: items.length, items, mappings: listMappingNeeds(db) };
 }
 
 function openRow(db: Db, id: string) {

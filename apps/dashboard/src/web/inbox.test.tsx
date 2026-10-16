@@ -48,7 +48,9 @@ beforeEach(() => {
 });
 
 const server = setupServer(
-  http.get(`${BASE}/api/inbox`, () => HttpResponse.json({ openCount: items.length, items })),
+  http.get(`${BASE}/api/inbox`, () =>
+    HttpResponse.json({ openCount: items.length, items, mappings: [] }),
+  ),
   http.get(`${BASE}/api/answers`, () => HttpResponse.json({ answers: [visa, notice] })),
   ...(["answer", "link", "dismiss"] as const).map((kind) =>
     http.post(`${BASE}/api/inbox/:id/${kind}`, async ({ params, request }) => {

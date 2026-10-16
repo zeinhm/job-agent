@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { answer_bank, type Db } from "@job-agent/core";
 import { eq } from "drizzle-orm";
+import { clearMappingApprovals } from "./answers-store.ts";
 import type { AnswerEntry } from "./answers.ts";
 import { validateTypedAnswer } from "./typed-answer.ts";
 
@@ -64,6 +65,8 @@ export function importAnswers(
       ) {
         summary.unchanged += 1;
       } else {
+        // Same F3 rule as a dashboard edit: an answer that loses approval takes its mappings' approval with it.
+        if (row.approved && !e.approved) clearMappingApprovals(tx, e.key, stamp);
         tx.update(answer_bank)
           .set({
             ...fields,

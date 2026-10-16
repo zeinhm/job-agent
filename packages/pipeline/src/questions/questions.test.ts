@@ -511,7 +511,9 @@ describe("fetch-questions", () => {
     gh200();
     const id = ghPosting();
     const r = await run();
-    expect(r.out).toMatch(/fetch-questions: matched \d+ covered, \d+ salary, \d+ unknown/);
+    expect(r.out).toMatch(
+      /fetch-questions: matched \d+ covered, \d+ need a choice mapping, \d+ salary, \d+ unknown/,
+    );
     const stored = rows(id);
     const unknown = stored.filter((q) => q.matched_key === null);
     expect(unknown.length).toBeGreaterThan(0);

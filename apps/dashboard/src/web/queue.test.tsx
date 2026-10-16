@@ -31,7 +31,7 @@ function item(over: Partial<QueueItem> & { postingId: string; title: string }): 
     applyUrl: "https://example.com/jobs/1",
     applyType: "ats",
     review: OPEN,
-    questions: { total: 0, covered: 0, unknown: 0, salary: 0 },
+    questions: { total: 0, covered: 0, needsMapping: 0, unknown: 0, salary: 0 },
     ...over,
   };
 }
@@ -248,7 +248,10 @@ describe("queue sections", () => {
   });
 
   it("shows covered/total questions per posting, a dash when none are stored", async () => {
-    items.p1 = { ...get("p1"), questions: { total: 5, covered: 3, unknown: 1, salary: 1 } };
+    items.p1 = {
+      ...get("p1"),
+      questions: { total: 5, covered: 3, needsMapping: 0, unknown: 1, salary: 1 },
+    };
     renderApp();
     await screen.findByRole("region", { name: "Top matches" });
     const rows = within(section("Top matches")).getAllByRole("row");

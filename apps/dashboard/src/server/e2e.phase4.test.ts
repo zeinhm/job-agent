@@ -140,7 +140,13 @@ interface Item {
   title: string;
   company: string;
   review: { status: string; processed: boolean };
-  questions: { total: number; covered: number; unknown: number; salary: number };
+  questions: {
+    total: number;
+    covered: number;
+    needsMapping: number;
+    unknown: number;
+    salary: number;
+  };
 }
 interface Queue {
   sections: Record<"top" | "needs_a_look" | "suspicious" | "waiting", Item[]>;
@@ -210,7 +216,7 @@ describe("phase 4 review workflow end to end", () => {
     const match = await cli("match-questions");
     expect(match.code).toBe(0);
     expect(match.out).toMatch(
-      /^match-questions: 13 questions, 8 covered, 0 salary, 5 unknown \(5 wordings\), \d+ changed$/m,
+      /^match-questions: 13 questions, 7 covered, 1 need a choice mapping, 0 salary, 5 unknown \(5 wordings\), \d+ changed$/m,
     );
     expect(
       rows<{ matched_key: string | null }>(
@@ -240,7 +246,13 @@ describe("phase 4 review workflow end to end", () => {
     expect(q0.sections.waiting).toHaveLength(2);
     expect(q0.sections.needs_a_look.map((i) => i.postingId)).toContain(`demo-${DATE}-top-unclear`);
     expect(q0.firstReviewAt).toBeNull();
-    expect(byKey("top-ats").questions).toEqual({ total: 13, covered: 8, unknown: 5, salary: 0 });
+    expect(byKey("top-ats").questions).toEqual({
+      total: 13,
+      covered: 7,
+      needsMapping: 1,
+      unknown: 5,
+      salary: 0,
+    });
     const all = Object.values(q0.sections).flat();
     expect(all.every((i) => i.review.status === "open")).toBe(true);
     expect(
@@ -316,7 +328,8 @@ describe("phase 4 review workflow end to end", () => {
       (await queue()).sections.top.find((i) => i.postingId === id("top-ats"))?.questions,
     ).toEqual({
       total: 13,
-      covered: 9,
+      covered: 7,
+      needsMapping: 2,
       unknown: 4,
       salary: 0,
     });

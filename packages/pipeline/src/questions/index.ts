@@ -420,7 +420,7 @@ export async function runFetchQuestions(opts: FetchQuestionsOptions): Promise<nu
   }
   const m = matchQuestions(db);
   out(
-    `fetch-questions: matched ${m.covered} covered, ${m.salary} salary, ${m.unknown} unknown (${m.unknownWordings} wordings)\n`,
+    `fetch-questions: matched ${m.covered} covered, ${m.needsMapping} need a choice mapping, ${m.salary} salary, ${m.unknown} unknown (${m.unknownWordings} wordings)\n`,
   );
   out(`fetch-questions: requests ${http.requests}${errors > 0 ? `, errors ${errors}` : ""}\n`);
   return errors > 0 ? 1 : 0;

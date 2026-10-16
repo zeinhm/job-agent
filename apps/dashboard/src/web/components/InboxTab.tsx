@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { ANSWER_TYPES, api, type Answer, type InboxAnswerBody, type InboxItem } from "../api.ts";
+import {
+  ANSWER_TYPES,
+  api,
+  type Answer,
+  type InboxAnswerBody,
+  type InboxItem,
+  type MappingNeed,
+} from "../api.ts";
 
 const NAME = /^[A-Za-z0-9_-]+$/;
 
@@ -253,6 +260,78 @@ function InboxRow({
   );
 }
 
+/** Starting pick: an earlier unapproved pick, else the option that equals the answer text. Never saved on its own. */
+function initialPick(need: MappingNeed): string[] {
+  if (need.picked !== null) return need.picked.filter((o) => need.options.includes(o));
+  const wanted = need.answerText.trim().toLowerCase();
+  const exact = need.options.find((o) => o.trim().toLowerCase() === wanted);
+  return exact === undefined ? [] : [exact];
+}
+
+function MappingRow({
+  need,
+  busy,
+  onSave,
+}: {
+  need: MappingNeed;
+  busy: boolean;
+  onSave: (chosen: string[]) => void;
+}) {
+  const [chosen, setChosen] = useState<string[]>(() => initialPick(need));
+  const toggle = (option: string, on: boolean) =>
+    setChosen(
+      need.multi
+        ? need.options.filter((o) => (o === option ? on : chosen.includes(o)))
+        : on
+          ? [option]
+          : [],
+    );
+  return (
+    <li aria-label={`Choice mapping for ${need.label}`}>
+      <div>
+        <strong>{need.label}</strong> <small>needs a choice mapping</small>{" "}
+        <small>
+          asked by {need.postingCount} {need.postingCount === 1 ? "posting" : "postings"}
+        </small>
+      </div>
+      <ul aria-label={`Examples for choice mapping ${need.label}`}>
+        {need.examples.map((e) => (
+          <li key={e.postingId}>
+            {e.title} at {e.company}
+          </li>
+        ))}
+      </ul>
+      <p>
+        Approved answer {need.answerKey}: <span className="answer-text">{need.answerText}</span>
+      </p>
+      <fieldset aria-label={`Options for ${need.label}`}>
+        <legend>{need.multi ? "Pick every matching option" : "Pick the matching option"}</legend>
+        {need.options.map((option) => (
+          <div key={option}>
+            <label>
+              <input
+                type={need.multi ? "checkbox" : "radio"}
+                name={`${need.answerKey}-${need.normalizedLabel}`}
+                checked={chosen.includes(option)}
+                onChange={(e) => toggle(option, e.target.checked)}
+              />{" "}
+              {option}
+            </label>
+          </div>
+        ))}
+      </fieldset>
+      <button
+        type="button"
+        disabled={busy || chosen.length === 0}
+        aria-label={`Save mapping for ${need.label}`}
+        onClick={() => onSave(chosen)}
+      >
+        Save mapping
+      </button>
+    </li>
+  );
+}
+
 export function InboxTab() {
   const client = useQueryClient();
   const inbox = useQuery({ queryKey: ["inbox"], queryFn: api.inbox });
@@ -274,18 +353,51 @@ export function InboxTab() {
     onSuccess: done,
   });
   const dismiss = useMutation({ mutationFn: api.dismissInbox, onSuccess: done });
+  const mapping = useMutation({
+    mutationFn: api.saveChoiceMapping,
+    onSuccess: () =>
+      Promise.all([done(), client.invalidateQueries({ queryKey: ["choice-mappings"] })]),
+  });
 
   if (inbox.isPending) return <p>Loading...</p>;
   if (inbox.isError) return <p role="alert">Could not load the inbox.</p>;
 
-  const busy = answer.isPending || link.isPending || dismiss.isPending;
-  const failed = answer.isError || link.isError || dismiss.isError;
-  const { items, openCount } = inbox.data;
+  const busy = answer.isPending || link.isPending || dismiss.isPending || mapping.isPending;
+  const failed = answer.isError || link.isError || dismiss.isError || mapping.isError;
+  const { items, openCount, mappings } = inbox.data;
 
   return (
     <div className="inbox">
       <p role="status">Open questions: {openCount}</p>
       {failed && <p role="alert">That action could not be saved.</p>}
+      {mappings.length > 0 && (
+        <>
+          <h3>Needs a choice mapping: {mappings.length}</h3>
+          <p>
+            <small>
+              Pick the form&apos;s option that matches your approved answer. The mapping is reused
+              for every form with the same question wording and option set.
+            </small>
+          </p>
+          <ul aria-label="Choice mappings needed">
+            {mappings.map((need) => (
+              <MappingRow
+                key={JSON.stringify([need.answerKey, need.normalizedLabel, need.options])}
+                need={need}
+                busy={busy}
+                onSave={(chosen) =>
+                  mapping.mutate({
+                    answer_key: need.answerKey,
+                    label: need.label,
+                    options: need.options,
+                    chosen,
+                  })
+                }
+              />
+            ))}
+          </ul>
+        </>
+      )}
       {items.length === 0 ? (
         <p className="empty">No unknown questions.</p>
       ) : (

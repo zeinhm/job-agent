@@ -15,6 +15,13 @@ export {
   type InboxResult,
 } from "./inbox.ts";
 export {
+  ChoiceMappingSaveSchema,
+  listMappingNeeds,
+  saveChoiceMapping,
+  type ChoiceMappingSave,
+  type MappingNeed,
+} from "./choice-mapping.ts";
+export {
   buildAnswerIndex,
   matchedKeyOf,
   matchQuestion,
@@ -56,10 +63,12 @@ export {
   approveChoiceMapping,
   getChoiceMapping,
   getDryRun,
+  listAllChoiceMappings,
   listChoiceMappings,
   listDryRuns,
   optionsHash,
   recordDryRun,
+  removeChoiceMapping,
   setChoiceMapping,
   setDryRunReview,
   type ChoiceMappingInput,

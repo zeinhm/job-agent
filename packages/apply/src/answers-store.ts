@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ANSWER_TYPES, answer_bank, type AnswerBankRow, type Db } from "@job-agent/core";
-import { eq } from "drizzle-orm";
+import {
+  ANSWER_TYPES,
+  answer_bank,
+  choice_mappings,
+  type AnswerBankRow,
+  type Db,
+} from "@job-agent/core";
+import { and, eq } from "drizzle-orm";
 import { stringify } from "yaml";
 import { z } from "zod";
 import { normalizeQuestion } from "./match.ts";
@@ -145,6 +151,18 @@ export function createAnswer(db: Db, input: NewAnswer, now: Date = new Date()): 
   });
 }
 
+/** Clears the approval of every choice mapping of one answer; the picks stay, the owner re-approves them. */
+export function clearMappingApprovals(
+  db: Pick<Db, "update">,
+  answerKey: string,
+  stamp: string,
+): void {
+  db.update(choice_mappings)
+    .set({ approved: false, approved_at: null, updated_at: stamp })
+    .where(and(eq(choice_mappings.answer_key, answerKey), eq(choice_mappings.approved, true)))
+    .run();
+}
+
 const sameList = (a: string[] | null, b: string[] | null): boolean =>
   a === null || b === null ? a === b : a.length === b.length && a.every((v, i) => v === b[i]);
 
@@ -196,6 +214,8 @@ export function updateAnswer(
     )
       assertTypedAnswer(answer, type, choices);
     const approvedAt = !approved ? null : row.approved ? row.approved_at : stamp;
+    // An answer that loses approval (F3) takes its mappings' approval with it.
+    if (!approved) clearMappingApprovals(tx, key, stamp);
     const updated = tx
       .update(answer_bank)
       .set({
