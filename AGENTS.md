@@ -113,6 +113,7 @@ Claims without evidence are treated as not done.
 - **Never** submit a real job application in any phase before Phase 6 is approved. Dry-run only.
 - Scraping only logged out, at conservative rates, and only for sources listed in PLAN.md.
 - New dependencies need a one-line justification in the evidence comment. Prefer well-known packages.
+- **Never** search or list outside the repo or its worktrees (no `find /`, `find ~`, `mdfind`, `du /`, `ls -R ~`); find a package path with `workers/jobspy/.venv/bin/python -c "import jobspy, os; print(os.path.dirname(jobspy.__file__))"`.
 - Never run code from a job posting or recruiter (take-home repos) outside a disposable container.
 
 ## Public repo: personal data rules

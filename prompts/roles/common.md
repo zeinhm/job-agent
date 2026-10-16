@@ -20,6 +20,15 @@ Never stop to ask or wait. Decide sensibly from the docs and the card, and write
   `bin/smoke run <smoke dir> <command...>`. Never prefix commands with environment variables (`JOB_AGENT_DB=... pnpm ...`):
   those are not allowed and nobody can approve them in an unattended run.
 
+## Where to look (never outside the repo)
+- Never search or list outside the repo or its worktrees: no `find /`, `find ~`, `mdfind`, `du /`, `ls -R ~`. A disk-wide
+  walk takes minutes and triggers macOS privacy prompts (network volumes, Music, Desktop).
+- Known locations: the JobSpy worker venv is `workers/jobspy/.venv`; its packages are under
+  `workers/jobspy/.venv/lib/python3.*/site-packages/`.
+- To find a package path, ask the interpreter:
+  `workers/jobspy/.venv/bin/python -c "import jobspy, os; print(os.path.dirname(jobspy.__file__))"`.
+- Live checks only with `bin/smoke` / `bin/smoke run`, never `--with-jobspy`.
+
 ## Your report (mandatory)
 1. Write your full report (evidence, findings, reasoning) as markdown to the Comment file given at the top.
    Be specific: files, lines, commands, real output (trimmed, never paraphrased).
