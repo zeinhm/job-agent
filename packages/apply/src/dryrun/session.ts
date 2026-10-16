@@ -67,6 +67,7 @@ const SUBMIT_LIKE =
 interface ElementFacts {
   tag: string;
   type: string;
+  role: string;
   submitLike: boolean;
 }
 
@@ -109,6 +110,11 @@ export class DryRunSession {
       "css" in ref
         ? this.#page.locator(ref.css)
         : this.#page.getByLabel(ref.label, { exact: true });
+    return { locator, facts: await this.inspect(locator) };
+  }
+
+  /** The one element behind `locator`, or a refusal when it is not exactly one or is (inside) a submit control. */
+  private async inspect(locator: Locator): Promise<ElementFacts> {
     const count = await locator.count();
     if (count !== 1) throw new HarnessRefusalError(`expected exactly one element, found ${count}`);
     const facts = await locator.evaluate((el, submitLike): ElementFacts => {
@@ -118,12 +124,24 @@ export class DryRunSession {
       return {
         tag: el.tagName.toLowerCase(),
         type: (el.getAttribute("type") ?? "").toLowerCase(),
+        role: (el.getAttribute("role") ?? "").toLowerCase(),
         submitLike: el.closest(submitLike) !== null || /submit/i.test(attrs),
       };
     }, SUBMIT_LIKE);
     if (facts.submitLike)
       throw new HarnessRefusalError("refused: element is, or sits inside, a submit control");
-    return { locator, facts };
+    return facts;
+  }
+
+  /**
+   * Read-only snapshot: evaluates a fixed JS expression in the page and returns its JSON result. The fillers use it to
+   * read the form's controls and the values the page kept. Refused after a stop, like every other helper.
+   */
+  async snapshot<T>(expression: string): Promise<T> {
+    if (this.stop)
+      throw new HarnessRefusalError(`run is stopped (${this.stop.reason}): nothing is read`);
+    if (this.#finished) throw new HarnessRefusalError("run is finished");
+    return this.#page.evaluate<T>(expression);
   }
 
   /** Sets the value of a text-like input or textarea. */
@@ -142,6 +160,31 @@ export class DryRunSession {
     if (facts.tag !== "select")
       throw new HarnessRefusalError(`refused: cannot select in a ${facts.tag}`);
     await locator.selectOption(option);
+  }
+
+  /** Picks several options of a `<select multiple>` by visible label (the others are unselected). */
+  async selectMany(ref: FieldRef, labels: readonly string[]): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    const multiple =
+      facts.tag === "select" && (await locator.evaluate((el) => el.hasAttribute("multiple")));
+    if (!multiple) throw new HarnessRefusalError(`refused: ${facts.tag} is not a multi-select`);
+    await locator.selectOption(labels.map((label) => ({ label })));
+  }
+
+  /**
+   * Picks options of a combobox (react-select style: click the input, click the `role=option` item with that exact
+   * text). Each option must match exactly one element, and neither the combobox nor an option may be a submit control.
+   */
+  async choose(ref: FieldRef, labels: readonly string[]): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    if (facts.role !== "combobox")
+      throw new HarnessRefusalError(`refused: ${facts.tag} is not a combobox`);
+    for (const label of labels) {
+      await locator.click();
+      const option = this.#page.getByRole("option", { name: label, exact: true });
+      await this.inspect(option);
+      await option.click();
+    }
   }
 
   /** Checks or unchecks a checkbox or radio. */

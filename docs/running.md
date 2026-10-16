@@ -125,6 +125,7 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | `review-stats [--date YYYY-MM-DD]` | Phase 4 done-when measurement for a day (default: today in Asia/Jakarta). Prints counts and times only: matches (Top + Suspicious, plus the postings reviewed that day that left the queue because of the review), processed, open, first/last review time, elapsed minutes, median seconds per processed posting (gap to the review action before it), actions and `not_interested` reasons recorded that day, ask checks per tier (ok / too_high / too_low, total against 20, counted over all days up to the date), and the last line `done-when: <elapsed> min for <n> matches (<met\|not met>)`; met = at least one match, all processed, elapsed <= 30. The same numbers, plus the last 7 days, are in the dashboard Stats tab and `GET /api/stats?date=`. |
 | `eval-export-reviews` | Writes your own fit eval set from your reviews to `data/eval/reviews-<date>.json` (same as `pnpm --filter @job-agent/pipeline eval:export-reviews`). `interested` and `applied_manually` count as expected high, `not_interested` with reason role, stack or seniority as expected low, every other reason is skipped. `--since YYYY-MM-DD` keeps reviews from that Asia/Jakarta day on. The file holds posting text and is never committed. Prints only the path and counts. Refuses an `--out-dir` inside the repository outside `data/`. |
 | `seed-demo [--date YYYY-MM-DD]` | Dev tool: writes a fake day (made-up companies on `example.com`, postings, analysis, intel with fit scores and scam reasons, one apply link per apply type, ATS questions, a few answers, two fake dry runs: one `filled`, one `needs_input`, no screenshot) into the database so the digest and dashboard have Top matches, Needs a look, Suspicious and Waiting for scoring rows without an API key. Default date: today in Asia/Jakarta. Idempotent per date. Refuses (exit 2, `seed-demo: refusing to write <reason>`) when `JOB_AGENT_DB` is unset or its real path (symlinks resolved) is `data/` or anywhere under it, and refuses (exit 1, nothing written) a database holding any posting whose id does not start with `demo-`, so it only seeds a fresh or demo-only scratch DB: `bin/smoke --demo` seeds before discover, and `bin/smoke run <smoke dir> seed-demo` on a smoke dir that already has public postings is refused. |
+| `dry-run <posting-id> [--headless]` / `dry-run --fixture greenhouse` | Phase 5, owner-run. Fills the posting's Greenhouse form (apply link must be a Greenhouse job link, posting not scam-flagged, questions stored by `fetch-questions`) from the fill plan, screenshots it into `<data dir>/dryruns/` and records the run and its fields; **never submits**. Headed (a visible window) unless `--headless`. Prints one line `dry-run: status=<status> reason=<reason or -> fields=<filled>/<total> screenshot=<path>`, never a value. Only on the real database. `--fixture greenhouse` runs the committed synthetic form from 127.0.0.1 with a fake persona, only on a scratch DB (`bin/smoke run <dir> dry-run --fixture greenhouse`). Details and what to check: "Greenhouse dry run (Phase 5)". Exits 1 on a refusal or an error. |
 | `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
 | `digest [--date YYYY-MM-DD] [--out-dir <dir>] [--include-unpaid]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored at 60 or more, ranked, no why line; see "Reading the ranked digest"), Scored, not a fit (fit-scored below 60, one line each), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. `--include-unpaid` appends one last section, Volunteer / unpaid, listing postings rejected as unpaid, volunteer or equity-only in the last 24h (title, company, pay type, location, link, posted date); they are not fit-scored, and without the flag the digest is unchanged. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. Each Top match shows `- Apply: <url> (<apply_type>)` from the `apply_links` row of the entry's lead posting (types `ats`, `company_form`, `paid_aggregator`, `signup_required`, `unknown`) and `- Found on: <source> — <listing url>`; without a row it shows the posting's own link as `(unknown, not resolved yet)`. A `paid_aggregator` job keeps its fit-based rank and section, with ` (paid-only apply)` after the title. Scored-not-a-fit and Waiting lines end with the apply URL when one is resolved. |
 
@@ -415,11 +416,78 @@ the same checkout reuse it. The tests that need the browser (`packages/apply/src
 Safety, in code and not configurable: one run per process; every request that is not GET or HEAD is aborted (the only
 exception is an Ashby GraphQL query on the read-only allowlist), WebSockets, `sendBeacon` and service workers are blocked,
 and `form.submit()` / `requestSubmit()` / `submit` events are cancelled and recorded. The helpers only fill, select,
-check and upload; none clicks, and any element that is a submit control or inside one is refused. Fixture mode (tests,
+check and upload, plus picking an option of a combobox (it clicks only the combobox input and one `role=option` item); there is
+no other click, and any element that is a submit control or inside one is refused. Fixture mode (tests,
 `bin/smoke`) also aborts every host other than `127.0.0.1`. A CAPTCHA script or widget, a login wall or a page error
 stops the run before a field is filled. Output goes to `<data dir>/dryruns/<YYYY-MM-DD>/<run id>/screenshot.png` (dirs
 0700, file 0600; the data dir is the folder of the DB file, so a smoke run writes inside its smoke dir). Screenshots
 and filled values are personal data: never commit or share them.
+
+## Greenhouse dry run (Phase 5)
+
+`dry-run` fills a posting's Greenhouse application form, takes a full-page screenshot and records the run. It **never
+submits**: there is no submit path in the code, and the harness guards above abort every non-GET request.
+
+### Agents and smoke: the fixture
+
+```sh
+bin/smoke run <smoke dir> dry-run --fixture greenhouse
+```
+
+Serves the committed synthetic form (`packages/apply/fixtures/greenhouse/`, built from the selector map in
+`docs/research/t_d0698332-ats-form-structure.md`, not recorded from a real employer) from `127.0.0.1`, with a demo
+posting and a fake persona (answers, choice mappings and tier ask live in code, so the smoke DB's answer bank is not
+touched). It prints one line and nothing else:
+
+```
+dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<date>/<run id>/screenshot.png
+```
+
+`--fixture` is refused on the real database (the default DB or one under `data/`), and a real posting id is refused on a
+scratch DB: only the owner's real DB opens a real form. The fixture run is stored with `fixture` = true and never counts
+for the done-when line. The folder holds other pages used by the tests: `captcha.html` (stops `captcha`) and
+`changed.html` (stops `form_changed`).
+
+### Owner: a real dry run
+
+One posting at a time, in a window you watch. Pick a posting whose apply link is a Greenhouse job link, whose questions
+were fetched (`fetch-questions`), and that is not flagged as a scam:
+
+```sh
+pnpm job-agent dry-run <posting-id>              # opens a visible Chromium window
+pnpm job-agent dry-run <posting-id> --headless   # no window
+```
+
+If the browser is missing, run `pnpm playwright:install` once. The command refuses (exit 1, one `dry-run: refused: ...`
+line) a posting that has no Greenhouse job link, is scam-flagged or has no stored questions. Otherwise it opens the
+hosted form, and then:
+
+1. **Stops** (nothing filled, screenshot taken, status `stopped`) when the page shows a CAPTCHA widget or script, a login
+   wall, an error page or another host; when the form differs from the stored questions (`form_changed`: the detail lists
+   the labels of missing, extra and different fields); on a question type the planner cannot fill (`unexpected_field`);
+   on a field that matches two answers or a scam flag (`other`).
+2. **Fills** every covered field (approved answer, approved choice mapping, profile answer, tier ask, resume file) and
+   leaves the others empty. Status `needs_input` (reason `uncovered_question` or `choice_unmapped`) when any field is
+   left empty, or when the page did not keep a value (the field row shows `filled` = false and a note); `filled` when
+   every field is in. Labels with no matching answer go to the Inbox. The EEO block and the phone country are never
+   touched.
+3. Prints one line: `dry-run: status=<status> reason=<reason or -> fields=<filled>/<total> screenshot=<path>`. It never
+   prints a value. The window closes by itself after the screenshot (it is not left open to submit from).
+
+What to check, then review the run in the dashboard's Dry runs tab (Correct / Wrong with a reason):
+
+- Every filled field holds the right value (name split into first / last, email, phone, links, resume file name,
+  the right option in each choice, the salary field matches the posting's ask and its currency / period).
+- Nothing that should be empty was filled (EEO questions, anything you would answer yourself).
+- The stop or `needs_input` reason is the right one: a wrongly stopped or wrongly filled run is "wrong" with the reason.
+- Nothing was sent: the page stays on the form; the application is not in your Greenhouse confirmation email.
+
+Greenhouse loads an invisible reCAPTCHA Enterprise script on its forms (research t_ec2ae4c6). The harness stops on any
+CAPTCHA script, so if your first real runs all stop with `captcha`, that is the reason, not a bug: tell the PM, since
+whether a passive script alone should stop is an owner decision (D2 decision note, `docs/decisions.md`).
+
+The run, its fields and the screenshot are personal data under `<data dir>/dryruns/` (dirs 0700, files 0600): never commit
+or share them.
 
 ## LinkedIn and Indeed through JobSpy (optional, Tier 2)
 

@@ -27,7 +27,8 @@ import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
 import { computeDayStats, formatStats, isDigestDate, jakartaDate } from "./review/index.ts";
-import { runSeedDemo } from "./seed-demo.ts";
+import { DRY_RUN_USAGE, runDryRun } from "./dry-run.ts";
+import { refusalReason, runSeedDemo } from "./seed-demo.ts";
 
 export interface Io {
   out: (text: string) => void;
@@ -265,6 +266,36 @@ const commands: Record<string, Command> = {
       db.$client.close();
     }
   },
+  "dry-run": async (args, io) => {
+    let parsed;
+    try {
+      parsed = parseArgs({
+        args,
+        allowPositionals: true,
+        options: { headless: { type: "boolean", default: false }, fixture: { type: "string" } },
+      });
+    } catch (e) {
+      io.err(`dry-run: ${e instanceof Error ? e.message : String(e)}\n${DRY_RUN_USAGE}`);
+      return 1;
+    }
+    const dbPath = defaultDbPath();
+    const db = openDb(dbPath);
+    try {
+      return await runDryRun({
+        positionals: parsed.positionals,
+        fixture: parsed.values.fixture,
+        headless: parsed.values.headless === true,
+        db,
+        dbPath,
+        // The same test seed-demo uses: the default DB or one under data/ is the owner's real database.
+        isRealDb: refusalReason(process.env["JOB_AGENT_DB"]) !== null,
+        out: io.out,
+        err: io.err,
+      });
+    } finally {
+      db.$client.close();
+    }
+  },
   "seed-demo": (args, io) => {
     let date: string | undefined;
     try {
@@ -354,7 +385,7 @@ const usage = (): string =>
     Object.keys(commands)
       .map((name) => `  ${name}`)
       .join("\n") || "  (none yet)"
-  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n`;
+  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n`;
 
 export async function main(
   argv: string[],

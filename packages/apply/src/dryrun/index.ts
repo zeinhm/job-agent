@@ -12,3 +12,18 @@ export {
   type FieldRef,
   type FinishedRun,
 } from "./session.ts";
+export {
+  loadStoredQuestions,
+  runGreenhouseDryRun,
+  type GreenhouseRunOptions,
+  type GreenhouseRunSummary,
+  type PlanContext,
+} from "./greenhouse/filler.ts";
+export {
+  FIXTURE_FORM_PATH,
+  FIXTURE_POSTING_ID,
+  fixtureContext,
+  seedGreenhouseFixture,
+  startGreenhouseFixtureServer,
+  type GreenhouseFixtureServer,
+} from "./greenhouse/fixture.ts";

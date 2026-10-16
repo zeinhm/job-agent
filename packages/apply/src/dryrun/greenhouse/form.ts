@@ -1,0 +1,186 @@
+import { normalizeQuestion } from "../../match.ts";
+import type { FormField } from "../../fill-plan.ts";
+
+/**
+ * What the Greenhouse job-boards form shows (docs/research/t_d0698332-ats-form-structure.md, section 2): every control
+ * has an `id` that equals the stored `question_id`, there is no `name` attribute, selects are react-select comboboxes
+ * whose options only exist once the menu opens. The reader works on `form#application-form` and skips the EEOC block,
+ * the phone country combobox and react-select's hidden helper inputs.
+ */
+export type DomKind =
+  | "text"
+  | "textarea"
+  | "file"
+  | "select"
+  | "multiselect"
+  | "combobox"
+  | "radio_group"
+  | "checkbox_group"
+  | "unsupported";
+
+export interface DomControl {
+  id: string;
+  kind: DomKind;
+  label: string;
+  /** Option labels the DOM lists (select, radio, checkbox groups); null for a combobox (menu closed) or a plain input. */
+  options: string[] | null;
+  /** Ids of the radio / checkbox inputs of a group, parallel to `options`. */
+  optionIds: string[];
+}
+
+/** Fixed expression run in the page; the result is JSON (null when the page has no application form). */
+export const READ_CONTROLS_EXPRESSION = `(() => {
+  const form = document.querySelector("form#application-form");
+  if (!form) return null;
+  const clean = (el) => {
+    const copy = el.cloneNode(true);
+    copy.querySelectorAll("[aria-hidden='true']").forEach((n) => n.remove());
+    return copy.textContent.replace(/\\s+/g, " ").trim();
+  };
+  const labelOf = (el) => {
+    const byFor = el.id ? form.querySelector('label[for="' + CSS.escape(el.id) + '"]') : null;
+    if (byFor) return clean(byFor);
+    const by = el.getAttribute("aria-labelledby");
+    const named = by ? document.getElementById(by) : null;
+    if (named) return clean(named);
+    const legend = el.querySelector(":scope > legend");
+    return legend ? clean(legend) : (el.getAttribute("aria-label") || "");
+  };
+  const skipped = (el) =>
+    el.closest(".eeoc__container, .phone-input__country") !== null ||
+    el.getAttribute("aria-hidden") === "true";
+  const out = [];
+  const grouped = new Set();
+  for (const g of form.querySelectorAll("[role='group'][id], [role='radiogroup'][id]")) {
+    const boxes = [...g.querySelectorAll("input[type='checkbox'], input[type='radio']")];
+    if (boxes.length === 0 || skipped(g)) continue;
+    boxes.forEach((b) => grouped.add(b));
+    out.push({
+      id: g.id,
+      kind: boxes[0].type === "radio" ? "radio_group" : "checkbox_group",
+      label: labelOf(g),
+      options: boxes.map((b) => labelOf(b)),
+      optionIds: boxes.map((b) => b.id),
+    });
+  }
+  for (const el of form.querySelectorAll("input, textarea, select")) {
+    if (grouped.has(el) || skipped(el) || el.type === "hidden" || !el.id) continue;
+    const type = (el.getAttribute("type") || "").toLowerCase();
+    if (["submit", "button", "image", "reset"].includes(type)) continue;
+    let kind = "unsupported";
+    let options = null;
+    if (el.tagName === "TEXTAREA") kind = "textarea";
+    else if (el.tagName === "SELECT") {
+      kind = el.hasAttribute("multiple") ? "multiselect" : "select";
+      options = [...el.options].filter((o) => o.value !== "").map((o) => o.textContent.trim());
+    } else if (type === "file") kind = "file";
+    else if (el.getAttribute("role") === "combobox") kind = "combobox";
+    else if (["", "text", "email", "tel", "url", "number"].includes(type)) kind = "text";
+    out.push({ id: el.id, kind, label: labelOf(el), options, optionIds: [] });
+  }
+  return out;
+})()`;
+
+/** DOM kinds a stored question type may appear as. `other` (unknown to the planner) is checked by the planner itself. */
+const COMPATIBLE: Record<string, readonly DomKind[]> = {
+  text: ["text"],
+  long_text: ["textarea"],
+  file: ["file"],
+  yes_no: ["select", "combobox", "radio_group"],
+  choice: ["select", "combobox", "radio_group"],
+  multi_choice: ["multiselect", "combobox", "checkbox_group"],
+};
+
+export interface FormComparison {
+  ok: boolean;
+  /** Stored questions without a control on the page (labels). */
+  missing: string[];
+  /** Controls on the page that no stored question explains (labels). */
+  extra: string[];
+  /** Stored questions whose control is of another kind or lists other options (labels). */
+  different: string[];
+}
+
+const sameOptions = (a: readonly string[], b: readonly string[]): boolean => {
+  const x = new Set(a.map(normalizeQuestion));
+  const y = new Set(b.map(normalizeQuestion));
+  return x.size === y.size && [...x].every((o) => y.has(o));
+};
+
+/** Stored questions (`FormField.ats.id` = question id) against the controls read from the page. Labels only. */
+export function compareForm(
+  stored: readonly FormField[],
+  dom: readonly DomControl[],
+): FormComparison {
+  const byId = new Map(dom.map((c) => [c.id, c]));
+  const storedIds = new Set(stored.map((f) => f.ats.id));
+  const missing: string[] = [];
+  const different: string[] = [];
+  for (const f of stored) {
+    const control = byId.get(f.ats.id);
+    if (control === undefined) {
+      missing.push(f.label);
+      continue;
+    }
+    const kinds = COMPATIBLE[f.field_type];
+    if (kinds === undefined) continue;
+    const kindOk = kinds.includes(control.kind);
+    const optionsOk =
+      control.options === null || f.options === null || sameOptions(control.options, f.options);
+    if (!kindOk || !optionsOk) different.push(f.label);
+  }
+  const extra = dom.filter((c) => !storedIds.has(c.id)).map((c) => c.label || c.id);
+  return {
+    ok: missing.length === 0 && extra.length === 0 && different.length === 0,
+    missing,
+    extra,
+    different,
+  };
+}
+
+/** Short stop detail: labels only, at most 200 characters (the store's limit). */
+export function describeComparison(c: FormComparison): string {
+  const parts = [
+    c.missing.length > 0 ? `missing: ${c.missing.join(", ")}` : "",
+    c.extra.length > 0 ? `extra: ${c.extra.join(", ")}` : "",
+    c.different.length > 0 ? `different: ${c.different.join(", ")}` : "",
+  ].filter((p) => p !== "");
+  const text = `form changed (${parts.join("; ")})`;
+  return text.length <= 200 ? text : `${text.slice(0, 197)}...`;
+}
+
+/**
+ * Fixed expression that reads what each control now holds, as visible texts: the typed value, the selected option
+ * labels, the checked option labels, the picked react-select text, or the chosen file names, keyed by control id.
+ */
+export function readValuesExpression(controls: readonly DomControl[]): string {
+  const spec = controls.map((c) => ({ id: c.id, kind: c.kind, optionIds: c.optionIds }));
+  return `((spec) => {
+  const out = {};
+  const labelFor = (id) => {
+    const l = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+    return l ? l.textContent.replace(/\\s+/g, " ").trim() : "";
+  };
+  for (const c of spec) {
+    const el = document.getElementById(c.id);
+    if (!el) { out[c.id] = []; continue; }
+    if (c.kind === "select" || c.kind === "multiselect") {
+      out[c.id] = [...el.selectedOptions].filter((o) => o.value !== "").map((o) => o.textContent.trim());
+    } else if (c.kind === "radio_group" || c.kind === "checkbox_group") {
+      out[c.id] = c.optionIds
+        .filter((id) => document.getElementById(id)?.checked)
+        .map((id) => labelFor(id));
+    } else if (c.kind === "combobox") {
+      const box = el.closest(".select__container");
+      out[c.id] = box
+        ? [...box.querySelectorAll(".select__single-value, .select__multi-value__label")].map((n) => n.textContent.trim())
+        : [];
+    } else if (c.kind === "file") {
+      out[c.id] = [...(el.files || [])].map((f) => f.name);
+    } else {
+      out[c.id] = el.value === "" ? [] : [el.value];
+    }
+  }
+  return out;
+})(${JSON.stringify(spec)})`;
+}
