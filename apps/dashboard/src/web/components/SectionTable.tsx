@@ -5,6 +5,7 @@ import {
   tableFeatures,
   useTable,
 } from "@tanstack/react-table";
+import { endSentence } from "@job-agent/core/sentence";
 import { useMemo, useRef } from "react";
 import type { QueueItem } from "../api.ts";
 
@@ -23,7 +24,9 @@ export function reviewLabel(r: QueueItem["review"]): string {
 }
 
 function tierAsk(r: QueueRow): string {
-  return [r.tier, r.ask ?? r.askText].filter((x) => x !== null && x !== "").join(" / ");
+  return [r.tier, r.ask ?? (r.askText === null ? null : endSentence(r.askText))]
+    .filter((x) => x !== null && x !== "")
+    .join(" / ");
 }
 
 export function SectionTable({

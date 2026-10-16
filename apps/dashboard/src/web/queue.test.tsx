@@ -314,13 +314,29 @@ describe("detail panel", () => {
     await panel.findByText("Strong TypeScript match");
     expect(panel.getByText("Asks for a fee")).toBeTruthy();
     expect(panel.getByText(/Location: Remote/)).toBeTruthy();
-    expect(panel.getByText(/Because the range is wide/)).toBeTruthy();
+    expect(panel.getByText("Text answer: Because the range is wide.")).toBeTruthy();
+    expect(panel.queryByText(/Ask reason/)).toBeNull();
     const link = panel.getByRole("link", { name: "https://example.com/jobs/1" });
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
     expect(link.getAttribute("target")).toBe("_blank");
     // Description is text: the tag is shown, not rendered.
     expect(panel.getByText("<b>Build</b> things")).toBeTruthy();
     expect(panel.getByText(/later: check Friday/)).toBeTruthy();
+  });
+
+  it.each([
+    ["Open to talk.", "Text answer: Open to talk."],
+    ["Open to talk!", "Text answer: Open to talk!"],
+    ["Open to talk?", "Text answer: Open to talk?"],
+    ["Open to talk...", "Text answer: Open to talk..."],
+    ["Open to talk", "Text answer: Open to talk."],
+    ["Open to talk.  ", "Text answer: Open to talk."],
+  ])("shows the text answer %j with exactly one ending mark", async (askText, shown) => {
+    items.p2 = { ...get("p2"), askText };
+    const user = userEvent.setup();
+    renderApp();
+    const panel = within(await openPosting(user, "Platform Engineer"));
+    expect(await panel.findByText(shown)).toBeTruthy();
   });
 
   it("does not link a non-http apply URL", async () => {

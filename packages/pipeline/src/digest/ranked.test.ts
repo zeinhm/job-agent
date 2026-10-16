@@ -334,7 +334,24 @@ describe("ranked digest", () => {
       intel: { tier: null, ask_idr_month: null, ask_text: "Open to discussion" },
     });
     expect(sectionOf(run(), "Top matches")).toContain(
-      "- Tier / ask: no tier — text answer: Open to discussion",
+      "- Tier / ask: no tier — text answer: Open to discussion.",
+    );
+  });
+
+  it.each([
+    ["Open to discussion.", "Open to discussion."],
+    ["Open to discussion!", "Open to discussion!"],
+    ["Open to discussion?", "Open to discussion?"],
+    ["Open to discussion...", "Open to discussion..."],
+    ["Open to discussion", "Open to discussion."],
+    ["  Open to discussion.  ", "Open to discussion."],
+  ])("ends the ask text %j with exactly one mark", (askText, shown) => {
+    seed("txt", {
+      title: "Text Ask",
+      intel: { tier: null, ask_idr_month: null, ask_text: askText },
+    });
+    expect(sectionOf(run(), "Top matches")).toContain(
+      `- Tier / ask: no tier — text answer: ${shown}`,
     );
   });
 

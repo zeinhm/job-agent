@@ -8,6 +8,7 @@ import {
   type Db,
   type Intel,
 } from "@job-agent/core";
+import { endSentence } from "@job-agent/core/sentence";
 import {
   DESCRIPTION_MISSING_FLAG,
   descriptionPendingSql,
@@ -130,7 +131,7 @@ function askLabel(i: Intel): string | null {
   }
   if (i.ask_usd_year !== null) parts.push(`USD ${i.ask_usd_year.toLocaleString("en-US")} / year`);
   if (i.ask_text !== null && i.ask_text.trim() !== "")
-    parts.push(`text answer: ${i.ask_text.trim()}`);
+    parts.push(`text answer: ${endSentence(i.ask_text)}`);
   return parts.length > 0 ? parts.join(" | ") : null;
 }
 
