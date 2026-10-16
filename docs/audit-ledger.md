@@ -94,3 +94,4 @@ Last audit tag: (none yet)
 | t_0ee7b06b | Rule: agents never search outside the repo (no find /) | medium | 62c9940 | 2026-10-16 |
 | t_b032ee04 | Location from the title: "100% Remote - worldwide" in the title settles location_unclear when the source location is only a place | medium | f95f71c | 2026-10-16 |
 | t_44ce9ef4 | Ask text: no double period after a text answer that already ends with punctuation; label it "Text answer" | low | 3b2fca7 | 2026-10-16 |
+| t_c1b1a380 | Dashboard layout: fixed column widths, short tier/ask in the table, side detail panel that never covers the table, sticky header | low | c85e5db | 2026-10-16 |
