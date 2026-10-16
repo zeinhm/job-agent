@@ -2,7 +2,7 @@ import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import {
   analysis,
   description_runs,
@@ -413,9 +413,10 @@ describe("a block", () => {
         ? { kind: "ok", description: "Fake description, remote worldwide, React." }
         : new SourceBlockedError("linkedin", "response status code 429"),
     );
-    const r = await fetchStep(f.fetchDescription);
+    const r = await fetchStep(f.fetchDescription, 4);
     expect(r.code).toBe(1);
-    expect(f.calls).toHaveLength(2); // the second was blocked, nothing is sent after it
+    // the second posting's 429 alone is no block; the third posting's 429 is: nothing is sent after it
+    expect(f.calls).toHaveLength(3);
     expect(
       db
         .select()
@@ -423,7 +424,7 @@ describe("a block", () => {
         .all()
         .filter((p) => p.description_text !== null),
     ).toHaveLength(1);
-    // the blocked posting got no attempt
+    // a real block is not the postings' fault: their counted attempts are taken back
     expect(
       db
         .select()
@@ -436,7 +437,13 @@ describe("a block", () => {
     expect(db.select().from(source_runs).all()).toHaveLength(1);
     expect(blockBackoffUntil(db, "linkedin", now())).toBeUndefined();
     const run = must(db.select().from(description_runs).get());
-    expect(run).toMatchObject({ requested: 2, failed: 0, blocked: true });
+    expect(run).toMatchObject({
+      requested: 3,
+      failed: 2,
+      fetched: 1,
+      skipped: 0,
+      blocked: true,
+    });
     const until = must(descriptionBackoffUntil(db, now()));
     expect(until.getTime() - Date.parse(run.started_at)).toBe(BLOCK_BACKOFF_HOURS * 3_600_000);
     expect(descriptionBackoffUntil(db, new Date(until.getTime() + 1))).toBeUndefined();
@@ -601,7 +608,7 @@ describe("a block", () => {
 });
 
 describe("attempts", () => {
-  it("gives up after 3 counted failures; a blocked run does not count", async () => {
+  it("gives up after 3 counted failures; a 429 on a lone posting counts and starts no backoff", async () => {
     li("p1");
     process();
     const failing = () => ({ kind: "failed", reason: "no description" }) as const;
@@ -609,16 +616,21 @@ describe("attempts", () => {
     await fetchStep(fakeFetcher(failing).fetchDescription);
     expect(row("p1").description_attempts).toBe(1);
 
-    // a blocked run: no attempt counted, then the backoff runs out
-    await fetchStep(
+    // a 429 on the only posting: counted for it, no backoff
+    const lone = await fetchStep(
       fakeFetcher(() => new SourceBlockedError("linkedin", "response status code 429"))
         .fetchDescription,
     );
-    expect(row("p1").description_attempts).toBe(1);
-    clock += (BLOCK_BACKOFF_HOURS + 1) * 3_600_000;
-
-    await fetchStep(fakeFetcher(failing).fetchDescription);
+    expect(lone.code).toBe(0);
     expect(row("p1").description_attempts).toBe(2);
+    expect(descriptionBackoffUntil(db, now())).toBeUndefined();
+    expect(
+      db
+        .select()
+        .from(description_runs)
+        .all()
+        .some((r) => r.blocked),
+    ).toBe(false);
     expect(row("p1").description_unavailable_at).toBeNull();
     expect(descriptionState(row("p1"))).toBe("pending");
 
@@ -633,6 +645,185 @@ describe("attempts", () => {
     const again = fakeFetcher();
     await fetchStep(again.fetchDescription);
     expect(again.calls).toEqual([]);
+  });
+});
+
+describe("a poison job", () => {
+  const HOUR = 3_600_000;
+  const is429 = (poisonId: string) => (externalId: string) =>
+    externalId === poisonId
+      ? new SourceBlockedError("linkedin", "response status code 429")
+      : ({
+          kind: "ok",
+          description: `Fake description for ${externalId}, remote worldwide.`,
+        } as const);
+
+  it("always 429 while the others succeed: no backoff in 3 hourly runs, the others get their text, the poison job ends unavailable", async () => {
+    for (const id of ["a", "b", "c", "d", "e", "f", "x"]) li(id); // x is the newest: first in line today
+    process();
+    const poison = row("x").external_id;
+    const f = fakeFetcher(is429(poison));
+    const first = await fetchStep(f.fetchDescription);
+    expect(first.code).toBe(0);
+    expect(f.calls.map((c) => c.id)[0]).toBe(poison); // newest first, so it is asked first
+    expect(row("x").description_attempts).toBe(1);
+    expect(selectForDescription(db).at(-1)?.id).toBe("x"); // and goes to the end of the order
+    expect(descriptionState(row("x"))).toBe("pending");
+
+    clock += HOUR;
+    const second = await fetchStep(f.fetchDescription);
+    expect(second.code).toBe(0);
+    expect(f.calls.slice(3).map((c) => c.id)).not.toContain(poison); // the others first
+
+    clock += HOUR;
+    const third = await fetchStep(f.fetchDescription);
+    expect(third.code).toBe(0);
+    expect(third.out).toContain("(unavailable 1)");
+
+    expect(
+      db
+        .select()
+        .from(description_runs)
+        .all()
+        .some((r) => r.blocked),
+    ).toBe(false);
+    expect(descriptionBackoffUntil(db, now())).toBeUndefined();
+    for (const id of ["a", "b", "c", "d", "e", "f"])
+      expect(descriptionState(row(id))).toBe("present");
+    expect(descriptionState(row("x"))).toBe("unavailable");
+    expect(row("x").description_attempts).toBe(2);
+
+    // never requested again; no row stays pending
+    const later = fakeFetcher(is429(poison));
+    clock += HOUR;
+    await fetchStep(later.fetchDescription);
+    expect(later.calls).toEqual([]);
+    expect(
+      db
+        .select()
+        .from(description_runs)
+        .all()
+        .map((r) => r.skipped),
+    ).toEqual([0, 0, 1]);
+  });
+
+  it("a poison job stays in Needs a look with description_missing, never a Top match", async () => {
+    li("a");
+    li("x");
+    process();
+    const poison = row("x").external_id;
+    const f = fakeFetcher(is429(poison));
+    await fetchStep(f.fetchDescription);
+    clock += HOUR;
+    await fetchStep(f.fetchDescription);
+    clock += HOUR;
+    li("g"); // another posting that succeeds, so the poison job's second failure counts
+    process();
+    await fetchStep(f.fetchDescription);
+    expect(descriptionState(row("x"))).toBe("unavailable");
+    expect(flagsOf("x")).toContain("description_missing");
+  });
+
+  it("two different jobs getting a 429 start the 6 h details backoff, in one run", async () => {
+    for (const id of ["a", "b", "c"]) li(id);
+    process();
+    const r = await fetchStep(
+      fakeFetcher(() => new SourceBlockedError("linkedin", "response status code 429"))
+        .fetchDescription,
+    );
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("blocked");
+    expect(db.select().from(description_runs).get()).toMatchObject({
+      requested: 2,
+      failed: 2,
+      blocked: true,
+    });
+    expect(descriptionBackoffUntil(db, now())).toBeDefined();
+    expect(
+      db
+        .select()
+        .from(postings)
+        .all()
+        .every((p) => p.description_attempts === 0),
+    ).toBe(true);
+  });
+
+  it("two different jobs getting a 429 on two runs inside the backoff window start it too", async () => {
+    li("a");
+    process();
+    const block = () =>
+      fakeFetcher(() => new SourceBlockedError("linkedin", "response status code 429"))
+        .fetchDescription;
+    expect((await fetchStep(block())).code).toBe(0); // one job alone: no backoff
+    expect(descriptionBackoffUntil(db, now())).toBeUndefined();
+
+    clock += HOUR;
+    li("b");
+    process();
+    const f = fakeFetcher((_id, no) =>
+      no === 1
+        ? new SourceBlockedError("linkedin", "response status code 429")
+        : new Error("unreachable"),
+    );
+    const r = await fetchStep(f.fetchDescription);
+    expect(f.calls).toHaveLength(1); // b is asked first (a failed once), its 429 meets a's within 6 h
+    expect(r.code).toBe(1);
+    expect(descriptionBackoffUntil(db, now())).toBeDefined();
+  });
+
+  it("a 429 older than the window does not count toward a block", async () => {
+    li("a");
+    process();
+    const block = () =>
+      fakeFetcher(() => new SourceBlockedError("linkedin", "response status code 429"))
+        .fetchDescription;
+    await fetchStep(block());
+    clock += 7 * HOUR;
+    li("b");
+    db.update(postings)
+      .set({ first_seen_at: new Date(clock - 30 * HOUR).toISOString() }) // too old to be asked again
+      .where(eq(postings.id, "a"))
+      .run();
+    process();
+    const r = await fetchStep(block());
+    expect(r.code).toBe(0);
+    expect(descriptionBackoffUntil(db, now())).toBeUndefined();
+  });
+
+  it("shows the skipped count in Source health", async () => {
+    for (const id of ["a", "b", "x"]) li(id);
+    process();
+    const poison = row("x").external_id;
+    const f = fakeFetcher(is429(poison));
+    await fetchStep(f.fetchDescription);
+    clock += HOUR;
+    li("c");
+    process();
+    await fetchStep(f.fetchDescription);
+    expect(row("x").description_unavailable_at).not.toBeNull();
+    const run = must(
+      db.select().from(description_runs).orderBy(desc(description_runs.started_at)).get(),
+    );
+    expect(run.skipped).toBe(1);
+    db.insert(source_runs)
+      .values({
+        id: "ok-run",
+        source: "linkedin",
+        started_at: new Date(clock - 40 * 60_000).toISOString(),
+        finished_at: new Date(clock - 39 * 60_000).toISOString(),
+        status: "ok",
+        found: 25,
+        new: 3,
+        saturated: 1,
+      })
+      .run();
+    const path = runDigest({ db, date: DATE, outDir: configDir, now, capUsd: 1, out: () => {} });
+    const line = must(
+      readFileSync(path, "utf8")
+        .split("\n")
+        .find((l) => l.startsWith("- **linkedin**")),
+    );
+    expect(line).toContain("details 2 (1 failed, 1 skipped)");
   });
 });
 
@@ -938,7 +1129,7 @@ describe("Source health", () => {
       })
       .run();
     const f = fakeFetcher((_id, no) =>
-      no === 2
+      no >= 2
         ? new SourceBlockedError("linkedin", "response status code 429")
         : { kind: "ok", description: "Fake description, remote worldwide, React." },
     );
@@ -951,7 +1142,7 @@ describe("Source health", () => {
     );
     // the search's own status stays ok; the details backoff is shown separately and is not the search's backoff
     expect(line).toContain(
-      "ok, found 25, new 3, saturated 1, details 2, details backoff until 16:00 WIB",
+      "ok, found 25, new 3, saturated 1, details 3 (2 failed), details backoff until 16:00 WIB",
     );
     expect(line).not.toContain("error");
     expect(line).not.toContain("LATE");

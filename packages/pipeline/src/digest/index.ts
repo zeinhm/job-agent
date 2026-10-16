@@ -74,7 +74,16 @@ function needsALook(flagged: Entry[]): string[] {
   ];
 }
 
-/** `details 7 (1 failed)`: the detail requests of the source's latest fetch-descriptions run in the last 24h; undefined when none. */
+/** ` (1 failed, 1 skipped)`, or an empty string when both are 0. */
+function detailsCounts(failed: number, skipped: number): string {
+  const parts = [
+    ...(failed > 0 ? [`${failed} failed`] : []),
+    ...(skipped > 0 ? [`${skipped} skipped`] : []),
+  ];
+  return parts.length > 0 ? ` (${parts.join(", ")})` : "";
+}
+
+/** `details 7 (1 failed, 1 skipped)`: the detail requests of the source's latest fetch-descriptions run in the last 24h; undefined when none. */
 function detailsText(db: Db, source: string, since: string, now: Date): string | undefined {
   const run = db
     .select()
@@ -86,7 +95,7 @@ function detailsText(db: Db, source: string, since: string, now: Date): string |
   if (run === undefined) return undefined;
   const backoff = descriptionBackoffUntil(db, now);
   return (
-    `details ${run.requested}${run.failed > 0 ? ` (${run.failed} failed)` : ""}` +
+    `details ${run.requested}${detailsCounts(run.failed, run.skipped)}` +
     `${backoff ? `, details backoff until ${wibTime(backoff)}` : ""}`
   );
 }

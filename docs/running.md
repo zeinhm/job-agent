@@ -436,20 +436,29 @@ mode, JobSpy's `LinkedIn._fetch_details`, logged out, no cookies), newest first:
 - **Spacing and cap:** one request at a time; the first one 10 s after the last search request (`SEARCH_GAP_MS`), each next
   one at least 45 s after the previous one ended (`DETAIL_GAP_MS`); at most 3 requests per run
   (`MAX_DETAIL_REQUESTS_PER_RUN`), newest first; the rest wait for the next run. No retry inside a run.
-- **Block:** a block on a detail request ends the step, keeps the descriptions already fetched and starts a **details-only**
-  6 h backoff (the `blocked` flag of the `description_runs` row; no `source_runs` row). The search keeps running and its
+- **Block:** failures are counted per posting, a 429 included (`description_attempts`, `description_failed_at`,
+  `description_blocked_at`). A 429 on ONE posting is that posting's failure: the run goes on with the next posting and no
+  backoff starts. The **details-only** 6 h backoff starts only when 429s come from at least 2 different postings: a posting
+  gets a 429 while another posting's 429 (same run or an earlier run) is less than 6 h old. The step then ends, keeps the
+  descriptions already fetched, takes back the attempt of the postings in that block (a real block is not their fault) and
+  writes the `blocked` flag of the `description_runs` row (no `source_runs` row). The search keeps running and its
   freshness line is untouched. A block on the search still stops the detail requests too (the command takes `--force` like
-  `discover` and ignores it). The blocked request does not count as an attempt.
-- **Attempts:** a posting that returns no description is tried again on the next run, at most 3 counted failures
-  (`MAX_DESCRIPTION_ATTEMPTS`), then it is `description_unavailable`: processed and extracted on the title only. A worker
-  error (JobSpy changed, worker not installed) counts nothing.
+  `discover` and ignores it).
+- **Order:** postings with fewer failures first, then newest first: after a 429 on job X the next run tries the other
+  pending postings before X.
+- **Attempts / poison jobs:** a posting that returns no description is tried again on a later run. It is given up
+  (`description_unavailable`: processed and extracted on the title only, never requested again, stays in Needs a look with
+  `description_missing`, never Top) after 3 counted failures (`MAX_DESCRIPTION_ATTEMPTS`), or after failures on 2 runs when
+  another posting got its description in between or in the same run (`POISON_FAILED_RUNS`): one job that keeps failing while
+  the others work is skipped and never starts the backoff. A worker error (JobSpy changed, worker not installed) counts
+  nothing.
 - **Until a posting has its description** (pending or unavailable) it has the flag `description_missing`, shows in Needs a
   look with that flag, never in Top matches (digest and dashboard queue share one selection), and a pending one is not
   sent to the LLM (no title-only spend); an unavailable one is.
 - **When the description arrives** it is stored, the rules run again for that posting (location, Indonesia, role, salary,
   language), the flag is dropped, the title-only extraction (if any) is cleared, and `enrich` extracts the text.
 
-Source health shows the detail requests of the latest run on the linkedin line, for example `details 3 (1 failed)`, and
+Source health shows the detail requests of the latest run on the linkedin line, for example `details 3 (1 failed, 1 skipped)` (`skipped` = postings given up in that run, no job text), and
 `, details backoff until HH:MM WIB` while a details backoff holds. They are stored per run in `description_runs`, not in
 `source_runs`, so the freshness proof (gaps between ok runs, LATE) and the saturation count are untouched.
 

@@ -29,7 +29,12 @@ describe("LinkedIn description fetch migration (0005)", () => {
   it("adds the attempt columns and the description_runs table on a fresh database", () => {
     const db = openDb(":memory:");
     expect(cols(db, "postings")).toEqual(
-      expect.arrayContaining(["description_attempts", "description_unavailable_at"]),
+      expect.arrayContaining([
+        "description_attempts",
+        "description_unavailable_at",
+        "description_failed_at",
+        "description_blocked_at",
+      ]),
     );
     expect(cols(db, "description_runs")).toEqual([
       "id",
@@ -39,6 +44,8 @@ describe("LinkedIn description fetch migration (0005)", () => {
       "requested",
       "failed",
       "blocked",
+      "fetched",
+      "skipped",
     ]);
     db.$client.close();
   });

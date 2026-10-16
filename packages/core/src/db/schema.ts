@@ -54,8 +54,10 @@ export const postings = sqliteTable(
     normalized_at: text("normalized_at"), // ISO 8601 UTC, nullable
     content_hash: text("content_hash"),
     updated_at: text("updated_at"), // ISO 8601 UTC, nullable
-    // LinkedIn description fetch (fetch-descriptions): counted failed attempts, and when the third one gave the posting up.
+    // LinkedIn description fetch (fetch-descriptions): counted failed attempts (a 429 included), and when the posting was given up.
     description_attempts: integer("description_attempts").notNull().default(0),
+    description_failed_at: text("description_failed_at"), // ISO 8601 UTC: the posting's latest failed request
+    description_blocked_at: text("description_blocked_at"), // ISO 8601 UTC: its latest 429 not yet part of a started backoff
     description_unavailable_at: text("description_unavailable_at"), // ISO 8601 UTC, nullable
   },
   (table) => ({
@@ -113,7 +115,9 @@ export const description_runs = sqliteTable("description_runs", {
   started_at: text("started_at").notNull(), // ISO 8601 UTC
   finished_at: text("finished_at").notNull(), // ISO 8601 UTC
   requested: integer("requested").notNull(), // detail requests sent, a blocked one included
-  failed: integer("failed").notNull(), // requests that returned no description (a block is not counted here)
+  failed: integer("failed").notNull(), // requests that returned no description, a 429 on one job included
+  fetched: integer("fetched").notNull().default(0), // requests that brought a description
+  skipped: integer("skipped").notNull().default(0), // postings given up in this run (unavailable, never requested again)
   blocked: integer("blocked", { mode: "boolean" }).notNull(),
 });
 

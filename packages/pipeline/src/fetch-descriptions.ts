@@ -1,5 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import {
   analysis,
   apply_links,
@@ -22,6 +35,7 @@ import {
   DESCRIPTION_SOURCE,
   descriptionBackoffUntil,
   descriptionPendingSql,
+  DETAIL_BACKOFF_HOURS,
 } from "./description-state.ts";
 import { ATS_SOURCE_NAMES } from "./filters/keywords.ts";
 import { classifyLocation } from "./filters/location.ts";
@@ -35,8 +49,10 @@ export const MAX_DETAIL_REQUESTS_PER_RUN = 3;
 export const DETAIL_GAP_MS = 45_000;
 /** Only postings first seen within this window get a LinkedIn detail request; older ones stay description_missing. */
 export const DETAIL_MAX_AGE_MS = 24 * 3_600_000;
-/** A posting gets this many counted failures, then it is `description_unavailable` (processed on the title only). A blocked run is not counted. */
+/** A posting gets this many counted failures (a 429 on it included), then it is `description_unavailable` (title only). */
 export const MAX_DESCRIPTION_ATTEMPTS = 3;
+/** A posting that failed on this many runs while another posting got its description meanwhile is given up (a poison job). */
+export const POISON_FAILED_RUNS = 2;
 export interface FetchDescriptionsOptions {
   db: Db;
   fetchDescription: DetailFetcher;
@@ -52,7 +68,8 @@ export interface FetchDescriptionsOptions {
 
 /**
  * LinkedIn postings worth a detail request: no description yet, not given up, the title passes the role rule and the
- * posting's own location text is not `restricted`; newest first. Nothing else is fetched.
+ * posting's own location text is not `restricted`; fewest failures first, then newest first (a posting that failed goes to
+ * the end of the order). Nothing else is fetched.
  */
 export function selectForDescription(db: Db): Posting[] {
   return db
@@ -66,6 +83,7 @@ export function selectForDescription(db: Db): Posting[] {
       ),
     )
     .orderBy(
+      postings.description_attempts,
       desc(sql`coalesce(${postings.posted_at}, ${postings.first_seen_at})`),
       desc(postings.first_seen_at),
       postings.id,
@@ -119,6 +137,63 @@ function lastSearchRequestAt(db: Db): number | undefined {
   return row === undefined ? undefined : new Date(row.finished_at).getTime();
 }
 
+/** Counts one failed request of a posting (any kind, a 429 included); returns what the end-of-run poison check needs. */
+function recordFailure(db: Db, p: Posting, at: Date, block: boolean) {
+  const attempts = p.description_attempts + 1;
+  db.update(postings)
+    .set({
+      description_attempts: attempts,
+      description_failed_at: at.toISOString(),
+      ...(block ? { description_blocked_at: at.toISOString() } : {}),
+    })
+    .where(eq(postings.id, p.id))
+    .run();
+  return { id: p.id, before: p.description_failed_at, attempts };
+}
+
+/** Another posting than `id` got a 429 less than DETAIL_BACKOFF_HOURS ago (this run or an earlier one): the block rule. */
+function otherBlockedWithin(db: Db, id: string, at: Date): boolean {
+  const since = new Date(at.getTime() - DETAIL_BACKOFF_HOURS * 3_600_000).toISOString();
+  return (
+    db
+      .select({ id: postings.id })
+      .from(postings)
+      .where(and(ne(postings.id, id), gte(postings.description_blocked_at, since)))
+      .limit(1)
+      .get() !== undefined
+  );
+}
+
+/** A block is the source's, not the postings': take back the attempt of every posting with a pending 429 mark. */
+function takeBackBlocks(db: Db): void {
+  db.update(postings)
+    .set({
+      description_attempts: sql`max(${postings.description_attempts} - 1, 0)`,
+      description_blocked_at: null,
+    })
+    .where(isNotNull(postings.description_blocked_at))
+    .run();
+}
+
+/** A run that finished after `since` (the posting's earlier failure) brought at least one description. */
+function fetchedSince(db: Db, since: string | null): boolean {
+  if (since === null) return false;
+  return (
+    db
+      .select({ id: description_runs.id })
+      .from(description_runs)
+      .where(
+        and(
+          eq(description_runs.source, DESCRIPTION_SOURCE),
+          gte(description_runs.finished_at, since),
+          gt(description_runs.fetched, 0),
+        ),
+      )
+      .limit(1)
+      .get() !== undefined
+  );
+}
+
 /**
  * The description arrived: store it, run every rule again for this posting (location, Indonesia, role, salary, language),
  * drop `description_missing` with the new analysis row, and clear what was derived from the title alone so `enrich`
@@ -138,6 +213,7 @@ function applyDescription(
       .set({
         description_text: description.trim(),
         description_unavailable_at: null,
+        description_blocked_at: null,
         updated_at: now.toISOString(),
       })
       .where(eq(postings.id, p.id))
@@ -160,6 +236,13 @@ function applyDescription(
  * Then LinkedIn detail requests (through JobSpy, logged out): at most MAX_DETAIL_REQUESTS_PER_RUN per run, newest first,
  * only for postings first seen in the last DETAIL_MAX_AGE_MS, the first one SEARCH_GAP_MS after the search's last request
  * and each next one DETAIL_GAP_MS after the previous. No retry inside a run.
+ * Failures are counted per posting (`description_attempts`, a 429 included). A 429 on ONE posting is a failure of that
+ * posting, not a block: the run goes on with the next posting. The details backoff starts only when the 429s come from at
+ * least 2 different postings: a posting gets a 429 while another posting's 429 (this run or an earlier run) is less than
+ * DETAIL_BACKOFF_HOURS old (`description_blocked_at`). The attempts of the postings in that block are then taken back
+ * (a real block is not their fault) and their `description_blocked_at` is cleared.
+ * A posting that failed on POISON_FAILED_RUNS runs, with a description fetched by another posting in between or in the same
+ * run, is a poison job: `description_unavailable_at` is set and it is never requested again (it stays in Needs a look).
  * Two backoffs: a block on the search (source_runs) holds the requests too; a block on a detail request is stored only in
  * `description_runs` (blocked) and holds only the detail requests for DETAIL_BACKOFF_HOURS: the search keeps running and
  * the step never writes a `source_runs` row, so the search's freshness line never sees it.
@@ -219,6 +302,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   let failed = 0;
   let unavailable = 0;
   let blocked: string | undefined;
+  const failures: { id: string; before: string | null; attempts: number }[] = [];
   let toolError: string | undefined;
   let skipped: string | undefined;
 
@@ -239,19 +323,10 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
         if (applyDescription(db, p, result.description, floor(), now()).rejected) rejected += 1;
       } else {
         failed += 1;
-        const attempts = p.description_attempts + 1;
-        const giveUp = attempts >= MAX_DESCRIPTION_ATTEMPTS;
-        if (giveUp) unavailable += 1;
-        db.update(postings)
-          .set({
-            description_attempts: attempts,
-            ...(giveUp ? { description_unavailable_at: now().toISOString() } : {}),
-          })
-          .where(eq(postings.id, p.id))
-          .run();
+        failures.push(recordFailure(db, p, now(), false));
         log.warn("fetch-descriptions: no description", {
           postingId: p.id,
-          attempt: attempts,
+          attempt: p.description_attempts + 1,
           reason: result.reason,
         });
       }
@@ -261,13 +336,36 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
         requested -= 1; // the worker could not run here: no request was sent
         skipped = e.reason;
       } else if (e instanceof SourceBlockedError) {
-        blocked = e.message;
+        failed += 1;
+        failures.push(recordFailure(db, p, now(), true));
+        if (otherBlockedWithin(db, p.id, now())) {
+          blocked = e.message;
+          takeBackBlocks(db);
+          break;
+        }
+        continue; // one posting alone: its own failure, the next posting is tried
       } else {
         // A failing worker is a tool problem, not the posting's: no attempt is counted for it.
         toolError = e instanceof SourceError ? e.message : "unexpected error";
         log.error("fetch-descriptions: worker failed", { postingId: p.id, error: toolError });
       }
       break;
+    }
+  }
+
+  // Poison jobs: failed on 2 runs, and another posting got its description since the earlier failure (or in this run).
+  // After a backoff the attempts were taken back, so nothing is given up for a block.
+  if (blocked === undefined) {
+    for (const f of failures) {
+      const giveUp =
+        f.attempts >= MAX_DESCRIPTION_ATTEMPTS ||
+        (f.attempts >= POISON_FAILED_RUNS && (fetched > 0 || fetchedSince(db, f.before)));
+      if (!giveUp) continue;
+      unavailable += 1;
+      db.update(postings)
+        .set({ description_unavailable_at: now().toISOString() })
+        .where(eq(postings.id, f.id))
+        .run();
     }
   }
 
@@ -282,6 +380,8 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
         finished_at: finishedAt.toISOString(),
         requested,
         failed,
+        fetched,
+        skipped: unavailable,
         blocked: blocked !== undefined,
       })
       .run();
