@@ -91,6 +91,7 @@ function contentFields(p: RawPosting) {
     company_name: p.company,
     description_text: p.descriptionText ?? p.descriptionHtml ?? null,
     location_text: p.locationText ?? null,
+    country: p.country ?? null,
     remote: p.remote ?? null,
     salary_text: p.salaryText ?? null,
     salary_min: p.salary?.min ?? null,
@@ -115,7 +116,7 @@ function storePostings(db: Db, items: RawPosting[], nowIso: string): number {
         // Rows stored before content_hash existed just get the hash; no mass re-analysis.
         if (existing.content_hash === null || existing.content_hash === hash) {
           tx.update(postings)
-            .set({ last_seen_at: nowIso, content_hash: hash })
+            .set({ last_seen_at: nowIso, content_hash: hash, country: p.country ?? null })
             .where(eq(postings.id, existing.id))
             .run();
           continue;

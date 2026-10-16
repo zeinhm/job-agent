@@ -19,6 +19,8 @@ export type RawPosting = {
   descriptionHtml?: string;
   descriptionText?: string;
   locationText?: string;
+  /** Country of this offer from the ATS data fields (never a URL slug); not part of the content hash. */
+  country?: string;
   /** Only when the source states it explicitly. */
   remote?: boolean;
   /** Free text as shown by the source. */

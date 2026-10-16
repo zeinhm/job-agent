@@ -39,6 +39,7 @@ export const postings = sqliteTable(
     company_name: text("company_name").notNull(),
     description_text: text("description_text"),
     location_text: text("location_text"),
+    country: text("country"), // per-offer country from the ATS data fields; not part of content_hash
     remote: integer("remote", { mode: "boolean" }),
     salary_text: text("salary_text"),
     salary_min: integer("salary_min"),

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import {
   ANSWER_TYPES,
   posting_questions,
@@ -87,7 +87,12 @@ export function listInbox(db: Db): InboxList {
       .select({ id: postings.id, title: postings.title, company: postings.company_name })
       .from(posting_questions)
       .innerJoin(postings, eq(postings.id, posting_questions.posting_id))
-      .where(eq(posting_questions.normalized_label, r.normalized_label))
+      .where(
+        and(
+          eq(posting_questions.normalized_label, r.normalized_label),
+          isNull(postings.canonical_posting_id),
+        ),
+      )
       .orderBy(desc(posting_questions.fetched_at), asc(postings.id))
       .all();
     for (const a of asked) {

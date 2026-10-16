@@ -24,6 +24,7 @@ describe("core types", () => {
       descriptionHtml?: string;
       descriptionText?: string;
       locationText?: string;
+      country?: string;
       remote?: boolean;
       salaryText?: string;
       salary?: RawSalary;

@@ -43,6 +43,13 @@
       "when": 1792122114986,
       "tag": "0005_faithful_garia",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792125232463,
+      "tag": "0006_calm_silk_fever",
+      "breakpoints": true
     }
   ]
 }

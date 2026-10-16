@@ -12,7 +12,7 @@ import {
 } from "@job-agent/core";
 import { DESCRIPTION_MISSING_FLAG, descriptionState } from "./description-state.ts";
 import { STALE_ANALYZED_AT } from "./stale.ts";
-import { dedupePending } from "./dedupe/index.ts";
+import { dedupePending, locationWithCountries, unionCountries } from "./dedupe/index.ts";
 import { classifyIndonesia } from "./filters/indonesia.ts";
 import { classifyLanguage } from "./filters/language.ts";
 import { classifyLocation } from "./filters/location.ts";
@@ -65,7 +65,8 @@ export function analyze(db: Db, p: Posting, floor: number, now: Date) {
 
   const location = classifyLocation({
     titleText: p.title,
-    locationText: p.location_text,
+    // A posting listed once per country is judged on the union of those countries.
+    locationText: locationWithCountries(p.location_text, unionCountries(db, p)),
     descriptionText: p.description_text,
     remote: p.remote,
   });

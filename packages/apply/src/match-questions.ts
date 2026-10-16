@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { answer_bank, posting_questions, unknown_questions, type Db } from "@job-agent/core";
-import { eq, inArray } from "drizzle-orm";
+import {
+  answer_bank,
+  posting_questions,
+  postings,
+  unknown_questions,
+  type Db,
+} from "@job-agent/core";
+import { eq, inArray, isNull } from "drizzle-orm";
 import { buildAnswerIndex, matchedKeyOf, matchQuestion, normalizeQuestion } from "./match.ts";
 
 export interface MatchSummary {
@@ -62,10 +68,14 @@ export function matchQuestions(db: Db): MatchSummary {
           alternatives: r.alternatives === null ? null : parseList(r.alternatives),
         })),
     );
+    // Questions of a non-canonical variant are ignored: the canonical posting stands for the whole job.
     const rows = tx
-      .select()
+      .select({ q: posting_questions })
       .from(posting_questions)
+      .innerJoin(postings, eq(postings.id, posting_questions.posting_id))
+      .where(isNull(postings.canonical_posting_id))
       .all()
+      .map((r) => r.q)
       .sort((a, b) => a.fetched_at.localeCompare(b.fetched_at) || a.id.localeCompare(b.id));
     const summary: MatchSummary = {
       questions: rows.length,

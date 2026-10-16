@@ -97,6 +97,7 @@ function mapOffer(offer: RecruiteeOffer, companyName: string): RawPosting {
     company: companyName,
     ...(description.length > 0 && { descriptionHtml: description.join("\n") }),
     ...(locationText && { locationText }),
+    ...(offer.country?.trim() && { country: offer.country.trim() }),
     ...(offer.remote != null && { remote: offer.remote }),
     ...(salary && { salary }),
     ...(postedAt && { postedAt: toIso(postedAt) }),

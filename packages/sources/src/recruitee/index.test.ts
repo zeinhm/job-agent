@@ -89,12 +89,33 @@ describe("recruitee adapter", () => {
       company: "Acme Test",
       descriptionHtml: `${raw.description}\n${raw.requirements}`,
       locationText: raw.location as string,
+      country: raw.country as string,
       remote: false,
       postedAt: "2026-10-05T16:05:18.000Z",
     };
     expect(postings[0]).toEqual(expected);
     expect(postings.every((p) => p.source === "recruitee" && p.company === "Acme Test")).toBe(true);
     expect(postings.every((p) => p.descriptionHtml && p.locationText && p.postedAt)).toBe(true);
+  });
+
+  it("takes the country from the offer's country field, never from the URL slug", async () => {
+    const offer = {
+      ...structuredClone(fixture.offers[0]),
+      location: "Remote job",
+      country: " United Kingdom ",
+      careers_url: "https://acme.recruitee.com/o/product-lead-india",
+    };
+    server.use(serve("acme", { offers: [offer] }));
+    const [posting] = await createRecruiteeAdapter([acme], log).fetch(new Date(0));
+    expect(posting?.country).toBe("United Kingdom");
+    expect(posting?.locationText).toBe("Remote job");
+  });
+
+  it("leaves the country out when the offer has none", async () => {
+    const offer = { ...structuredClone(fixture.offers[0]), country: null };
+    server.use(serve("acme", { offers: [offer] }));
+    const [posting] = await createRecruiteeAdapter([acme], log).fetch(new Date(0));
+    expect(posting).not.toHaveProperty("country");
   });
 
   it("maps department and tags, remote and structured salary", async () => {
