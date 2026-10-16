@@ -12,13 +12,14 @@ import {
   type Db,
   type Intel,
 } from "@job-agent/core";
+import { descriptionBackoffUntil } from "../description-state.ts";
 import { classifyLanguage } from "../filters/language.ts";
 import { classifyRole } from "../filters/role.ts";
 import { SALARY_BELOW_FLOOR_REASON } from "../filters/salary-floor.ts";
 import { UNPAID_REASON } from "../intel/resolve.ts";
 import { reviewHistory } from "../review/record.ts";
 import { reviewState } from "../review/state.ts";
-import { freshnessSuffix } from "./freshness.ts";
+import { freshnessSuffix, wibTime } from "./freshness.ts";
 import { isAtsSource, parseList } from "./format.ts";
 import {
   displayTitle,
@@ -74,7 +75,7 @@ function needsALook(flagged: Entry[]): string[] {
 }
 
 /** `details 7 (1 failed)`: the detail requests of the source's latest fetch-descriptions run in the last 24h; undefined when none. */
-function detailsText(db: Db, source: string, since: string): string | undefined {
+function detailsText(db: Db, source: string, since: string, now: Date): string | undefined {
   const run = db
     .select()
     .from(description_runs)
@@ -83,11 +84,11 @@ function detailsText(db: Db, source: string, since: string): string | undefined 
     .limit(1)
     .get();
   if (run === undefined) return undefined;
-  const notes = [
-    ...(run.failed > 0 ? [`${run.failed} failed`] : []),
-    ...(run.blocked ? ["blocked"] : []),
-  ];
-  return `details ${run.requested}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
+  const backoff = descriptionBackoffUntil(db, now);
+  return (
+    `details ${run.requested}${run.failed > 0 ? ` (${run.failed} failed)` : ""}` +
+    `${backoff ? `, details backoff until ${wibTime(backoff)}` : ""}`
+  );
 }
 
 function sourceHealth(db: Db, now: Date, disabled: readonly string[] = []): string[] {
@@ -108,10 +109,9 @@ function sourceHealth(db: Db, now: Date, disabled: readonly string[] = []): stri
     if (latest === undefined) text = "no run in the last 24h";
     else {
       text = `${latest.status}, found ${latest.found}, new ${latest.new}`;
-      // A detail-step block leaves an error run without a count: the search's latest count still shows.
       const saturated = latest.saturated ?? recent.find((r) => r.saturated !== null)?.saturated;
       if (saturated !== null && saturated !== undefined) text += `, saturated ${saturated}`;
-      const details = detailsText(db, name, since);
+      const details = detailsText(db, name, since, now);
       if (details !== undefined) text += `, ${details}`;
       if (latest.error_message !== null)
         text += `, ${latest.status === "error" ? "error" : "warning"}: ${latest.error_message.replace(/\s+/g, " ")}`;

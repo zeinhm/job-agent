@@ -1,6 +1,8 @@
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
 import { reviews, type Db } from "@job-agent/core";
 import { getQueue } from "./queue.ts";
+import { reviewHistory } from "./record.ts";
+import { reviewState } from "./state.ts";
 
 export const DONE_WHEN_MINUTES = 30;
 /** PLAN 5.6: at least this many ask checks per tier before the ask is trusted. */
@@ -19,7 +21,10 @@ export interface AskCheckCounts {
 
 export interface DayStats {
   date: string;
-  /** Unique postings in Top matches and Suspicious (Needs a look repeats entries, Waiting is not counted). */
+  /**
+   * Unique postings in Top matches and Suspicious (Needs a look repeats entries, Waiting is not counted), plus the
+   * postings that got a processing action on the day but are no longer listed (a reviewed posting can leave Top).
+   */
   matches: number;
   processed: number;
   open: number;
@@ -83,8 +88,6 @@ export function computeDayStats(db: Db, date: string): DayStats {
   const seen = new Map<string, boolean>();
   for (const item of [...queue.sections.top, ...queue.sections.suspicious])
     seen.set(item.postingId, item.review.processed);
-  const matches = seen.size;
-  const processed = [...seen.values()].filter(Boolean).length;
 
   const rows = db
     .select()
@@ -92,6 +95,15 @@ export function computeDayStats(db: Db, date: string): DayStats {
     .where(eq(reviews.review_day, date))
     .orderBy(asc(reviews.reviewed_at), sql`rowid`)
     .all();
+
+  // A posting reviewed on the day counts as a match even when it left the queue because of that review.
+  const reviewedIds = [
+    ...new Set(rows.filter((r) => STATUS_PROCESSED.has(r.action)).map((r) => r.posting_id)),
+  ].filter((pid) => !seen.has(pid));
+  const history = reviewHistory(db, reviewedIds);
+  for (const pid of reviewedIds) seen.set(pid, reviewState(history.get(pid) ?? []).processed);
+  const matches = seen.size;
+  const processed = [...seen.values()].filter(Boolean).length;
 
   const actions: Record<string, number> = {};
   const reasons: Record<string, number> = {};

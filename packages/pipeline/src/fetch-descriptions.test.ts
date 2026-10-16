@@ -27,8 +27,10 @@ import { descriptionState } from "./description-state.ts";
 import { runDigest } from "./digest/index.ts";
 import { selectDay } from "./digest/selection.ts";
 import { BLOCK_BACKOFF_HOURS, blockBackoffUntil, contentHash, runDiscover } from "./discover.ts";
+import { descriptionBackoffUntil } from "./description-state.ts";
 import { runEnrich } from "./enrich.ts";
 import {
+  DETAIL_GAP_MS,
   MAX_DESCRIPTION_ATTEMPTS,
   MAX_DETAIL_REQUESTS_PER_RUN,
   runFetchDescriptions,
@@ -116,9 +118,9 @@ function li(id: string, over: Partial<NewPosting> = {}) {
       company_name: "Fake Co",
       location_text: "Worldwide",
       remote: true,
-      posted_at: new Date(Date.UTC(2026, 9, 15, 0, n)).toISOString(),
-      first_seen_at: new Date(Date.UTC(2026, 9, 15, 0, n)).toISOString(),
-      last_seen_at: new Date(Date.UTC(2026, 9, 15, 0, n)).toISOString(),
+      posted_at: new Date(START - 2 * 3_600_000 + n * 60_000).toISOString(),
+      first_seen_at: new Date(START - 2 * 3_600_000 + n * 60_000).toISOString(),
+      last_seen_at: new Date(START - 2 * 3_600_000 + n * 60_000).toISOString(),
       ...over,
     })
     .run();
@@ -232,9 +234,9 @@ describe("which postings are fetched", () => {
   });
 });
 
-describe("spacing, cap and order", () => {
-  it("waits 10 s after the last search request and between requests, stops at the cap, newest first", async () => {
-    for (let i = 0; i < 25; i++) li(`p${String(i).padStart(2, "0")}`);
+describe("spacing, cap, age and order", () => {
+  it("sends at most 3 requests, 45 s apart, the first 10 s after the search, newest first", async () => {
+    for (let i = 0; i < 6; i++) li(`p${String(i).padStart(2, "0")}`);
     process();
     // The search of this run ended 3 s ago.
     db.insert(source_runs)
@@ -251,26 +253,52 @@ describe("spacing, cap and order", () => {
       .run();
     const f = fakeFetcher();
     const r = await fetchStep(f.fetchDescription);
-    expect(MAX_DETAIL_REQUESTS_PER_RUN).toBe(20);
-    expect(f.calls).toHaveLength(20);
-    // first request: 10 s after the search finished
+    expect(MAX_DETAIL_REQUESTS_PER_RUN).toBe(3);
+    expect(DETAIL_GAP_MS).toBe(45_000);
+    expect(f.calls).toHaveLength(3);
     const starts = f.calls.map((c) => c.at);
     expect(must(starts[0]) - (START - 3_000)).toBeGreaterThanOrEqual(SEARCH_GAP_MS);
     for (let i = 1; i < starts.length; i++) {
-      // each request starts at least 10 s after the previous one ENDED (a request takes 2 s here)
-      expect(must(starts[i]) - (must(starts[i - 1]) + 2_000)).toBeGreaterThanOrEqual(SEARCH_GAP_MS);
+      // each request starts at least 45 s after the previous one ENDED (a request takes 2 s here)
+      expect(must(starts[i]) - (must(starts[i - 1]) + 2_000)).toBeGreaterThanOrEqual(DETAIL_GAP_MS);
     }
-    expect(sleeps.every((ms) => ms > 0)).toBe(true);
-    // newest first: p24 is the newest posting; the 5 oldest wait
-    const ids = f.calls.map((c) => c.id);
     const byId = (e: string) =>
       must(db.select().from(postings).where(eq(postings.external_id, e)).get());
-    expect(ids.map((e) => byId(e).id)).toEqual(
-      Array.from({ length: 20 }, (_, i) => `p${String(24 - i).padStart(2, "0")}`),
+    expect(f.calls.map((c) => byId(c.id).id)).toEqual(["p05", "p04", "p03"]);
+    expect(r.out).toContain("requested 3, fetched 3");
+    expect(r.out).toContain("left for the next run 3");
+    expect(selectForDescription(db)).toHaveLength(3);
+  });
+
+  it("sends no retry inside a run: a failed posting is asked once", async () => {
+    li("p1");
+    process();
+    const f = fakeFetcher(() => ({ kind: "failed", reason: "no description" }));
+    await fetchStep(f.fetchDescription);
+    expect(f.calls).toHaveLength(1);
+  });
+
+  it("only requests postings first seen in the last 24 h; older ones are never fetched and stay description_missing", async () => {
+    li("p-new");
+    li("p-old", { first_seen_at: new Date(START - 25 * 3_600_000).toISOString() });
+    li("p-edge", { first_seen_at: new Date(START - 23 * 3_600_000).toISOString() });
+    process();
+    const f = fakeFetcher();
+    const r = await fetchStep(f.fetchDescription);
+    const asked = f.calls.map(
+      (c) => must(db.select().from(postings).where(eq(postings.external_id, c.id)).get()).id,
     );
-    expect(r.out).toContain("requested 20, fetched 20");
-    expect(r.out).toContain("left for the next run 5");
-    expect(selectForDescription(db)).toHaveLength(5);
+    expect(asked.sort()).toEqual(["p-edge", "p-new"]);
+    expect(row("p-old").description_text).toBeNull();
+    expect(row("p-old").description_attempts).toBe(0);
+    expect(descriptionState(row("p-old"))).toBe("pending");
+    expect(flagsOf("p-old")).toContain("description_missing");
+    expect(r.out).toContain("older than 24 h and never requested 1");
+    // a later run asks for nothing and the old posting is still never sent
+    clock += 3_600_000;
+    const again = fakeFetcher();
+    await fetchStep(again.fetchDescription);
+    expect(again.calls).toEqual([]);
   });
 
   it("makes no wait when no LinkedIn request happened before", async () => {
@@ -282,29 +310,119 @@ describe("spacing, cap and order", () => {
     expect(f.calls.map((c) => c.at)).toEqual([START]);
   });
 
-  it("uses the search's own 10 s gap", () => {
+  it("uses the search's own 10 s gap for the first request", () => {
     expect(SEARCH_GAP_MS).toBe(10_000);
   });
 });
 
+describe("the company's ATS board first", () => {
+  const ATS_TEXT =
+    "Board text for the role. Fully remote worldwide, React and TypeScript, English only.";
+
+  function ats(id: string, over: Partial<NewPosting> = {}) {
+    db.insert(postings)
+      .values({
+        id,
+        source: "greenhouse",
+        external_id: `gh-${id}`,
+        url: `https://boards.example.test/fake-co/jobs/${id}`,
+        title: "Senior Frontend Engineer",
+        company_name: "Fake Co",
+        description_text: ATS_TEXT,
+        location_text: "Worldwide",
+        remote: true,
+        first_seen_at: new Date(START - 5 * 3_600_000).toISOString(),
+        last_seen_at: new Date(START - 5 * 3_600_000).toISOString(),
+        ...over,
+      })
+      .run();
+  }
+
+  it("takes the text of the same title on the company's board and sends no LinkedIn request", async () => {
+    ats("a1", { title: "Senior Frontend Engineer (Remote)" });
+    li("p-same", { title: "Senior Frontend Engineer" });
+    li("p-other", { title: "Senior React Engineer" });
+    process();
+    // keep the LinkedIn posting a pending candidate of its own (not merged into the board posting)
+    db.update(postings).set({ canonical_posting_id: null }).where(eq(postings.id, "p-same")).run();
+    const f = fakeFetcher();
+    const r = await fetchStep(f.fetchDescription);
+    expect(row("p-same").description_text).toBe(ATS_TEXT);
+    expect(flagsOf("p-same")).not.toContain("description_missing");
+    expect(descriptionState(row("p-same"))).toBe("present");
+    // only the posting without a board twin was requested
+    expect(f.calls.map((c) => c.id)).toEqual([row("p-other").external_id]);
+    expect(r.out).toContain("from the ATS board 1");
+  });
+
+  it("works for an old posting and during a details backoff, and sends nothing", async () => {
+    ats("a1");
+    li("p-old", { first_seen_at: new Date(START - 72 * 3_600_000).toISOString() });
+    process();
+    db.update(postings).set({ canonical_posting_id: null }).where(eq(postings.id, "p-old")).run();
+    db.insert(description_runs)
+      .values({
+        id: "d1",
+        source: "linkedin",
+        started_at: new Date(START - 3_600_000).toISOString(),
+        finished_at: new Date(START - 3_500_000).toISOString(),
+        requested: 1,
+        failed: 0,
+        blocked: true,
+      })
+      .run();
+    const f = fakeFetcher();
+    const r = await fetchStep(f.fetchDescription);
+    expect(f.calls).toEqual([]);
+    expect(row("p-old").description_text).toBe(ATS_TEXT);
+    expect(r.out).toContain("from the ATS board 1");
+  });
+
+  it("a different company, a different title or a board posting without text does not match", async () => {
+    ats("a1", { company_name: "Other Corp" });
+    ats("a2", { title: "Staff Frontend Engineer" });
+    ats("a3", { description_text: null });
+    li("p1");
+    process();
+    db.update(postings).set({ canonical_posting_id: null }).where(eq(postings.id, "p1")).run();
+    const f = fakeFetcher();
+    const r = await fetchStep(f.fetchDescription);
+    expect(f.calls).toHaveLength(1);
+    expect(r.out).toContain("from the ATS board 0");
+  });
+});
+
 describe("a block", () => {
-  it("stops the step, keeps what was fetched, starts the shared 6 h backoff, and a later run sends nothing", async () => {
+  it("stops the step, keeps what was fetched, starts a details-only 6 h backoff; the search and its freshness are untouched", async () => {
     for (let i = 0; i < 5; i++) li(`p${i}`);
     process();
+    db.insert(source_runs)
+      .values({
+        id: "ok-run",
+        source: "linkedin",
+        started_at: new Date(START - 40 * 60_000).toISOString(),
+        finished_at: new Date(START - 39 * 60_000).toISOString(),
+        status: "ok",
+        found: 25,
+        new: 5,
+        saturated: 0,
+      })
+      .run();
     const f = fakeFetcher((_id, no) =>
-      no <= 2
+      no <= 1
         ? { kind: "ok", description: "Fake description, remote worldwide, React." }
         : new SourceBlockedError("linkedin", "response status code 429"),
     );
     const r = await fetchStep(f.fetchDescription);
     expect(r.code).toBe(1);
-    expect(f.calls).toHaveLength(3); // the third was blocked, the 4th and 5th are never sent
-    const done = db
-      .select()
-      .from(postings)
-      .all()
-      .filter((p) => p.description_text !== null);
-    expect(done).toHaveLength(2);
+    expect(f.calls).toHaveLength(2); // the second was blocked, nothing is sent after it
+    expect(
+      db
+        .select()
+        .from(postings)
+        .all()
+        .filter((p) => p.description_text !== null),
+    ).toHaveLength(1);
     // the blocked posting got no attempt
     expect(
       db
@@ -313,23 +431,75 @@ describe("a block", () => {
         .all()
         .every((p) => p.description_attempts === 0),
     ).toBe(true);
-    const run = must(db.select().from(source_runs).all().at(-1));
-    expect(run.status).toBe("error");
-    expect(run.error_message).toMatch(/^blocked: /);
-    const until = must(blockBackoffUntil(db, "linkedin", now()));
-    expect(until.getTime() - Date.parse(run.started_at)).toBe(BLOCK_BACKOFF_HOURS * 3_600_000);
-    expect(db.select().from(description_runs).get()).toMatchObject({
-      requested: 3,
-      failed: 0,
-      blocked: true,
-    });
 
-    // The backoff holds for the next run: no request.
+    // The block is on description_runs only: no source_runs row, so the search has no backoff and no LATE.
+    expect(db.select().from(source_runs).all()).toHaveLength(1);
+    expect(blockBackoffUntil(db, "linkedin", now())).toBeUndefined();
+    const run = must(db.select().from(description_runs).get());
+    expect(run).toMatchObject({ requested: 2, failed: 0, blocked: true });
+    const until = must(descriptionBackoffUntil(db, now()));
+    expect(until.getTime() - Date.parse(run.started_at)).toBe(BLOCK_BACKOFF_HOURS * 3_600_000);
+    expect(descriptionBackoffUntil(db, new Date(until.getTime() + 1))).toBeUndefined();
+
+    // The search still polls the same minute.
+    let polled = 0;
+    await runDiscover({
+      db,
+      adapters: [
+        {
+          name: "linkedin",
+          minIntervalMinutes: 0,
+          fetch: async () => {
+            polled += 1;
+            return [];
+          },
+        },
+      ],
+      force: true,
+      now,
+      out: () => {},
+    });
+    expect(polled).toBe(1);
+
+    // The details backoff holds for the next detail run: no request.
     const again = fakeFetcher();
     const r2 = await fetchStep(again.fetchDescription);
     expect(again.calls).toEqual([]);
-    expect(r2.out).toContain("skipped (backoff after block until");
+    expect(r2.out).toContain("skipped (details backoff after block until");
     expect(r2.code).toBe(0);
+
+    // ... and ends after 6 h.
+    clock += BLOCK_BACKOFF_HOURS * 3_600_000 + 60_000;
+    for (const id of ["p0", "p1", "p2", "p3", "p4"])
+      db.update(postings)
+        .set({ first_seen_at: new Date(clock - 3_600_000).toISOString() })
+        .where(eq(postings.id, id))
+        .run();
+    const later = fakeFetcher();
+    await fetchStep(later.fetchDescription);
+    expect(later.calls.length).toBeGreaterThan(0);
+  });
+
+  it("a block on the search still stops the detail requests", async () => {
+    li("p1");
+    process();
+    db.insert(source_runs)
+      .values({
+        id: "blocked-search",
+        source: "linkedin",
+        started_at: new Date(START - 60_000).toISOString(),
+        finished_at: new Date(START - 50_000).toISOString(),
+        status: "error",
+        found: 0,
+        new: 0,
+        error_message: "blocked: [linkedin] response status code 429",
+      })
+      .run();
+    const f = fakeFetcher();
+    const r = await fetchStep(f.fetchDescription);
+    expect(f.calls).toEqual([]);
+    expect(r.out).toContain("skipped (search backoff after block until");
+    expect(r.code).toBe(0);
   });
 
   it("holds with --force on the command too, and the search is in backoff as well", async () => {
@@ -374,7 +544,7 @@ describe("a block", () => {
         err: (t) => err.push(t),
       });
       expect(code).toBe(0);
-      expect(out.join("")).toContain("skipped (backoff after block until");
+      expect(out.join("")).toContain("skipped (search backoff after block until");
       // no worker was even asked for (the test runner would have answered "disabled under the test runner")
       expect(out.join("") + err.join("")).not.toContain("disabled under the test runner");
       const check = openDb(file);
@@ -711,7 +881,7 @@ describe("after the description arrives", () => {
 
 describe("Source health", () => {
   it("shows the detail requests of the run and keeps freshness and the saturation count", async () => {
-    for (let i = 0; i < 7; i++) li(`p${i}`);
+    for (let i = 0; i < 3; i++) li(`p${i}`);
     process();
     db.insert(source_runs)
       .values({
@@ -734,7 +904,7 @@ describe("Source health", () => {
     expect(r.code).toBe(0);
     expect(db.select().from(description_runs).get()).toMatchObject({
       source: "linkedin",
-      requested: 7,
+      requested: 3,
       failed: 1,
       blocked: false,
     });
@@ -747,7 +917,7 @@ describe("Source health", () => {
         .split("\n")
         .find((l) => l.startsWith("- **linkedin**")),
     );
-    expect(line).toContain("ok, found 25, new 7, saturated 2, details 7 (1 failed)");
+    expect(line).toContain("ok, found 25, new 7, saturated 2, details 3 (1 failed)");
     expect(line).toContain("last ok");
     expect(line).not.toContain("LATE");
   });
@@ -779,8 +949,12 @@ describe("Source health", () => {
         .split("\n")
         .find((l) => l.startsWith("- **linkedin**")),
     );
-    expect(line).toContain("error, found 0, new 0, saturated 1, details 2 (blocked)");
-    expect(line).toContain("blocked: [linkedin] response status code 429");
-    expect(line).toContain("in backoff until");
+    // the search's own status stays ok; the details backoff is shown separately and is not the search's backoff
+    expect(line).toContain(
+      "ok, found 25, new 3, saturated 1, details 2, details backoff until 16:00 WIB",
+    );
+    expect(line).not.toContain("error");
+    expect(line).not.toContain("LATE");
+    expect(line).not.toContain("— in backoff until");
   });
 });

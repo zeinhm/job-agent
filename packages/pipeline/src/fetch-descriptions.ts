@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import {
   analysis,
   apply_links,
@@ -16,14 +16,25 @@ import {
   type Posting,
 } from "@job-agent/core";
 import { SEARCH_GAP_MS, type DetailFetcher } from "@job-agent/sources";
+import { dedupeHash, normalizeTitle } from "./dedupe/index.ts";
 import { BLOCKED_PREFIX, blockBackoffUntil } from "./discover.ts";
-import { DESCRIPTION_SOURCE, descriptionPendingSql } from "./description-state.ts";
+import {
+  DESCRIPTION_SOURCE,
+  descriptionBackoffUntil,
+  descriptionPendingSql,
+} from "./description-state.ts";
+import { ATS_SOURCE_NAMES } from "./filters/keywords.ts";
 import { classifyLocation } from "./filters/location.ts";
 import { classifyRole } from "./filters/role.ts";
+import { normalizeCompanyName } from "./normalize/index.ts";
 import { analyze } from "./process.ts";
 
-/** At most this many detail requests in one run; the postings left over wait for the next run (newest are fetched first). */
-export const MAX_DETAIL_REQUESTS_PER_RUN = 20;
+/** At most this many LinkedIn detail requests in one run; the postings left over wait for the next run (newest first). */
+export const MAX_DETAIL_REQUESTS_PER_RUN = 3;
+/** At least this long between two detail requests (the first one waits SEARCH_GAP_MS after the search's last request). */
+export const DETAIL_GAP_MS = 45_000;
+/** Only postings first seen within this window get a LinkedIn detail request; older ones stay description_missing. */
+export const DETAIL_MAX_AGE_MS = 24 * 3_600_000;
 /** A posting gets this many counted failures, then it is `description_unavailable` (processed on the title only). A blocked run is not counted. */
 export const MAX_DESCRIPTION_ATTEMPTS = 3;
 export interface FetchDescriptionsOptions {
@@ -66,6 +77,34 @@ export function selectForDescription(db: Db): Posting[] {
         classifyLocation({ locationText: p.location_text, descriptionText: null, remote: p.remote })
           .class !== "restricted",
     );
+}
+
+/** The text of the same job (same company, same normalized title) on an ATS board the DB already holds, or undefined. */
+function atsDescription(db: Db, p: Posting): string | undefined {
+  const key = normalizeCompanyName(p.company_name) || "unknown";
+  const hashes = [...new Set([p.dedupe_hash, dedupeHash(key, p.title)])].filter(
+    (h): h is string => h !== null,
+  );
+  const link = db.select().from(apply_links).where(eq(apply_links.posting_id, p.id)).get();
+  const urls = [p.apply_url, link?.apply_url].filter((u): u is string => !!u);
+  const sameJob: SQL[] = [inArray(postings.dedupe_hash, hashes)];
+  if (urls.length > 0) sameJob.push(inArray(postings.url, urls), inArray(postings.apply_url, urls));
+  const wanted = normalizeTitle(p.title);
+  const rows = db
+    .select()
+    .from(postings)
+    .where(
+      and(
+        inArray(postings.source, [...ATS_SOURCE_NAMES]),
+        isNotNull(postings.description_text),
+        or(...sameJob),
+      ),
+    )
+    .orderBy(desc(postings.last_seen_at), postings.id)
+    .all();
+  return rows
+    .find((r) => normalizeTitle(r.title) === wanted && (r.description_text ?? "").trim() !== "")
+    ?.description_text?.trim();
 }
 
 /** Start of the latest LinkedIn request the search made: the end of its latest run that was not skipped. */
@@ -116,10 +155,15 @@ function applyDescription(
 }
 
 /**
- * The step between `process` and `enrich`: one LinkedIn detail request at a time (through JobSpy, logged out), at least
- * SEARCH_GAP_MS (the search's own gap, 10 s) after any other LinkedIn request, at most MAX_DETAIL_REQUESTS_PER_RUN per run.
- * It shares the linkedin block backoff with the search: nothing is sent while it holds, and a block ends the step and
- * records the same `blocked:` error run that starts the 6 h backoff. Returns the exit code (1 after a block or a worker error).
+ * The step between `process` and `enrich`. Free route first: a pending posting whose same job (company, normalized title)
+ * is on an ATS board the DB already holds takes that text and sends no request (any age, also during a backoff).
+ * Then LinkedIn detail requests (through JobSpy, logged out): at most MAX_DETAIL_REQUESTS_PER_RUN per run, newest first,
+ * only for postings first seen in the last DETAIL_MAX_AGE_MS, the first one SEARCH_GAP_MS after the search's last request
+ * and each next one DETAIL_GAP_MS after the previous. No retry inside a run.
+ * Two backoffs: a block on the search (source_runs) holds the requests too; a block on a detail request is stored only in
+ * `description_runs` (blocked) and holds only the detail requests for DETAIL_BACKOFF_HOURS: the search keeps running and
+ * the step never writes a `source_runs` row, so the search's freshness line never sees it.
+ * Returns the exit code (1 after a block or a worker error).
  */
 export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Promise<number> {
   const { db, out, err } = opts;
@@ -128,25 +172,52 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   const cap = opts.maxRequests ?? MAX_DETAIL_REQUESTS_PER_RUN;
   const startedAt = now();
 
-  const backoffUntil = blockBackoffUntil(db, DESCRIPTION_SOURCE, startedAt);
-  if (backoffUntil) {
-    out(`fetch-descriptions: skipped (backoff after block until ${backoffUntil.toISOString()})\n`);
-    return 0;
-  }
-
-  const candidates = selectForDescription(db);
-  if (candidates.length === 0) {
+  const pending = selectForDescription(db);
+  if (pending.length === 0) {
     out("fetch-descriptions: nothing to fetch\n");
     return 0;
   }
-  const floor = opts.floorIdrMonth ?? loadConfig().salary.floor_idr_month;
+  // The salary config is read only when a description arrives (a run that sends and finds nothing needs none).
+  let floorValue = opts.floorIdrMonth;
+  const floor = (): number => (floorValue ??= loadConfig().salary.floor_idr_month);
+
+  let fromAts = 0;
+  let rejected = 0;
+  const open: Posting[] = [];
+  for (const p of pending) {
+    const text = atsDescription(db, p);
+    if (text === undefined) {
+      open.push(p);
+      continue;
+    }
+    fromAts += 1;
+    if (applyDescription(db, p, text, floor(), now()).rejected) rejected += 1;
+  }
+
+  const cutoff = startedAt.getTime() - DETAIL_MAX_AGE_MS;
+  const candidates = open.filter((p) => Date.parse(p.first_seen_at) >= cutoff);
+  const tooOld = open.length - candidates.length;
+
+  const searchBackoff = blockBackoffUntil(db, DESCRIPTION_SOURCE, startedAt);
+  const detailBackoff = descriptionBackoffUntil(db, startedAt);
+  if (searchBackoff !== undefined || detailBackoff !== undefined || candidates.length === 0) {
+    const why = searchBackoff
+      ? `skipped (search backoff after block until ${searchBackoff.toISOString()})`
+      : detailBackoff
+        ? `skipped (details backoff after block until ${detailBackoff.toISOString()})`
+        : "no posting from the last 24 h to request";
+    out(
+      `fetch-descriptions: ${why}, from the ATS board ${fromAts} (rejected by the rules ${rejected}), ` +
+        `older than 24 h and never requested ${tooOld}, left for the next run ${selectForDescription(db).length}\n`,
+    );
+    return 0;
+  }
 
   let lastRequestAt = lastSearchRequestAt(db);
   let requested = 0;
   let fetched = 0;
   let failed = 0;
   let unavailable = 0;
-  let rejected = 0;
   let blocked: string | undefined;
   let toolError: string | undefined;
   let skipped: string | undefined;
@@ -154,7 +225,8 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   for (const p of candidates) {
     if (requested >= cap) break;
     if (lastRequestAt !== undefined) {
-      const wait = SEARCH_GAP_MS - (now().getTime() - lastRequestAt);
+      const gap = requested === 0 ? SEARCH_GAP_MS : DETAIL_GAP_MS;
+      const wait = gap - (now().getTime() - lastRequestAt);
       if (wait > 0) await sleep(wait);
     }
     try {
@@ -164,7 +236,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
       lastRequestAt = now().getTime();
       if (result.kind === "ok") {
         fetched += 1;
-        if (applyDescription(db, p, result.description, floor, now()).rejected) rejected += 1;
+        if (applyDescription(db, p, result.description, floor(), now()).rejected) rejected += 1;
       } else {
         failed += 1;
         const attempts = p.description_attempts + 1;
@@ -200,22 +272,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   }
 
   const finishedAt = now();
-  if (blocked !== undefined) {
-    // The same row a blocked search leaves: `discover` and the freshness line read the 6 h backoff from it.
-    db.insert(source_runs)
-      .values({
-        id: randomUUID(),
-        source: DESCRIPTION_SOURCE,
-        started_at: startedAt.toISOString(),
-        finished_at: finishedAt.toISOString(),
-        status: "error",
-        found: 0,
-        new: 0,
-        error_message: `${BLOCKED_PREFIX}${blocked}`,
-        saturated: null,
-      })
-      .run();
-  }
+  // A block is the `blocked` flag of this row only: no source_runs row, so the search and its freshness line are untouched.
   if (requested > 0) {
     db.insert(description_runs)
       .values({
@@ -233,7 +290,8 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   const left = selectForDescription(db).length;
   out(
     `fetch-descriptions: requested ${requested}, fetched ${fetched} (rejected by the rules ${rejected}), failed ${failed}` +
-      `${unavailable > 0 ? ` (unavailable ${unavailable})` : ""}, left for the next run ${left}\n`,
+      `${unavailable > 0 ? ` (unavailable ${unavailable})` : ""}, from the ATS board ${fromAts}, ` +
+      `older than 24 h and never requested ${tooOld}, left for the next run ${left}\n`,
   );
   if (skipped !== undefined) out(`fetch-descriptions: skipped (${skipped})\n`);
   if (blocked !== undefined) {

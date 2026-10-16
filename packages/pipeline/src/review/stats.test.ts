@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { openDb, reviews, type Db } from "@job-agent/core";
+import { eq, inArray } from "drizzle-orm";
+import { analysis, openDb, reviews, type Db } from "@job-agent/core";
 import { seedDemo } from "../seed-demo.ts";
 import { getQueue } from "./queue.ts";
 import { addDays, computeDayStats, doneWhenLine, formatStats, getStats } from "./stats.ts";
@@ -127,6 +128,32 @@ describe("computeDayStats", () => {
     const s = computeDayStats(db, DATE);
     expect(s.processed).toBe(1);
     expect(s.medianSecondsPerPosting).toBeNull(); // 2nd action of a posting is a change of mind, not a new gap
+  });
+
+  it("counts a reviewed posting that left Top matches as a match and as processed", () => {
+    review(id(0), "interested", "2026-03-10T03:00:00.000Z");
+    review(id(1), "not_interested", "2026-03-10T03:01:00.000Z", { reason: "role" });
+    // Both leave the queue after the review (as the owner saw on a live day).
+    db.update(analysis)
+      .set({ decision: "reject" })
+      .where(inArray(analysis.posting_id, [id(0), id(1)]))
+      .run();
+    const listed = getQueue(db, DATE).sections.top.map((i) => i.postingId);
+    expect(listed).not.toContain(id(0));
+    expect(listed).not.toContain(id(1));
+    const s = computeDayStats(db, DATE);
+    expect(s).toMatchObject({ matches: 5, processed: 2, open: 3 });
+  });
+
+  it("a reviewed posting that left Top and was never listed again is not double counted", () => {
+    review(id(0), "interested", "2026-03-10T03:00:00.000Z");
+    review(id(0), "later", "2026-03-10T03:02:00.000Z");
+    db.update(analysis)
+      .set({ decision: "reject" })
+      .where(eq(analysis.posting_id, id(0)))
+      .run();
+    const s = computeDayStats(db, DATE);
+    expect(s).toMatchObject({ matches: 5, processed: 0, open: 5 });
   });
 
   it("ignores reviews of other days for timing and actions; ask checks accumulate", () => {
