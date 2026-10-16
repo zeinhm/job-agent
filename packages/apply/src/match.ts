@@ -17,6 +17,8 @@ export const STANDARD_FIELDS = [
   "resume",
   "cover_letter",
   "linkedin",
+  "website",
+  "location",
 ] as const;
 export type StandardField = (typeof STANDARD_FIELDS)[number];
 
@@ -31,6 +33,7 @@ const STANDARD_WORDINGS: Record<StandardField, readonly string[]> = {
     "last name",
     "surname",
     "family name",
+    "given name",
     "legal name",
     "preferred name",
   ],
@@ -65,6 +68,26 @@ const STANDARD_WORDINGS: Record<StandardField, readonly string[]> = {
     "linkedin profile link",
     "your linkedin profile",
     "your linkedin url",
+  ],
+  website: [
+    "website",
+    "your website",
+    "personal website",
+    "website url",
+    "website link",
+    "portfolio",
+    "portfolio url",
+    "portfolio link",
+    "portfolio website",
+  ],
+  location: [
+    "location",
+    "your location",
+    "current location",
+    "location city",
+    "city",
+    "current city",
+    "city of residence",
   ],
 };
 

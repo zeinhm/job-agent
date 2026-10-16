@@ -29,12 +29,26 @@ export function mappingId(answerKey: string, label: string, options: string[]): 
 
 /** Ids of every approved mapping; a choice question is covered only when its id is in here. */
 export function approvedMappingIds(db: Pick<Db, "select">): Set<string> {
-  return new Set(
+  return new Set(approvedMappings(db).keys());
+}
+
+/** Approved mappings by id (see `mappingId`) -> the option texts the owner picked. */
+export function approvedMappings(db: Pick<Db, "select">): Map<string, string[]> {
+  return new Map(
     db
       .select()
       .from(choice_mappings)
       .where(eq(choice_mappings.approved, true))
       .all()
-      .map((m) => idOf(m.answer_key, m.normalized_label, m.options_hash)),
+      .map((m) => [idOf(m.answer_key, m.normalized_label, m.options_hash), parseChosen(m.chosen)]),
   );
+}
+
+function parseChosen(text: string): string[] {
+  try {
+    const v: unknown = JSON.parse(text);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
 }

@@ -100,4 +100,27 @@ export {
   type TypedAnswerCheck,
   type TypedAnswerRule,
 } from "./typed-answer.ts";
+export {
+  MAX_RESUME_BYTES,
+  PROFILE_KEYS,
+  SUPPORTED_FIELD_TYPES,
+  nameRole,
+  planFill,
+  probeResumeFile,
+  salaryNumber,
+  salaryText,
+  splitName,
+  type FieldSource,
+  type FillInput,
+  type FillPlan,
+  type FormField,
+  type NeedsInputReason,
+  type PlanAnswer,
+  type PlannedField,
+  type ResumeProbe,
+  type StopReason,
+  type SupportedFieldType,
+  type TierAsk,
+} from "./fill-plan.ts";
+export { loadFillContext, recordUncoveredLabels } from "./fill-plan-db.ts";
 export * from "./dryrun/index.ts";

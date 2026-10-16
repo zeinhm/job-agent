@@ -73,15 +73,15 @@ backup line for migrations.
    test can fail.
 3. **Agents never open a real employer form.** Agents and tests use committed fixtures served from 127.0.0.1 (fixture mode
    aborts every other host). Real dry runs are owner-run CLI commands, one per process, headed by default.
-4. **Partial fill (owner answer to gate t_2c20b3fa question 4, replaces the strict stop rule for Phase 5):** in a dry run the
-   filler fills every covered field, leaves uncovered questions empty and marks them `needs_input`, takes the screenshot, and
-   the run status is `needs_input`. This covers `uncovered_question` (including a salary field with no tier ask and a missing
-   resume file) and `choice_unmapped`; the fill plan returns the filled fields plus the `needs_input` labels, and the labels
-   are still upserted into the Inbox. A full stop (nothing more filled) stays only for CAPTCHA, login wall, unexpected page,
-   unexpected or unsupported field type, ambiguous match (a field matching two answers) and scam-flagged postings. Nothing
-   submits in Phase 5 in any case. The strict rule (every question covered by an approved answer or choice mapping) becomes the
-   rule for submitting in Phase 6.
-5. **Salary:** a salary field (`isSalaryWording`) always takes the posting's tier ask, never a bank answer; no ask = stop.
+4. **Stop rule (owner answer on gate t_2c20b3fa question 4, replaces the strict rule for Phase 5):** the plan is computed before
+   any field is filled. In a dry run the filler fills every covered field, leaves each uncovered one empty and marks it
+   `needs_input`, takes the screenshot, and the run status is `needs_input`; the uncovered labels go to the Inbox. This covers
+   `uncovered_question` (a salary field with no tier ask and a missing or invalid resume file included) and `choice_unmapped`.
+   A full stop (nothing more filled) stays only for: CAPTCHA, login wall, unexpected page, unexpected or unsupported field
+   type, an ambiguous match (a field that matches two answers) and a scam-flagged posting. Nothing submits in Phase 5 in any
+   case; the strict rule (every question covered by an approved answer or choice mapping) is the rule for submitting in Phase 6.
+   Done-when stays: 20 correct, at least 10 of them full fills (a full fill = no `needs_input` field).
+5. **Salary:** a salary field (`isSalaryWording`) always takes the posting's tier ask, never a bank answer; no ask, or a currency the tier cannot supply, = that field needs input (Decision 4).
 6. **Choice mapping:** a choice / dropdown / radio / multi-select question is covered only when its matched answer is approved
    AND the owner has approved a mapping for (answer key, normalized label, option-set hash). The owner sees the form's
    options and picks once; a new option set needs a new mapping; clearing an answer's approval clears its mappings; salary
