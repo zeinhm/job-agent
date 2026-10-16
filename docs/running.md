@@ -399,6 +399,28 @@ temp `companies.yaml`; `web3career` only if `WEB3_CAREER_TOKEN` is already in yo
 A failing source shows as `error` and does not stop the others. The script exits 0 when `process` and `digest`
 completed, 1 if either failed. It makes no LLM calls (`ANTHROPIC_API_KEY` is unset for the run).
 
+## Dry-run harness browser (Phase 5)
+
+The dry-run harness (`packages/apply/src/dryrun/`) drives Chromium through Playwright (`playwright` pinned to exactly 1.64.1). The
+browser binary is not part of `pnpm install`. After `pnpm install`, in the repo or in a fresh worktree, run once:
+
+```sh
+pnpm playwright:install
+```
+
+It downloads Chromium into Playwright's shared cache (`~/Library/Caches/ms-playwright` on macOS), so other worktrees of
+the same checkout reuse it. The tests that need the browser (`packages/apply/src/dryrun/harness.test.ts`) fail with
+`Chromium for Playwright is not installed. Run: pnpm playwright:install` when it is missing; they never skip.
+
+Safety, in code and not configurable: one run per process; every request that is not GET or HEAD is aborted (the only
+exception is an Ashby GraphQL query on the read-only allowlist), WebSockets, `sendBeacon` and service workers are blocked,
+and `form.submit()` / `requestSubmit()` / `submit` events are cancelled and recorded. The helpers only fill, select,
+check and upload; none clicks, and any element that is a submit control or inside one is refused. Fixture mode (tests,
+`bin/smoke`) also aborts every host other than `127.0.0.1`. A CAPTCHA script or widget, a login wall or a page error
+stops the run before a field is filled. Output goes to `<data dir>/dryruns/<YYYY-MM-DD>/<run id>/screenshot.png` (dirs
+0700, file 0600; the data dir is the folder of the DB file, so a smoke run writes inside its smoke dir). Screenshots
+and filled values are personal data: never commit or share them.
+
 ## LinkedIn and Indeed through JobSpy (optional, Tier 2)
 
 The `linkedin` and `indeed` sources run a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).

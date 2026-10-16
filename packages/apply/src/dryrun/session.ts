@@ -1,0 +1,279 @@
+import { randomUUID } from "node:crypto";
+import { dry_runs, type Db, type DRY_RUN_STOP_REASONS } from "@job-agent/core";
+import { eq } from "drizzle-orm";
+import type { Browser, BrowserContext, Locator, Page } from "playwright";
+import { launchChromium, newGuardedContext } from "./browser.ts";
+import { detectStop, type StopSignal } from "./detectors.ts";
+import { finalizeScreenshot, writePendingScreenshot } from "./output.ts";
+import { SUBMIT_ATTEMPT_KINDS, type PageAttempt } from "./page-guard.ts";
+import type { AbortedRequest, GuardAts } from "./request-guard.ts";
+import { recordDryRun, type DryRunFieldInput } from "../dry-runs-store.ts";
+
+export type FieldRef = { css: string } | { label: string };
+
+export class HarnessRefusalError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HarnessRefusalError";
+  }
+}
+
+export interface DryRunSessionOptions {
+  db: Db;
+  /** Folder of the DB (see `dataDirOfDb`); output goes under `<dataDir>/dryruns/`. */
+  dataDir: string;
+  postingId: string;
+  ats: GuardAts;
+  /** The form page. Fixture mode: must be on 127.0.0.1. */
+  url: string;
+  /** Fixture mode (tests, `bin/smoke`): every host other than 127.0.0.1 is aborted too. */
+  fixture: boolean;
+  /** Default true; the owner-run CLI opens a visible window. */
+  headless?: boolean;
+}
+
+export interface DryRunResult {
+  status: "filled" | "needs_input" | "stopped" | "error";
+  stop_reason?: StopSignal["reason"] | null;
+  stop_detail?: string | null;
+  fields?: DryRunFieldInput[];
+}
+
+export interface FinishedRun {
+  runId: string;
+  status: DryRunResult["status"];
+  stopReason: (typeof DRY_RUN_STOP_REASONS)[number] | null;
+  screenshotPath: string;
+  /** Method, host and path of every blocked request (never a body). */
+  aborted: readonly AbortedRequest[];
+  attempts: readonly PageAttempt[];
+}
+
+/** One run per process: no loop, retry or batch mode. */
+let runStarted = false;
+
+/** @internal test seam: the page behind a session, and the run limit reset. Not exported from the package index. */
+export const internals = {
+  pages: new WeakMap<DryRunSession, Page>(),
+  resetRunLimit: () => {
+    runStarted = false;
+  },
+};
+
+const TEXT_INPUT_TYPES = new Set(["", "text", "email", "tel", "url", "number", "search", "date"]);
+const SUBMIT_LIKE =
+  "button, [role='button'], [type='submit' i], input[type='image' i], input[type='button' i], input[type='reset' i]";
+
+interface ElementFacts {
+  tag: string;
+  type: string;
+  submitLike: boolean;
+}
+
+export class DryRunSession {
+  /** Set when a detector stopped the run before any field was filled. */
+  readonly stop: StopSignal | null;
+  // ES private fields: the page is not a property, so nothing can reach `session.page` and click.
+  #opts: DryRunSessionOptions;
+  #browser: Browser;
+  #context: BrowserContext;
+  #page: Page;
+  #startedAt: Date;
+  #finished = false;
+
+  constructor(
+    opts: DryRunSessionOptions,
+    browser: Browser,
+    context: BrowserContext,
+    page: Page,
+    startedAt: Date,
+    /** Filled by the guards for the whole life of the session. */
+    readonly aborted: AbortedRequest[],
+    readonly attempts: PageAttempt[],
+    stop: StopSignal | null,
+  ) {
+    this.#opts = opts;
+    this.#browser = browser;
+    this.#context = context;
+    this.#page = page;
+    this.#startedAt = startedAt;
+    this.stop = stop;
+    internals.pages.set(this, page);
+  }
+
+  private async locate(ref: FieldRef): Promise<{ locator: Locator; facts: ElementFacts }> {
+    if (this.stop)
+      throw new HarnessRefusalError(`run is stopped (${this.stop.reason}): nothing is filled`);
+    if (this.#finished) throw new HarnessRefusalError("run is finished");
+    const locator =
+      "css" in ref
+        ? this.#page.locator(ref.css)
+        : this.#page.getByLabel(ref.label, { exact: true });
+    const count = await locator.count();
+    if (count !== 1) throw new HarnessRefusalError(`expected exactly one element, found ${count}`);
+    const facts = await locator.evaluate((el, submitLike): ElementFacts => {
+      const attrs = [el.id, el.getAttribute("name") ?? "", el.getAttribute("data-qa") ?? ""].join(
+        " ",
+      );
+      return {
+        tag: el.tagName.toLowerCase(),
+        type: (el.getAttribute("type") ?? "").toLowerCase(),
+        submitLike: el.closest(submitLike) !== null || /submit/i.test(attrs),
+      };
+    }, SUBMIT_LIKE);
+    if (facts.submitLike)
+      throw new HarnessRefusalError("refused: element is, or sits inside, a submit control");
+    return { locator, facts };
+  }
+
+  /** Sets the value of a text-like input or textarea. */
+  async fill(ref: FieldRef, value: string): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    const ok =
+      facts.tag === "textarea" || (facts.tag === "input" && TEXT_INPUT_TYPES.has(facts.type));
+    if (!ok) throw new HarnessRefusalError(`refused: cannot fill a ${facts.tag}[${facts.type}]`);
+    await locator.fill(value);
+    await locator.blur();
+  }
+
+  /** Picks an option of a `<select>` by value or visible label. */
+  async select(ref: FieldRef, option: { value: string } | { label: string }): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    if (facts.tag !== "select")
+      throw new HarnessRefusalError(`refused: cannot select in a ${facts.tag}`);
+    await locator.selectOption(option);
+  }
+
+  /** Checks or unchecks a checkbox or radio. */
+  async check(ref: FieldRef, checked = true): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    if (facts.tag !== "input" || (facts.type !== "checkbox" && facts.type !== "radio")) {
+      throw new HarnessRefusalError(`refused: cannot check a ${facts.tag}[${facts.type}]`);
+    }
+    await locator.setChecked(checked);
+  }
+
+  /** Attaches a local file to a file input. */
+  async upload(ref: FieldRef, filePath: string): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    if (facts.tag !== "input" || facts.type !== "file") {
+      throw new HarnessRefusalError(`refused: cannot upload into a ${facts.tag}[${facts.type}]`);
+    }
+    await locator.setInputFiles(filePath);
+  }
+
+  /**
+   * Takes the full-page screenshot, writes it and the run + fields through the D1 store, and closes the browser.
+   * After a detector stop the run is recorded as stopped with no fields, whatever `result` says.
+   * A "filled" run during which the page tried to submit is recorded as stopped (`blocked_request`).
+   */
+  async finish(result?: DryRunResult): Promise<FinishedRun> {
+    if (this.#finished) throw new HarnessRefusalError("run is finished");
+    this.#finished = true;
+    try {
+      const png = await this.#page.screenshot({ fullPage: true });
+      const day = this.#startedAt.toISOString().slice(0, 10);
+      const pending = writePendingScreenshot(this.#opts.dataDir, day, randomUUID(), png);
+      const resolved = this.resolve(result);
+      const runId = recordDryRun(this.#opts.db, {
+        posting_id: this.#opts.postingId,
+        ats_type: this.#opts.ats,
+        started_at: this.#startedAt.toISOString(),
+        finished_at: new Date().toISOString(),
+        status: resolved.status,
+        stop_reason: resolved.stopReason,
+        stop_detail: resolved.stopDetail,
+        screenshot_path: null,
+        fixture: this.#opts.fixture,
+        fields: resolved.fields,
+      });
+      const screenshotPath = finalizeScreenshot(this.#opts.dataDir, day, pending, runId);
+      this.#opts.db
+        .update(dry_runs)
+        .set({ screenshot_path: screenshotPath })
+        .where(eq(dry_runs.id, runId))
+        .run();
+      return {
+        runId,
+        status: resolved.status,
+        stopReason: resolved.stopReason,
+        screenshotPath,
+        aborted: this.aborted,
+        attempts: this.attempts,
+      };
+    } finally {
+      await this.close();
+    }
+  }
+
+  private resolve(result?: DryRunResult) {
+    if (this.stop) {
+      return {
+        status: this.stop.reason === "page_error" ? ("error" as const) : ("stopped" as const),
+        stopReason: this.stop.reason,
+        stopDetail: this.stop.detail,
+        fields: [] as DryRunFieldInput[],
+      };
+    }
+    const given = result ?? { status: "needs_input" as const };
+    if (given.status === "filled" && this.attempts.some((a) => SUBMIT_ATTEMPT_KINDS.has(a.kind))) {
+      return {
+        status: "stopped" as const,
+        stopReason: "blocked_request" as const,
+        stopDetail: "the page tried to submit; the attempt was blocked",
+        fields: given.fields ?? [],
+      };
+    }
+    return {
+      status: given.status,
+      stopReason: given.stop_reason ?? null,
+      stopDetail: given.stop_detail ?? null,
+      fields: given.fields ?? [],
+    };
+  }
+
+  /** Closes the browser without recording anything (error paths). Safe to call twice. */
+  async close(): Promise<void> {
+    this.#finished = true;
+    await this.#context.close().catch(() => undefined);
+    await this.#browser.close().catch(() => undefined);
+  }
+}
+
+/**
+ * Opens the form page in Chromium behind the guards and runs the stop detectors. A stop is kept on the session
+ * (`session.stop`); fill helpers then refuse and `finish()` records it.
+ */
+export async function openDryRunSession(opts: DryRunSessionOptions): Promise<DryRunSession> {
+  if (runStarted) throw new HarnessRefusalError("one dry run per process");
+  runStarted = true;
+  const aborted: AbortedRequest[] = [];
+  const attempts: PageAttempt[] = [];
+  const seenUrls: string[] = [];
+  const startedAt = new Date();
+  const browser = await launchChromium({ headless: opts.headless ?? true });
+  try {
+    const context = await newGuardedContext(
+      browser,
+      { ats: opts.ats, fixture: opts.fixture },
+      { onAbort: (a) => aborted.push(a), onAttempt: (a) => attempts.push(a) },
+    );
+    const page = await context.newPage();
+    page.setDefaultTimeout(10_000);
+    page.on("request", (r) => seenUrls.push(r.url()));
+    let mainStatus: number | null = null;
+    try {
+      const response = await page.goto(opts.url, { waitUntil: "load" });
+      mainStatus = response?.status() ?? null;
+    } catch {
+      mainStatus = null;
+    }
+    const stop = await detectStop({ page, requestedUrl: opts.url, mainStatus, seenUrls }).catch(
+      (): StopSignal => ({ reason: "page_error", detail: "page unreadable" }),
+    );
+    return new DryRunSession(opts, browser, context, page, startedAt, aborted, attempts, stop);
+  } catch (err) {
+    await browser.close().catch(() => undefined);
+    throw err;
+  }
+}

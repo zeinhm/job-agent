@@ -7,3 +7,4 @@ packages/core/drizzle/
 pnpm-lock.yaml
 *.md
 workers/jobspy/.venv/
+docs/research/*-samples/

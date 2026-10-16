@@ -76,3 +76,4 @@ export {
   type TypedAnswerCheck,
   type TypedAnswerRule,
 } from "./typed-answer.ts";
+export * from "./dryrun/index.ts";
