@@ -73,10 +73,14 @@ backup line for migrations.
    test can fail.
 3. **Agents never open a real employer form.** Agents and tests use committed fixtures served from 127.0.0.1 (fixture mode
    aborts every other host). Real dry runs are owner-run CLI commands, one per process, headed by default.
-4. **Stop rule (strict):** the plan is computed before any field is filled. Any form field, required or optional, not covered by
-   an approved answer, an approved choice mapping, a standard `profile.*` answer or the tier ask stops the run
-   (`needs_input`), fills nothing, still takes a screenshot, and sends the uncovered labels to the Inbox. CAPTCHA, login wall,
-   unexpected field type, changed form and page errors stop too.
+4. **Partial fill (owner answer to gate t_2c20b3fa question 4, replaces the strict stop rule for Phase 5):** in a dry run the
+   filler fills every covered field, leaves uncovered questions empty and marks them `needs_input`, takes the screenshot, and
+   the run status is `needs_input`. This covers `uncovered_question` (including a salary field with no tier ask and a missing
+   resume file) and `choice_unmapped`; the fill plan returns the filled fields plus the `needs_input` labels, and the labels
+   are still upserted into the Inbox. A full stop (nothing more filled) stays only for CAPTCHA, login wall, unexpected page,
+   unexpected or unsupported field type, ambiguous match (a field matching two answers) and scam-flagged postings. Nothing
+   submits in Phase 5 in any case. The strict rule (every question covered by an approved answer or choice mapping) becomes the
+   rule for submitting in Phase 6.
 5. **Salary:** a salary field (`isSalaryWording`) always takes the posting's tier ask, never a bank answer; no ask = stop.
 6. **Choice mapping:** a choice / dropdown / radio / multi-select question is covered only when its matched answer is approved
    AND the owner has approved a mapping for (answer key, normalized label, option-set hash). The owner sees the form's
@@ -86,8 +90,10 @@ backup line for migrations.
 8. **Dry-run output is private:** `<data dir>/dryruns/<date>/<run id>/` (dir 0700, files 0600), run and field rows in the local
    DB; labels and counts only in logs. The dashboard serves a screenshot only by run id, realpath-checked under `dryruns/`.
 9. **Done-when rule:** `dry runs: <c> correct of <r> reviewed (<f> full fills)`, met when at least 20 owner runs are marked
-   correct and at least 10 of them are full fills (status `filled`). Fixture runs never count. "Wrong" needs a reason from:
-   wrong_value, wrong_choice, missing_field, salary_wrong, stopped_wrongly, should_have_stopped, page_broken, other.
+   correct and at least 10 of them are full fills (status `filled`, no `needs_input` field). Fixture runs never count. "Wrong"
+   needs a reason from: wrong_value, wrong_choice, missing_field, salary_wrong, stopped_wrongly, should_have_stopped,
+   page_broken, other. A review can be changed in the dashboard's Dry runs tab; no review history is kept. The line shows in
+   that tab, the Stats tab and `review-stats`. `missing_field` takes the missing label and puts it in the Inbox.
 10. **No LLM on any Phase 5 path** (owner: no drafting). Unknown questions go to the Inbox for the owner.
 11. **Playwright** is a new dependency (D2 justifies it and documents the Chromium install); browser tests fail loudly
     when the browser is missing, never skip.

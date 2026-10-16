@@ -276,6 +276,87 @@ export interface ReviewBody {
   pay_policy?: PayPolicy;
 }
 
+export const DRY_RUN_REVIEW_REASONS = [
+  "wrong_value",
+  "wrong_choice",
+  "missing_field",
+  "salary_wrong",
+  "stopped_wrongly",
+  "should_have_stopped",
+  "page_broken",
+  "other",
+] as const;
+
+const ReviewVerdictSchema = z.enum(["correct", "wrong"]);
+
+export const DryRunDoneWhenSchema = z.object({
+  correct: z.number(),
+  reviewed: z.number(),
+  fullFills: z.number(),
+  met: z.boolean(),
+  line: z.string(),
+});
+export type DryRunDoneWhen = z.infer<typeof DryRunDoneWhenSchema>;
+
+export const DryRunRowSchema = z.object({
+  id: z.string(),
+  postingId: z.string(),
+  title: z.string(),
+  company: z.string(),
+  atsType: z.string(),
+  status: z.string(),
+  stopReason: z.string().nullable(),
+  fieldsFilled: z.number(),
+  fieldsTotal: z.number(),
+  startedAt: z.string(),
+  fixture: z.boolean(),
+  review: ReviewVerdictSchema.nullable(),
+  reviewReason: z.string().nullable(),
+});
+export type DryRunRow = z.infer<typeof DryRunRowSchema>;
+
+const DryRunListSchema = z.object({
+  runs: z.array(DryRunRowSchema),
+  doneWhen: DryRunDoneWhenSchema,
+});
+
+export const DryRunDetailSchema = DryRunRowSchema.extend({
+  finishedAt: z.string(),
+  stopDetail: z.string().nullable(),
+  reviewNote: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+  hasScreenshot: z.boolean(),
+  blockedRequestsRecorded: z.number(),
+  fields: z.array(
+    z.object({
+      label: z.string(),
+      fieldType: z.string(),
+      required: z.boolean(),
+      source: z.string(),
+      answerKey: z.string().nullable(),
+      value: z.string().nullable(),
+      filled: z.boolean(),
+      note: z.string().nullable(),
+    }),
+  ),
+});
+export type DryRunDetail = z.infer<typeof DryRunDetailSchema>;
+
+/** Body of POST /api/dry-runs/:id/review. */
+export interface DryRunReviewBody {
+  review: "correct" | "wrong";
+  reason?: (typeof DRY_RUN_REVIEW_REASONS)[number];
+  note?: string;
+  missing_label?: string;
+}
+
+const DryRunReviewedSchema = z.object({
+  review: ReviewVerdictSchema.nullable(),
+  reason: z.string().nullable(),
+  inboxOpen: z.boolean(),
+  doneWhen: DryRunDoneWhenSchema,
+});
+
 const AskCheckSchema = z.object({
   ok: z.number(),
   too_high: z.number(),
@@ -303,6 +384,7 @@ export const StatsSchema = z.object({
     target: z.number(),
   }),
   doneWhenMet: z.boolean(),
+  dryRuns: DryRunDoneWhenSchema,
   week: z.array(
     z.object({
       date: z.string(),
@@ -362,6 +444,12 @@ export const api = {
     apiPost("/api/choice-mappings", body, ChoiceMappingSchema),
   removeChoiceMapping: (body: Omit<ChoiceMappingBody, "chosen">) =>
     apiPost("/api/choice-mappings/remove", body, z.object({ removed: z.boolean() })),
+  dryRuns: () => apiGet("/api/dry-runs", DryRunListSchema),
+  dryRun: (id: string): Promise<DryRunDetail> =>
+    apiGet(`/api/dry-runs/${encodeURIComponent(id)}`, DryRunDetailSchema),
+  dryRunScreenshotUrl: (id: string): string => `/api/dry-runs/${encodeURIComponent(id)}/screenshot`,
+  reviewDryRun: (id: string, body: DryRunReviewBody) =>
+    apiPost(`/api/dry-runs/${encodeURIComponent(id)}/review`, body, DryRunReviewedSchema),
   undo: (postingIds: string[]) =>
     apiPost("/api/reviews/undo", { posting_ids: postingIds }, BatchRecordedSchema),
 };

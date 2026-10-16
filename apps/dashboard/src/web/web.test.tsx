@@ -37,6 +37,13 @@ const statsFor = (date: string) => ({
     target: 20,
   },
   doneWhenMet: true,
+  dryRuns: {
+    correct: 3,
+    reviewed: 4,
+    fullFills: 2,
+    met: false,
+    line: "dry runs: 3 correct of 4 reviewed (2 full fills); done when 20 correct, at least 10 full fills: not met",
+  },
   week: [
     {
       date: "2026-10-15",
@@ -100,7 +107,7 @@ describe("App", () => {
     const user = userEvent.setup();
     renderApp();
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
-    expect(tabs).toEqual(["Queue", "Answers", "Inbox", "Stats"]);
+    expect(tabs).toEqual(["Queue", "Answers", "Inbox", "Dry runs", "Stats"]);
     expect(screen.getByRole("tab", { name: "Queue" }).getAttribute("aria-selected")).toBe("true");
     expect(await screen.findByText(/No postings in the queue/)).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Inbox" }));
@@ -118,6 +125,9 @@ describe("App", () => {
     await user.click(screen.getByRole("tab", { name: "Stats" }));
     expect((await screen.findByLabelText("Done-when")).textContent).toBe(
       "done-when: 24.5 min for 12 matches (met)",
+    );
+    expect(screen.getByLabelText("Dry-run done-when").textContent).toBe(
+      "dry runs: 3 correct of 4 reviewed (2 full fills); done when 20 correct, at least 10 full fills: not met",
     );
     expect(screen.getByText(/Matches: 12, processed: 12, open: 0/)).toBeTruthy();
     expect(screen.getByText(/median per processed posting: 95 s/)).toBeTruthy();

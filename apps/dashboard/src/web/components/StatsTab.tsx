@@ -24,6 +24,9 @@ export function StatsTab({ day }: { day: string }) {
       <p role="status" aria-label="Done-when">
         {doneWhenLine(s)}
       </p>
+      <p role="status" aria-label="Dry-run done-when">
+        {s.dryRuns.line}
+      </p>
       <ul aria-label="Day numbers">
         <li>
           Matches: {s.matches}, processed: {s.processed}, open: {s.open}

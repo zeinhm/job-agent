@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, lte, sql } from "drizzle-orm";
+import { dryRunDoneWhen, type DryRunDoneWhen } from "@job-agent/apply";
 import { reviews, type Db } from "@job-agent/core";
 import { getQueue } from "./queue.ts";
 import { reviewHistory } from "./record.ts";
@@ -42,6 +43,8 @@ export interface DayStats {
   askChecks: Record<AskTier, AskCheckCounts> & { target: number };
   /** All matches processed and elapsed <= 30 minutes. Never met with zero matches. */
   doneWhenMet: boolean;
+  /** Owner-run dry runs reviewed so far (all days; fixture runs never count). */
+  dryRuns: DryRunDoneWhen;
 }
 
 export interface WeekEntry {
@@ -161,6 +164,7 @@ export function computeDayStats(db: Db, date: string): DayStats {
     reasons,
     askChecks,
     doneWhenMet: matches > 0 && processed === matches && elapsedMinutes <= DONE_WHEN_MINUTES,
+    dryRuns: dryRunDoneWhen(db),
   };
 }
 
@@ -215,6 +219,7 @@ export function formatStats(s: DayStats): string {
       return `  ${t}: ok ${c.ok}, too_high ${c.too_high}, too_low ${c.too_low}, total ${c.total}/${s.askChecks.target}`;
     }),
     doneWhenLine(s),
+    s.dryRuns.line,
   ];
   return `${lines.join("\n")}\n`;
 }

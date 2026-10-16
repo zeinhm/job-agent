@@ -189,7 +189,11 @@ describe("review-stats command", () => {
       const text = c.out.join("");
       expect(text).toContain("matches: 5, processed: 5, open: 0");
       expect(text).toContain("elapsed: 16 min, median per processed posting: 240 s");
-      expect(text.trimEnd().split("\n").at(-1)).toBe("done-when: 16 min for 5 matches (met)");
+      const last = text.trimEnd().split("\n");
+      expect(last.at(-2)).toBe("done-when: 16 min for 5 matches (met)");
+      expect(last.at(-1)).toBe(
+        "dry runs: 0 correct of 0 reviewed (0 full fills); done when 20 correct, at least 10 full fills: not met",
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

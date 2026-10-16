@@ -81,6 +81,21 @@ export {
   type NewDryRunInput,
 } from "./dry-runs-store.ts";
 export {
+  CORRECT_TARGET,
+  DryRunReviewBodySchema,
+  FULL_FILL_TARGET,
+  dryRunDoneWhen,
+  getDryRunDetail,
+  listDryRunRows,
+  resolveScreenshot,
+  reviewDryRun,
+  type DryRunDetail,
+  type DryRunDoneWhen,
+  type DryRunListRow,
+  type DryRunReviewBody,
+  type DryRunReviewResult,
+} from "./dry-run-review.ts";
+export {
   validateTypedAnswer,
   type TypedAnswerCheck,
   type TypedAnswerRule,

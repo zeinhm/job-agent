@@ -15,7 +15,11 @@ describe("selfCheck", () => {
     const lines: string[] = [];
     const code = await selfCheck(openDb(":memory:"), (l) => lines.push(l));
     expect(code).toBe(0);
-    expect(lines).toEqual(["self-check /api/health 200", "self-check /api/queue 200 items=0"]);
+    expect(lines).toEqual([
+      "self-check /api/health 200",
+      "self-check /api/queue 200 items=0",
+      "self-check /api/dry-runs 200 runs=0",
+    ]);
   });
 
   it("returns 1 when a request fails", async () => {
@@ -39,6 +43,7 @@ describe("main.ts --self-check", () => {
       expect(res.stdout.trim().split("\n")).toEqual([
         "self-check /api/health 200",
         "self-check /api/queue 200 items=0",
+        "self-check /api/dry-runs 200 runs=0",
       ]);
       expect(res.status).toBe(0);
     } finally {

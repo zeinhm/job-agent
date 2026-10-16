@@ -22,6 +22,7 @@ async function main(): Promise<void> {
       port: args.port,
       // data/exports next to the DB; the product never writes config/.
       exportsDir: join(dirname(dbPath), "exports"),
+      dataDir: dirname(dbPath),
       salary: () => loadConfig().salary,
     });
     console.log(`dashboard: http://127.0.0.1:${server.port}/`);

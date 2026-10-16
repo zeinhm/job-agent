@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -8,6 +9,7 @@ import {
   AnswerStoreError,
   ChoiceMappingRefSchema,
   ChoiceMappingSaveSchema,
+  DryRunReviewBodySchema,
   DryRunStoreError,
   InboxAnswerSchema,
   InboxError,
@@ -16,13 +18,19 @@ import {
   answerInbox,
   createAnswer,
   dismissInbox,
+  dryRunDoneWhen,
   exportAnswers,
+  getDryRun,
+  getDryRunDetail,
   linkInbox,
   listAllChoiceMappings,
   listAnswers,
+  listDryRunRows,
   listInbox,
   matchQuestions,
   removeChoiceMapping,
+  resolveScreenshot,
+  reviewDryRun,
   saveChoiceMapping,
   updateAnswer,
 } from "@job-agent/apply";
@@ -61,6 +69,8 @@ export interface AppOptions {
   webDir?: string;
   /** Where `POST /api/answers/export` writes (data/exports next to the DB). Never config/. */
   exportsDir?: string;
+  /** The folder that holds the DB. Dry-run screenshots are served from `<dataDir>/dryruns/` only; unset = none served. */
+  dataDir?: string;
   /** Error log sink; one line per error, never bodies or row content. */
   logError?: (line: string) => void;
 }
@@ -247,6 +257,52 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     const ref = await parseBody(c, ChoiceMappingRefSchema);
     if (!removeChoiceMapping(db, ref)) return c.json({ error: "not found" }, 404);
     return c.json({ removed: true });
+  });
+
+  // Dry runs. Filled values are personal data: they only travel to this local dashboard, and no log line carries them.
+  app.get("/api/dry-runs", (c) =>
+    c.json({ runs: listDryRunRows(db), doneWhen: dryRunDoneWhen(db) }),
+  );
+
+  app.get("/api/dry-runs/:id", (c) => {
+    const { id } = parseParams(c, InboxParams);
+    const detail = getDryRunDetail(db, id);
+    if (detail === null) return c.json({ error: "not found" }, 404);
+    return c.json(detail);
+  });
+
+  // Only the file whose path is stored on this run, resolved by realpath under <data dir>/dryruns/. Anything else is 404.
+  app.get("/api/dry-runs/:id/screenshot", async (c) => {
+    const { id } = parseParams(c, InboxParams);
+    const notFound = () => c.json({ error: "not found" }, 404);
+    if (opts.dataDir === undefined) return notFound();
+    const run = getDryRun(db, id)?.run;
+    const file = run === undefined ? null : resolveScreenshot(opts.dataDir, run.screenshot_path);
+    if (file === null) return notFound();
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(file);
+    } catch {
+      return notFound();
+    }
+    return c.body(new Uint8Array(bytes), 200, {
+      "Content-Type": "image/png",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store",
+    });
+  });
+
+  app.post("/api/dry-runs/:id/review", async (c) => {
+    const { id } = parseParams(c, InboxParams);
+    const body = await parseBody(c, DryRunReviewBodySchema);
+    const result = reviewDryRun(db, id, body, now());
+    if (result === null) return c.json({ error: "not found" }, 404);
+    return c.json({
+      review: result.run.review,
+      reason: result.run.review_reason,
+      inboxOpen: result.inboxOpen,
+      doneWhen: dryRunDoneWhen(db),
+    });
   });
 
   // Last resort for anything no route matched: static files, SPA fallback, JSON 404 for /api.

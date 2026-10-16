@@ -5,6 +5,10 @@ import { startServer } from "./server.ts";
 const CHECKS: { path: string; describe?: (body: unknown) => string }[] = [
   { path: "/api/health" },
   { path: "/api/queue", describe: (body) => `items=${queueItems(body)}` },
+  {
+    path: "/api/dry-runs",
+    describe: (body) => `runs=${(body as { runs?: unknown[] } | undefined)?.runs?.length ?? 0}`,
+  },
 ];
 
 /** Rows in the Top, Suspicious and Waiting sections (Needs a look repeats some of them). */

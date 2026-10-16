@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AnswersTab } from "./components/AnswersTab.tsx";
+import { DryRunsTab } from "./components/DryRunsTab.tsx";
 import { InboxTab } from "./components/InboxTab.tsx";
 import { DayPicker } from "./components/DayPicker.tsx";
 import { QueueTab } from "./components/QueueTab.tsx";
@@ -11,6 +12,7 @@ const TABS = [
   { id: "queue", label: "Queue", empty: "No postings in the queue for this day." },
   { id: "answers", label: "Answers", empty: "No answers yet." },
   { id: "inbox", label: "Inbox", empty: "No unknown questions." },
+  { id: "dryruns", label: "Dry runs", empty: "No dry runs yet." },
   { id: "stats", label: "Stats", empty: "No stats for this day." },
 ] as const;
 
@@ -52,6 +54,8 @@ export function App({ now = () => new Date() }: { now?: () => Date }) {
           <AnswersTab />
         ) : active.id === "inbox" ? (
           <InboxTab />
+        ) : active.id === "dryruns" ? (
+          <DryRunsTab />
         ) : (
           <StatsTab day={day} />
         )}

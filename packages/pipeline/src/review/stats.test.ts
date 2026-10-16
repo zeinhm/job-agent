@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq, inArray } from "drizzle-orm";
-import { analysis, openDb, reviews, type Db } from "@job-agent/core";
+import { analysis, dry_runs, openDb, reviews, type Db } from "@job-agent/core";
 import { seedDemo } from "../seed-demo.ts";
 import { getQueue } from "./queue.ts";
 import { addDays, computeDayStats, doneWhenLine, formatStats, getStats } from "./stats.ts";
@@ -209,13 +209,31 @@ describe("getStats and formatStats", () => {
     expect(addDays("2026-03-02", -6)).toBe("2026-02-24");
   });
 
-  it("prints counts and times only, with the done-when line last", () => {
+  it("prints the dry-run done-when line last; the 2 seeded demo runs count once reviewed correct", () => {
+    expect(formatStats(computeDayStats(db, DATE)).trimEnd().split("\n").at(-1)).toBe(
+      "dry runs: 0 correct of 0 reviewed (0 full fills); done when 20 correct, at least 10 full fills: not met",
+    );
+    const runs = db.select({ id: dry_runs.id, status: dry_runs.status }).from(dry_runs).all();
+    expect(runs).toHaveLength(2);
+    for (const r of runs)
+      db.update(dry_runs)
+        .set({ review: "correct", reviewed_at: "2026-03-10T03:00:00.000Z" })
+        .where(eq(dry_runs.id, r.id))
+        .run();
+    const s = getStats(db, DATE);
+    expect(s.dryRuns).toMatchObject({ correct: 2, reviewed: 2, fullFills: 1, met: false });
+    expect(formatStats(s).trimEnd().split("\n").at(-1)).toBe(
+      "dry runs: 2 correct of 2 reviewed (1 full fills); done when 20 correct, at least 10 full fills: not met",
+    );
+  });
+
+  it("prints counts and times only, with the done-when line before the dry-run line", () => {
     review(id(0), "interested", "2026-03-10T03:00:00.000Z", { note: "SECRET NOTE" });
     const text = formatStats(computeDayStats(db, DATE));
     expect(text).toContain("matches: 5, processed: 1, open: 4");
     expect(text).toContain("  indonesia: ok 0, too_high 0, too_low 0, total 0/20");
     expect(text).not.toContain("SECRET NOTE");
     expect(text).not.toContain("Northwind");
-    expect(text.trimEnd().split("\n").at(-1)).toBe("done-when: 0 min for 5 matches (not met)");
+    expect(text.trimEnd().split("\n").at(-2)).toBe("done-when: 0 min for 5 matches (not met)");
   });
 });
