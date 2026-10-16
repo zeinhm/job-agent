@@ -1,0 +1,193 @@
+{
+  "data": {
+    "jobPosting": {
+      "id": "2f6e9a54-3c1b-4d7e-8a20-5b9c4e1d7f03",
+      "title": "Senior Backend Engineer (fixture)",
+      "recaptchaAction": null,
+      "applicationForm": {
+        "sections": [
+          {
+            "title": null,
+            "fieldEntries": [
+              {
+                "id": "e1",
+                "isRequired": true,
+                "isHidden": false,
+                "field": { "path": "_systemfield_name", "type": "String", "title": "Name" }
+              },
+              {
+                "id": "e2",
+                "isRequired": true,
+                "isHidden": false,
+                "field": { "path": "_systemfield_email", "type": "Email", "title": "Email" }
+              },
+              {
+                "id": "e3",
+                "isRequired": true,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a01",
+                  "type": "Phone",
+                  "title": "Phone"
+                }
+              },
+              {
+                "id": "e4",
+                "isRequired": true,
+                "isHidden": false,
+                "field": { "path": "_systemfield_resume", "type": "File", "title": "Resume" }
+              },
+              {
+                "id": "e5",
+                "isRequired": true,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a02",
+                  "type": "String",
+                  "title": "Current company"
+                }
+              },
+              {
+                "id": "e6",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a03",
+                  "type": "String",
+                  "title": "LinkedIn URL"
+                }
+              },
+              {
+                "id": "e7",
+                "isRequired": true,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a04",
+                  "type": "LongText",
+                  "title": "Why do you want to work here?"
+                }
+              },
+              {
+                "id": "e8",
+                "isRequired": true,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a05",
+                  "type": "Boolean",
+                  "title": "Are you comfortable working remotely?"
+                }
+              },
+              {
+                "id": "e9",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a06",
+                  "type": "ValueSelect",
+                  "title": "Preferred time zone",
+                  "display": "dropdown",
+                  "selectableValues": [
+                    { "label": "UTC+7 (Jakarta)", "value": "tz-jakarta" },
+                    { "label": "UTC+1 (Berlin)", "value": "tz-berlin" },
+                    { "label": "UTC-5 (New York)", "value": "tz-new-york" }
+                  ]
+                }
+              },
+              {
+                "id": "e10",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a07",
+                  "type": "MultiValueSelect",
+                  "title": "Which tools do you use?",
+                  "display": "checkbox",
+                  "selectableValues": [
+                    { "label": "Git", "value": "tool-git" },
+                    { "label": "Docker", "value": "tool-docker" },
+                    { "label": "Kubernetes", "value": "tool-k8s" },
+                    { "label": "Terraform", "value": "tool-terraform" }
+                  ]
+                }
+              },
+              {
+                "id": "e11",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a08",
+                  "type": "ValueSelect",
+                  "title": "Which stack do you use most?",
+                  "display": "radio",
+                  "selectableValues": [
+                    { "label": "TypeScript", "value": "stack-ts" },
+                    { "label": "Go", "value": "stack-go" },
+                    { "label": "Python", "value": "stack-py" }
+                  ]
+                }
+              },
+              {
+                "id": "e12",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a09",
+                  "type": "MultiValueSelect",
+                  "title": "Which regions can you work in?",
+                  "display": "dropdown",
+                  "selectableValues": [
+                    { "label": "Asia", "value": "region-asia" },
+                    { "label": "Europe", "value": "region-europe" },
+                    { "label": "Americas", "value": "region-americas" }
+                  ]
+                }
+              },
+              {
+                "id": "e13",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a0a",
+                  "type": "String",
+                  "title": "Expected salary (USD per year)"
+                }
+              },
+              {
+                "id": "e14",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "_systemfield_texting_consent",
+                  "type": "Consent",
+                  "title": "I agree to receive text messages about my application"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "surveyForms": [
+        {
+          "title": "Voluntary self-identification",
+          "fieldEntries": [
+            {
+              "id": "s1",
+              "isRequired": false,
+              "isHidden": false,
+              "field": {
+                "path": "survey-gender",
+                "type": "ValueSelect",
+                "title": "Gender",
+                "display": "radio",
+                "selectableValues": [
+                  { "label": "Prefer not to disclose", "value": "g-none" },
+                  { "label": "Other", "value": "g-other" }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

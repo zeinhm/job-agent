@@ -125,7 +125,7 @@ Run from the repo root as `pnpm job-agent <command>` (add `-s` to hide pnpm's ow
 | `review-stats [--date YYYY-MM-DD]` | Phase 4 done-when measurement for a day (default: today in Asia/Jakarta). Prints counts and times only: matches (Top + Suspicious, plus the postings reviewed that day that left the queue because of the review), processed, open, first/last review time, elapsed minutes, median seconds per processed posting (gap to the review action before it), actions and `not_interested` reasons recorded that day, ask checks per tier (ok / too_high / too_low, total against 20, counted over all days up to the date), and the last line `done-when: <elapsed> min for <n> matches (<met\|not met>)`; met = at least one match, all processed, elapsed <= 30. The same numbers, plus the last 7 days, are in the dashboard Stats tab and `GET /api/stats?date=`. |
 | `eval-export-reviews` | Writes your own fit eval set from your reviews to `data/eval/reviews-<date>.json` (same as `pnpm --filter @job-agent/pipeline eval:export-reviews`). `interested` and `applied_manually` count as expected high, `not_interested` with reason role, stack or seniority as expected low, every other reason is skipped. `--since YYYY-MM-DD` keeps reviews from that Asia/Jakarta day on. The file holds posting text and is never committed. Prints only the path and counts. Refuses an `--out-dir` inside the repository outside `data/`. |
 | `seed-demo [--date YYYY-MM-DD]` | Dev tool: writes a fake day (made-up companies on `example.com`, postings, analysis, intel with fit scores and scam reasons, one apply link per apply type, ATS questions, a few answers, two fake dry runs: one `filled`, one `needs_input`, no screenshot) into the database so the digest and dashboard have Top matches, Needs a look, Suspicious and Waiting for scoring rows without an API key. Default date: today in Asia/Jakarta. Idempotent per date. Refuses (exit 2, `seed-demo: refusing to write <reason>`) when `JOB_AGENT_DB` is unset or its real path (symlinks resolved) is `data/` or anywhere under it, and refuses (exit 1, nothing written) a database holding any posting whose id does not start with `demo-`, so it only seeds a fresh or demo-only scratch DB: `bin/smoke --demo` seeds before discover, and `bin/smoke run <smoke dir> seed-demo` on a smoke dir that already has public postings is refused. |
-| `dry-run <posting-id> [--headless]` / `dry-run --fixture greenhouse` | Phase 5, owner-run. Fills the posting's Greenhouse form (apply link must be a Greenhouse job link, posting not scam-flagged, questions stored by `fetch-questions`) from the fill plan, screenshots it into `<data dir>/dryruns/` and records the run and its fields; **never submits**. Headed (a visible window) unless `--headless`. Prints one line `dry-run: status=<status> reason=<reason or -> fields=<filled>/<total> screenshot=<path>`, never a value. Only on the real database. `--fixture greenhouse` runs the committed synthetic form from 127.0.0.1 with a fake persona, only on a scratch DB (`bin/smoke run <dir> dry-run --fixture greenhouse`). Details and what to check: "Greenhouse dry run (Phase 5)". Exits 1 on a refusal or an error. |
+| `dry-run <posting-id> [--headless]` / `dry-run --fixture greenhouse` | Phase 5, owner-run. Fills the posting's Greenhouse form (apply link must be a Greenhouse job link, posting not scam-flagged, questions stored by `fetch-questions`; Lever and Ashby job links work too, see their sections, and need no stored questions) from the fill plan, screenshots it into `<data dir>/dryruns/` and records the run and its fields; **never submits**. Headed (a visible window) unless `--headless`. Prints one line `dry-run: status=<status> reason=<reason or -> fields=<filled>/<total> screenshot=<path>`, never a value. Only on the real database. `--fixture greenhouse` runs the committed synthetic form from 127.0.0.1 with a fake persona, only on a scratch DB (`bin/smoke run <dir> dry-run --fixture greenhouse`). Details and what to check: "Greenhouse dry run (Phase 5)". Exits 1 on a refusal or an error. |
 | `status` | Prints the row count of every table and the latest run (status, found, new, error) per source. Read-only. |
 | `digest [--date YYYY-MM-DD] [--out-dir <dir>] [--include-unpaid]` | Writes `data/digests/<date>.md` (or into `--out-dir`) with the kept postings not yet sent in an earlier digest, plus Source health and LLM spend, and prints the file path. Sections: Top matches (fit-scored at 60 or more, ranked, no why line; see "Reading the ranked digest"), Scored, not a fit (fit-scored below 60, one line each), Waiting for scoring (no intel yet, budget wait, failed or no fit score), Needs a look, Suspicious, Source health, LLM spend (today's cost vs the cap, calls per model). Without an `ANTHROPIC_API_KEY` every kept posting sits under Waiting for scoring. `--include-unpaid` appends one last section, Volunteer / unpaid, listing postings rejected as unpaid, volunteer or equity-only in the last 24h (title, company, pay type, location, link, posted date); they are not fit-scored, and without the flag the digest is unchanged. Default date: today in Asia/Jakarta. Re-running for the same date rewrites the same file and adds postings kept since. Each Top match shows `- Apply: <url> (<apply_type>)` from the `apply_links` row of the entry's lead posting (types `ats`, `company_form`, `paid_aggregator`, `signup_required`, `unknown`) and `- Found on: <source> — <listing url>`; without a row it shows the posting's own link as `(unknown, not resolved yet)`. A `paid_aggregator` job keeps its fit-based rank and section, with ` (paid-only apply)` after the title. Scored-not-a-fit and Waiting lines end with the apply URL when one is resolved. |
 
@@ -528,6 +528,52 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 `--fixture lever` is refused on the real database, like `--fixture greenhouse`. Besides `form.html` the folder holds the
 pages the tests use: `captcha.html` (stops `captcha`), `changed.html` (stops `form_changed` after a run on `form.html`),
 `date.html` (a date question: stops `unexpected_field`) and `location.html` (the self-clearing location field).
+
+## Ashby dry run (Phase 5)
+
+`dry-run <posting-id>` also works for a posting whose apply link is an Ashby job link (`jobs.ashbyhq.com/<organization>/<posting id>`;
+the command opens `.../application`; a link on a company's own domain with `?ashby_jid=` is refused, the organization is
+unknown). Same guarantees, flags, refusals, stop reasons, output line and review as the Greenhouse dry run; this section lists
+only what differs. It **never submits**.
+
+- **The form arrives after the page loads.** Ashby's HTML is a shell; the page POSTs a GraphQL query
+  (`/api/non-user-graphql?op=<operation>`) and draws the form. Those POSTs are the one exception to "abort every non-GET": the
+  harness lets a request through only when the `op` is on the read-only allowlist (`ASHBY_READ_ONLY_OPERATIONS` in
+  `packages/apply/src/dryrun/request-guard.ts`: `ApiOrganizationFromHostedJobsPageName`, `ApiJobPosting`,
+  `ApiJobPostingForApplicationRequest`, `ApiAutocompleteGeoLocation`, `ApiSearchSchoolByCanonicalName`), the body's
+  `operationName` equals it and the query text has neither `mutation` nor `submit`. Everything else is aborted in the browser:
+  `ApiSubmit*`, and also the benign draft writes (`ApiSetFormValue`, fired on every field change), the resume upload handle
+  and "Autofill from resume", so a dry run saves nothing on Ashby's side. The run waits (up to 10 s) for the form to be drawn
+  before its stop checks.
+- **Questions come from the rendered page.** Ashby has no public questions endpoint. The run reads the fields from the drawn
+  DOM (never from a network response): the controls inside `.ashby-application-form-container`, one
+  `.ashby-application-form-field-entry` per question, the control's `name` (the field path: `_systemfield_name`,
+  `_systemfield_email`, `_systemfield_resume` or a uuid) as the question id. It stores them as `posting_questions` (ats type
+  `ashby`), compares them with the last stored set (`form_changed` on a difference, as for Lever) and runs `match-questions`,
+  then the same fill plan. The survey / self-identification block, the texting and WhatsApp consent boxes and the "Autofill
+  from resume" drop zone are never read or touched.
+- **The ids are unverified on the real site** (research t_d0698332 could not read a real form without POSTing). If the first
+  real runs show `form_changed`, empty or "page kept a different value" fields, send the PM the field labels (never values):
+  that is the signal to correct the selectors from one owner-run recording. Because the draft writes are aborted, a real page
+  may also drop a typed value (or show an error toast); that field is then recorded as not filled, never as a wrong value.
+- **CAPTCHA.** Ashby's job response carries a `recaptchaAction` and the page loads reCAPTCHA; the detector is unchanged (same
+  open owner decision as Greenhouse's and Lever's), so a real Ashby page may stop with `captcha`.
+
+Agents and smoke use the committed fixture (`packages/apply/fixtures/ashby/`, synthetic: `app.html` + `app.js` draw the form
+from fake GraphQL answers the fixture server serves from `127.0.0.1`, fake persona):
+
+```sh
+bin/smoke run <smoke dir> dry-run --fixture ashby
+```
+
+```
+dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<date>/<run id>/screenshot.png
+```
+
+`--fixture ashby` is refused on the real database, like the other fixtures. The fixture page itself sends the submit mutation
+and a mutation hidden under an allowlisted operation name, and a draft write per field; the tests show that none of them reaches
+the fixture server. `form.json` is the fake GraphQL answer; the tests use its variants (CAPTCHA script, changed form, a date
+question) built in `packages/apply/src/dryrun/ashby/fixture.ts`.
 
 ## LinkedIn and Indeed through JobSpy (optional, Tier 2)
 

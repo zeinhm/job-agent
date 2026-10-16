@@ -3,19 +3,25 @@ import { apply_links, postings, type Db } from "@job-agent/core";
 import {
   BrowserMissingError,
   FIXTURE_FORM_PATH,
+  ASHBY_FIXTURE_FORM_PATH,
   HarnessRefusalError,
   LEVER_FIXTURE_FORM_PATH,
+  ashbyFixtureContext,
   dataDirOfDb,
   fixtureContext,
   loadFillContext,
   leverFixtureContext,
   loadStoredQuestions,
+  runAshbyDryRun,
   runGreenhouseDryRun,
   runLeverDryRun,
+  seedAshbyFixture,
   seedGreenhouseFixture,
   seedLeverFixture,
+  startAshbyFixtureServer,
   startGreenhouseFixtureServer,
   startLeverFixtureServer,
+  type AshbyRunSummary,
   type GreenhouseRunSummary,
   type LeverRunSummary,
 } from "@job-agent/apply";
@@ -23,7 +29,7 @@ import { eq } from "drizzle-orm";
 import { atsLinkOf, type AtsLink } from "./apply-links/ats-links.ts";
 
 export const DRY_RUN_USAGE =
-  "Usage: job-agent dry-run <posting-id> [--headless]\n       job-agent dry-run --fixture greenhouse|lever\n";
+  "Usage: job-agent dry-run <posting-id> [--headless]\n       job-agent dry-run --fixture greenhouse|lever|ashby\n";
 
 export interface DryRunCommandOptions {
   /** Arguments that are not flags: the posting id. */
@@ -64,7 +70,19 @@ export function leverFormUrl(link: AtsLink): string | null {
   return `https://${u.hostname}/${link.slug}/${id}/apply`;
 }
 
-function summaryLine(s: GreenhouseRunSummary | LeverRunSummary, dataDir: string): string {
+/** The hosted application URL of an Ashby job link, or null when the organization or the posting id is missing. */
+export function ashbyFormUrl(link: AtsLink): string | null {
+  const u = new URL(link.url);
+  const seg = u.pathname.split("/").filter((s) => s !== "");
+  const id = seg[1] ?? "";
+  if (link.slug === "" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) return null;
+  return `https://${u.hostname}/${link.slug}/${id}/application`;
+}
+
+function summaryLine(
+  s: GreenhouseRunSummary | LeverRunSummary | AshbyRunSummary,
+  dataDir: string,
+): string {
   return `dry-run: status=${s.status} reason=${s.stopReason ?? "-"} fields=${s.filled}/${s.total} screenshot=${join(dataDir, s.screenshotPath)}\n`;
 }
 
@@ -75,8 +93,8 @@ function describeError(e: unknown): string {
 }
 
 /**
- * `dry-run <posting-id> [--headless]`: fills the posting's Greenhouse or Lever form (headed unless --headless), screenshots it
- * and records the run. Never submits. `dry-run --fixture greenhouse|lever`: the same on the committed fixture form served
+ * `dry-run <posting-id> [--headless]`: fills the posting's Greenhouse, Lever or Ashby form (headed unless --headless),
+ * screenshots it and records the run. Never submits. `dry-run --fixture greenhouse|lever|ashby`: the same on the committed fixture form served
  * from 127.0.0.1 with a fake persona; refused on the real database. Returns the exit code.
  */
 export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
@@ -96,34 +114,51 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
   })();
 
   if (values.fixture !== undefined) {
-    if ((values.fixture !== "greenhouse" && values.fixture !== "lever") || positionals.length > 0) {
+    if (
+      (values.fixture !== "greenhouse" &&
+        values.fixture !== "lever" &&
+        values.fixture !== "ashby") ||
+      positionals.length > 0
+    ) {
       err(DRY_RUN_USAGE);
       return 1;
     }
     if (opts.isRealDb)
       return refuse("--fixture never runs on the real database (use bin/smoke run <dir> ...)");
     if (dataDir === null) return refuse("a dry run needs a DB file");
-    const lever = values.fixture === "lever";
-    const postingId = lever ? seedLeverFixture(db) : seedGreenhouseFixture(db);
-    const server = lever ? await startLeverFixtureServer() : await startGreenhouseFixtureServer();
+    const kind = values.fixture;
+    const postingId =
+      kind === "ashby"
+        ? seedAshbyFixture(db)
+        : kind === "lever"
+          ? seedLeverFixture(db)
+          : seedGreenhouseFixture(db);
+    const server =
+      kind === "ashby"
+        ? await startAshbyFixtureServer()
+        : kind === "lever"
+          ? await startLeverFixtureServer()
+          : await startGreenhouseFixtureServer();
     try {
-      const summary = lever
-        ? await runLeverDryRun({
-            db,
-            dataDir,
-            postingId,
-            url: `${server.origin}${LEVER_FIXTURE_FORM_PATH}`,
-            fixture: true,
-            context: leverFixtureContext(dataDir),
-          })
-        : await runGreenhouseDryRun({
-            db,
-            dataDir,
-            postingId,
-            url: `${server.origin}${FIXTURE_FORM_PATH}`,
-            fixture: true,
-            context: fixtureContext(dataDir),
-          });
+      const base = { db, dataDir, postingId, fixture: true };
+      const summary =
+        kind === "ashby"
+          ? await runAshbyDryRun({
+              ...base,
+              url: `${server.origin}${ASHBY_FIXTURE_FORM_PATH}`,
+              context: ashbyFixtureContext(dataDir),
+            })
+          : kind === "lever"
+            ? await runLeverDryRun({
+                ...base,
+                url: `${server.origin}${LEVER_FIXTURE_FORM_PATH}`,
+                context: leverFixtureContext(dataDir),
+              })
+            : await runGreenhouseDryRun({
+                ...base,
+                url: `${server.origin}${FIXTURE_FORM_PATH}`,
+                context: fixtureContext(dataDir),
+              });
       out(summaryLine(summary, dataDir));
       return summary.status === "error" ? 1 : 0;
     } catch (e) {
@@ -142,7 +177,7 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
   // Agents only have scratch databases: a real employer form is opened only on the owner's real DB.
   if (!opts.isRealDb)
     return refuse(
-      "a real form is only opened with the real database (agents use --fixture greenhouse|lever)",
+      "a real form is only opened with the real database (agents use --fixture greenhouse|lever|ashby)",
     );
   if (dataDir === null) return refuse("a dry run needs a DB file");
   const posting = db.select().from(postings).where(eq(postings.id, postingId)).get();
@@ -151,25 +186,39 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
   const parsedLink = atsLinkOf(link?.apply_url ?? posting.apply_url ?? posting.url);
   if (
     parsedLink === null ||
-    (parsedLink.vendor !== "greenhouse" && parsedLink.vendor !== "lever") ||
+    (parsedLink.vendor !== "greenhouse" &&
+      parsedLink.vendor !== "lever" &&
+      parsedLink.vendor !== "ashby") ||
     parsedLink.kind !== "job"
   )
-    return refuse("the posting's apply link is not a Greenhouse or Lever job link");
-  const lever = parsedLink.vendor === "lever";
-  const url = lever ? leverFormUrl(parsedLink) : formUrl(parsedLink, link?.ats_slug ?? null);
+    return refuse("the posting's apply link is not a Greenhouse, Lever or Ashby job link");
+  const vendor = parsedLink.vendor;
+  const url =
+    vendor === "ashby"
+      ? ashbyFormUrl(parsedLink)
+      : vendor === "lever"
+        ? leverFormUrl(parsedLink)
+        : formUrl(parsedLink, link?.ats_slug ?? null);
   if (url === null)
     return refuse(
-      lever
-        ? "the Lever company or posting id is missing from the apply link"
-        : "the Greenhouse board or job id is missing from the apply link",
+      vendor === "ashby"
+        ? "the Ashby organization or posting id is missing from the apply link"
+        : vendor === "lever"
+          ? "the Lever company or posting id is missing from the apply link"
+          : "the Greenhouse board or job id is missing from the apply link",
     );
   if (loadFillContext(db, postingId).scamFlagged) return refuse("the posting is scam-flagged");
-  // Greenhouse questions come from fetch-questions; Lever has no questions API, the run stores what its page shows.
-  if (!lever && loadStoredQuestions(db, postingId).length === 0)
+  // Greenhouse questions come from fetch-questions; Lever and Ashby have no public questions endpoint, the run stores what its page shows.
+  if (vendor === "greenhouse" && loadStoredQuestions(db, postingId).length === 0)
     return refuse("the posting has no stored Greenhouse questions (run fetch-questions)");
 
   try {
-    const run = lever ? runLeverDryRun : runGreenhouseDryRun;
+    const run =
+      vendor === "ashby"
+        ? runAshbyDryRun
+        : vendor === "lever"
+          ? runLeverDryRun
+          : runGreenhouseDryRun;
     const summary = await run({
       db,
       dataDir,

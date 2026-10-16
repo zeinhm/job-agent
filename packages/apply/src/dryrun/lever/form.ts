@@ -118,7 +118,10 @@ const isYesNo = (options: readonly string[]): boolean => {
 };
 
 /** The page's controls as the planner's fields and as `posting_questions` rows (type names as `fetch-questions` uses). */
-export function fieldsFromControls(controls: readonly LeverControl[]): FormField[] {
+export function fieldsFromControls(
+  controls: readonly LeverControl[],
+  atsType = "lever",
+): FormField[] {
   return controls.map((c): FormField => {
     const field_type = ((): string => {
       switch (c.kind) {
@@ -143,7 +146,7 @@ export function fieldsFromControls(controls: readonly LeverControl[]): FormField
       field_type,
       required: c.required,
       options: c.options,
-      ats: { type: "lever", id: c.name },
+      ats: { type: atsType, id: c.name },
     };
   });
 }

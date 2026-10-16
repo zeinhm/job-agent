@@ -30,6 +30,12 @@ export interface DryRunSessionOptions {
   fixture: boolean;
   /** Default true; the owner-run CLI opens a visible window. */
   headless?: boolean;
+  /**
+   * CSS selector of an element that shows the form is rendered. For pages whose form arrives after `load` (Ashby, through
+   * GraphQL): the session waits for it (at most the default timeout; a page that never shows it goes on without) before the
+   * stop detectors look at the page.
+   */
+  ready?: string;
 }
 
 export interface DryRunResult {
@@ -311,6 +317,8 @@ export async function openDryRunSession(opts: DryRunSessionOptions): Promise<Dry
     } catch {
       mainStatus = null;
     }
+    if (opts.ready !== undefined && mainStatus !== null && mainStatus < 400)
+      await page.waitForSelector(opts.ready).catch(() => undefined);
     const stop = await detectStop({ page, requestedUrl: opts.url, mainStatus, seenUrls }).catch(
       (): StopSignal => ({ reason: "page_error", detail: "page unreadable" }),
     );

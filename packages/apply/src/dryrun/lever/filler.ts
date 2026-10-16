@@ -74,12 +74,18 @@ function assertUrl(url: string, fixture: boolean): void {
  * apply page is the only source, and it is the page this run already opened). `matched_key` starts empty; `matchQuestions`
  * fills it right after.
  */
-function storeQuestions(db: Db, postingId: string, fields: readonly FormField[], now: Date): void {
+export function storeQuestions(
+  db: Db,
+  postingId: string,
+  atsType: string,
+  fields: readonly FormField[],
+  now: Date,
+): void {
   const at = now.toISOString();
   db.transaction((tx) => {
     tx.delete(posting_questions)
       .where(
-        and(eq(posting_questions.posting_id, postingId), eq(posting_questions.ats_type, "lever")),
+        and(eq(posting_questions.posting_id, postingId), eq(posting_questions.ats_type, atsType)),
       )
       .run();
     for (const f of fields) {
@@ -87,7 +93,7 @@ function storeQuestions(db: Db, postingId: string, fields: readonly FormField[],
         .values({
           id: randomUUID(),
           posting_id: postingId,
-          ats_type: "lever",
+          ats_type: atsType,
           question_id: f.ats.id,
           label: f.label,
           required: f.required,
@@ -103,17 +109,24 @@ function storeQuestions(db: Db, postingId: string, fields: readonly FormField[],
 }
 
 const cssEscape = (s: string): string => s.replace(/["\\]/g, "\\$&");
-const cssOf = (name: string) => ({ css: `form#application-form [name="${cssEscape(name)}"]` });
-const optionCssOf = (name: string, value: string) => ({
-  css: `form#application-form [name="${cssEscape(name)}"][value="${cssEscape(value)}"]`,
-});
 
-/** Puts one planned value into its control, through the guarded session helpers only. */
-async function apply(
+/** CSS scope of the Lever form; the Ashby filler passes its own container. */
+const LEVER_SCOPE = "form#application-form";
+
+/**
+ * Puts one planned value into its control (found by `name` inside `scope`), through the guarded session helpers only.
+ * Shared with the Ashby filler, whose controls have the same shape.
+ */
+export async function applyControl(
   session: DryRunSession,
   c: LeverControl,
   value: string | string[],
+  scope: string,
 ): Promise<void> {
+  const cssOf = (name: string) => ({ css: `${scope} [name="${cssEscape(name)}"]` });
+  const optionCssOf = (name: string, optionValue: string) => ({
+    css: `${scope} [name="${cssEscape(name)}"][value="${cssEscape(optionValue)}"]`,
+  });
   const list = Array.isArray(value) ? value : [value];
   const first = list[0] ?? "";
   switch (c.kind) {
@@ -145,7 +158,7 @@ async function apply(
 }
 
 /** True when what the page kept equals what was planned (texts exactly, choices and files by normalized label). */
-function kept(c: LeverControl, value: string | string[], got: readonly string[]): boolean {
+export function kept(c: LeverControl, value: string | string[], got: readonly string[]): boolean {
   if (c.kind === "text" || c.kind === "textarea") return got.length === 1 && got[0] === value;
   const want = (Array.isArray(value) ? value : [value]).map((v) =>
     c.kind === "file" ? basename(v) : normalizeQuestion(v),
@@ -154,7 +167,7 @@ function kept(c: LeverControl, value: string | string[], got: readonly string[])
   return want.length === have.length && want.every((w) => have.includes(w));
 }
 
-const valueText = (p: Extract<PlannedField, { filled: true }>): string =>
+export const valueText = (p: Extract<PlannedField, { filled: true }>): string =>
   p.source === "resume" && typeof p.value === "string"
     ? basename(p.value)
     : Array.isArray(p.value)
@@ -201,7 +214,7 @@ export async function runLeverDryRun(opts: LeverRunOptions): Promise<LeverRunSum
     const comparison = compareQuestions(stored, fields);
     // First visit (nothing stored) and a changed page both store what the page shows now; only a change stops the run.
     if (stored.length === 0 || !comparison.ok)
-      storeQuestions(opts.db, opts.postingId, fields, new Date());
+      storeQuestions(opts.db, opts.postingId, "lever", fields, new Date());
     matchQuestions(opts.db);
     if (stored.length > 0 && !comparison.ok)
       return await done({
@@ -230,7 +243,7 @@ export async function runLeverDryRun(opts: LeverRunOptions): Promise<LeverRunSum
       if (!p.filled) continue;
       const control = byName.get(p.field.ats.id) as LeverControl;
       try {
-        await apply(session, control, p.value);
+        await applyControl(session, control, p.value, LEVER_SCOPE);
       } catch (err) {
         // Playwright messages quote the value being set: only the fixed harness wording is kept.
         refused.set(

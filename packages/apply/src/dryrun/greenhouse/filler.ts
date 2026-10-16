@@ -58,7 +58,7 @@ export interface GreenhouseRunSummary extends FinishedRun {
 export function loadStoredQuestions(
   db: Db,
   postingId: string,
-  atsType: "greenhouse" | "lever" = "greenhouse",
+  atsType: "greenhouse" | "lever" | "ashby" = "greenhouse",
 ): FormField[] {
   return db
     .select()

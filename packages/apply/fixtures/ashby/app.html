@@ -1,0 +1,23 @@
+<!doctype html>
+<!--
+  Synthetic Ashby application page (t_3b60e4e8). Built from the notes in docs/research/t_d0698332-ats-form-structure.md
+  (section 2 "Ashby", section 3 "Network before submit"), not recorded from a real employer page. Fake company and fake
+  questions only; no personal data, no third-party keys.
+  Like the real page, this one is a shell: the form is not in the HTML. app.js POSTs the read-only GraphQL query
+  (`/api/non-user-graphql?op=ApiJobPostingForApplicationRequest`), the fixture server answers it with fake JSON
+  (form.json and its variants, see ashby/fixture.ts), and the script draws the form with Ashby's documented class hooks.
+  Added for the tests: every field change fires a draft-write mutation (ApiSetFormValue), attaching a file fires the upload
+  handle mutation, and once the form is drawn the page itself fires the submit mutation and a mutation sent under a
+  read-only operation name, as a hostile or buggy page would. A dry run must abort every one of them.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture Co - Senior Backend Engineer</title>
+  </head>
+  <body>
+    <h1>Senior Backend Engineer</h1>
+    <div id="app">Loading...</div>
+    <script src="/app.js"></script>
+  </body>
+</html>

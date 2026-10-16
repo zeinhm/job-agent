@@ -34,6 +34,19 @@ export {
   type LeverRunSummary,
 } from "./lever/filler.ts";
 export {
+  loadStoredAshbyQuestions,
+  runAshbyDryRun,
+  type AshbyRunOptions,
+  type AshbyRunSummary,
+} from "./ashby/filler.ts";
+export {
+  ASHBY_FIXTURE_FORM_PATH,
+  ASHBY_FIXTURE_POSTING_ID,
+  ashbyFixtureContext,
+  seedAshbyFixture,
+  startAshbyFixtureServer,
+} from "./ashby/fixture.ts";
+export {
   LEVER_FIXTURE_FORM_PATH,
   LEVER_FIXTURE_POSTING_ID,
   leverFixtureContext,

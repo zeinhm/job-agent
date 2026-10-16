@@ -226,7 +226,28 @@ export function seedGreenhouseFixture(db: Db, now: Date = new Date()): string {
 export interface SeenRequest {
   method: string;
   path: string;
+  /** The `op` query parameter, when the request has one (Ashby's GraphQL endpoint). Never the body. */
+  op?: string;
 }
+
+/** An answer a fixture server gives to a request that is not one of its static pages (e.g. a fake GraphQL POST). */
+export interface FixtureReply {
+  status: number;
+  contentType: string;
+  body: string;
+}
+
+export type FixtureResponder = (req: {
+  method: string;
+  url: URL;
+  body: string;
+}) => FixtureReply | undefined;
+
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json",
+};
 
 export interface FixtureServer {
   origin: string;
@@ -238,24 +259,39 @@ export interface FixtureServer {
 
 export type GreenhouseFixtureServer = FixtureServer;
 
-/** Serves committed pages (URL path -> file in `dir`) on 127.0.0.1 (ephemeral port) and records every request it receives. */
+/**
+ * Serves committed pages (URL path -> file in `dir`) on 127.0.0.1 (ephemeral port) and records every request it receives.
+ * `respond` answers what is not a static page (it sees the body, the server only records method, path and `op`).
+ */
 export async function startFixtureServer(
   dir: string,
   pages: Readonly<Record<string, string>>,
+  respond?: FixtureResponder,
 ): Promise<FixtureServer> {
   const requests: SeenRequest[] = [];
   const server: Server = createServer((req: IncomingMessage, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    requests.push({ method: req.method ?? "", path: url.pathname });
-    req.resume();
-    const file = pages[url.pathname];
-    if (file !== undefined && (req.method === "GET" || req.method === "HEAD")) {
-      res
-        .writeHead(200, { "content-type": "text/html; charset=utf-8" })
-        .end(readFileSync(join(dir, file)));
-    } else {
-      res.writeHead(404, { "content-type": "text/plain" }).end("not found");
-    }
+    const method = req.method ?? "";
+    const op = url.searchParams.get("op");
+    requests.push({ method, path: url.pathname, ...(op !== null ? { op } : {}) });
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => {
+      const file = pages[url.pathname];
+      if (file !== undefined && (method === "GET" || method === "HEAD")) {
+        const ext = file.slice(file.lastIndexOf("."));
+        res
+          .writeHead(200, { "content-type": CONTENT_TYPES[ext] ?? "text/html; charset=utf-8" })
+          .end(readFileSync(join(dir, file)));
+        return;
+      }
+      const reply = respond?.({ method, url, body: Buffer.concat(chunks).toString("utf8") });
+      if (reply !== undefined) {
+        res.writeHead(reply.status, { "content-type": reply.contentType }).end(reply.body);
+      } else {
+        res.writeHead(404, { "content-type": "text/plain" }).end("not found");
+      }
+    });
   });
   await new Promise<void>((resolveListen) => server.listen(0, "127.0.0.1", resolveListen));
   const port = (server.address() as AddressInfo).port;
