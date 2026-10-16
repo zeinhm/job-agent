@@ -96,3 +96,4 @@ Last audit tag: (none yet)
 | t_44ce9ef4 | Ask text: no double period after a text answer that already ends with punctuation; label it "Text answer" | low | 3b2fca7 | 2026-10-16 |
 | t_c1b1a380 | Dashboard layout: fixed column widths, short tier/ask in the table, side detail panel that never covers the table, sticky header | low | c85e5db | 2026-10-16 |
 | t_918664ed | Dry-run tables: dry_runs, dry_run_fields and choice_mappings (migration), with a small store module | medium | c22a352 | 2026-10-17 |
+| t_a9f809f5 | Record the Phase 5 plan decisions in docs/decisions.md | low | 365d0e2 | 2026-10-17 |
