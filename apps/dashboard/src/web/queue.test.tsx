@@ -223,7 +223,11 @@ describe("queue sections", () => {
     expect(titles("Needs a look")).toEqual(["Backend Engineer"]);
     expect(titles("Suspicious")).toEqual(["Sketchy Role"]);
     expect(titles("Waiting for scoring")).toEqual(["Unscored Role"]);
-    expect(rowAt("Top matches", 2).textContent).toContain("indonesia / IDR 40,000,000 / month");
+    // Short form in the table (tier plus the money figure); the full ask is the cell's title and in the detail panel.
+    const askCell = within(rowAt("Top matches", 2)).getAllByRole("cell")[4];
+    expect(askCell?.textContent).toBe("indonesia / IDR 40,000,000");
+    expect(askCell?.getAttribute("title")).toBe("indonesia / IDR 40,000,000 / month");
+    expect(rowAt("Top matches", 2).textContent).not.toContain("Because the range is wide");
     expect(rowAt("Top matches", 1).textContent).toContain("location_unclear");
   });
 
@@ -315,6 +319,7 @@ describe("detail panel", () => {
     expect(panel.getByText("Asks for a fee")).toBeTruthy();
     expect(panel.getByText(/Location: Remote/)).toBeTruthy();
     expect(panel.getByText("Text answer: Because the range is wide.")).toBeTruthy();
+    expect(panel.getByText("Ask: IDR 40,000,000 / month")).toBeTruthy();
     expect(panel.queryByText(/Ask reason/)).toBeNull();
     const link = panel.getByRole("link", { name: "https://example.com/jobs/1" });
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
@@ -322,6 +327,26 @@ describe("detail panel", () => {
     // Description is text: the tag is shown, not rendered.
     expect(panel.getByText("<b>Build</b> things")).toBeTruthy();
     expect(panel.getByText(/later: check Friday/)).toBeTruthy();
+  });
+
+  it("shows a text-only ask as 'text' in the table and keeps the full answer in the title and the panel", async () => {
+    items.p2 = {
+      ...get("p2"),
+      tier: "regional",
+      ask: "text answer: Open to talk.",
+      askText: "Open to talk",
+      title: "A very long platform engineering title that the table has to cut",
+    };
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole("region", { name: "Top matches" });
+    const cells = within(rowAt("Top matches", 2)).getAllByRole("cell");
+    expect(cells[4]?.textContent).toBe("regional / text");
+    expect(cells[4]?.getAttribute("title")).toBe("regional / text answer: Open to talk.");
+    expect(cells[1]?.getAttribute("title")).toBe(get("p2").title);
+    await user.click(within(cells[1] as HTMLElement).getByRole("button"));
+    const panel = within(await screen.findByRole("complementary", { name: "Posting detail" }));
+    expect(await panel.findByText("Text answer: Open to talk.")).toBeTruthy();
   });
 
   it.each([

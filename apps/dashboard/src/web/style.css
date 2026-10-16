@@ -1,7 +1,7 @@
 body {
   font-family: system-ui, sans-serif;
   margin: 0 auto;
-  max-width: 60rem;
+  max-width: 100rem;
   padding: 1rem;
 }
 header {
@@ -23,22 +23,98 @@ header {
 .empty {
   color: #555;
 }
+/* Tables left, detail panel right; under 1200px the panel is a full-width block below the tables. */
 .queue-layout {
+  align-items: start;
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr);
+}
+.queue-layout > aside {
+  border: 1px solid #ddd;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 0.5rem;
+}
+@media (min-width: 1200px) {
+  .queue-layout {
+    grid-template-columns: minmax(0, 1fr) 26rem;
+  }
+  .queue-layout > aside {
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
+    position: sticky;
+    top: 1rem;
+  }
+}
+/* Each table scrolls inside its own box so the sticky header has an area to stick to. */
+.table-scroll {
+  max-height: 70vh;
+  overflow: auto;
 }
 .queue table {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
 }
 .queue th,
 .queue td {
   border-bottom: 1px solid #ddd;
+  overflow: hidden;
   padding: 0.25rem;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.queue tr.selected {
+.queue th {
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+/* Column widths (table-layout: fixed), summing to 100%. */
+.col-rank {
+  width: 5%;
+}
+.col-title {
+  width: 20%;
+}
+.col-company {
+  width: 13%;
+}
+.col-fit {
+  width: 4%;
+}
+.col-tierAsk {
+  width: 15%;
+}
+.col-listedSalary {
+  width: 12%;
+}
+.col-applyType {
+  width: 7%;
+}
+.col-questions {
+  width: 6%;
+}
+.col-flags {
+  width: 9%;
+}
+.col-review {
+  width: 9%;
+}
+/* Title and company wrap at most two lines, then end in an ellipsis; the cell title holds the full value. */
+.clamp {
+  -webkit-box-orient: vertical;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+}
+.queue tr.selected,
+.queue tr.selected td {
   background: #eef;
 }
 button.link {

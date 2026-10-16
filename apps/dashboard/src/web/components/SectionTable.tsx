@@ -23,10 +23,32 @@ export function reviewLabel(r: QueueItem["review"]): string {
     : r.status.replaceAll("_", " ");
 }
 
+/** Full tier and ask as the detail panel states it; the table cell carries it as its hover title. */
 function tierAsk(r: QueueRow): string {
   return [r.tier, r.ask ?? (r.askText === null ? null : endSentence(r.askText))]
     .filter((x) => x !== null && x !== "")
     .join(" / ");
+}
+
+/** Table form of the ask: the first money figure without its period, or "text" when only a text answer exists. */
+function shortAsk(r: QueueRow): string | null {
+  const money = r.ask
+    ?.split(" | ")
+    .find((part) => /^(IDR|USD) /.test(part))
+    ?.replace(/ \/ (month|year)$/, "");
+  if (money !== undefined) return money;
+  return r.ask !== null || r.askText !== null ? "text" : null;
+}
+
+function tierAskShort(r: QueueRow): string {
+  return [r.tier, shortAsk(r)].filter((x) => x !== null && x !== "").join(" / ");
+}
+
+/** Full value of a cell for its hover title; the table cuts long cells with an ellipsis. */
+function cellTitle(r: QueueRow, cell: { column: { id: string }; getValue: () => unknown }) {
+  if (cell.column.id === "tierAsk") return tierAsk(r);
+  const value = cell.getValue();
+  return value === undefined || value === null || value === "" ? undefined : String(value);
 }
 
 export function SectionTable({
@@ -84,21 +106,25 @@ export function SectionTable({
           cell: (ctx) => (
             <button
               type="button"
-              className="link"
+              className="link clamp"
               onClick={() => onSelect(ctx.row.original.postingId)}
             >
               {ctx.getValue()}
             </button>
           ),
         }),
-        helper.accessor("company", { header: "Company", enableSorting: false }),
+        helper.accessor("company", {
+          header: "Company",
+          enableSorting: false,
+          cell: (ctx) => <span className="clamp">{ctx.getValue()}</span>,
+        }),
         helper.accessor((r) => r.fitScore ?? undefined, {
           id: "fit",
           header: "Fit",
           sortUndefined: "last",
           cell: (ctx) => ctx.getValue() ?? "-",
         }),
-        helper.accessor((r) => tierAsk(r), {
+        helper.accessor((r) => tierAskShort(r), {
           id: "tierAsk",
           header: "Tier / ask",
           enableSorting: false,
@@ -136,53 +162,60 @@ export function SectionTable({
   shownIds.current = table.getRowModel().rows.map((r) => r.original.postingId);
 
   return (
-    <table aria-label={label}>
-      <thead>
-        {table.getHeaderGroups().map((group) => (
-          <tr key={group.id}>
-            {group.headers.map((header) => {
-              const sorted = header.column.getIsSorted();
-              const sortable = header.column.getCanSort();
-              return (
-                <th
-                  key={header.id}
-                  aria-sort={
-                    sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined
-                  }
-                >
-                  {sortable ? (
-                    <button
-                      type="button"
-                      className="link"
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
+    <div className="table-scroll">
+      <table aria-label={label}>
+        <thead>
+          {table.getHeaderGroups().map((group) => (
+            <tr key={group.id}>
+              {group.headers.map((header) => {
+                const sorted = header.column.getIsSorted();
+                const sortable = header.column.getCanSort();
+                return (
+                  <th
+                    key={header.id}
+                    className={`col-${header.column.id}`}
+                    aria-sort={
+                      sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined
+                    }
+                  >
+                    {sortable ? (
+                      <button
+                        type="button"
+                        className="link"
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        <table.FlexRender header={header} />
+                        {sorted === "asc" ? " ▲" : sorted === "desc" ? " ▼" : ""}
+                      </button>
+                    ) : (
                       <table.FlexRender header={header} />
-                      {sorted === "asc" ? " ▲" : sorted === "desc" ? " ▼" : ""}
-                    </button>
-                  ) : (
-                    <table.FlexRender header={header} />
-                  )}
-                </th>
-              );
-            })}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows.map((row) => (
-          <tr
-            key={row.id}
-            aria-selected={row.original.postingId === selectedId}
-            className={row.original.postingId === selectedId ? "selected" : undefined}
-          >
-            {row.getAllCells().map((cell) => (
-              <td key={cell.id}>
-                <table.FlexRender cell={cell} />
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          ))}
+        </thead>
+        <tbody>
+          {table.getRowModel().rows.map((row) => (
+            <tr
+              key={row.id}
+              aria-selected={row.original.postingId === selectedId}
+              className={row.original.postingId === selectedId ? "selected" : undefined}
+            >
+              {row.getAllCells().map((cell) => (
+                <td
+                  key={cell.id}
+                  className={`col-${cell.column.id}`}
+                  title={cell.column.id === "rank" ? undefined : cellTitle(row.original, cell)}
+                >
+                  <table.FlexRender cell={cell} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
