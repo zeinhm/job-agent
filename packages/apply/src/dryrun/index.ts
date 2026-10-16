@@ -20,6 +20,7 @@ export {
   type PlanContext,
 } from "./greenhouse/filler.ts";
 export {
+  FIXTURE_CAPTCHA_PATH,
   FIXTURE_FORM_PATH,
   FIXTURE_POSTING_ID,
   fixtureContext,
@@ -40,6 +41,7 @@ export {
   type AshbyRunSummary,
 } from "./ashby/filler.ts";
 export {
+  ASHBY_FIXTURE_CAPTCHA_PATH,
   ASHBY_FIXTURE_FORM_PATH,
   ASHBY_FIXTURE_POSTING_ID,
   ashbyFixtureContext,
@@ -47,6 +49,7 @@ export {
   startAshbyFixtureServer,
 } from "./ashby/fixture.ts";
 export {
+  LEVER_FIXTURE_CAPTCHA_PATH,
   LEVER_FIXTURE_FORM_PATH,
   LEVER_FIXTURE_POSTING_ID,
   leverFixtureContext,

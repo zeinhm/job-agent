@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/dryrun/testing.ts"
   },
   "dependencies": {
     "@job-agent/core": "workspace:*",

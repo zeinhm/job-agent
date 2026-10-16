@@ -35,6 +35,7 @@ function run(env: Record<string, string> = {}, flags: string[] = []) {
 echo "$* | DB=$JOB_AGENT_DB CFG=$JOB_AGENT_CONFIG_DIR ENVFILE=$JOB_AGENT_ENV_FILE KEY=\${ANTHROPIC_API_KEY:-} BRAVE=\${BRAVE_API_KEY:-}" >> "${log}"
 if [ "$1" = discover ] && [ "$4" = remotive ]; then echo "remotive: error, boom"; exit 1; fi
 if [ "$1" = process ] && [ -n "$FAIL_PROCESS" ]; then exit 1; fi
+if [ "$1" = dry-run ] && [ -n "$FAIL_DRY_RUN" ]; then exit 1; fi
 if [ "$1" = digest ]; then echo "$3/2026-01-01.md"; fi
 exit 0
 `,
@@ -178,6 +179,27 @@ describe("bin/smoke", () => {
     expect(run({}, ["--with-jobspy", "--demo"]).calls.some((c) => c.startsWith("seed-demo"))).toBe(
       true,
     );
+  });
+
+  it("--demo runs the three fixture dry runs after the digest and before the self-check; without it there are none", () => {
+    const demo = run({}, ["--demo"]);
+    const dry = demo.calls.filter((c) => c.startsWith("dry-run "));
+    expect(dry.map((c) => c.split(" | ")[0])).toEqual([
+      "dry-run --fixture greenhouse",
+      "dry-run --fixture lever",
+      "dry-run --fixture ashby",
+    ]);
+    for (const c of dry) expect(c).toContain(`DB=${demo.smokeDir}/smoke.db`);
+    const order = demo.calls.map((c) => c.split(" ")[0]);
+    expect(order.indexOf("digest")).toBeLessThan(order.indexOf("dry-run"));
+    expect(order.lastIndexOf("dry-run")).toBeLessThan(order.indexOf("dashboard"));
+    expect(run().calls.some((c) => c.startsWith("dry-run"))).toBe(false);
+  });
+
+  it("--demo exits 1 when a fixture dry run fails", () => {
+    const { res } = run({ FAIL_DRY_RUN: "1" }, ["--demo"]);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("!! 'dry-run --fixture greenhouse' exited 1");
   });
 
   it("runs fetch-questions --limit 3 on the temp DB", () => {

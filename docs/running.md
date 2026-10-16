@@ -575,6 +575,94 @@ and a mutation hidden under an allowlisted operation name, and a draft write per
 the fixture server. `form.json` is the fake GraphQL answer; the tests use its variants (CAPTCHA script, changed form, a date
 question) built in `packages/apply/src/dryrun/ashby/fixture.ts`.
 
+## Dry runs (Phase 5)
+
+Phase 5 is done when **20 of your own dry runs are reviewed and marked correct in the dashboard, at least 10 of them full
+fills**. A dry run opens one posting's application form in Chromium, fills what your approved answers cover, takes a
+screenshot and records the run. **Nothing is ever submitted**: there is no submit path in the code, the harness aborts every
+non-GET request (Ashby's read-only GraphQL queries are the only exception), and no click on a submit control is possible.
+Per-ATS details and the fixture forms are in the Greenhouse, Lever and Ashby sections above.
+
+### Check the whole flow on fixtures first
+
+```sh
+bin/smoke --demo
+```
+
+runs the pipeline on a temp DB with the fake demo day and ends with the three fixture dry runs (`dry-run --fixture
+greenhouse`, `lever`, `ashby`: committed synthetic forms on `127.0.0.1`, fake persona, headless). Each prints one line,
+
+```
+dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<date>/<run id>/screenshot.png
+```
+
+and the dashboard self-check then lists `/api/dry-runs` (`runs=5`: the 2 seeded demo runs and the 3 fixture runs). The same
+flow, with a CAPTCHA stop, a choice question mapped through the API, an uncovered question and the reviews, is the test
+`apps/dashboard/src/server/e2e.phase5.test.ts` (needs the Chromium below). Fixture runs never count for the done-when line.
+
+### Prerequisites for your real runs
+
+1. **Browser:** `pnpm playwright:install` once (Chromium into Playwright's cache). A missing browser fails the command loudly.
+2. **Approved answers** in the answer bank (Answers tab or `config/answers.yaml` + `answers import`), including
+   `profile.resume_file`: the local path to your CV as a PDF, under 10 MB. Without it the resume field stays empty
+   (`needs_input`). Only approved answers are ever used. Two approved answers that match the same field stop the run
+   (`other`, "ambiguous match"): unapprove one.
+3. **Choice mappings:** for each choice / dropdown / radio / multi-select question, the Inbox shows the form's options and
+   the approved answer's text; pick the matching option(s) once and save. A new option set needs a new mapping. Salary
+   questions never get one: they take the posting's tier ask.
+4. **A posting** whose apply link is a Greenhouse, Lever or Ashby job link, not flagged as a scam. For Greenhouse run
+   `fetch-questions` first (Lever and Ashby read the questions from the page).
+
+### Your run
+
+```sh
+pnpm job-agent dry-run <posting-id>              # a visible Chromium window; you watch it
+pnpm job-agent dry-run <posting-id> --headless   # no window
+```
+
+One posting per command. The command prints one line (`status`, `reason`, `fields=<filled>/<total>`, the screenshot path) and
+never a value. Run it against the real database only; `--fixture` is refused there and a real posting id is refused on a
+scratch DB.
+
+### What each result means and what to do
+
+| Status / reason | Meaning | What to do |
+|---|---|---|
+| `filled` | Every field of the form is in; nothing is empty. A **full fill**. | Check the screenshot and the values, then mark Correct or Wrong. |
+| `needs_input` / `uncovered_question` | Covered fields are filled; a question has no approved answer (a salary field with no tier ask, a missing or invalid resume file, or a value the page did not keep, too). The label is in the Inbox. | Answer it in the Inbox, then run again, or mark the run Correct if leaving it empty was right. |
+| `needs_input` / `choice_unmapped` | A choice question has an approved answer but no approved mapping to the form's options. | Map it in the Inbox (options shown), then run again. |
+| `stopped` / `captcha` | A CAPTCHA widget or script is on the page. Nothing was filled and it is never bypassed. | Mark Correct if the page really had one. If every real run of an ATS stops here, tell the PM (Greenhouse and Ashby load a passive script; whether that alone should stop is an owner decision). |
+| `stopped` / `login_wall` | The page asks you to log in. | Nothing to fix; the harness never logs in. |
+| `stopped` / `form_changed` | The page's fields differ from the stored questions (the detail lists labels). | Run again: the new set was stored and the new questions are in the Inbox. |
+| `stopped` / `unexpected_field` | A question type the filler does not fill (a date, a file other than the resume, ...). | Fill it yourself in a normal application; mark Correct if stopping was right. |
+| `stopped` / `page_error`, `blocked_request` | The page failed to load, or it tried something the harness blocks. | Run again; if it repeats, tell the PM the posting id (no values). |
+| `stopped` / `other` | An ambiguous match (a field that matches two answers), a scam flag or an unexpected page. The detail says which. | Fix the answers or skip the posting. |
+
+The strict rule "every question covered by an approved answer or mapping" applies to submitting in Phase 6, not to Phase 5.
+
+### Review in the dashboard
+
+`pnpm dashboard`, tab **Dry runs**: newest first, one row per run (status, reason, fields filled / total, the review). Open
+a run to see its fields (the values you would have sent) and the screenshot. Mark it **Correct**, or **Wrong** with a reason:
+`wrong_value`, `wrong_choice`, `missing_field` (type the missing label: it goes to the Inbox), `salary_wrong`,
+`stopped_wrongly`, `should_have_stopped`, `page_broken` or `other`. A review can be changed later; no history is kept.
+
+### The done-when line
+
+```
+dry runs: <c> correct of <r> reviewed (<f> full fills); done when 20 correct, at least 10 full fills: met | not met
+```
+
+It shows in the Dry runs tab, the Stats tab and `pnpm job-agent review-stats`. Only your own runs count (fixture runs are
+excluded). A full fill is a run marked Correct with status `filled` (no `needs_input` field). Plan for 20 to 30 runs.
+
+### Where the output is stored (private)
+
+The run and its field rows (including the filled values) are in the local DB (`data/job-agent.db`); the screenshot is
+`<data dir>/dryruns/<YYYY-MM-DD>/<run id>/screenshot.png` (folders 0700, files 0600). All of it is personal data: `data/` is
+gitignored, so never copy any of it into a commit, an issue or a message. Logs and the command's output carry labels and
+counts only, never values. The dashboard serves a screenshot only by run id.
+
 ## LinkedIn and Indeed through JobSpy (optional, Tier 2)
 
 The `linkedin` and `indeed` sources run a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).

@@ -15,6 +15,8 @@
 # the dashboard self-check have a filled fake day (Alex Example persona). seed-demo refuses the default DB, anything under data/ (symlinks
 # resolved) and any DB holding a posting whose id does not start with `demo-`: so `bin/smoke run <smoke dir> seed-demo` on a smoke dir
 # that already has public postings is refused (exit 1); only a fresh or demo-only DB can be seeded.
+# With --demo the run also ends with `dry-run --fixture greenhouse|lever|ashby` (after the digest, before the self-check, so the
+# self-check's /api/dry-runs line counts them: 2 seeded demo runs + 3 fixture runs); it needs the Playwright Chromium (`pnpm playwright:install`).
 # JOB_AGENT_CLI overrides the CLI command (used by tests); JOB_AGENT_DASH_CLI the dashboard command (self-check step and `dash`).
 #
 # bin/smoke run <smoke dir> <command...>: run ONE more CLI command against an existing smoke dir (same temp DB and
@@ -86,6 +88,12 @@ step answers import || fail=1
 if grep -q '^  fetch-questions$' <<< "$USAGE"; then step fetch-questions --limit 3 || true; fi
 step match-questions || fail=1
 step digest --out-dir "$DIR/digests" || fail=1
+# --demo: the three Phase 5 fixture dry runs (committed synthetic forms on 127.0.0.1, fake persona, headless Chromium; never a real form,
+# nothing submitted). Each prints its one summary line; they run before the self-check so its dry-runs line counts them.
+# A missing browser fails the run loudly (pnpm playwright:install).
+if [ "$DEMO" = 1 ]; then
+  for ats in greenhouse lever ashby; do step dry-run --fixture "$ats" || fail=1; done
+fi
 read -r -a DASH <<< "${JOB_AGENT_DASH_CLI:-pnpm -s dashboard}"
 echo "== dashboard --self-check"
 "${DASH[@]}" --self-check || { echo "!! 'dashboard --self-check' exited $?"; fail=1; }
