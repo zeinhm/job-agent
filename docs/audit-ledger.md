@@ -99,3 +99,4 @@ Last audit tag: (none yet)
 | t_a9f809f5 | Record the Phase 5 plan decisions in docs/decisions.md | low | 365d0e2 | 2026-10-17 |
 | t_ab72b1a1 | Re-audit #12 minors: drop dead two-letter DOMAIN_TLDS entries; show a text answer once in the detail panel | low | 23915ba | 2026-10-17 |
 | t_84aa4b70 | Choice mapping: show a form's options for a choice question and let the owner map them to an approved answer once | medium | 4608832 | 2026-10-17 |
+| t_4fbf1521 | Dashboard "Dry runs" tab: list, screenshot, filled fields, mark correct / wrong with a reason; done-when line | medium | dd56b3c | 2026-10-17 |
