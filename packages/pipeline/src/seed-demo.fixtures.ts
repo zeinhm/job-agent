@@ -228,3 +228,71 @@ export const DEMO_ANSWERS = [
     type: "text" as const,
   },
 ];
+
+export interface DemoDryRun {
+  /** Key of the DEMO_POSTINGS entry the run belongs to. */
+  posting: string;
+  ats: "greenhouse" | "lever";
+  status: "filled" | "needs_input";
+  stopReason: "uncovered_question" | null;
+  fields: {
+    label: string;
+    type: string;
+    required: boolean;
+    source: "answer" | "none";
+    key?: string;
+    value?: string;
+    note?: string;
+  }[];
+}
+
+// Fake-persona runs with no screenshot file (screenshot_path stays null), so the dashboard tab can be built without a browser.
+export const DEMO_DRY_RUNS: DemoDryRun[] = [
+  {
+    posting: "top-ats",
+    ats: "greenhouse",
+    status: "filled",
+    stopReason: null,
+    fields: [
+      {
+        label: "Full name",
+        type: "input_text",
+        required: true,
+        source: "answer",
+        key: "identity.full_name",
+        value: "Alex Example",
+      },
+      {
+        label: "Notice period",
+        type: "input_text",
+        required: true,
+        source: "answer",
+        key: "availability.notice",
+        value: "2 weeks",
+      },
+    ],
+  },
+  {
+    posting: "top-form",
+    ats: "lever",
+    status: "needs_input",
+    stopReason: "uncovered_question",
+    fields: [
+      {
+        label: "Full name",
+        type: "input_text",
+        required: true,
+        source: "answer",
+        key: "identity.full_name",
+        value: "Alex Example",
+      },
+      {
+        label: "Why do you want to work at Lumen Demo Works?",
+        type: "textarea",
+        required: true,
+        source: "none",
+        note: "needs input: no approved answer",
+      },
+    ],
+  },
+];

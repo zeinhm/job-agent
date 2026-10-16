@@ -6,6 +6,8 @@ import {
   answer_bank,
   apply_links,
   companies,
+  dry_run_fields,
+  dry_runs,
   intel,
   posting_questions,
   postings,
@@ -15,7 +17,12 @@ import {
 import { sql } from "drizzle-orm";
 import { isDigestDate, jakartaDate } from "./digest/index.ts";
 import { normalizeCompanyName } from "./normalize/index.ts";
-import { DEMO_ANSWERS, DEMO_COMPANIES, DEMO_POSTINGS } from "./seed-demo.fixtures.ts";
+import {
+  DEMO_ANSWERS,
+  DEMO_COMPANIES,
+  DEMO_DRY_RUNS,
+  DEMO_POSTINGS,
+} from "./seed-demo.fixtures.ts";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -95,6 +102,7 @@ export class NonDemoDbError extends Error {
 export interface SeedResult {
   postings: number;
   questions: number;
+  dryRuns: number;
 }
 
 /** Writes the fake day for `date`; every row has a fixed id, so a repeat run inserts nothing. */
@@ -102,6 +110,7 @@ export function seedDemo(db: Db, date: string): SeedResult {
   const at = (hhmm: string) => `${date}T${hhmm}:00.000Z`;
   let newPostings = 0;
   let newQuestions = 0;
+  let newDryRuns = 0;
   db.transaction((tx) => {
     const t = tx as unknown as Db;
     // First statement of the transaction, before any write: a DB with real postings is never seeded.
@@ -277,8 +286,44 @@ export function seedDemo(db: Db, date: string): SeedResult {
         }
       }
     }
+    for (const r of DEMO_DRY_RUNS) {
+      const runId = id("dryrun", date, r.posting);
+      const inserted = t
+        .insert(dry_runs)
+        .values({
+          id: runId,
+          posting_id: id(date, r.posting),
+          ats_type: r.ats,
+          started_at: at("06:00"),
+          finished_at: at("06:01"),
+          status: r.status,
+          stop_reason: r.stopReason,
+          screenshot_path: null,
+          fixture: false,
+        })
+        .onConflictDoNothing()
+        .run();
+      newDryRuns += inserted.changes;
+      r.fields.forEach((f, n) => {
+        t.insert(dry_run_fields)
+          .values({
+            id: id("dryfield", date, r.posting, String(n)),
+            dry_run_id: runId,
+            label: f.label,
+            field_type: f.type,
+            required: f.required,
+            source: f.source,
+            answer_key: f.key ?? null,
+            value: f.value ?? null,
+            filled: f.value !== undefined,
+            note: f.note ?? null,
+          })
+          .onConflictDoNothing()
+          .run();
+      });
+    }
   });
-  return { postings: newPostings, questions: newQuestions };
+  return { postings: newPostings, questions: newQuestions, dryRuns: newDryRuns };
 }
 
 export interface SeedDemoOptions {
@@ -310,7 +355,9 @@ export function runSeedDemo(opts: SeedDemoOptions): number {
   const db = opts.openDb();
   try {
     const r = seedDemo(db, date);
-    opts.out(`seed-demo ${date}: added ${r.postings} postings, ${r.questions} questions\n`);
+    opts.out(
+      `seed-demo ${date}: added ${r.postings} postings, ${r.questions} questions, ${r.dryRuns} dry runs\n`,
+    );
     return 0;
   } catch (e) {
     if (!(e instanceof NonDemoDbError)) throw e;

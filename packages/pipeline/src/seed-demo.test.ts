@@ -7,6 +7,8 @@ import {
   apply_links,
   APPLY_TYPES,
   companies,
+  dry_run_fields,
+  dry_runs,
   intel,
   openDb,
   posting_questions,
@@ -86,9 +88,29 @@ describe("seed-demo data", () => {
     expect(first.postings).toBeGreaterThan(0);
     const before = counts();
     const second = seedDemo(db, DATE);
-    expect(second).toEqual({ postings: 0, questions: 0 });
+    expect(second).toEqual({ postings: 0, questions: 0, dryRuns: 0 });
     expect(counts()).toEqual(before);
     expect(seedDemo(db, "2026-03-11").postings).toBe(first.postings);
+  });
+
+  it("adds two fake dry runs (filled, needs_input) with fields and no screenshot file", () => {
+    const db = openDb(":memory:");
+    expect(seedDemo(db, DATE).dryRuns).toBe(2);
+    const runs = db.select().from(dry_runs).all();
+    expect(runs.map((r) => r.status).sort()).toEqual(["filled", "needs_input"]);
+    for (const r of runs) {
+      expect(r.screenshot_path).toBeNull();
+      expect(r.fixture).toBe(false);
+      expect(r.review).toBeNull();
+    }
+    const fields = db.select().from(dry_run_fields).all();
+    expect(fields.length).toBeGreaterThan(2);
+    expect(fields.some((f) => !f.filled && f.source === "none")).toBe(true);
+    expect(
+      fields
+        .filter((f) => f.value !== null)
+        .every((f) => /Alex Example|2 weeks/.test(f.value ?? "")),
+    ).toBe(true);
   });
 });
 

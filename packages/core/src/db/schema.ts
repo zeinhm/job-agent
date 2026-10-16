@@ -336,6 +336,109 @@ export const unknown_questions = sqliteTable("unknown_questions", {
   answer_key: text("answer_key"), // answer_bank.key, nullable
 });
 
+export const DRY_RUN_ATS_TYPES = ["greenhouse", "lever", "ashby"] as const;
+export const DRY_RUN_STATUSES = ["filled", "needs_input", "stopped", "error"] as const;
+export const DRY_RUN_STOP_REASONS = [
+  "uncovered_question",
+  "choice_unmapped",
+  "captcha",
+  "login_wall",
+  "unexpected_field",
+  "form_changed",
+  "blocked_request",
+  "page_error",
+  "other",
+] as const;
+export const DRY_RUN_REVIEWS = ["correct", "wrong"] as const;
+export const DRY_RUN_REVIEW_REASONS = [
+  "wrong_value",
+  "wrong_choice",
+  "missing_field",
+  "salary_wrong",
+  "stopped_wrongly",
+  "should_have_stopped",
+  "page_broken",
+  "other",
+] as const;
+export const DRY_RUN_FIELD_SOURCES = [
+  "answer",
+  "choice_mapping",
+  "tier_ask",
+  "standard",
+  "resume",
+  "none",
+] as const;
+
+// Phase 5 records dry runs only: nothing is submitted. Filled values are personal data (local DB only).
+export const dry_runs = sqliteTable(
+  "dry_runs",
+  {
+    id: text("id").primaryKey(),
+    posting_id: text("posting_id")
+      .notNull()
+      .references(() => postings.id),
+    ats_type: text("ats_type", { enum: DRY_RUN_ATS_TYPES }).notNull(),
+    started_at: text("started_at").notNull(), // ISO 8601 UTC
+    finished_at: text("finished_at").notNull(), // ISO 8601 UTC
+    status: text("status", { enum: DRY_RUN_STATUSES }).notNull(),
+    stop_reason: text("stop_reason", { enum: DRY_RUN_STOP_REASONS }),
+    stop_detail: text("stop_detail"), // short, never answer text
+    screenshot_path: text("screenshot_path"), // relative to the data dir
+    review: text("review", { enum: DRY_RUN_REVIEWS }),
+    review_reason: text("review_reason", { enum: DRY_RUN_REVIEW_REASONS }),
+    review_note: text("review_note"),
+    reviewed_at: text("reviewed_at"), // ISO 8601 UTC
+    fixture: integer("fixture", { mode: "boolean" }).notNull().default(false),
+  },
+  (table) => ({
+    dry_runs_posting: index("dry_runs_posting").on(table.posting_id),
+    dry_runs_started: index("dry_runs_started").on(table.started_at),
+  }),
+);
+
+export const dry_run_fields = sqliteTable(
+  "dry_run_fields",
+  {
+    id: text("id").primaryKey(),
+    dry_run_id: text("dry_run_id")
+      .notNull()
+      .references(() => dry_runs.id),
+    label: text("label").notNull(),
+    field_type: text("field_type").notNull(),
+    required: integer("required", { mode: "boolean" }).notNull(),
+    source: text("source", { enum: DRY_RUN_FIELD_SOURCES }).notNull(),
+    answer_key: text("answer_key"), // answer_bank.key, nullable
+    value: text("value"), // the filled value; personal data, local DB only
+    filled: integer("filled", { mode: "boolean" }).notNull(),
+    note: text("note"),
+  },
+  (table) => ({
+    dry_run_fields_run: index("dry_run_fields_run").on(table.dry_run_id),
+  }),
+);
+
+export const choice_mappings = sqliteTable(
+  "choice_mappings",
+  {
+    id: text("id").primaryKey(),
+    answer_key: text("answer_key").notNull(), // answer_bank.key
+    normalized_label: text("normalized_label").notNull(),
+    options_hash: text("options_hash").notNull(), // hash of the sorted normalized option texts
+    options: text("options").notNull(), // JSON text array: the form's option texts
+    chosen: text("chosen").notNull(), // JSON text array: chosen option texts
+    approved: integer("approved", { mode: "boolean" }).notNull().default(false),
+    approved_at: text("approved_at"), // ISO 8601 UTC, nullable
+    updated_at: text("updated_at").notNull(), // ISO 8601 UTC
+  },
+  (table) => ({
+    choice_mappings_unique: unique("choice_mappings_unique").on(
+      table.answer_key,
+      table.normalized_label,
+      table.options_hash,
+    ),
+  }),
+);
+
 // Inferred types for inserts and selects
 export type Company = InferSelectModel<typeof companies>;
 export type NewCompany = InferInsertModel<typeof companies>;
@@ -375,3 +478,12 @@ export type NewPostingQuestion = InferInsertModel<typeof posting_questions>;
 
 export type UnknownQuestion = InferSelectModel<typeof unknown_questions>;
 export type NewUnknownQuestion = InferInsertModel<typeof unknown_questions>;
+
+export type DryRun = InferSelectModel<typeof dry_runs>;
+export type NewDryRun = InferInsertModel<typeof dry_runs>;
+
+export type DryRunField = InferSelectModel<typeof dry_run_fields>;
+export type NewDryRunField = InferInsertModel<typeof dry_run_fields>;
+
+export type ChoiceMapping = InferSelectModel<typeof choice_mappings>;
+export type NewChoiceMapping = InferInsertModel<typeof choice_mappings>;
