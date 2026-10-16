@@ -1,25 +1,7 @@
+import { companyNameWords } from "../normalize/company.ts";
+
 /** At most this many slug candidates are tried per company (docs/phase-3-conventions.md section 2). */
 export const MAX_SLUG_CANDIDATES = 3;
-
-const LEGAL_SUFFIXES = new Set([
-  "inc",
-  "llc",
-  "ltd",
-  "limited",
-  "gmbh",
-  "ag",
-  "corp",
-  "corporation",
-  "co",
-  "company",
-  "plc",
-  "bv",
-  "sa",
-  "pte",
-  "sdn",
-  "bhd",
-  "pty",
-]);
 
 const GENERIC_FIRST_WORDS = new Set([
   "global",
@@ -37,18 +19,9 @@ const GENERIC_FIRST_WORDS = new Set([
 
 const MIN_SLUG_LENGTH = 3;
 
-/** Company name -> lowercase words without accents, legal suffixes and a leading "the". */
+/** Company name -> words without accents, domain suffix, legal words and "the" (filler words stay: boards use them). */
 function nameWords(name: string): string[] {
-  const words = name
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .replace(/&/g, " and ")
-    .replace(/[^A-Za-z0-9 -]/g, " ")
-    .split(/[\s]+/)
-    .filter(Boolean);
-  while (words.length > 0 && LEGAL_SUFFIXES.has((words.at(-1) ?? "").toLowerCase())) words.pop();
-  if ((words[0] ?? "").toLowerCase() === "the") words.shift();
-  return words;
+  return companyNameWords(name.replace(/&/g, " and "), { keepCase: true, keepFiller: true });
 }
 
 /**

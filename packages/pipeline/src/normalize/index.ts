@@ -6,7 +6,8 @@ import { cleanLine, htmlToText } from "./text.ts";
 import { cleanUrl } from "./url.ts";
 import { companyDomainFromPosting } from "./company-domain.ts";
 
-export { normalizeCompanyName } from "./company.ts";
+export { companyNameWords, normalizeCompanyName } from "./company.ts";
+export { renormalizeCompanies } from "./merge-companies.ts";
 export { cleanLine, htmlToText } from "./text.ts";
 export { cleanUrl } from "./url.ts";
 

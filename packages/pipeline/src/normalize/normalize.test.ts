@@ -65,7 +65,9 @@ describe("normalizeCompanyName", () => {
     ["Bar Pte. Ltd.", "bar"],
     ["Baz Pty Limited", "baz"],
     ["  Big   Corp Co ", "big"],
-    ["S.A. Holdings SA", "sa holdings"],
+    ["S.A. Holdings SA", "holdings"],
+    ["Tether.io", "tether"],
+    ["Tether Operations Limited", "tether"],
   ])("%s -> %s", (input, expected) => {
     expect(normalizeCompanyName(input)).toBe(expected);
   });

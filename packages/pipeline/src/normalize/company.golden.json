@@ -1,0 +1,118 @@
+[
+  {
+    "a": "Tether.io",
+    "b": "Tether Operations Limited",
+    "same": true,
+    "note": "the owner-reported case: domain-style name vs legal name with filler"
+  },
+  { "a": "Tether", "b": "Tether Ltd", "same": true, "note": "legal word removed" },
+  { "a": "Tether.io", "b": "Tether Ltd", "same": true, "note": "domain suffix and legal word" },
+  {
+    "a": "Acme Technologies GmbH",
+    "b": "acme.com",
+    "same": true,
+    "note": "filler plus legal word vs a domain-style name"
+  },
+  {
+    "a": "PT Example Tbk",
+    "b": "Example",
+    "same": true,
+    "note": "Indonesian legal words pt and tbk, leading or trailing"
+  },
+  { "a": "Acme, Inc.", "b": "ACME", "same": true, "note": "punctuation, case and legal word" },
+  { "a": "Café Société SA", "b": "Cafe Societe", "same": true, "note": "accents folded" },
+  { "a": "Foo Corp", "b": "Foo Corporation", "same": true, "note": "both legal forms" },
+  {
+    "a": "The Zeta Group GmbH",
+    "b": "Zeta",
+    "same": true,
+    "note": "article, filler and legal word"
+  },
+  {
+    "a": "Acme Labs Inc",
+    "b": "acme.co.uk",
+    "same": true,
+    "note": "two-level country domain suffix"
+  },
+  { "a": "Example.id", "b": "PT Example", "same": true, "note": "country TLD .id" },
+  {
+    "a": "Beta Holdings Pte Ltd",
+    "b": "Beta Software",
+    "same": true,
+    "note": "two different filler words after the same name"
+  },
+  { "a": "Gamma.dev", "b": "Gamma", "same": true, "note": "TLD .dev" },
+  { "a": "Delta.app", "b": "Delta Solutions", "same": true, "note": "TLD .app vs filler" },
+  {
+    "a": "Hugging Face",
+    "b": "Hugging Face Inc.",
+    "same": true,
+    "note": "multi-word name keeps its words"
+  },
+  { "a": "Epsilon Oy", "b": "epsilon AB", "same": true, "note": "Finnish and Swedish legal words" },
+  { "a": "Zed.ai", "b": "Zed Technology", "same": true, "note": "TLD .ai vs singular filler" },
+  { "a": "Omega.net", "b": "Omega Co.", "same": true, "note": "TLD .net vs legal co" },
+  { "a": "Sigma.org", "b": "Sigma HQ", "same": true, "note": "TLD .org vs filler hq" },
+  { "a": "Kappa.xyz", "b": "Kappa", "same": true, "note": "TLD .xyz" },
+  { "a": "Lambda.tech", "b": "Lambda Limited", "same": true, "note": "TLD .tech" },
+  { "a": "Theta Pty Ltd", "b": "theta.com.au", "same": true, "note": "com.au domain suffix" },
+  { "a": "Smith & Co", "b": "Smith", "same": true, "note": "ampersand and legal co" },
+  {
+    "a": "Data Software",
+    "b": "Data",
+    "same": true,
+    "note": "ACCEPTED MERGE: a trailing filler word is stripped, so these two keys are equal; only a filler word that leads the kept words stays"
+  },
+  {
+    "a": "Node.js",
+    "b": "Node",
+    "same": true,
+    "note": "ACCEPTED MERGE: any two-letter suffix is read as a country TLD, so .js is stripped"
+  },
+  {
+    "a": "Group One",
+    "b": "One",
+    "same": false,
+    "note": "a filler word that leads the kept words is kept, so filler plus a word stays distinct from the bare word"
+  },
+  {
+    "a": "Labs",
+    "b": "Lab Co",
+    "same": false,
+    "note": "Labs is all there is, so it stays; Lab is a different word"
+  },
+  {
+    "a": "Operations Limited",
+    "b": "The Group",
+    "same": false,
+    "note": "nothing left after stripping: the names stay non-empty and differ"
+  },
+  { "a": "Tether", "b": "Tethers", "same": false, "note": "whole-word matching only, no stemming" },
+  {
+    "a": "Acme Foods",
+    "b": "Acme Motors",
+    "same": false,
+    "note": "a distinctive second word is kept"
+  },
+  { "a": "Example Pay", "b": "Example", "same": false, "note": "pay is not a filler word" },
+  {
+    "a": "AB",
+    "b": "AS",
+    "same": false,
+    "note": "names made only of legal words fall back to the cleaned name, so two short names stay distinct"
+  },
+  { "a": "PT", "b": "Pte", "same": false, "note": "short legal-only names stay distinct" },
+  {
+    "a": "Io",
+    "b": "Co",
+    "same": false,
+    "note": "no dot in the name, so Io is not read as a domain suffix"
+  },
+  { "a": "Acme Studio", "b": "Acme", "same": false, "note": "studio is not a filler word" },
+  {
+    "a": "Software Group",
+    "b": "Group Software",
+    "same": false,
+    "note": "the first kept word leads, so word order still matters"
+  }
+]

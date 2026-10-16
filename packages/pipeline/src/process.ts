@@ -17,7 +17,7 @@ import { classifyLanguage } from "./filters/language.ts";
 import { classifyLocation } from "./filters/location.ts";
 import { classifyRole } from "./filters/role.ts";
 import { applySalaryFloor } from "./filters/salary-floor.ts";
-import { normalizePending } from "./normalize/index.ts";
+import { normalizePending, renormalizeCompanies } from "./normalize/index.ts";
 import { parseSalary, toIdrMonth } from "./salary/index.ts";
 
 export interface ProcessOptions {
@@ -143,6 +143,7 @@ export function runProcess(opts: ProcessOptions): number {
   const now = opts.now ?? (() => new Date());
   const floor = opts.floorIdrMonth ?? loadConfig().salary.floor_idr_month;
 
+  renormalizeCompanies(db);
   normalizePending(db, { now });
   dedupePending(db);
 

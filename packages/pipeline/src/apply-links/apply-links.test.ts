@@ -19,7 +19,7 @@ import {
 } from "@job-agent/core";
 import { main } from "../cli.ts";
 import { saveFoundAts } from "./save-ats.ts";
-import { normalizeCompanyName } from "../normalize/index.ts";
+import { normalizeCompanyName, normalizePending } from "../normalize/index.ts";
 import { MAX_SLUG_CANDIDATES, runResolveApply } from "./index.ts";
 import { slugCandidates } from "./slugs.ts";
 
@@ -343,6 +343,45 @@ describe("step 1b: stored board", () => {
       method: "source",
       reason: "board found, no matching title",
       apply_url: `https://remotive.example.test/jobs/${p}`,
+    });
+  });
+});
+
+describe("step 1b: one company key for name variants", () => {
+  it("resolves a posting from 'Tether.io' to the stored board of 'Tether Operations Limited'", async () => {
+    const stored = addCompany("Tether Operations Limited", {
+      ats_type: "recruitee",
+      ats_slug: "tether",
+      verified: true,
+    });
+    // An aggregator posting that arrives raw and goes through normalize like in `process`.
+    const p = addPosting("remotive", "Frontend Engineer", null, "Tether.io");
+    db.update(postings).set({ normalized_at: null }).where(eq(postings.id, p)).run();
+    normalizePending(db, { now: () => clock });
+    expect(db.select().from(companies).all()).toHaveLength(1);
+    expect(db.select().from(postings).where(eq(postings.id, p)).get()?.company_id).toBe(stored);
+
+    server.use(
+      http.get("https://tether.recruitee.com/api/offers/", () =>
+        HttpResponse.json({
+          offers: [
+            {
+              title: "Frontend Engineer",
+              careers_url: "https://tether.recruitee.com/o/frontend-engineer",
+              company_name: "Tether Operations Limited",
+            },
+          ],
+        }),
+      ),
+    );
+    const r = await run();
+    expect(r.out).toBe(summary(1, { ats_board: 1 }, { ats: 1 }, 1));
+    expect(link(p)).toMatchObject({
+      apply_url: "https://tether.recruitee.com/o/frontend-engineer",
+      apply_type: "ats",
+      method: "ats_board",
+      ats_type: "recruitee",
+      ats_slug: "tether",
     });
   });
 });
