@@ -100,3 +100,4 @@ Last audit tag: (none yet)
 | t_ab72b1a1 | Re-audit #12 minors: drop dead two-letter DOMAIN_TLDS entries; show a text answer once in the detail panel | low | 23915ba | 2026-10-17 |
 | t_84aa4b70 | Choice mapping: show a form's options for a choice question and let the owner map them to an approved answer once | medium | 4608832 | 2026-10-17 |
 | t_4fbf1521 | Dashboard "Dry runs" tab: list, screenshot, filled fields, mark correct / wrong with a reason; done-when line | medium | dd56b3c | 2026-10-17 |
+| t_772e5705 | Phase 5 end-to-end test and docs: fixture dry runs for all three ATSs, review, done-when line | medium | de6bdcc | 2026-10-17 |
