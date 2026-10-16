@@ -20,12 +20,19 @@ const ALTERNATIVES = [
   String.raw`stipend`,
   String.raw`ctc`,
   String.raw`ote`,
+  // OTC is also "over the counter": pay only when it ends the label ("Current OTC").
+  String.raw`otc(?=\W*$)`,
   String.raw`pay`,
   String.raw`paid`,
   String.raw`paying`,
   String.raw`(?:expected|desired|target|current|total) comp`,
   String.raw`comp (?:expectations?|range)`,
-  String.raw`financial expectations?`,
+  String.raw`(?:financial|monetary|money) (?:expectations?|requirements?|needs)`,
+  // Asking / acceptable amounts: "price", "offer", "number" alone are ordinary words, so each needs a pay qualifier.
+  String.raw`(?:asking|expected|desired|target) (?:number|amount|figure|price)(?! of\b)`,
+  String.raw`your (?:price|asking)`,
+  String.raw`(?:minimum|lowest|least|expected|desired|target)(?: acceptable)? offer`,
+  String.raw`(?:minimum|lowest|least) (?:amount |figure |number )?(?:you|that you|we) (?:would|will|could|can) accept`,
   String.raw`total (?:cash|rewards?|package)`,
   String.raw`(?:expected|desired|target|current|annual|salary|compensation|benefits) package`,
   // Base pay: "base" alone is too common ("base image"), so it needs a pay qualifier.
@@ -48,6 +55,7 @@ const ALTERNATIVES = [
   String.raw`kompensasi`,
   String.raw`remunerasi`,
   String.raw`tarif`,
+  String.raw`(?:angka|jumlah) (?:yang )?(?:anda )?(?:minta|inginkan|harapkan|diharapkan|diinginkan)`,
   String.raw`nominal`,
   String.raw`imbalan`,
   String.raw`honor(?:arium)?`,

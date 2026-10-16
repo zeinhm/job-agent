@@ -175,6 +175,34 @@ describe("matchQuestions", () => {
     expect(db.select().from(unknown_questions).all()).toHaveLength(0);
   });
 
+  it("re-files an open inbox row for a wording only the M2 patterns catch", () => {
+    const a = addPosting();
+    const pay = addQuestion(a, "What is your minimum acceptable offer?");
+    const other = addQuestion(a, "Do you have another offer?");
+    db.insert(unknown_questions)
+      .values(
+        [
+          ["what is your minimum acceptable offer", "What is your minimum acceptable offer?"],
+          ["do you have another offer", "Do you have another offer?"],
+        ].map(([normalized_label, label]) => ({
+          id: `u-${normalized_label}`,
+          normalized_label: normalized_label as string,
+          label: label as string,
+          posting_count: 1,
+          first_seen_at: "2026-10-13T01:00:00.000Z",
+          last_seen_at: "2026-10-13T01:00:00.000Z",
+        })),
+      )
+      .run();
+
+    const s = matchQuestions(db);
+    expect(s).toMatchObject({ salary: 1, unknown: 1 });
+    expect(keys()).toEqual({ [pay]: "salary", [other]: null });
+    expect(db.select().from(unknown_questions).all()).toMatchObject([
+      { normalized_label: "do you have another offer", status: "open" },
+    ]);
+  });
+
   it("is idempotent: a second run changes nothing", () => {
     addAnswer("work.notice", "What is your notice period?", true);
     const a = addPosting();

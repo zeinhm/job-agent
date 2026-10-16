@@ -67,6 +67,32 @@ const POSITIVE = [
   "Berapa nominal yang Anda inginkan?",
   "Berapa yang Anda harapkan?",
   "Berapa yang diharapkan?",
+  // Re-audit #11 M2 wordings (Phase 4 report, "Still open" item 2).
+  "What is your asking number?",
+  "What is your minimum acceptable offer?",
+  "What are your financial requirements?",
+  "What is your price?",
+  "Current OTC",
+  // Added in t_c5f69e5a: wordings seen on ATS forms and recruiter screeners (agency, contract and Indonesian roles).
+  "Expected OTE",
+  "Total compensation expectations",
+  "Rate expectations",
+  "Hourly rate",
+  "Day rate",
+  "Gaji minimal",
+  "What is your asking price?",
+  "Expected figure",
+  "Desired amount",
+  "Target number",
+  "Lowest offer you would consider",
+  "What is the minimum you would accept?",
+  "What is the lowest figure you can accept?",
+  "What are your monetary expectations?",
+  "Money expectations",
+  "Your financial needs",
+  "Please give us your expected offer",
+  "Berapa angka yang Anda inginkan?",
+  "Jumlah yang diharapkan",
 ];
 
 const NEGATIVE = [
@@ -91,14 +117,35 @@ const NEGATIVE = [
   "Do you use .NET or Node.js?",
   "How much experience do you have with React?",
   "Berapa lama Anda bekerja di perusahaan sebelumnya?",
+  // Share words with the new patterns (price, offer, number, amount, financial, minimum, accept) but ask nothing about pay.
+  "Tell us about a pricing model you built",
+  "Do you have another offer?",
+  "Phone number",
+  "Target number of users you supported",
+  "Desired amount of remote days",
+  "Target amount of revenue you owned",
+  "Current OTC drugs experience",
+  "Years of experience in financial services",
+  "Have you received an offer from another company?",
+  "Mobile number",
+  "What is the price of your favorite developer tool?",
+  "Describe an offer letter process you improved",
+  "How many engineers did you manage in total?",
+  "What is the minimum number of hours per week you can work?",
+  "Do you accept our terms and conditions?",
+  "Experience with price optimization",
+  "Financial reporting experience",
+  "Describe the amount of traffic your system handled",
+  "Nomor telepon Anda",
+  "Apakah Anda memiliki tawaran lain?",
 ];
 // Known safe false positives (the question just stays in review), kept on purpose: "Do you pay for your own tools?",
 // "Any fee for background checks?", "Do you have a per year training budget?", anything with a bare currency code or "earn".
 
 describe("salary golden wordings", () => {
   it("has the required number of rows", () => {
-    expect(POSITIVE.length).toBeGreaterThanOrEqual(40);
-    expect(NEGATIVE.length).toBeGreaterThanOrEqual(15);
+    expect(POSITIVE.length).toBeGreaterThanOrEqual(80);
+    expect(NEGATIVE.length).toBeGreaterThanOrEqual(31);
   });
 
   it.each(POSITIVE)("positive: %s", (label) => {
