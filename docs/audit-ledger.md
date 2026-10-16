@@ -91,3 +91,4 @@ Last audit tag: (none yet)
 | t_c5832945 | Run docs for Phase 4: dashboard, review keys, answer bank, inbox, eval scripts, done-when check | low | 3c47619 | 2026-10-16 |
 | t_22582616 | Hardening: seed-demo resolves realpath and refuses a DB with non-demo postings; question fetch stays on the ATS host; pay-policy owner guard test | medium | d968504 | 2026-10-16 |
 | t_c08e4542 | Company name matching: one normalizer that strips TLDs, legal and filler words, with golden rows | medium | d4fda10 | 2026-10-16 |
+| t_0ee7b06b | Rule: agents never search outside the repo (no find /) | medium | 62c9940 | 2026-10-16 |
