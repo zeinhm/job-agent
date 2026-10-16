@@ -159,7 +159,10 @@ describe("POST /api/inbox/:id/answer", () => {
     const id = await idOf("What is your notice period?");
     const res = await post(`/api/inbox/${id}/answer`, { ...body, answer: "soon" });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "invalid request", issues: [{ path: "answer" }] });
+    expect(await res.json()).toEqual({
+      error: "invalid request",
+      issues: [{ path: "answer", rule: "number" }],
+    });
     expect((await inbox()).openCount).toBe(3);
   });
 

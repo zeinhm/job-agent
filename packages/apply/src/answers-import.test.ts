@@ -87,7 +87,7 @@ describe("importAnswers", () => {
     importAnswers(db, [entry()], out, T1);
     const s = importAnswers(
       db,
-      [entry({ type: "choice", choices: ["a", "b"], alternatives: null })],
+      [entry({ type: "choice", choices: ["a", "b"], answer: "a", alternatives: null })],
       out,
       T2,
     );

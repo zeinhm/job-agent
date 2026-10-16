@@ -146,8 +146,8 @@ describe("PATCH /api/answers/:key", () => {
     ["answer", { answer: "FAKE-ANSWER-one-month" }],
     ["question", { question: "New wording?" }],
     ["alternatives", { alternatives: ["When can you start?", "Another wording?"] }],
-    ["type", { type: "number" }],
-    ["choices", { type: "choice", choices: ["a", "b"] }],
+    ["type", { type: "long_text" }],
+    ["choices", { type: "choice", choices: [NEW.answer, "b"] }],
   ];
   it.each(FIELD_CHANGES)("a real change to %s clears approval", async (_f, change) => {
     await create({ approved: true });
@@ -164,7 +164,13 @@ describe("PATCH /api/answers/:key", () => {
   );
 
   it("choices change alone on a choice answer clears approval", async () => {
-    await create({ approved: true, type: "choice", choices: ["a", "b"], alternatives: null });
+    await create({
+      approved: true,
+      type: "choice",
+      choices: ["a", "b"],
+      answer: "a",
+      alternatives: null,
+    });
     expect(await (await patch({ choices: ["a", "b", "c"], approved: true })).json()).toMatchObject({
       approved: false,
     });
@@ -196,7 +202,7 @@ describe("PATCH /api/answers/:key", () => {
   });
 
   it("edits type and choices together, validating the combination", async () => {
-    await create();
+    await create({ answer: "a" });
     const ok = await patch({ type: "choice", choices: ["a", "b"] });
     expect(await ok.json()).toMatchObject({ type: "choice", choices: ["a", "b"] });
     expect((await patch({ choices: null })).status).toBe(400);
@@ -246,7 +252,13 @@ describe("POST /api/answers/export", () => {
 
   it("the exported file loads back through the answers.yaml loader", async () => {
     await create({ approved: true });
-    await create({ key: "level", type: "choice", choices: ["a", "b"], alternatives: null });
+    await create({
+      key: "level",
+      type: "choice",
+      choices: ["a", "b"],
+      answer: "a",
+      alternatives: null,
+    });
     await mutate("POST", "/api/answers/export");
     // loadAnswers reads <dir>/answers.yaml, so copy the export under that name.
     const loadDir = join(dir, "reload");
@@ -256,7 +268,7 @@ describe("POST /api/answers/export", () => {
       {
         key: "work_setup.level",
         group: "work_setup",
-        answer: NEW.answer,
+        answer: "a",
         approved: false,
         question: NEW.question,
         alternatives: null,

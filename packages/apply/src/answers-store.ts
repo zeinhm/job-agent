@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { stringify } from "yaml";
 import { z } from "zod";
 import { normalizeQuestion } from "./match.ts";
+import { validateTypedAnswer } from "./typed-answer.ts";
 
 // Same naming rule as the YAML loader: a dot in a part would make `group.key` ambiguous.
 const part = z.string().regex(/^[A-Za-z0-9_-]+$/);
@@ -55,11 +56,14 @@ export class AnswerStoreError extends Error {
   readonly kind: "not_found" | "exists" | "invalid";
   /** Field names only, never values. */
   readonly paths: string[];
-  constructor(kind: AnswerStoreError["kind"], paths: string[] = []) {
+  /** Rule name per path (same order), when a typed-answer rule failed. */
+  readonly rules: string[];
+  constructor(kind: AnswerStoreError["kind"], paths: string[] = [], rules: string[] = []) {
     super(kind);
     this.name = "AnswerStoreError";
     this.kind = kind;
     this.paths = paths;
+    this.rules = rules;
   }
 }
 
@@ -88,6 +92,16 @@ function checkTypeChoices(type: string | null, choices: string[] | null): void {
   if (type !== "choice" && choices !== null) throw new AnswerStoreError("invalid", ["choices"]);
 }
 
+/** Throws `invalid` (field + rule, no value) when the answer does not fit its type; see validateTypedAnswer. */
+export function assertTypedAnswer(
+  answer: string,
+  type: AnswerView["type"],
+  choices: string[] | null,
+): void {
+  const r = validateTypedAnswer({ answer, type, choices });
+  if (!r.ok) throw new AnswerStoreError("invalid", [r.field], [r.rule]);
+}
+
 export function listAnswers(db: Db): AnswerView[] {
   return db
     .select()
@@ -103,6 +117,7 @@ export function createAnswer(db: Db, input: NewAnswer, now: Date = new Date()): 
   const type = input.type ?? null;
   const choices = input.choices ?? null;
   checkTypeChoices(type, choices);
+  assertTypedAnswer(input.answer, type, choices);
   const stamp = now.toISOString();
   const approved = input.approved === true;
   return db.transaction((tx) => {
@@ -172,6 +187,14 @@ export function updateAnswer(
       !sameList(choices, parseList(row.choices)) ||
       !sameWordings(alternatives, parseList(row.alternatives));
     const approved = changed ? false : (patch.approved ?? row.approved);
+    // A changed answer, type or choices must still fit; approval never stays on (or is set for) a misfit answer.
+    if (
+      approved ||
+      answer !== row.answer ||
+      type !== row.type ||
+      !sameList(choices, parseList(row.choices))
+    )
+      assertTypedAnswer(answer, type, choices);
     const approvedAt = !approved ? null : row.approved ? row.approved_at : stamp;
     const updated = tx
       .update(answer_bank)

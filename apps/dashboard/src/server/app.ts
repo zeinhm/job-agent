@@ -143,7 +143,13 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     if (!(e instanceof AnswerStoreError)) throw e;
     if (e.kind === "exists") return c.json({ error: "exists" }, 409);
     if (e.kind === "not_found") return c.json({ error: "not found" }, 404);
-    return c.json({ error: "invalid request", issues: e.paths.map((path) => ({ path })) }, 400);
+    return c.json(
+      {
+        error: "invalid request",
+        issues: e.paths.map((path, i) => ({ path, ...(e.rules[i] ? { rule: e.rules[i] } : {}) })),
+      },
+      400,
+    );
   };
 
   app.get("/api/answers", (c) => c.json({ answers: listAnswers(db) }));

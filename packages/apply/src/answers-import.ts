@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { answer_bank, type Db } from "@job-agent/core";
 import { eq } from "drizzle-orm";
 import type { AnswerEntry } from "./answers.ts";
+import { validateTypedAnswer } from "./typed-answer.ts";
 
 export interface ImportSummary {
   added: number;
@@ -15,7 +16,9 @@ const json = (v: string[] | null): string | null => (v === null ? null : JSON.st
 /**
  * Upserts config entries into `answer_bank` as `source = config`. A row last edited in the dashboard is never
  * overwritten (its key goes to `out` as `kept dashboard version: <key>`). An unchanged entry is not touched, so a
- * re-run is a no-op. Entries missing from the file are left alone. Never writes answer text anywhere.
+ * re-run is a no-op. Entries missing from the file are left alone. Never writes answer text anywhere. Every entry
+ * must fit its type (validateTypedAnswer) or the import throws before writing anything; the message names
+ * `<key>.<field>` and the rule, never a value.
  */
 export function importAnswers(
   db: Db,
@@ -23,6 +26,10 @@ export function importAnswers(
   out: (line: string) => void,
   now: Date = new Date(),
 ): ImportSummary {
+  for (const e of entries) {
+    const r = validateTypedAnswer(e);
+    if (!r.ok) throw new Error(`Answer ${e.key} is invalid: ${e.key}.${r.field}: ${r.rule}`);
+  }
   const summary: ImportSummary = { added: 0, updated: 0, unchanged: 0, kept: 0 };
   const stamp = now.toISOString();
   db.transaction((tx) => {

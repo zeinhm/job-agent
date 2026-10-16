@@ -37,6 +37,7 @@ export {
   AnswerStoreError,
   NewAnswerSchema,
   answersToYaml,
+  assertTypedAnswer,
   createAnswer,
   exportAnswers,
   listAnswers,
@@ -45,3 +46,8 @@ export {
   type AnswerView,
   type NewAnswer,
 } from "./answers-store.ts";
+export {
+  validateTypedAnswer,
+  type TypedAnswerCheck,
+  type TypedAnswerRule,
+} from "./typed-answer.ts";

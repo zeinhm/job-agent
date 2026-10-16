@@ -10,6 +10,7 @@ import { z } from "zod";
 import {
   AnswerStoreError,
   NewAnswerSchema,
+  assertTypedAnswer,
   createAnswer,
   listAnswers,
   updateAnswer,
@@ -132,15 +133,6 @@ function decide(
     .run();
 }
 
-function checkTyped(input: InboxAnswer): void {
-  const a = input.answer.trim();
-  const bad =
-    (input.type === "yes_no" && !/^(yes|no)$/i.test(a)) ||
-    (input.type === "number" && !Number.isFinite(Number(a))) ||
-    (input.type === "choice" && !(input.choices ?? []).includes(input.answer));
-  if (bad) throw new AnswerStoreError("invalid", ["answer"]);
-}
-
 /** Result of every action: the number of wordings still open after matching re-ran over all stored questions. */
 export interface InboxResult {
   openCount: number;
@@ -161,7 +153,7 @@ export function answerInbox(
 ): InboxResult {
   const { row, salary } = openRow(db, id);
   if (salary) throw new InboxError("invalid", ["salary"]);
-  checkTyped(input);
+  assertTypedAnswer(input.answer, input.type, input.choices ?? null);
   const created = createAnswer(db, { ...input, question: row.label }, now);
   decide(db, id, "answered", created.key);
   matchQuestions(db);
