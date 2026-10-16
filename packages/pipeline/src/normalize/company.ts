@@ -40,7 +40,8 @@ const FILLER_WORDS = new Set([
   "the",
 ]);
 
-const DOMAIN_TLDS = "io|com|co|ai|dev|app|net|org|xyz|tech";
+/** Known TLDs of 3+ letters; two-letter TLDs (io, ai, co, id, js...) are covered by the generic `[a-z]{2}` rule below. */
+const DOMAIN_TLDS = "com|dev|app|net|org|xyz|tech";
 /** A token that is a domain name: label(s), then a known TLD, a two-letter country TLD, or `co.uk`-style pair. */
 const DOMAIN_NAME_RE = new RegExp(
   `^([a-z0-9-]{2,}(?:\\.[a-z0-9-]+)*?)\\.(?:(?:co|com|org|ac|gov|net)\\.[a-z]{2}|${DOMAIN_TLDS}|[a-z]{2})$`,

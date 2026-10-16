@@ -10,7 +10,6 @@ import {
   type PostingDetail,
   type ReviewBody,
 } from "../api.ts";
-import { endSentence } from "@job-agent/core/sentence";
 import { ExternalLink, safeHref } from "./ExternalLink.tsx";
 import { reviewLabel } from "./SectionTable.tsx";
 
@@ -204,7 +203,6 @@ function Body({ detail }: { detail: PostingDetail }) {
         Apply link: <ExternalLink href={detail.applyUrl} />
       </p>
       {detail.ask !== null && <p>Ask: {detail.ask}</p>}
-      {detail.askText !== null && <p>Text answer: {endSentence(detail.askText)}</p>}
       <List title="Fit reasons" items={detail.reasons.fit} />
       <List title="Flags" items={detail.flags} />
       <List

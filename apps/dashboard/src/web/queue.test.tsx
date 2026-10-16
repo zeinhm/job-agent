@@ -318,8 +318,8 @@ describe("detail panel", () => {
     await panel.findByText("Strong TypeScript match");
     expect(panel.getByText("Asks for a fee")).toBeTruthy();
     expect(panel.getByText(/Location: Remote/)).toBeTruthy();
-    expect(panel.getByText("Text answer: Because the range is wide.")).toBeTruthy();
     expect(panel.getByText("Ask: IDR 40,000,000 / month")).toBeTruthy();
+    expect(panel.queryByText(/Text answer:/)).toBeNull();
     expect(panel.queryByText(/Ask reason/)).toBeNull();
     const link = panel.getByRole("link", { name: "https://example.com/jobs/1" });
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
@@ -346,22 +346,8 @@ describe("detail panel", () => {
     expect(cells[1]?.getAttribute("title")).toBe(get("p2").title);
     await user.click(within(cells[1] as HTMLElement).getByRole("button"));
     const panel = within(await screen.findByRole("complementary", { name: "Posting detail" }));
-    expect(await panel.findByText("Text answer: Open to talk.")).toBeTruthy();
-  });
-
-  it.each([
-    ["Open to talk.", "Text answer: Open to talk."],
-    ["Open to talk!", "Text answer: Open to talk!"],
-    ["Open to talk?", "Text answer: Open to talk?"],
-    ["Open to talk...", "Text answer: Open to talk..."],
-    ["Open to talk", "Text answer: Open to talk."],
-    ["Open to talk.  ", "Text answer: Open to talk."],
-  ])("shows the text answer %j with exactly one ending mark", async (askText, shown) => {
-    items.p2 = { ...get("p2"), askText };
-    const user = userEvent.setup();
-    renderApp();
-    const panel = within(await openPosting(user, "Platform Engineer"));
-    expect(await panel.findByText(shown)).toBeTruthy();
+    expect(await panel.findByText("Ask: text answer: Open to talk.")).toBeTruthy();
+    expect(panel.getAllByText(/Open to talk/)).toHaveLength(1);
   });
 
   it("does not link a non-http apply URL", async () => {
