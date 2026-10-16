@@ -1,0 +1,64 @@
+<!-- Hand-trimmed excerpt of the SSR markup of https://job-boards.greenhouse.io/gitlab/jobs/8860302002 (fetched 2026-10-17).
+     Removed: inline emotion <style>, SVG icons, job description, footer, window.ENV / __remixContext scripts (they hold public client keys).
+     Kept: structure, ids, aria attributes, class names. Public company data only (GitLab public posting); no personal data.
+     NOTE: this is the PRE-hydration HTML. React hydrates it in the browser; the real inputs have NO name attribute, only id. -->
+<form method="get" action="/gitlab/jobs/8860302002" id="application-form" class="application--form">
+  <div class="application--questions">
+    <!-- text input: id == API field name == label[for] -->
+    <div class="field-wrapper"><div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="first_name-label" for="first_name" class="label label">First Name<span aria-hidden="true">*</span></label>
+      <input id="first_name" class="input input__single-line" aria-label="First Name" aria-required="true" type="text" maxLength="255" autoComplete="given-name" value=""/>
+    </div></div></div>
+    <!-- last_name, email (type="text"!, autoComplete="email") look the same -->
+    <!-- phone: fieldset with a react-select country combobox (id="country") and a type="tel" input (id="phone") -->
+    <div><fieldset class="phone-input"><legend class="visually-hidden">Phone</legend>
+      <div class="phone-input__country"><div class="select"><div class="select__container">
+        <label id="country-label" for="country" class="label select__label">Country</label>
+        <div class="select-shell"><div class="select__control"><div class="select__value-container">
+          <div class="select__input-container"><input class="select__input" id="country" role="combobox" aria-haspopup="true" aria-expanded="false" aria-labelledby="country-label" type="text" value=""/></div>
+        </div></div></div>
+      </div></div></div>
+      <div class="phone-input__phone"><div class="text-input-wrapper"><div class="input-wrapper">
+        <label id="phone-label" for="phone" class="label label">Phone</label>
+        <input id="phone" class="input input__single-line" aria-label="Phone" aria-required="false" type="tel" maxLength="255"/>
+      </div></div></div>
+    </fieldset></div>
+    <!-- file: visible buttons are plain <button type="button">; the real file input is visually hidden -->
+    <div class="field-wrapper"><div role="group" aria-labelledby="upload-label-resume" aria-required="true" class="file-upload" data-allow-s3="false">
+      <div id="upload-label-resume" class="label upload-label">Resume/CV<span class="required">*</span></div>
+      <div class="file-upload__wrapper"><div class="button-container">
+        <div class="secondary-button"><div><button type="button" class="btn btn--pill">Attach</button><label class="visually-hidden" for="resume">Attach</label><input id="resume" class="visually-hidden" type="file" accept=".pdf,.doc,.docx,.txt,.rtf"/></div></div>
+        <div class="secondary-button"><div><button type="button" class="btn btn--pill" data-testid="resume-text">Enter manually</button><label class="visually-hidden" for="resume_text">Enter manually</label></div></div>
+        <p id="accepted-filetypes" class="file-upload__filetypes">Accepted file types: pdf, doc, docx, txt, rtf</p>
+      </div></div>
+    </div></div>
+    <!-- cover_letter: same shape, ids cover_letter / cover_letter_text -->
+  </div>
+  <div class="application--questions"><hr/>
+    <!-- custom text question: id = "question_<id>" = fields[].name of the stored Greenhouse JSON -->
+    <div class="field-wrapper"><div class="text-input-wrapper"><div class="input-wrapper">
+      <label id="question_38624168002-label" for="question_38624168002" class="label label">LinkedIn Profile</label>
+      <input id="question_38624168002" class="input input__single-line" aria-label="LinkedIn Profile" aria-required="false" type="text" maxLength="255" value=""/>
+    </div></div></div>
+    <!-- custom single select (multi_value_single_select) = react-select combobox. Required marker: <span aria-hidden>*</span> in the label,
+         aria-required="true" on the combobox input, plus a hidden <input required tabindex="-1" aria-hidden="true"> (browser validation).
+         Options are NOT in the DOM until the menu opens. -->
+    <div class="field-wrapper"><div class="select"><div class="select__container">
+      <label id="question_38624170002-label" for="question_38624170002" class="label select__label">Are you subject to any employment agreements ...?<span aria-hidden="true">*</span></label>
+      <div class="select-shell"><div><div class="select__control"><div class="select__value-container">
+        <div class="select__placeholder" id="react-select-question_38624170002-placeholder">Select...</div>
+        <div class="select__input-container"><input class="select__input" id="question_38624170002" role="combobox" aria-haspopup="true" aria-expanded="false" aria-required="true" aria-labelledby="question_38624170002-label" type="text" value=""/></div>
+      </div></div></div>
+      <input required="" tabindex="-1" aria-hidden="true" value=""/></div>
+    </div></div></div>
+  </div>
+  <!-- EEOC block: separate container, ids are the EEOC field names (gender, hispanic_ethnicity, veteran_status); never answer -->
+  <div class="eeoc__container body">
+    <h2 class="section-header font-primary">Voluntary Self-Identification</h2>
+    <div class="eeoc__question__wrapper"><div class="select"><div class="select__container">
+      <label id="gender-label" for="gender" class="label select__label">Gender</label>
+      <div class="select-shell"><div class="select__control"><div class="select__input-container"><input class="select__input" id="gender" role="combobox" aria-required="false" type="text" value=""/></div></div></div>
+    </div></div></div>
+  </div>
+  <div class="application--submit"><button type="submit" class="btn btn--pill" aria-disabled="false">Submit application</button></div>
+</form>

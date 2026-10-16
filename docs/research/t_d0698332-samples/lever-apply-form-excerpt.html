@@ -1,0 +1,70 @@
+<!-- Hand-trimmed excerpt of the server-rendered form of https://jobs.lever.co/spotify/<posting-id>/apply (fetched 2026-10-17)
+     plus the custom-question types seen on https://jobs.lever.co/palantir/<posting-id>/apply.
+     Removed: CSS, survey baseTemplate JSON blobs (kept one, shortened), hCaptcha site key, analytics ids, account id.
+     Public company data only; no personal data. -->
+<form id="application-form" enctype="multipart/form-data" method="POST"> <!-- no action attribute: POSTs to its own URL (/apply) -->
+  <ul>
+    <li class="application-question resume"><label>
+      <div class="application-label">Resume/CV <span class="required">✱</span></div>
+      <div class="application-field">
+        <a href="#" class="postings-btn template-btn-utility visible-resume-upload">Attach resume/CV</a>
+        <input class="application-file-input invisible-resume-upload" data-qa="input-resume" id="resume-upload-input" name="resume" tabindex="-1" type="file">
+      </div></label></li>
+    <li class="application-question"><label><div class="application-label">Full name<span class="required">✱</span></div>
+      <div class="application-field"><input type="text" data-qa="name-input" name="name" required></div></label></li>
+    <li class="application-question"><label><div class="application-label">Email<span class="required">✱</span></div>
+      <div class="application-field"><input name="email" data-qa="email-input" type="email" pattern="..." required></div></label></li>
+    <li class="application-question"><label><div class="application-label">Phone <span class="required">✱</span></div>
+      <div class="application-field"><input type="text" data-qa="phone-input" name="phone" required></div></label></li>
+    <li class="application-question"><label><div class="application-label">Current location <span class="required" data-qa="SCL-question-required-asterisk">✱</span></div>
+      <div class="application-field"><input class="location-input" data-qa="location-input" id="location-input" type="text" maxlength="100" name="location" required>
+      <input id="selected-location" type="hidden" name="selectedLocation"></div></label></li>
+    <li class="application-question"><label><div class="application-label">Current company <span class="required">✱</span></div>
+      <div class="application-field"><input type="text" data-qa="org-input" name="org" required></div></label></li>
+    <li class="application-question"><label><div class="application-label">LinkedIn URL</div>
+      <div class="application-field"><input type="text" name="urls[LinkedIn]"></div></label></li>
+    <!-- urls[GitHub], urls[Portfolio], urls[Other] the same; pronouns = checkboxes name="pronouns" -->
+
+    <!-- custom question card (type multiple-select): hidden baseTemplate JSON describes the whole card -->
+    <input type="hidden" name="cards[CARD-UUID][baseTemplate]" value="{&quot;text&quot;:&quot;Previous Employment&quot;,&quot;type&quot;:&quot;posting&quot;,&quot;fields&quot;:[{&quot;type&quot;:&quot;multiple-select&quot;,&quot;text&quot;:&quot;Have you ever been previously employed by the company?&quot;,&quot;required&quot;:true,&quot;id&quot;:&quot;FIELD-UUID&quot;,&quot;options&quot;:[{&quot;text&quot;:&quot;No&quot;},{&quot;text&quot;:&quot;Yes - Intern&quot;}]}],&quot;id&quot;:&quot;CARD-UUID&quot;}">
+    <li class="application-question custom-question"><div>
+      <div class="application-label full-width multiple-select"><div class="text">Have you ever been previously employed by the company?<span class="required">✱</span></div></div>
+      <div class="application-field full-width required-field"><ul data-qa="checkboxes">
+        <li><label><input type="checkbox" name="cards[CARD-UUID][field0]" value="No" required /><span class="application-answer-alternative">No</span></label></li>
+        <li><label><input type="checkbox" name="cards[CARD-UUID][field0]" value="Yes - Intern" required /><span class="application-answer-alternative">Yes - Intern</span></label></li>
+      </ul></div></div></li>
+
+    <!-- other custom types seen (Palantir page): -->
+    <li class="application-question custom-question"><div>
+      <div class="application-label full-width text"><div class="text">Preferred Name | What would you like us to call you?</div></div>
+      <div class="application-field full-width"><input class="card-field-input" type="text" placeholder="Type your response" value="" name="cards[CARD-UUID][field1]" /></div></div></li>
+    <li class="application-question custom-question"><div>
+      <div class="application-label full-width textarea"><div class="text">What has been your favorite project?</div></div>
+      <div class="application-field full-width"><textarea class="card-field-input" name="cards[CARD-UUID][field0]"></textarea></div></div></li>
+    <li class="application-question custom-question"><div>
+      <div class="application-label full-width dropdown"><div class="text">Please tell us how you heard about this opportunity.<span class="required">✱</span></div></div>
+      <div class="application-field full-width required-field"><div class="application-dropdown"><select name="cards[CARD-UUID][field0]" required><option value="">Select...</option><option value="Agency or Not listed">...</option></select></div></div></div></li>
+    <li class="application-question custom-question"><div>
+      <div class="application-label full-width multiple-choice"><div class="text">Are you legally authorized to work in the country for which you are applying?<span class="required">✱</span></div></div>
+      <div class="application-field full-width required-field"><ul data-qa="multiple-choice">
+        <li><label><input type="radio" name="cards[CARD-UUID][field0]" value="Yes" required="required" /><span class="application-answer-alternative">Yes</span></label></li>
+        <li><label><input type="radio" name="cards[CARD-UUID][field0]" value="No" required="required" /><span class="application-answer-alternative">No</span></label></li>
+      </ul></div></div></li>
+  </ul>
+  <!-- optional free text on some postings (Palantir): -->
+  <textarea placeholder="Add a cover letter or anything else you want to share." name="comments" id="additional-information"></textarea>
+
+  <!-- EEO / demographic survey: radios, never answer -->
+  <input type="hidden" name="surveysResponses[SURVEY-UUID][baseTemplate]" value="{...survey JSON...}">
+  <input type="hidden" name="surveysResponses[SURVEY-UUID][surveyId]" value="...">
+  <input type="radio" name="surveysResponses[SURVEY-UUID][responses][field0]" value="Prefer not to disclose" />
+
+  <!-- hidden bookkeeping inputs -->
+  <input type="hidden" name="accountId" value="ACCOUNT-UUID"><input type="hidden" name="linkedInData"><input type="hidden" name="origin"><input type="hidden" name="referer">
+  <input type="hidden" name="timezone" id="applicant-timezone" value=""><input type="hidden" name="resumeStorageId" value="">
+  <input id="hcaptchaResponseInput" type="hidden" name="h-captcha-response" value="">
+  <input type="hidden" name="consent[marketing]" value="0"><input type="checkbox" name="consent[marketing]" value="1">
+  <div id="h-captcha" class="h-captcha" data-sitekey="REMOVED"></div>
+  <button id="hcaptchaSubmitBtn" type="submit" class="hidden"></button>      <!-- hidden real submit; JS clicks it after hCaptcha returns -->
+  <button id="btn-submit" type="button" class="postings-btn template-btn-submit hex-color" data-qa="btn-submit">Submit application</button>
+</form>

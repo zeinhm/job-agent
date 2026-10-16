@@ -1,0 +1,12 @@
+{
+  "_note": "Operation names extracted 2026-10-17 from the public bundle https://cdn.ashbyprd.com/frontend_non_user/<build>/assets/index-*.js (build 28c036de...), pattern operation:`query|mutation`,name:{value:`...`}. Endpoint seen in the bundle: POST /api/non-user-graphql?op=<operationName>. Bodies were NOT observed (no POST was made).",
+  "endpoint": "/api/non-user-graphql?op={operationName}",
+  "likelyOnApplyPageBeforeSubmit": {
+    "query": ["ApiOrganizationFromHostedJobsPageName", "ApiJobPosting", "ApiJobPostingForApplicationRequest", "ApiAutocompleteGeoLocation", "ApiSearchSchoolByCanonicalName"],
+    "mutationButNotSubmit": ["ApiSetFormValue", "ApiSetFormValueToFile", "ApiAddManyFilesToFormValue", "ApiRemoveFileFromFormValue", "ApiCreateFileUploadHandle", "ApiAutofillApplicationFormWithUploadedResume", "ApiRecordCookieConsent"]
+  },
+  "submit": ["ApiSubmitSingleApplicationFormAction", "ApiSubmitMultipleFormsAction"],
+  "otherSubmitLike": ["ApiSubmitCandidateTextingConsent", "ApiSubmitCandidateWhatsAppConsent", "ApiSubmitTextingRegistration", "ApiSubmitRegistrationFormAction", "ApiSubmitSourcingFormAction", "ApiSubmitSurveyFormAction", "ApiSubmitTakeHomeFormAction", "ApiSubmitAvailability"],
+  "queriesInBundleTotal": 35,
+  "mutationsInBundleTotal": 33
+}
