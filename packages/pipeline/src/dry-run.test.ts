@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { seedGreenhouseFixture } from "@job-agent/apply";
 import { main } from "./cli.ts";
-import { formUrl, runDryRun } from "./dry-run.ts";
+import { formUrl, leverFormUrl, runDryRun } from "./dry-run.ts";
 import { atsLinkOf } from "./apply-links/ats-links.ts";
 
 const T = "2026-10-13T00:00:00.000Z";
@@ -86,7 +86,7 @@ describe("dry-run --fixture greenhouse", () => {
     expect(real).toMatchObject({ code: 1, out: "" });
     expect(real.err).toContain("never runs on the real database");
     expect((await cli(["--fixture", "greenhouse", "p1"])).code).toBe(1);
-    expect((await cli(["--fixture", "lever"])).code).toBe(1);
+    expect((await cli(["--fixture", "ashby"])).code).toBe(1);
     expect(db.select().from(postings).all()).toEqual([]);
     expect(db.select().from(dry_runs).all()).toEqual([]);
   });
@@ -103,6 +103,9 @@ describe("dry-run through main()", () => {
     expect(err.join("")).toContain("Usage: job-agent dry-run");
     err.length = 0;
     expect(await main(["dry-run", "--fixture", "greenhouse"], io)).toBe(1);
+    expect(err.join("")).toContain("a dry run needs a DB file");
+    err.length = 0;
+    expect(await main(["dry-run", "--fixture", "lever"], io)).toBe(1);
     expect(err.join("")).toContain("a dry run needs a DB file");
   });
 });
@@ -150,14 +153,18 @@ describe("dry-run <posting-id> refusals (before any browser opens)", () => {
     expect(r.err).toContain("only opened with the real database");
   });
 
-  it("an unknown posting, a non-Greenhouse link, a board link and a link without a job id", async () => {
+  it("an unknown posting, an unsupported ATS, a board link and a link without a job id", async () => {
     expect((await cli(["nope"], true)).err).toContain("no posting nope");
-    addPosting("lever", "https://jobs.lever.co/acme/abc");
-    expect((await cli(["lever"], true)).err).toContain("not a Greenhouse job link");
+    addPosting("ashby", "https://jobs.ashbyhq.com/acme/7458d4e9-da2e-47bd-98cb-adfda43d42b2");
+    expect((await cli(["ashby"], true)).err).toContain("not a Greenhouse or Lever job link");
     addPosting("board", "https://job-boards.greenhouse.io/acme");
-    expect((await cli(["board"], true)).err).toContain("not a Greenhouse job link");
+    expect((await cli(["board"], true)).err).toContain("not a Greenhouse or Lever job link");
+    addPosting("leverboard", "https://jobs.lever.co/acme");
+    expect((await cli(["leverboard"], true)).err).toContain("not a Greenhouse or Lever job link");
     addPosting("embed", "https://boards.greenhouse.io/embed/job_app?for=acme&token=abc");
-    expect((await cli(["embed"], true)).err).toContain("not a Greenhouse job link");
+    expect((await cli(["embed"], true)).err).toContain("not a Greenhouse or Lever job link");
+    addPosting("leverid", "https://jobs.lever.co/acme/a%2Fb");
+    expect((await cli(["leverid"], true)).err).toContain("Lever company or posting id is missing");
     addPosting("noid", "https://acme.example/careers?gh_jid=1001");
     expect((await cli(["noid"], true)).err).toContain("board or job id is missing");
   });
@@ -179,6 +186,23 @@ describe("dry-run <posting-id> refusals (before any browser opens)", () => {
     expect(r.err).toContain("scam-flagged");
   });
 
+  it("a scam-flagged Lever posting is refused before any browser opens", async () => {
+    addPosting("lv", "https://jobs.lever.co/acme/2f6e9a54-3c1b-4d7e-8a20-5b9c4e1d7f03");
+    db.insert(reviews)
+      .values({
+        id: "r1",
+        posting_id: "lv",
+        action: "scam",
+        reviewed_at: T,
+        review_day: "2026-10-13",
+      })
+      .run();
+    const r = await cli(["lv"], true);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("scam-flagged");
+    expect(db.select().from(dry_runs).all()).toEqual([]);
+  });
+
   it("a posting without stored questions", async () => {
     addPosting("p1", GH);
     const r = await cli(["p1"], true);
@@ -196,6 +220,25 @@ describe("dry-run <posting-id> refusals (before any browser opens)", () => {
       )
       .run(id, id);
   }
+});
+
+describe("leverFormUrl", () => {
+  const url = (raw: string) => {
+    const link = atsLinkOf(raw);
+    return link === null ? "no link" : leverFormUrl(link);
+  };
+  it("builds the hosted apply URL from the company and the posting id", () => {
+    const id = "2f6e9a54-3c1b-4d7e-8a20-5b9c4e1d7f03";
+    expect(url(`https://jobs.lever.co/acme/${id}`)).toBe(`https://jobs.lever.co/acme/${id}/apply`);
+    expect(url(`https://jobs.lever.co/acme/${id}/apply?lever-source=x`)).toBe(
+      `https://jobs.lever.co/acme/${id}/apply`,
+    );
+    expect(url(`https://jobs.eu.lever.co/acme/${id}`)).toBe(
+      `https://jobs.eu.lever.co/acme/${id}/apply`,
+    );
+    expect(url("https://jobs.lever.co/acme")).toBeNull();
+    expect(url("https://jobs.lever.co/acme/-x")).toBeNull();
+  });
 });
 
 describe("formUrl", () => {

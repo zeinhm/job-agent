@@ -489,6 +489,46 @@ whether a passive script alone should stop is an owner decision (D2 decision not
 The run, its fields and the screenshot are personal data under `<data dir>/dryruns/` (dirs 0700, files 0600): never commit
 or share them.
 
+## Lever dry run (Phase 5)
+
+`dry-run <posting-id>` also works for a posting whose apply link is a Lever job link (`jobs.lever.co/<company>/<posting id>`,
+also `jobs.eu.lever.co`; the command opens `.../apply`). Same guarantees, flags, refusals, stop reasons, output line and
+review as the Greenhouse dry run above; this section lists only what differs. It **never submits**: the harness aborts every
+non-GET request, so Lever's resume upload (`POST /parseResume`, which would send your CV to Lever on attach) never leaves the
+browser either; the file still attaches locally.
+
+- **Questions come from the page.** Lever has no questions API, and the hourly run does not fetch Lever pages. The run
+  reads the form from the page the browser opened (one page load, no other fetch): the standard fields (`name`, `email`,
+  `phone`, `org`, `location`, `urls[...]`, `comments`, the resume) and the custom `cards[<card>][field<n>]` questions, each
+  with its options. It stores them as `posting_questions` (ats type `lever`, the control's `name` as the question id) and
+  runs `match-questions`, so unmatched wordings reach the Inbox and a choice question gets a mapping request, exactly like
+  the questions of a Greenhouse posting; then the same fill plan runs. The EEO surveys, the pronouns checkboxes, the
+  marketing consent and the hidden inputs are never read or touched.
+- **`form_changed`** means the page's fields differ from the ones stored by the last run (a field gone, a new one, or a
+  changed label, type, required flag or option set). The first run of a posting has nothing to compare with and stores what
+  it sees. On a change the run stops (detail: the labels), the page's new set replaces the stored one (so new questions
+  reach the Inbox) and the next run compares with that. No separate `fetch-questions` step and no stored-questions refusal.
+- **Location.** The "Current location" field is an autocomplete that clears itself unless a suggestion is picked, so a typed
+  location is not kept: the field is recorded as not filled (`page kept a different value`) and the run is `needs_input`.
+  Pick the suggestion yourself when you review.
+- **CAPTCHA.** Every real Lever apply page carries an hCaptcha widget (research t_d0698332). The CAPTCHA detector is
+  unchanged (same open owner decision as Greenhouse's reCAPTCHA script), so a real Lever page may stop with `captcha` before
+  anything is read.
+
+Agents and smoke use the committed fixture (`packages/apply/fixtures/lever/`, synthetic, served from `127.0.0.1`, fake persona):
+
+```sh
+bin/smoke run <smoke dir> dry-run --fixture lever
+```
+
+```
+dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<date>/<run id>/screenshot.png
+```
+
+`--fixture lever` is refused on the real database, like `--fixture greenhouse`. Besides `form.html` the folder holds the
+pages the tests use: `captcha.html` (stops `captcha`), `changed.html` (stops `form_changed` after a run on `form.html`),
+`date.html` (a date question: stops `unexpected_field`) and `location.html` (the self-clearing location field).
+
 ## LinkedIn and Indeed through JobSpy (optional, Tier 2)
 
 The `linkedin` and `indeed` sources run a Python worker (`workers/jobspy/run.py`, JobSpy 1.3.0, logged out, no cookies, no proxies).

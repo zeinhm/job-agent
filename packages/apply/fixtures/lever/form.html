@@ -1,0 +1,341 @@
+<!doctype html>
+<!--
+  Synthetic Lever apply page (t_9e9cfe1e). Built from the selector map in docs/research/t_d0698332-ats-form-structure.md
+  (section 2, Lever) and the trimmed public excerpt next to it, not recorded from a real employer page. Fake company and
+  fake questions only; no personal data.
+  Kept from the real page: form#application-form (method POST, no action), li.application-question with
+  .application-label (+ span.required) and .application-field, real `name` attributes (name, email, phone, org,
+  urls[...], cards[<card>][field<n>]), the hidden file input, hidden bookkeeping inputs, a pronouns checkbox group, an
+  EEO survey (surveysResponses[...] radios), the hidden real submit button and the visible #btn-submit button.
+  Added for the tests: one custom question of every type (textarea, dropdown, yes / no and other multiple-choice,
+  multiple-select, a multi-select dropdown) and a page script that POSTs /parseResume when a file is attached, and
+  analytics on load (the dry run must abort both). The hCaptcha widget real Lever pages carry is NOT here: see
+  captcha.html.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture Co - Senior Backend Engineer</title>
+  </head>
+  <body>
+    <h1>Senior Backend Engineer</h1>
+    <form id="application-form" enctype="multipart/form-data" method="POST">
+      <ul>
+        <li class="application-question resume">
+          <label>
+            <div class="application-label">Resume/CV <span class="required">✱</span></div>
+            <div class="application-field">
+              <a href="#" class="postings-btn template-btn-utility visible-resume-upload"
+                >Attach resume/CV</a
+              >
+              <input
+                class="application-file-input invisible-resume-upload"
+                data-qa="input-resume"
+                id="resume-upload-input"
+                name="resume"
+                tabindex="-1"
+                type="file"
+              />
+            </div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Full name<span class="required">✱</span></div>
+            <div class="application-field">
+              <input type="text" data-qa="name-input" name="name" required />
+            </div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Email<span class="required">✱</span></div>
+            <div class="application-field">
+              <input name="email" data-qa="email-input" type="email" required />
+            </div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Phone <span class="required">✱</span></div>
+            <div class="application-field">
+              <input type="text" data-qa="phone-input" name="phone" required />
+            </div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">Current company <span class="required">✱</span></div>
+            <div class="application-field">
+              <input type="text" data-qa="org-input" name="org" required />
+            </div>
+          </label>
+        </li>
+        <li class="application-question">
+          <label>
+            <div class="application-label">LinkedIn URL</div>
+            <div class="application-field"><input type="text" name="urls[LinkedIn]" /></div>
+          </label>
+        </li>
+        <li class="application-question">
+          <div class="application-label">Pronouns</div>
+          <div class="application-field">
+            <label><input type="checkbox" name="pronouns" value="she/her" />she/her</label>
+            <label><input type="checkbox" name="pronouns" value="he/him" />he/him</label>
+            <label><input type="checkbox" name="pronouns" value="they/them" />they/them</label>
+          </div>
+        </li>
+
+        <!-- custom question card (the real page also ships the card as hidden JSON; the filler does not use it) -->
+        <input
+          type="hidden"
+          name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][baseTemplate]"
+          value='{"text":"Screening","type":"posting","fields":[]}'
+        />
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width textarea">
+              <div class="text">Why do you want to work here?<span class="required">✱</span></div>
+            </div>
+            <div class="application-field full-width">
+              <textarea
+                class="card-field-input"
+                maxlength="400"
+                name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field0]"
+                required
+              ></textarea>
+            </div>
+          </div>
+        </li>
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width multiple-choice">
+              <div class="text">
+                Are you comfortable working remotely?<span class="required">✱</span>
+              </div>
+            </div>
+            <div class="application-field full-width required-field">
+              <ul data-qa="multiple-choice">
+                <li>
+                  <label
+                    ><input
+                      type="radio"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field1]"
+                      value="Yes"
+                      required="required"
+                    /><span class="application-answer-alternative">Yes</span></label
+                  >
+                </li>
+                <li>
+                  <label
+                    ><input
+                      type="radio"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field1]"
+                      value="No"
+                      required="required"
+                    /><span class="application-answer-alternative">No</span></label
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </li>
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width dropdown">
+              <div class="text">Preferred time zone</div>
+            </div>
+            <div class="application-field full-width">
+              <div class="application-dropdown">
+                <select name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field2]">
+                  <option value="">Select...</option>
+                  <option value="UTC+7 (Jakarta)">UTC+7 (Jakarta)</option>
+                  <option value="UTC+1 (Berlin)">UTC+1 (Berlin)</option>
+                  <option value="UTC-5 (New York)">UTC-5 (New York)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width multiple-select">
+              <div class="text">Which tools do you use?</div>
+            </div>
+            <div class="application-field full-width">
+              <ul data-qa="checkboxes">
+                <li>
+                  <label
+                    ><input
+                      type="checkbox"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field3]"
+                      value="Git"
+                    /><span class="application-answer-alternative">Git</span></label
+                  >
+                </li>
+                <li>
+                  <label
+                    ><input
+                      type="checkbox"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field3]"
+                      value="Docker"
+                    /><span class="application-answer-alternative">Docker</span></label
+                  >
+                </li>
+                <li>
+                  <label
+                    ><input
+                      type="checkbox"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field3]"
+                      value="Kubernetes"
+                    /><span class="application-answer-alternative">Kubernetes</span></label
+                  >
+                </li>
+                <li>
+                  <label
+                    ><input
+                      type="checkbox"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field3]"
+                      value="Terraform"
+                    /><span class="application-answer-alternative">Terraform</span></label
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </li>
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width multiple-choice">
+              <div class="text">Which stack do you use most?</div>
+            </div>
+            <div class="application-field full-width">
+              <ul data-qa="multiple-choice">
+                <li>
+                  <label
+                    ><input
+                      type="radio"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field4]"
+                      value="TypeScript"
+                    /><span class="application-answer-alternative">TypeScript</span></label
+                  >
+                </li>
+                <li>
+                  <label
+                    ><input
+                      type="radio"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field4]"
+                      value="Go"
+                    /><span class="application-answer-alternative">Go</span></label
+                  >
+                </li>
+                <li>
+                  <label
+                    ><input
+                      type="radio"
+                      name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field4]"
+                      value="Python"
+                    /><span class="application-answer-alternative">Python</span></label
+                  >
+                </li>
+              </ul>
+            </div>
+          </div>
+        </li>
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width dropdown">
+              <div class="text">Which regions can you work in?</div>
+            </div>
+            <div class="application-field full-width">
+              <div class="application-dropdown">
+                <select multiple name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field5]">
+                  <option value="Asia">Asia</option>
+                  <option value="Europe">Europe</option>
+                  <option value="Americas">Americas</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </li>
+        <li class="application-question custom-question">
+          <div>
+            <div class="application-label full-width text">
+              <div class="text">Expected salary (USD per year)</div>
+            </div>
+            <div class="application-field full-width">
+              <input
+                class="card-field-input"
+                type="text"
+                placeholder="Type your response"
+                value=""
+                name="cards[0b1c3f6e-5d3a-4f0e-9d51-2f0a6c1e7a01][field6]"
+              />
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <!-- EEO survey: never answered -->
+      <input
+        type="hidden"
+        name="surveysResponses[5e0d6a52-71a3-4c52-8d0e-3b1f9c4a2b02][baseTemplate]"
+        value="{}"
+      />
+      <input
+        type="hidden"
+        name="surveysResponses[5e0d6a52-71a3-4c52-8d0e-3b1f9c4a2b02][surveyId]"
+        value="survey-1"
+      />
+      <div class="application-question survey">
+        <div class="application-label">Gender</div>
+        <label
+          ><input
+            type="radio"
+            name="surveysResponses[5e0d6a52-71a3-4c52-8d0e-3b1f9c4a2b02][responses][field0]"
+            value="Prefer not to disclose"
+          />Prefer not to disclose</label
+        >
+        <label
+          ><input
+            type="radio"
+            name="surveysResponses[5e0d6a52-71a3-4c52-8d0e-3b1f9c4a2b02][responses][field0]"
+            value="Other"
+          />Other</label
+        >
+      </div>
+
+      <!-- hidden bookkeeping inputs -->
+      <input type="hidden" name="accountId" value="00000000-0000-4000-8000-000000000000" />
+      <input type="hidden" name="origin" value="" />
+      <input type="hidden" name="referer" value="" />
+      <input type="hidden" name="timezone" id="applicant-timezone" value="" />
+      <input type="hidden" name="resumeStorageId" value="" />
+      <input type="hidden" name="consent[marketing]" value="0" />
+      <input type="checkbox" name="consent[marketing]" value="1" />
+      <button id="hcaptchaSubmitBtn" type="submit" class="hidden" style="display: none"></button>
+      <button
+        id="btn-submit"
+        type="button"
+        class="postings-btn template-btn-submit"
+        data-qa="btn-submit"
+      >
+        Submit application
+      </button>
+    </form>
+
+    <script>
+      // Like the real page: selecting a file posts it to /parseResume, analytics fire on load, and the visible button
+      // submits the form. A dry run aborts every one of these requests and never clicks the button.
+      const post = (path) => fetch(path, { method: "POST", body: "{}" }).catch(() => {});
+      post("/collect/pageview");
+      document
+        .getElementById("resume-upload-input")
+        .addEventListener("change", () => post("/parseResume"));
+      document.getElementById("btn-submit").addEventListener("click", () => {
+        document.getElementById("application-form").requestSubmit();
+      });
+      document.getElementById("application-form").addEventListener("submit", () => post("/apply"));
+    </script>
+  </body>
+</html>

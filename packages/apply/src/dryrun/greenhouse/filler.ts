@@ -54,16 +54,17 @@ export interface GreenhouseRunSummary extends FinishedRun {
   total: number;
 }
 
-/** The posting's stored Greenhouse questions as planner fields (`ats.id` = the page's control id). */
-export function loadStoredQuestions(db: Db, postingId: string): FormField[] {
+/** The posting's stored questions of one ATS as planner fields (`ats.id` = the page's control id / name). */
+export function loadStoredQuestions(
+  db: Db,
+  postingId: string,
+  atsType: "greenhouse" | "lever" = "greenhouse",
+): FormField[] {
   return db
     .select()
     .from(posting_questions)
     .where(
-      and(
-        eq(posting_questions.posting_id, postingId),
-        eq(posting_questions.ats_type, "greenhouse"),
-      ),
+      and(eq(posting_questions.posting_id, postingId), eq(posting_questions.ats_type, atsType)),
     )
     .orderBy(asc(posting_questions.question_id))
     .all()
@@ -82,7 +83,7 @@ export function loadStoredQuestions(db: Db, postingId: string): FormField[] {
         field_type: q.type,
         required: q.required,
         options,
-        ats: { type: "greenhouse", id: q.question_id },
+        ats: { type: atsType, id: q.question_id },
       };
     });
 }

@@ -228,7 +228,7 @@ export interface SeenRequest {
   path: string;
 }
 
-export interface GreenhouseFixtureServer {
+export interface FixtureServer {
   origin: string;
   requests: SeenRequest[];
   /** Everything the server saw that was not GET or HEAD (must stay empty). */
@@ -236,18 +236,23 @@ export interface GreenhouseFixtureServer {
   close: () => Promise<void>;
 }
 
-/** Serves the committed pages on 127.0.0.1 (ephemeral port) and records every request it receives. */
-export async function startGreenhouseFixtureServer(): Promise<GreenhouseFixtureServer> {
+export type GreenhouseFixtureServer = FixtureServer;
+
+/** Serves committed pages (URL path -> file in `dir`) on 127.0.0.1 (ephemeral port) and records every request it receives. */
+export async function startFixtureServer(
+  dir: string,
+  pages: Readonly<Record<string, string>>,
+): Promise<FixtureServer> {
   const requests: SeenRequest[] = [];
   const server: Server = createServer((req: IncomingMessage, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     requests.push({ method: req.method ?? "", path: url.pathname });
     req.resume();
-    const file = PAGES[url.pathname];
+    const file = pages[url.pathname];
     if (file !== undefined && (req.method === "GET" || req.method === "HEAD")) {
       res
         .writeHead(200, { "content-type": "text/html; charset=utf-8" })
-        .end(readFileSync(join(FIXTURES_DIR, file)));
+        .end(readFileSync(join(dir, file)));
     } else {
       res.writeHead(404, { "content-type": "text/plain" }).end("not found");
     }
@@ -265,3 +270,7 @@ export async function startGreenhouseFixtureServer(): Promise<GreenhouseFixtureS
       }),
   };
 }
+
+/** Serves the committed Greenhouse pages. */
+export const startGreenhouseFixtureServer = (): Promise<FixtureServer> =>
+  startFixtureServer(FIXTURES_DIR, PAGES);

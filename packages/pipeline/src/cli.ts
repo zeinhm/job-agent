@@ -385,7 +385,7 @@ const usage = (): string =>
     Object.keys(commands)
       .map((name) => `  ${name}`)
       .join("\n") || "  (none yet)"
-  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n`;
+  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse or Lever form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n`;
 
 export async function main(
   argv: string[],
