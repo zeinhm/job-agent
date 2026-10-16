@@ -9,6 +9,7 @@
 #   ACTION: question   QUESTION: ...                    (needs a decision: Doctor first, owner if it must be)
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
+. "$(dirname "$0")/step-git.sh"
 ROLE="${1:?role}"; ID="${2:?task id}"
 case "$ROLE" in dev|qa|auditor|researcher|pm) ;; *) echo "unknown role $ROLE" >&2; exit 2 ;; esac
 cd "$REPO"
@@ -23,10 +24,10 @@ lock_main(){ local i=0; until mkdir "$LOCK" 2>/dev/null; do i=$((i+1)); [ $i -gt
              trap 'rmdir "$LOCK" 2>/dev/null' EXIT; }
 unlock_main(){ rmdir "$LOCK" 2>/dev/null; trap - EXIT; }
 main_ready(){ git checkout -q main 2>/dev/null || question "could not check out main in the repo"
-              if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-                git stash push -q -m "agent-step $ID: owner's uncommitted changes" && log "stashed uncommitted changes in main for $ID (git stash list)"
-              fi
-              PE="$(git pull -q --ff-only origin main 2>&1)" || question "git pull on main failed (diverged?): $(errtail "$PE")"
+              stash_foreign
+              # pm/researcher: their docs edits are committed here, before the pull, so the pull can never lose them
+              commit_docs || question "$STEP_ERR"
+              sync_main || question "$STEP_ERR"
               # local main must equal GitHub: a squash into a main with unpushed commits conflicts in a way no cloud sync can fix
               { PE="$("$HOME/projects/job-agent-ops/bin/push-main" 2>&1)"; [ -z "$(git rev-list origin/main..main 2>/dev/null)" ]; } || question "local main has commits that are not on GitHub (git log origin/main..main): the owner must run jpush in the repo, then release this card. push-main said: $(errtail "$PE")"; }
 post_comment(){ local f="$COMMENTF"; [ -s "$f" ] || { printf 'Report (no comment file), last lines:\n\n%s\n' "$(tail -40 "$OUTF")" > "$H/$ID-fallback.md"; f="$H/$ID-fallback.md"; }
@@ -154,18 +155,17 @@ case "$ROLE" in
     fi
     lock_main; main_ready
     N="$(printf '%s' "$TITLE" | grep -oE '#[0-9]+' | tr -d '#' | head -1)"
-    if [ -s "$REPORTF" ]; then mkdir -p docs/audits
-      case "$TITLE" in *[Pp]hase*) cp "$REPORTF" "docs/audits/phase-${N:-x}.md" ;; *) cp "$REPORTF" "docs/audits/batch-${N:-$ID}.md" ;; esac; fi
-    git add docs/audits 2>/dev/null; git diff --cached --quiet || git commit -q -m "docs: audit report ($ID)"
-    [ -n "$N" ] && git tag -f "audit-$N" >/dev/null 2>&1
-    gpush -q origin main --tags 2>/dev/null || gpush -q origin main
-    unlock_main; complete "Audit $VERDICT: $VSUM (fix tasks, if any, are listed in the report)" ;;
+    record_audit "$VERDICT" "$N" "$TITLE" "$REPORTF" || question "$STEP_ERR"
+    if [ -n "$AUDIT_TAG" ]; then gpush -q origin main "refs/tags/$AUDIT_TAG" 2>/dev/null || gpush -q origin main; else gpush -q origin main 2>/dev/null; fi
+    unlock_main
+    if [ -n "$AUDIT_TAG" ]; then TAGNOTE="tag $AUDIT_TAG set"; [ "$AUDIT_TAG" != "audit-$N" ] && TAGNOTE="$TAGNOTE (audit-$N already existed)"
+    else TAGNOTE="no tag set"; fi
+    complete "Audit $VERDICT ($TAGNOTE${AUDIT_REPORT:+, report $AUDIT_REPORT}): $VSUM (fix tasks, if any, are listed in the report)" ;;
   researcher|pm)
     [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the $ROLE run"
     lock_main; main_ready
-    if [ "$ROLE" = researcher ]; then git add docs/research 2>/dev/null; else git add docs 2>/dev/null; fi
-    if ! git diff --cached --quiet; then
-      git commit -q -m "docs($ROLE): $ID" || { git reset -q; unlock_main; question "the pre-commit hook refused the $ROLE docs: see $OUTF"; }
+    # main_ready already committed the docs and rebased them onto origin/main; push whatever is ahead of GitHub
+    if [ -n "$(git rev-list origin/main..main 2>/dev/null)" ]; then
       PE="$(gpush -q origin main 2>&1)" || { unlock_main; question "push of the $ROLE docs failed: $(errtail "$PE")"; }
     fi
     unlock_main; complete "$VSUM" ;;
