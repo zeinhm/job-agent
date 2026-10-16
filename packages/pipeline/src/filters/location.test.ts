@@ -454,3 +454,80 @@ describe("work-authorization and residence wording is judged by its places", () 
     ).toBe("worldwide");
   });
 });
+
+describe("classifyLocation: worldwide phrase in the title (t_b032ee04)", () => {
+  const title = (titleText: string, locationText: string, extra: Partial<LocationInput> = {}) =>
+    classifyLocation({ titleText, locationText, ...extra });
+
+  it.each([
+    "Engineer (100% Remote - Worldwide)",
+    "Engineer - Remote (Worldwide)",
+    "Engineer, remote - worldwide",
+    "Worldwide Remote Engineer",
+    "Engineer (Fully remote, anywhere)",
+    "Engineer | Remote - Anywhere",
+    "Engineer [REMOTE – GLOBAL]",
+    "Engineer, work from anywhere",
+  ])("%s + HQ city -> worldwide, with the phrase in the reason", (t) => {
+    const r = title(t, "Berlin, Germany");
+    expect(r.class).toBe("worldwide");
+    expect(r.reason).toMatch(/^step 3 worldwide signal ".+" in title$/);
+  });
+
+  it("applies when the location is empty or remote wording", () => {
+    expect(title("Engineer (Remote - Worldwide)", "").class).toBe("worldwide");
+    expect(title("Engineer (Remote - Worldwide)", "Remote").class).toBe("worldwide");
+  });
+
+  it("does not apply to location text that is neither empty, a place nor remote wording", () => {
+    expect(title("Engineer (Remote - Worldwide)", "Zzyzx HQ").class).toBe("unclear");
+  });
+
+  it("every step 2 restriction still wins over the title", () => {
+    const t = "Engineer (100% Remote - Worldwide)";
+    expect(title(t, "Berlin", { descriptionText: "Must be based in the US." }).class).toBe(
+      "restricted",
+    );
+    expect(title(t, "Berlin", { descriptionText: "Candidates: US only." }).class).toBe(
+      "restricted",
+    );
+    expect(title(t, "Hybrid, Berlin").class).toBe("restricted");
+    expect(title(t, "Berlin", { remote: false }).class).toBe("restricted");
+    expect(title(t, "Berlin", { tags: ["US only"] }).class).toBe("restricted");
+    expect(title(t, "Berlin", { descriptionText: "Work hours UTC-5 to UTC+1." }).class).toBe(
+      "restricted",
+    );
+    expect(title(t, "Remote - Germany").class).toBe("restricted");
+  });
+
+  it("APAC signals keep step 1", () => {
+    const t = "Engineer (Remote - Worldwide)";
+    expect(title(t, "Jakarta, Indonesia").reason).toContain("step 1 APAC");
+    expect(title(t, "Berlin", { tags: ["APAC"] }).reason).toContain("step 1 APAC");
+  });
+
+  it("plain Remote in the title settles nothing", () => {
+    expect(title("Engineer - Remote", "Berlin, Germany").class).toBe("restricted");
+    expect(title("Engineer - Remote", "").class).toBe("unclear");
+    expect(title("Engineer - Remote", "Remote").class).toBe("unclear");
+  });
+
+  it("a title restriction is not worldwide and changes nothing else", () => {
+    // Stays exactly as without the title: a city is still an on-site place; a bare "Remote" stays unclear.
+    expect(title("Engineer (Remote (US))", "Berlin, Germany").class).toBe("restricted");
+    expect(title("Engineer (Remote (EU))", "Remote").class).toBe("unclear");
+    expect(title("Engineer - Remote - Worldwide, US only", "Berlin").class).toBe("restricted");
+    expect(title("Engineer - Remote - Worldwide, US only", "Remote").class).toBe("unclear");
+  });
+
+  it("a region in the location field narrows the title", () => {
+    expect(title("Engineer (Remote - Worldwide)", "Remote - EU").class).toBe("unclear");
+  });
+
+  it("no title behaves as before", () => {
+    expect(classifyLocation({ locationText: "Berlin, Germany" }).class).toBe("restricted");
+    expect(classifyLocation({ titleText: null, locationText: "Berlin, Germany" }).class).toBe(
+      "restricted",
+    );
+  });
+});

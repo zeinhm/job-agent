@@ -665,6 +665,21 @@ export const WORLDWIDE_LOCATION_PHRASES: readonly string[] = [
   "remote - anywhere",
 ];
 
+/**
+ * Worldwide-remote wording in a job title ("Senior Engineer (100% Remote - Worldwide)"). Matched with case and
+ * punctuation ignored, so "Remote - Worldwide" and "remote (worldwide)" are the same phrase. Plain "Remote" is not here.
+ */
+export const WORLDWIDE_TITLE_PHRASES: readonly string[] = [
+  "100% remote - worldwide",
+  "remote - worldwide",
+  "remote (worldwide)",
+  "worldwide remote",
+  "fully remote, anywhere",
+  "remote - anywhere",
+  "remote - global",
+  "work from anywhere",
+];
+
 /** Worldwide wording in the description. More specific than the location list: "global" alone is marketing copy there. */
 export const WORLDWIDE_DESCRIPTION_PHRASES: readonly string[] = [
   "worldwide",

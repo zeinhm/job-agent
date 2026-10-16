@@ -7,6 +7,7 @@ const CLASSES = ["worldwide", "apac_ok", "restricted", "unclear"] as const;
 
 const GoldenCase = z.object({
   id: z.string(),
+  titleText: z.string().optional(),
   locationText: z.string(),
   descriptionSnippet: z.string(),
   remote: z.boolean().optional(),
@@ -36,6 +37,7 @@ type Row = {
 function run(): Row[] {
   return cases.map((c) => {
     const result = classifyLocation({
+      ...(c.titleText !== undefined && { titleText: c.titleText }),
       locationText: c.locationText,
       descriptionText: c.descriptionSnippet,
       ...(c.remote !== undefined && { remote: c.remote }),

@@ -14,12 +14,14 @@ import {
   RESTRICTION_PHRASES,
   WORLDWIDE_DESCRIPTION_PHRASES,
   WORLDWIDE_LOCATION_PHRASES,
+  WORLDWIDE_TITLE_PHRASES,
 } from "./keywords.ts";
 import { phrasePattern } from "./phrases.ts";
 
 export type LocationClass = "worldwide" | "apac_ok" | "restricted" | "unclear";
 
 export type LocationInput = {
+  titleText?: string | null;
   locationText?: string | null;
   descriptionText?: string | null;
   remote?: boolean | null;
@@ -237,6 +239,32 @@ function trimmed(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
 
+function normalizeTitle(text: string): string {
+  return stripAccents(text)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+/**
+ * A worldwide-remote phrase in the title, usable only when the location field is empty, a bare place or remote wording
+ * (other location text is not second-guessed). A title that also carries a restriction ("Remote - Worldwide, US only")
+ * is not a worldwide signal.
+ */
+function findTitleWorldwide(title: string, locationFields: readonly Field[]): string | undefined {
+  if (!title) return undefined;
+  const locationText = locationFields[0]?.text ?? "";
+  const eligible =
+    !locationText || findPlace(locationText) || findPhrase(locationFields, REMOTE_PHRASES);
+  if (!eligible) return undefined;
+  // "Remote - EU" in the location contradicts a worldwide title: the field narrows it, the title does not widen it.
+  if (HIRING_REGION_NAMES.some((r) => phrasePattern(r).test(locationText))) return undefined;
+  const normalized = normalizeTitle(title);
+  if (RESTRICTION_PHRASES.some((p) => phrasePattern(normalizeTitle(p)).test(normalized))) {
+    return undefined;
+  }
+  return WORLDWIDE_TITLE_PHRASES.find((p) => phrasePattern(normalizeTitle(p)).test(normalized));
+}
+
 function cite(hit: Hit): string {
   return `"${hit.phrase}" in ${hit.field}`;
 }
@@ -246,7 +274,8 @@ function cite(hit: Hit): string {
  * 1. APAC signal in location or tags -> apac_ok
  * 2. restriction in location, tags or description -> restricted; a description sentence limiting hiring to places
  *    that exclude Indonesia -> restricted, one with an unreadable place list -> unclear (both before step 3)
- * 3. worldwide signal -> worldwide
+ * 3. worldwide signal -> worldwide; a worldwide-remote phrase in the title counts when the location is empty, a bare
+ *    place or remote wording (every step 2 restriction has already been checked)
  * 4. APAC signal in the description only -> apac_ok
  * 5. a location that positively names a place (KNOWN_PLACES whitelist or an on-site word), no remote
  *    wording in location or tags -> restricted (onsite)
@@ -338,6 +367,10 @@ export function classifyLocation(input: LocationInput): LocationResult {
     findPhrase([descriptionField], WORLDWIDE_DESCRIPTION_PHRASES);
   if (worldwide) {
     return { class: "worldwide", reason: `step 3 worldwide signal ${cite(worldwide)}` };
+  }
+  const titleWorldwide = findTitleWorldwide(trimmed(input.titleText), locationFields);
+  if (titleWorldwide) {
+    return { class: "worldwide", reason: `step 3 worldwide signal "${titleWorldwide}" in title` };
   }
 
   // 4. APAC in the description only

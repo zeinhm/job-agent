@@ -64,6 +64,7 @@ export function analyze(db: Db, p: Posting, floor: number, now: Date) {
   const idr = toIdrMonth(parsed, db, jakartaDate(now));
 
   const location = classifyLocation({
+    titleText: p.title,
     locationText: p.location_text,
     descriptionText: p.description_text,
     remote: p.remote,

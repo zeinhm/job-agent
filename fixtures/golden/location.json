@@ -1147,5 +1147,150 @@
     "descriptionSnippet": "Must be authorized to work in the US or Canada.",
     "expected": "restricted",
     "source": "t_e1bd0972 work-authorization wording"
+  },
+  {
+    "id": "loc-162",
+    "titleText": "Senior Frontend Engineer (100% Remote - Worldwide)",
+    "locationText": "Berlin, Germany",
+    "descriptionSnippet": "",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-163",
+    "titleText": "Backend Engineer - Remote (Worldwide)",
+    "locationText": "Lisbon, Portugal",
+    "descriptionSnippet": "We build tools for logistics teams.",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-164",
+    "titleText": "Data Engineer | Worldwide Remote",
+    "locationText": "Austin, TX",
+    "descriptionSnippet": "",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-165",
+    "titleText": "Platform Engineer - Remote - Anywhere",
+    "locationText": "",
+    "descriptionSnippet": "",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-166",
+    "titleText": "QA Engineer (Fully remote, anywhere)",
+    "locationText": "London",
+    "descriptionSnippet": "",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-167",
+    "titleText": "Mobile Developer - Work from anywhere",
+    "locationText": "Remote",
+    "descriptionSnippet": "",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-168",
+    "titleText": "Product Designer - Remote - Global",
+    "locationText": "Toronto, Canada",
+    "descriptionSnippet": "Our team celebrates its anniversary every year.",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-169",
+    "titleText": "SRE (100% REMOTE – WORLDWIDE)",
+    "locationText": "Amsterdam",
+    "descriptionSnippet": "",
+    "expected": "worldwide",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-170",
+    "titleText": "Senior Frontend Engineer (100% Remote - Worldwide)",
+    "locationText": "Berlin, Germany",
+    "descriptionSnippet": "Candidates must be based in the US.",
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-171",
+    "titleText": "Backend Engineer (Remote - Worldwide)",
+    "locationText": "Paris",
+    "descriptionSnippet": "We can only hire in Germany and Austria.",
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-172",
+    "titleText": "Senior Frontend Engineer (100% Remote - Worldwide)",
+    "locationText": "Hybrid, Berlin",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-173",
+    "titleText": "Engineer (Remote - Worldwide)",
+    "locationText": "Berlin",
+    "descriptionSnippet": "",
+    "remote": false,
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-174",
+    "titleText": "Senior Engineer (Remote (US))",
+    "locationText": "Berlin, Germany",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-175",
+    "titleText": "Senior Engineer - Remote - Worldwide, US only",
+    "locationText": "Berlin, Germany",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-176",
+    "titleText": "Senior Engineer - Remote",
+    "locationText": "Berlin, Germany",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-177",
+    "titleText": "Senior Engineer - Remote",
+    "locationText": "Remote",
+    "descriptionSnippet": "",
+    "expected": "unclear",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-178",
+    "titleText": "Senior Engineer (100% Remote - Worldwide)",
+    "locationText": "Remote - EU",
+    "descriptionSnippet": "",
+    "expected": "unclear",
+    "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-179",
+    "titleText": "Senior Engineer (Remote - Worldwide)",
+    "locationText": "Jakarta, Indonesia",
+    "descriptionSnippet": "",
+    "expected": "apac_ok",
+    "source": "t_b032ee04 title worldwide"
   }
 ]
