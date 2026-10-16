@@ -63,6 +63,7 @@ describe("Phase 3 run docs", () => {
         "discover",
         "discover-companies",
         "enrich",
+        "fetch-descriptions",
         "resolve-apply",
         "fetch-questions",
         "process",
@@ -257,10 +258,10 @@ describe("Phase 2 run docs", () => {
     // the hourly script runs the steps in the documented order
     const script = read("bin/run-hourly");
     expect(script).toContain(
-      "for cmd in discover process enrich resolve-apply fetch-questions digest; do",
+      "for cmd in discover process fetch-descriptions enrich resolve-apply fetch-questions digest; do",
     );
     expect(running).toContain(
-      "`discover`, `process`, `enrich`, `resolve-apply`, `fetch-questions`, `digest`",
+      "`discover`, `process`, `fetch-descriptions`, `enrich`, `resolve-apply`, `fetch-questions`, `digest`",
     );
   });
 

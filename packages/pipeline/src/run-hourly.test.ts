@@ -50,13 +50,14 @@ const run = (env: NodeJS.ProcessEnv) =>
   spawnSync("bash", [script], { cwd: repo, encoding: "utf-8", env });
 
 describe("bin/run-hourly", () => {
-  it("runs discover, process, enrich, resolve-apply, fetch-questions, digest in order, each logged to data/logs/<command>.log", () => {
+  it("runs discover, process, fetch-descriptions, enrich, resolve-apply, fetch-questions, digest in order, each logged to data/logs/<command>.log", () => {
     const s = setup();
     const res = run(s.env);
     expect(res.status).toBe(0);
     expect(s.called()).toEqual([
       "discover",
       "process",
+      "fetch-descriptions",
       "enrich",
       "resolve-apply",
       "fetch-questions",
@@ -88,6 +89,7 @@ describe("bin/run-hourly", () => {
     expect(s.called()).toEqual([
       "discover",
       "process",
+      "fetch-descriptions",
       "enrich",
       "resolve-apply",
       "fetch-questions",
@@ -115,7 +117,7 @@ describe("bin/run-hourly", () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("stale lock");
     expect(res.stdout).not.toContain("skipped");
-    expect(s.called()).toHaveLength(6);
+    expect(s.called()).toHaveLength(7);
     expect(existsSync(s.lock)).toBe(false);
   });
 
@@ -140,6 +142,7 @@ describe("bin/run-hourly", () => {
       expect(s.called(), `round ${i}`).toEqual([
         "discover",
         "process",
+        "fetch-descriptions",
         "enrich",
         "resolve-apply",
         "fetch-questions",
@@ -170,7 +173,7 @@ describe("bin/run-hourly", () => {
     expect(a.rb.out).toContain(SKIP);
     expect([a.ra.code, a.rb.code]).toEqual([0, 0]);
     expect(s.called().filter((c) => c === "discover")).toHaveLength(1);
-    expect(s.called()).toHaveLength(6);
+    expect(s.called()).toHaveLength(7);
     expect(readdirSync(join(s.data, "locks"))).toEqual([]);
   }, 30_000);
 
@@ -181,6 +184,7 @@ describe("bin/run-hourly", () => {
     expect(s.called()).toEqual([
       "discover",
       "process",
+      "fetch-descriptions",
       "enrich",
       "resolve-apply",
       "fetch-questions",

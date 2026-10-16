@@ -9,6 +9,7 @@ import {
   isNotNull,
   isNull,
   ne,
+  not,
   notInArray,
   or,
   sql,
@@ -31,6 +32,7 @@ import {
   type Posting,
   type SalaryConfig,
 } from "@job-agent/core";
+import { descriptionPendingSql } from "./description-state.ts";
 import { resolveFlags } from "./intel/resolve.ts";
 import {
   EXTRACT_MODEL,
@@ -486,6 +488,8 @@ export function selectPostings(db: Db, limit: number | undefined): Posting[] {
       and(
         isNull(postings.canonical_posting_id),
         eq(analysis.decision, "keep"),
+        // A LinkedIn posting still waiting for its description is not extracted on the title alone (no spend).
+        not(descriptionPendingSql),
         or(isNull(intel.id), inArray(intel.status, ["pending", "budget_wait"]), FIT_RETRYABLE_SQL),
       ),
     )
@@ -523,6 +527,7 @@ export function selectOutdated(
       and(
         isNull(postings.canonical_posting_id),
         eq(analysis.decision, "keep"),
+        not(descriptionPendingSql),
         isNotNull(intel.extraction),
         or(
           isNull(intel.extract_prompt_version),

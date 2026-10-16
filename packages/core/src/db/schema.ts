@@ -53,6 +53,9 @@ export const postings = sqliteTable(
     normalized_at: text("normalized_at"), // ISO 8601 UTC, nullable
     content_hash: text("content_hash"),
     updated_at: text("updated_at"), // ISO 8601 UTC, nullable
+    // LinkedIn description fetch (fetch-descriptions): counted failed attempts, and when the third one gave the posting up.
+    description_attempts: integer("description_attempts").notNull().default(0),
+    description_unavailable_at: text("description_unavailable_at"), // ISO 8601 UTC, nullable
   },
   (table) => ({
     posting_source_external_id: unique("posting_source_external_id").on(
@@ -100,6 +103,17 @@ export const source_runs = sqliteTable("source_runs", {
   new: integer("new").notNull(),
   error_message: text("error_message"), // nullable
   saturated: integer("saturated"), // searches whose first page was full (JobSpy sources); null for others
+});
+
+// One row per `fetch-descriptions` run that sent at least one detail request; Source health reads the latest one.
+export const description_runs = sqliteTable("description_runs", {
+  id: text("id").primaryKey(),
+  source: text("source").notNull(),
+  started_at: text("started_at").notNull(), // ISO 8601 UTC
+  finished_at: text("finished_at").notNull(), // ISO 8601 UTC
+  requested: integer("requested").notNull(), // detail requests sent, a blocked one included
+  failed: integer("failed").notNull(), // requests that returned no description (a block is not counted here)
+  blocked: integer("blocked", { mode: "boolean" }).notNull(),
 });
 
 export const fx_rates = sqliteTable(
@@ -329,6 +343,9 @@ export type NewAnalysis = InferInsertModel<typeof analysis>;
 
 export type SourceRun = InferSelectModel<typeof source_runs>;
 export type NewSourceRun = InferInsertModel<typeof source_runs>;
+
+export type DescriptionRun = InferSelectModel<typeof description_runs>;
+export type NewDescriptionRun = InferInsertModel<typeof description_runs>;
 
 export type FxRate = InferSelectModel<typeof fx_rates>;
 export type NewFxRate = InferInsertModel<typeof fx_rates>;

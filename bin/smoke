@@ -78,6 +78,8 @@ if [ "$DEMO" = 1 ]; then step seed-demo || fail=1; fi
 for s in "${SOURCES[@]}"; do step discover --force --source "$s" || true; done
 step process || fail=1
 USAGE="$("${CLI[@]}" 2>&1)"
+# LinkedIn descriptions: no linkedin posting without --with-jobspy, so this prints "nothing to fetch"; with it, up to 10 detail requests, 10 s apart.
+if grep -q '^  fetch-descriptions$' <<< "$USAGE"; then step fetch-descriptions || true; fi
 if grep -q '^  enrich$' <<< "$USAGE"; then step enrich || true; fi
 if grep -q '^  resolve-apply$' <<< "$USAGE"; then step resolve-apply --limit 3 || true; fi
 step answers import || fail=1

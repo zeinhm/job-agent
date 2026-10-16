@@ -23,6 +23,13 @@ Arguments: one JSON object in argv[1] (or on stdin): `site` (`linkedin` | `indee
 Exit 0: one job object per line. Exit 2: one line `{"error": "...", "kind": "blocked" | "error"}`. A block is a
 429 / 999 / 403 status, an authwall or CAPTCHA, read from JobSpy's log records (JobSpy logs blocks instead of raising).
 
+**Details mode** (LinkedIn descriptions, `fetch-descriptions`): argument `{"mode": "details", "site": "linkedin", "job_ids": ["li-123", ...]}`
+(1 to 20 ids; a bare id, `li-<id>` or a `/jobs/view/` URL). JobSpy has no public per-job call, so the worker calls its private
+`LinkedIn._fetch_details(id)` (one GET per id, logged out, 10 s apart inside one call) and fails loudly when that method is gone.
+Exit 0: one line per id, `{"id": "<as given>", "description": "..."}` or `{"id": "<as given>", "error": "..."}` (an empty page is
+a per-id failure, not a block). A block (429 / 999 / 403 status, authwall, CAPTCHA, a redirect away from `/jobs/view/`) prints the
+lines of the ids done before it, then `{"error": "...", "kind": "blocked"}` and exits 2.
+
 ## Tests
 
 `python3 -m unittest discover -s workers/jobspy -p 'test_run.py'` (JobSpy mocked, never touches the network).

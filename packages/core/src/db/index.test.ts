@@ -59,6 +59,7 @@ describe("openDb", () => {
       "answer_bank",
       "apply_links",
       "companies",
+      "description_runs",
       "fx_rates",
       "intel",
       "llm_calls",

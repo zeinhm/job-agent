@@ -25,12 +25,20 @@ export interface WorkerSearch {
   country?: string;
 }
 
+/** Detail mode: one LinkedIn description fetch per id (the worker's `"mode": "details"`). */
+export interface WorkerDetails {
+  mode: "details";
+  site: "linkedin";
+  job_ids: string[];
+}
+
 export interface WorkerOutput {
   exitCode: number;
   stdout: string;
 }
 
 export type WorkerRunner = (search: WorkerSearch) => Promise<WorkerOutput>;
+export type DetailRunner = (details: WorkerDetails) => Promise<WorkerOutput>;
 
 export interface SpawnWorkerOptions {
   source: string;
@@ -46,6 +54,15 @@ export interface SpawnWorkerOptions {
 
 /** Spawns the venv python on run.py with the search as JSON on stdin. Missing venv = SourceSkippedError. */
 export function createSpawnRunner(opts: SpawnWorkerOptions): WorkerRunner {
+  return createJsonRunner<WorkerSearch>(opts);
+}
+
+/** Same spawn (same VITEST guard, venv check and timeout) for the detail mode. */
+export function createDetailSpawnRunner(opts: SpawnWorkerOptions): DetailRunner {
+  return createJsonRunner<WorkerDetails>(opts);
+}
+
+function createJsonRunner<T>(opts: SpawnWorkerOptions): (search: T) => Promise<WorkerOutput> {
   const python = opts.python ?? DEFAULT_PYTHON;
   const script = opts.script ?? WORKER_SCRIPT;
   const timeoutMs = opts.timeoutMs ?? WORKER_TIMEOUT_MS;

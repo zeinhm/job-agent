@@ -10,6 +10,7 @@ import {
   type NewAnalysis,
   type Posting,
 } from "@job-agent/core";
+import { DESCRIPTION_MISSING_FLAG, descriptionState } from "./description-state.ts";
 import { STALE_ANALYZED_AT } from "./stale.ts";
 import { dedupePending } from "./dedupe/index.ts";
 import { classifyIndonesia } from "./filters/indonesia.ts";
@@ -32,6 +33,7 @@ const FLAG_ORDER = [
   "location_unclear",
   "indonesia_unclear",
   "role_unclear",
+  DESCRIPTION_MISSING_FLAG,
   "salary_unknown",
   "salary_unparsed",
   "salary_no_fx",
@@ -92,6 +94,8 @@ export function analyze(db: Db, p: Posting, floor: number, now: Date) {
   if (location.class === "unclear") flags.add("location_unclear");
   if (indonesia.value === "unclear") flags.add("indonesia_unclear");
   if (role.class === "unclear") flags.add("role_unclear");
+  // A LinkedIn posting judged on its title only: never a Top match until fetch-descriptions brings the text.
+  if (descriptionState(p) !== "present") flags.add(DESCRIPTION_MISSING_FLAG);
   if (floorResult.flag !== undefined) flags.add(floorResult.flag);
 
   // Same job already sent under another posting of the group: don't send it again.

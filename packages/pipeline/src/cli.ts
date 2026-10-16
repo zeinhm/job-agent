@@ -12,7 +12,7 @@ import {
   source_runs,
 } from "@job-agent/core";
 import { importAnswers, loadAnswers, matchQuestions } from "@job-agent/apply";
-import { buildAdapters } from "@job-agent/sources";
+import { buildAdapters, createLinkedInDetailFetcher } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runResolveApply } from "./apply-links/index.ts";
 import { runDigest } from "./digest/index.ts";
@@ -22,6 +22,7 @@ import { runDiscoverCompanies } from "./discover-companies.ts";
 import { loadEnvFile } from "./env.ts";
 import { runExportReviews } from "./eval/export-reviews.ts";
 import { runEnrich } from "./enrich.ts";
+import { runFetchDescriptions } from "./fetch-descriptions.ts";
 import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
@@ -101,6 +102,26 @@ const commands: Record<string, Command> = {
         limit,
         noReextract,
         reextractOnly,
+        out: io.out,
+        err: io.err,
+      });
+    } finally {
+      db.$client.close();
+    }
+  },
+  "fetch-descriptions": async (args, io) => {
+    try {
+      // --force is accepted like on `discover` and changes nothing: the linkedin block backoff holds with it too.
+      parseArgs({ args, options: { force: { type: "boolean", default: false } } });
+    } catch (e) {
+      io.err(`fetch-descriptions: ${e instanceof Error ? e.message : String(e)}\n`);
+      return 1;
+    }
+    const db = openDb(defaultDbPath());
+    try {
+      return await runFetchDescriptions({
+        db,
+        fetchDescription: createLinkedInDetailFetcher(),
         out: io.out,
         err: io.err,
       });

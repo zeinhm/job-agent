@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { and, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte } from "drizzle-orm";
 import {
   analysis,
+  description_runs,
   effectiveCapUsd,
   intel,
   log,
@@ -72,6 +73,23 @@ function needsALook(flagged: Entry[]): string[] {
   ];
 }
 
+/** `details 7 (1 failed)`: the detail requests of the source's latest fetch-descriptions run in the last 24h; undefined when none. */
+function detailsText(db: Db, source: string, since: string): string | undefined {
+  const run = db
+    .select()
+    .from(description_runs)
+    .where(and(eq(description_runs.source, source), gte(description_runs.started_at, since)))
+    .orderBy(desc(description_runs.started_at))
+    .limit(1)
+    .get();
+  if (run === undefined) return undefined;
+  const notes = [
+    ...(run.failed > 0 ? [`${run.failed} failed`] : []),
+    ...(run.blocked ? ["blocked"] : []),
+  ];
+  return `details ${run.requested}${notes.length > 0 ? ` (${notes.join(", ")})` : ""}`;
+}
+
 function sourceHealth(db: Db, now: Date, disabled: readonly string[] = []): string[] {
   const since = new Date(now.getTime() - DAY_MS).toISOString();
   const all = db.select().from(source_runs).all();
@@ -90,7 +108,11 @@ function sourceHealth(db: Db, now: Date, disabled: readonly string[] = []): stri
     if (latest === undefined) text = "no run in the last 24h";
     else {
       text = `${latest.status}, found ${latest.found}, new ${latest.new}`;
-      if (latest.saturated !== null) text += `, saturated ${latest.saturated}`;
+      // A detail-step block leaves an error run without a count: the search's latest count still shows.
+      const saturated = latest.saturated ?? recent.find((r) => r.saturated !== null)?.saturated;
+      if (saturated !== null && saturated !== undefined) text += `, saturated ${saturated}`;
+      const details = detailsText(db, name, since);
+      if (details !== undefined) text += `, ${details}`;
       if (latest.error_message !== null)
         text += `, ${latest.status === "error" ? "error" : "warning"}: ${latest.error_message.replace(/\s+/g, " ")}`;
     }

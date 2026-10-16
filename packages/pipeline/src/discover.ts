@@ -154,6 +154,9 @@ function refreshPosting(db: Db, old: Posting, p: RawPosting, hash: string, nowIs
       last_seen_at: nowIso,
       updated_at: nowIso,
       normalized_at: null,
+      // The text above replaced a fetched LinkedIn description: fetch-descriptions starts over for the edited posting.
+      description_attempts: 0,
+      description_unavailable_at: null,
       ...(titleChanged ? { dedupe_hash: null, canonical_posting_id: null } : {}),
     })
     .where(eq(postings.id, old.id))

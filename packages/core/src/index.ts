@@ -48,6 +48,7 @@ export {
   APPLY_METHODS,
   APPLY_TYPES,
   companies,
+  description_runs,
   fx_rates,
   intel,
   llm_calls,

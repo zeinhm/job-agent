@@ -140,7 +140,7 @@ file and PLAN.md disagree, block.
 ## 8. New sources
 | Source name | Adapter | Access | Max rate (binding) |
 |---|---|---|---|
-| `linkedin` | `packages/sources/src/jobspy/` + `workers/jobspy/` | JobSpy, logged out, adaptive `hours_old` (last ok run + 10 min, 1 to 24 h) | 2 searches per hourly run (Worldwide + remote, Indonesia + remote), `results_wanted <= 25`, >= 10 s between searches, min poll interval 50 min |
+| `linkedin` | `packages/sources/src/jobspy/` + `workers/jobspy/` | JobSpy, logged out, adaptive `hours_old` (last ok run + 10 min, 1 to 24 h) | 2 searches per hourly run (Worldwide + remote, Indonesia + remote), `results_wanted <= 25`, >= 10 s between searches, min poll interval 50 min. Descriptions: `fetch-descriptions` (between `process` and `enrich`) sends one JobSpy detail request per LinkedIn posting that has none and passes the role and source-location rules, >= 10 s after any other LinkedIn request, at most 20 per run (`MAX_DETAIL_REQUESTS_PER_RUN`), newest first, at most 3 counted attempts (`MAX_DESCRIPTION_ATTEMPTS`), and shares the 6 h block backoff with the search (nothing sent during it, also not with `--force`; a block ends the step and starts it) |
 | `indeed` | same | JobSpy | 2 searches per run (global remote, Indonesia remote), min poll interval 2 h |
 | `yc` | `packages/sources/src/yc/` | public ycombinator.com job pages (research decides endpoint) | per research, never faster than 1 request / 3 s, page cap |
 | `jobstreet` | `packages/sources/src/jobstreet/` | public search pages / endpoint (research decides) | per research, never faster than 1 request / 3 s, page cap |

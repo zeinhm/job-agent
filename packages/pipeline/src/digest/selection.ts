@@ -8,6 +8,12 @@ import {
   type Db,
   type Intel,
 } from "@job-agent/core";
+import {
+  DESCRIPTION_MISSING_FLAG,
+  descriptionPendingSql,
+  descriptionState,
+  type DescriptionState,
+} from "../description-state.ts";
 import { ExtractionSchema } from "../intel/extract.ts";
 import { failedFitRuns, MAX_FIT_ATTEMPTS } from "../intel/fit.ts";
 import { resolveFlags } from "../intel/resolve.ts";
@@ -149,7 +155,10 @@ function failedText(i: Intel): string {
 }
 
 /** Why a kept posting has no fit score yet, in plain words. */
-function waitingReason(i: Intel | null): string {
+function waitingReason(i: Intel | null, description: DescriptionState = "present"): string {
+  if (description === "pending") return "waiting for its LinkedIn description";
+  if (description === "unavailable")
+    return "LinkedIn description unavailable after 3 attempts, judged on the title only";
   if (i?.status === "done" && i.final_decision === "keep" && i.fit_score !== null)
     return "scored, but no ask decided yet";
   if (i === null) return "not enriched yet";
@@ -221,6 +230,8 @@ interface Gathered {
   flags: string[];
   openFlags: string[];
   unclear: string[];
+  /** The lead posting has no description (LinkedIn, pending or unavailable): never a Top match. */
+  description: DescriptionState;
   sources: string[];
   link: string;
   resolved: ApplyLink | undefined;
@@ -236,8 +247,19 @@ function gather(db: Db, group: Row[]): Gathered {
   const lead = pickLead(group);
   const { p, a, i } = lead;
   const title = displayTitle(p, i);
-  const flags = [...new Set(group.flatMap((r) => parseList(r.a.flags)))];
-  const unclear = remainingUnclear(flags, i);
+  // The posting row is the truth for the description flag (an analysis row from before this rule may lack it, or still carry it).
+  const description = descriptionState(p);
+  const flags = [
+    ...new Set(
+      group.flatMap((r) => parseList(r.a.flags)).filter((f) => f !== DESCRIPTION_MISSING_FLAG),
+    ),
+    ...(description === "present" ? [] : [DESCRIPTION_MISSING_FLAG]),
+  ];
+  // description_missing is no resolvable flag: the extraction cannot settle it, only the description can.
+  const unclear = [
+    ...remainingUnclear(flags, i),
+    ...(description === "present" ? [] : [DESCRIPTION_MISSING_FLAG]),
+  ];
   // Settled unclear flags are dropped; rule flags that are not unclear flags stay.
   const openFlags = flags.filter((f) => !UNCLEAR_FLAGS.includes(f) || unclear.includes(f));
   const sources: string[] = [];
@@ -274,6 +296,7 @@ function gather(db: Db, group: Row[]): Gathered {
     flags,
     openFlags,
     unclear,
+    description,
     sources,
     link,
     resolved,
@@ -356,7 +379,15 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
 
   // A group (several postings) with no member that has an ask is not a Top match without one.
   const askless = group.length > 1 && i !== null && askLabel(i) === null;
-  if (isScored(g.lead) && i !== null && i.fit_score !== null && !askless && !tierMissingForFx(i)) {
+  // A posting without its description is judged on the title alone: it waits (and shows in Needs a look), never Top.
+  if (
+    isScored(g.lead) &&
+    i !== null &&
+    i.fit_score !== null &&
+    !askless &&
+    !tierMissingForFx(i) &&
+    g.description === "present"
+  ) {
     const fitReasons = parseList(i.fit_reasons).slice(0, MAX_REASONS);
     const label = askLabel(i);
     const rank = rankScore({
@@ -403,7 +434,9 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     kind: "waiting",
     rank: 0,
     view: viewOf(g, "waiting"),
-    line: [`- ${title} — ${p.company_name}${paidLabel} — ${waitingReason(i)} — ${applyUrl}`],
+    line: [
+      `- ${title} — ${p.company_name}${paidLabel} — ${waitingReason(i, g.description)} — ${applyUrl}`,
+    ],
   };
 }
 
@@ -476,6 +509,8 @@ export function selectDay(db: Db, date: string, opts: { stamp: boolean }): DaySe
           isNull(postings.canonical_posting_id),
           or(
             eq(analysis.digested_at, date),
+            // Waiting for its description: listed every day until the text arrives (it has no intel row to keep it in).
+            descriptionPendingSql,
             and(
               lt(analysis.digested_at, date),
               isNotNull(intel.id),
