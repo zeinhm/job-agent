@@ -111,6 +111,38 @@ fresh
 audit PASS "" "Audit of something"
 check "no number in title: no tag, report named by task id" "[ -z \"\$AUDIT_TAG\" ] && [ -f docs/audits/batch-t_audit.md ]"
 
+# ledger clearing
+ledger() { # writes docs/audit-ledger.md with one row per "id sha" argument
+  { printf '# Audit ledger\n\nLast audit tag: audit-0 (old)\n\n| Task id | Title | Risk | Merged commit | Merged on |\n|---|---|---|---|---|\n'
+    for r in "$@"; do printf '| %s | title %s | low | %s | 2026-01-01 |\n' "${r%% *}" "${r%% *}" "${r##* }"; done; } > docs/audit-ledger.md
+}
+fresh
+echo a1 >> src/code.txt; git commit -q -am a1; C1="$(git rev-parse --short HEAD)"
+echo a2 >> src/code.txt; git commit -q -am a2; C2="$(git rev-parse --short HEAD)"
+ledger "t_one $C1" "t_two $C2"; git add -A; git commit -q -m ledger
+audit PASS 1 "Batch audit #1"
+check "ledger: PASS clears covered rows and updates the tag line" "! grep -q 't_one' docs/audit-ledger.md && ! grep -q 't_two' docs/audit-ledger.md && grep -q '^Last audit tag: audit-1 (' docs/audit-ledger.md && grep -q '^| Task id |' docs/audit-ledger.md"
+check "ledger: cleared ledger is in the report commit" "git show --stat --format=%s HEAD | grep -q 'docs/audit-ledger.md' && git show --stat HEAD | grep -q 'docs/audits/batch-1.md'"
+# a row whose commit is not an ancestor of the audited commit (merged after it) stays
+git checkout -q -b side; echo s >> src/code.txt; git commit -q -am side; SIDE="$(git rev-parse --short HEAD)"; git checkout -q main
+ledger "t_one $C1" "t_side $SIDE"; git add -A; git commit -q -m ledger3
+audit PASS 2 "Batch audit #2"
+check "ledger: row whose commit is not an ancestor stays, covered row goes" "grep -q 't_side' docs/audit-ledger.md && ! grep -q 't_one' docs/audit-ledger.md && grep -q 'audit-2 (' docs/audit-ledger.md"
+
+fresh; echo a1 >> src/code.txt; git commit -q -am a1; C1="$(git rev-parse --short HEAD)"
+ledger "t_one $C1"; git add -A; git commit -q -m ledger; BEFORE="$(cat docs/audit-ledger.md)"
+audit FAIL 1 "Batch audit #1"
+check "ledger: FAIL leaves the ledger untouched" "[ \"\$(cat docs/audit-ledger.md)\" = \"\$BEFORE\" ] && [ -z \"\$LEDGER_NOTE\" ]"
+audit PASS "" "Audit of something"
+check "ledger: no tag set leaves the ledger untouched" "[ \"\$(cat docs/audit-ledger.md)\" = \"\$BEFORE\" ]"
+
+printf 'garbage without a table\n| t_x | y | low | %s | d |\n' "$C1" > docs/audit-ledger.md; git add -A; git commit -q -m bad
+audit PASS 1 "Batch audit #1"
+check "ledger: malformed ledger is unchanged, kept, and the note says so" "grep -q 'garbage without a table' docs/audit-ledger.md && grep -q 't_x' docs/audit-ledger.md && [ -n \"\$AUDIT_TAG\" ] && printf '%s' \"\$LEDGER_NOTE\" | grep -q 'no table header'"
+
+# an individual audit of a high-risk card never reaches record_audit
+check "agent-step: individual audit path does not touch the ledger" "! sed -n '/if \\[ \"\$BR\" != \"-\" \\]/,/^    fi/p' '$BIN/agent-step' | grep -q 'ledger'"
+
 # the real agent-step no longer uses tag -f or a plain 'git add docs'
 check "agent-step has no 'git tag -f'" "! grep -q 'git tag -f' '$BIN/agent-step' '$BIN/step-git.sh'"
 

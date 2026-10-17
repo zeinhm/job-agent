@@ -51,10 +51,31 @@ free_audit_number() {
 # Commit the audit report and, on PASS only, set a new audit tag. Never moves or overwrites anything.
 # $1 verdict  $2 number from the card title (may be empty)  $3 title  $4 report file.
 # Sets AUDIT_TAG (empty if none) and AUDIT_REPORT (empty if no report).
-AUDIT_TAG=""; AUDIT_REPORT=""
+AUDIT_TAG=""; AUDIT_REPORT=""; LEDGER_NOTE=""
+
+# Remove the ledger rows whose merged commit is an ancestor of $1 and set the "Last audit tag:" line to
+# "audit-$2 (<short sha of $1>)". A ledger without the table header is left unchanged (LEDGER_NOTE says so); never deleted.
+clear_ledger() {
+  local sha="$1" n="$2" f=docs/audit-ledger.md tmp row c short
+  LEDGER_NOTE=""
+  [ -f "$f" ] || { LEDGER_NOTE="ledger not cleared: $f is missing"; return 0; }
+  grep -q '^| Task id |' "$f" || { LEDGER_NOTE="ledger not cleared: $f has no table header (left unchanged)"; return 0; }
+  short="$(git rev-parse --short "$sha")"; tmp="$(mktemp)"
+  while IFS= read -r row; do
+    case "$row" in
+      "| Task id |"*|"|---"*) ;;
+      "| "*) c="$(printf '%s' "$row" | awk -F'|' '{gsub(/ /,"",$5); print $5}')"
+          if [ -n "$c" ] && git merge-base --is-ancestor "$c" "$sha" 2>/dev/null; then continue; fi ;;
+      "Last audit tag:"*) row="Last audit tag: audit-$n ($short). Rows merged up to that commit were cleared by the automation." ;;
+    esac
+    printf '%s\n' "$row"
+  done < "$f" > "$tmp"
+  cat "$tmp" > "$f"; rm -f "$tmp"
+}
+
 record_audit() {
   local verdict="$1" n="$2" title="$3" rep="$4" kind=batch
-  AUDIT_TAG=""; AUDIT_REPORT=""
+  AUDIT_TAG=""; AUDIT_REPORT=""; LEDGER_NOTE=""
   case "$title" in *[Pp]hase*) kind=phase ;; esac
   [ -n "$n" ] && n="$(free_audit_number "$n" "$kind")"
   if [ -s "$rep" ]; then
@@ -63,6 +84,11 @@ record_audit() {
     if [ -e "$AUDIT_REPORT" ]; then AUDIT_REPORT=""; else cp "$rep" "$AUDIT_REPORT"; fi
   fi
   git add docs/audits 2>/dev/null
+  # PASS with a tag to set: clear the covered ledger rows in the same commit as the report (explicit paths only).
+  if [ "$verdict" = PASS ] && [ -n "$n" ]; then
+    clear_ledger "$(git rev-parse HEAD)" "$n"
+    git add docs/audit-ledger.md 2>/dev/null
+  fi
   if ! git diff --cached --quiet; then
     if ! STEP_ERR="$(git commit -q -m "docs: audit report ($ID)" 2>&1)"; then git reset -q; STEP_ERR="the pre-commit hook refused the audit report: $STEP_ERR"; return 1; fi
   fi

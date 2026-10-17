@@ -63,6 +63,8 @@ A batch audit always covers **everything** in the ledger at that moment (medium 
 
 - Only the **final reviewer** merges: the Auditor for high risk, QA for medium and low.
 - Merge with `git merge --no-ff task/<branch>` into `main`, then delete the branch.
+- `bin/agent-step` commits the PM's and researcher's `docs/` edits in main (other modified tracked files are stashed), with explicit paths; only the pre-commit hook guards personal data there.
+- On an audit PASS that sets a new tag, the automation removes the covered rows from `docs/audit-ledger.md` and commits it with the audit report; FAIL or an individual audit leaves the ledger alone.
 - After every batch or phase-end audit, the auditor tags the audited point: `git tag audit-<n>`. The next batch audit reviews `git diff audit-<n>..main`.
 
 Rules:

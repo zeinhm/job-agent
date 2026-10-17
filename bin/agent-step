@@ -160,7 +160,7 @@ case "$ROLE" in
     unlock_main
     if [ -n "$AUDIT_TAG" ]; then TAGNOTE="tag $AUDIT_TAG set"; [ "$AUDIT_TAG" != "audit-$N" ] && TAGNOTE="$TAGNOTE (audit-$N already existed)"
     else TAGNOTE="no tag set"; fi
-    complete "Audit $VERDICT ($TAGNOTE${AUDIT_REPORT:+, report $AUDIT_REPORT}): $VSUM (fix tasks, if any, are listed in the report)" ;;
+    complete "Audit $VERDICT ($TAGNOTE${AUDIT_REPORT:+, report $AUDIT_REPORT}${LEDGER_NOTE:+, $LEDGER_NOTE}): $VSUM (fix tasks, if any, are listed in the report)" ;;
   researcher|pm)
     [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the $ROLE run"
     lock_main; main_ready
