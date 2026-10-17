@@ -26,13 +26,15 @@ commit_docs() {
 
 # Bring local main up to origin/main. After a docs commit this rebases that commit (a plain ff-only pull would fail as
 # soon as main moved while the agent ran); a conflict aborts the rebase, so the edits stay in the commit.
+# Never "git pull": it reads .git/FETCH_HEAD, which a concurrent "git fetch" in the same repo (agent-step, the
+# supervisor's push-main) rewrites ("Cannot fast-forward to multiple branches"). Fetch, then merge / rebase origin/main.
 sync_main() {
   if [ "$DOCS_COMMITTED" = 1 ]; then
-    STEP_ERR="$(git pull -q --rebase origin main 2>&1)" && return 0
+    STEP_ERR="$(git fetch -q origin main 2>&1 && git rebase -q origin/main 2>&1)" && return 0
     git rebase --abort 2>/dev/null
     STEP_ERR="git pull --rebase of the $ROLE docs commit conflicted; the edits are still in local main (git log origin/main..main): $STEP_ERR"; return 1
   fi
-  STEP_ERR="$(git pull -q --ff-only origin main 2>&1)" || { STEP_ERR="git pull on main failed (diverged?): $STEP_ERR"; return 1; }
+  STEP_ERR="$(git fetch -q origin main 2>&1 && git merge -q --ff-only origin/main 2>&1)" || { STEP_ERR="git pull on main failed (diverged?): $STEP_ERR"; return 1; }
 }
 
 # Does tag audit-$1 exist locally or on origin?

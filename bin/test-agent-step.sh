@@ -24,10 +24,10 @@ fresh() { # new bare origin + working clone "w" (main checkout) + second clone "
   git add -A; git commit -q -m init; git push -q origin main
   git clone -q "$T/origin.git" "$T/o" 2>/dev/null
 }
-other_push() { ( cd "$T/o" && git pull -q --ff-only origin main && "$@" && git add -A && git commit -q -m other && git push -q origin main ); }
+other_push() { ( cd "$T/o" && git fetch -q origin main && git merge -q --ff-only origin/main && "$@" && git add -A && git commit -q -m other && git push -q origin main ); }
 prep() { # role: the main_ready sequence of agent-step, without the push-main call
   ROLE="$1"; ID=t_test; DOCS_COMMITTED=0; STEP_ERR=""
-  stash_foreign && commit_docs && { git fetch -q origin main; sync_main; }
+  stash_foreign && commit_docs && sync_main
 }
 
 # 1. PM: edit to an existing docs file + a new docs file are committed; a non-doc edit is stashed
@@ -145,6 +145,31 @@ check "agent-step: individual audit path does not touch the ledger" "! sed -n '/
 
 # the real agent-step no longer uses tag -f or a plain 'git add docs'
 check "agent-step has no 'git tag -f'" "! grep -q 'git tag -f' '$BIN/agent-step' '$BIN/step-git.sh'"
+
+# 7. FETCH_HEAD race (t_20bc58f1): a stale or multi-branch FETCH_HEAD written before the sync must not break it
+fresh
+git push -q origin main:other-branch
+other_push sh -c 'echo o > docs/other.md'
+git fetch -q origin main other-branch   # FETCH_HEAD now names two branches, the way a concurrent fetch leaves it
+ROLE=qa; ID=t_test; DOCS_COMMITTED=0; STEP_ERR=""
+sync_main; rc=$?
+check "sync: fast-forwards with a multi-branch FETCH_HEAD" "[ $rc -eq 0 ] && [ -f docs/other.md ] && [ -z \"\$STEP_ERR\" ]"
+fresh
+git push -q origin main:other-branch
+echo "pm edit" >> docs/decisions.md
+other_push sh -c 'echo o > docs/other.md'
+git fetch -q origin other-branch        # FETCH_HEAD: another process's fetch, not main
+ROLE=pm; ID=t_test; DOCS_COMMITTED=0; STEP_ERR=""; stash_foreign && commit_docs
+sync_main; rc=$?
+check "sync: rebases a docs commit with a foreign FETCH_HEAD" "[ $rc -eq 0 ] && [ -f docs/other.md ] && grep -q 'pm edit' docs/decisions.md"
+# a real divergence still holds with the existing message
+fresh
+echo "local" >> src/code.txt; git commit -q -am local
+other_push sh -c 'echo o > docs/other.md'
+ROLE=qa; ID=t_test; DOCS_COMMITTED=0; STEP_ERR=""
+sync_main; rc=$?
+check "sync: divergence still fails with the existing message" "[ $rc -ne 0 ] && printf '%s' \"\$STEP_ERR\" | grep -q '^git pull on main failed (diverged?)'"
+check "bin/ scripts never run git pull" "! grep -nE 'git pull (-q|--ff-only|--rebase origin)' '$BIN/agent-step' '$BIN/step-git.sh' '$BIN/dispatch' '$BIN/lib.sh' '$BIN/release' '$BIN/cloud-dev'"
 
 echo "$pass passed, $failn failed"
 [ "$failn" -eq 0 ]
