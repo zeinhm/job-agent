@@ -156,10 +156,10 @@ const answer = (key: string, text: string, extra: Partial<PlanAnswer> = {}): Pla
 /** Fake persona. The resume path is the one `ensureFixtureResume` writes. */
 export function fixtureAnswers(resumePath: string): PlanAnswer[] {
   return [
-    answer("profile.name", "Alex Example"),
-    answer("profile.email", "alex.example@example.test"),
-    answer("profile.phone", "+1 555 0100 123"),
-    answer("profile.linkedin", "https://www.example.test/in/alex-example"),
+    answer("contact.full_name", "Alex Example"),
+    answer("contact.email", "alex.example@example.test"),
+    answer("contact.phone", "+1 555 0100 123"),
+    answer("contact.linkedin", "https://www.example.test/in/alex-example"),
     answer("profile.resume_file", resumePath),
     answer("work.remote", "Yes", {
       type: "yes_no",

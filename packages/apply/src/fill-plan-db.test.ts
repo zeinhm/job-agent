@@ -73,7 +73,7 @@ function addReview(id: string, action: "scam" | "not_scam", at: string) {
 
 describe("loadFillContext", () => {
   it("reads answers, approved mappings and the tier ask; the plan fills from them", () => {
-    addAnswer("profile.email", "Email", "jane.doe@example.test");
+    addAnswer("contact.email", "Email", "jane.doe@example.test");
     addAnswer("work.tools", "Which tools do you use?", "Git", true);
     addAnswer("pay.old", "Old pay", "1", false);
     addIntel({ ask_idr_month: 30_000_000, ask_usd_year: 24_000, ask_text: "around 30M IDR" });

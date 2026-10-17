@@ -62,7 +62,7 @@ export function leverFixtureContext(dataDir: string): PlanContext {
         approved: true,
       },
       {
-        key: "profile.location",
+        key: "contact.location",
         question: null,
         alternatives: null,
         answer: "Jakarta, Indonesia",

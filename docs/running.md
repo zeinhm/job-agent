@@ -504,9 +504,10 @@ part of a dry run.
 
 **`ambiguous match` (stop reason `other`, nothing filled).** A form label is reached by two *different* answer keys, so the
 run will not guess. A standard contact label (name, email, phone, location, LinkedIn, ...) counts as the key
-`profile.<field>`; any other approved answer whose `question` or `alternatives` repeats that wording is a second key. The
-same key reached by several routes is not ambiguous. The stop detail lists, per label, the keys (never values), e.g.
-`ambiguous match, Email (contact.email, profile.email)` (the detail is cut at 200 characters). What to do: open the
+`contact.<field>` (`contact.full_name`, `contact.email`, `contact.phone`, `contact.linkedin`, `contact.location`) and only
+counts when that key has an approved answer; any other approved answer whose `question` or `alternatives` repeats that
+wording is a second key. The same key reached by several routes is not ambiguous. The stop detail lists, per label, the
+keys (never values), e.g. `ambiguous match, Email (contact.email, contact.mail)` (the detail is cut at 200 characters). What to do: open the
 answers (dashboard Answers tab, or `config/answers.yaml` and `import-answers`) and look at the named keys: remove the
 wording from the answer that should not carry it, or unapprove it. Rows that were once imported and later removed from
 the YAML stay in the database (the import never deletes them), so a key named in the detail that is not in your YAML is
@@ -580,7 +581,7 @@ only what differs. It **never submits**.
   from resume" drop zone are never read or touched.
 - **Phone.** Ashby's phone question is a country selector next to a `tel` input (often with a texting-consent group) inside
   one field entry. The run reads the `tel` input as the question (label such as "Phone", "Phone Number", "Mobile phone"), fills
-  it from `profile.phone` through the usual phone check, and never touches the country selector or the consent radios. A field
+  it from `contact.phone` through the usual phone check, and never touches the country selector or the consent radios. A field
   whose controls the run does not understand stops `unexpected_field`; the stop detail is the label plus the field type and the
   DOM shape (tags and input types, e.g. `Mobile phone (other, input:tel+input:tel)`), never a value. Send those labels and
   shapes (never values) to the PM when a field stops.

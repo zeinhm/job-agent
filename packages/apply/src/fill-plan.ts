@@ -143,20 +143,20 @@ export const probeResumeFile: ResumeProbe = (path) => {
     : { ok: false, detail: "resume file is not a PDF" };
 };
 
-/** Standard fields come from approved `profile.*` answers. `name` is split by `nameRole`. */
+/** Standard fields come from approved answers under the real bank's keys (`contact.*`; files stay `profile.*`). `name` is split by `nameRole`. */
 export const PROFILE_KEYS: Record<StandardField, string> = {
-  name: "profile.name",
-  email: "profile.email",
-  phone: "profile.phone",
+  name: "contact.full_name",
+  email: "contact.email",
+  phone: "contact.phone",
   resume: "profile.resume_file",
   cover_letter: "profile.cover_letter",
-  linkedin: "profile.linkedin",
+  linkedin: "contact.linkedin",
   website: "profile.website",
-  location: "profile.location",
+  location: "contact.location",
 };
 
 /**
- * Name rule: `profile.name` is the full name. A "first name" / "given name" field (and "preferred name") gets the first
+ * Name rule: `contact.full_name` is the full name. A "first name" / "given name" field (and "preferred name") gets the first
  * whitespace-separated word; a "last name" / "surname" / "family name" field gets everything after the first word (a
  * single-word name has no last name: the field needs input); every other name field gets the full name.
  */
@@ -363,7 +363,7 @@ export function planFill(input: FillInput): FillPlan {
     const n = normalizeQuestion(f.label);
     const keys = new Set(keysOf.get(n) ?? []);
     const m = matchQuestion(n, new Map());
-    if (m?.kind === "standard") keys.add(PROFILE_KEYS[m.field]);
+    if (m?.kind === "standard" && byKey.has(PROFILE_KEYS[m.field])) keys.add(PROFILE_KEYS[m.field]);
     if (keys.size > 1) ambiguous.push(`${f.label} (${[...keys].sort().join(", ")})`);
   }
   if (ambiguous.length > 0)

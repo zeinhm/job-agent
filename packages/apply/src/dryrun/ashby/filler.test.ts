@@ -209,7 +209,7 @@ describe("full fill on the fixture", () => {
       phoneTexting: 0,
       textingQuestion: 0,
     });
-    // The phone field ("Phone Number", a country selector + tel input) takes profile.phone.
+    // The phone field ("Phone Number", a country selector + tel input) takes contact.phone.
     expect(s.texts[PHONE]).not.toBe("");
     const phone = storedRows().find((q) => q.question_id === PHONE);
     expect(phone).toMatchObject({ label: "Phone Number", type: "text" });
@@ -249,7 +249,7 @@ describe("full fill on the fixture", () => {
     expect(rows).toHaveLength(13);
     expect(rows.every((r) => r.filled && r.note === null)).toBe(true);
     const by = (label: string) => rows.find((r) => r.label === label);
-    expect(by("Name")).toMatchObject({ source: "standard", answer_key: "profile.name" });
+    expect(by("Name")).toMatchObject({ source: "standard", answer_key: "contact.full_name" });
     expect(by("Resume")).toMatchObject({ source: "resume", value: "fixture-resume.pdf" });
     expect(by("Expected salary (USD per year)")).toMatchObject({
       source: "tier_ask",
@@ -335,7 +335,7 @@ describe("questions read from the rendered page are stored and matched", () => {
           updated_at: T,
         })
         .run();
-    add("profile.name", null, "Alex Example");
+    add("contact.full_name", null, "Alex Example");
     add("work.stack", "Which stack do you use most?", "TypeScript");
 
     const { summary } = await run(ASHBY_FIXTURE_FORM_PATH, { context: () => undefined });
@@ -603,7 +603,7 @@ describe("phone readback by digits (t_73f3d2e8)", () => {
       filled: true,
       note: null,
       source: "standard",
-      answer_key: "profile.phone",
+      answer_key: "contact.phone",
     });
   }, 90_000);
 

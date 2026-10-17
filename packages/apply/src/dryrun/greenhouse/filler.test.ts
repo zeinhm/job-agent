@@ -171,7 +171,7 @@ describe("full fill on the fixture", () => {
     expect(rows).toHaveLength(13);
     expect(rows.every((r) => r.filled && r.note === null)).toBe(true);
     const by = (label: string) => rows.find((r) => r.label === label);
-    expect(by("First Name")).toMatchObject({ source: "standard", answer_key: "profile.name" });
+    expect(by("First Name")).toMatchObject({ source: "standard", answer_key: "contact.full_name" });
     expect(by("Resume/CV")).toMatchObject({ source: "resume", value: "fixture-resume.pdf" });
     expect(by("Expected salary (USD per year)")).toMatchObject({
       source: "tier_ask",
@@ -304,7 +304,7 @@ describe("location autocomplete (the stored Location question: the owner picks)"
         answers: [
           ...c.answers,
           {
-            key: "profile.location",
+            key: "contact.location",
             question: "Location",
             alternatives: null,
             answer: "Springfield",

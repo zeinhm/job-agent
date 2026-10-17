@@ -33,12 +33,12 @@ const ans = (key: string, answer: string, extra: Partial<PlanAnswer> = {}): Plan
 });
 
 const BANK: PlanAnswer[] = [
-  ans("profile.name", "Jane Q Doe"),
-  ans("profile.email", "jane.doe@example.test"),
-  ans("profile.phone", "+1 555 0100 123"),
-  ans("profile.linkedin", "https://www.example.test/in/jane-doe"),
+  ans("contact.full_name", "Jane Q Doe"),
+  ans("contact.email", "jane.doe@example.test"),
+  ans("contact.phone", "+1 555 0100 123"),
+  ans("contact.linkedin", "https://www.example.test/in/jane-doe"),
   ans("profile.website", "https://jane-doe.example.test"),
-  ans("profile.location", "Springfield"),
+  ans("contact.location", "Springfield"),
   ans("profile.resume_file", RESUME),
   ans("work.remote", "Yes", {
     type: "yes_no",
@@ -114,13 +114,13 @@ describe("full fill", () => {
         : [f.field.label, "UNFILLED", f.detail],
     );
     expect(rows).toEqual([
-      ["First name", "Jane", "standard", "profile.name"],
-      ["Last name", "Q Doe", "standard", "profile.name"],
-      ["Email *", "jane.doe@example.test", "standard", "profile.email"],
-      ["Phone", "+1 555 0100 123", "standard", "profile.phone"],
-      ["LinkedIn Profile", "https://www.example.test/in/jane-doe", "standard", "profile.linkedin"],
+      ["First name", "Jane", "standard", "contact.full_name"],
+      ["Last name", "Q Doe", "standard", "contact.full_name"],
+      ["Email *", "jane.doe@example.test", "standard", "contact.email"],
+      ["Phone", "+1 555 0100 123", "standard", "contact.phone"],
+      ["LinkedIn Profile", "https://www.example.test/in/jane-doe", "standard", "contact.linkedin"],
       ["Website", "https://jane-doe.example.test", "standard", "profile.website"],
-      ["Location (City)", "Springfield", "standard", "profile.location"],
+      ["Location (City)", "Springfield", "standard", "contact.location"],
       ["Resume/CV", RESUME, "resume", "profile.resume_file"],
       ["Are you comfortable working remotely?", "Yes", "answer", "work.remote"],
       ["Notice period in days", "30", "answer", "work.notice"],
@@ -177,9 +177,9 @@ describe("needs input (partial plan)", () => {
   });
 
   it("an unapproved profile answer is missing, and is not an inbox item", () => {
-    const answers = BANK.map((a) => (a.key === "profile.email" ? { ...a, approved: false } : a));
+    const answers = BANK.map((a) => (a.key === "contact.email" ? { ...a, approved: false } : a));
     const f = fillOf(plan([field("Email")], { answers }));
-    expect(f[0]).toMatchObject({ filled: false, answerKey: "profile.email", inbox: false });
+    expect(f[0]).toMatchObject({ filled: false, answerKey: "contact.email", inbox: false });
   });
 
   it("a choice field with no approved mapping is choice_unmapped", () => {
@@ -247,16 +247,16 @@ describe("needs input (partial plan)", () => {
 
   it("a bad standard value is not filled (email, phone, url)", () => {
     const answers = [
-      ans("profile.email", "not-an-email"),
-      ans("profile.phone", "12"),
-      ans("profile.linkedin", "linkedin.example.test/in/x"),
+      ans("contact.email", "not-an-email"),
+      ans("contact.phone", "12"),
+      ans("contact.linkedin", "linkedin.example.test/in/x"),
     ];
     const f = fillOf(plan([field("Email"), field("Phone"), field("LinkedIn")], { answers }));
     expect(f.map((x) => x.filled)).toEqual([false, false, false]);
   });
 
   it("a single-word name has no last name", () => {
-    const answers = [ans("profile.name", "Jane")];
+    const answers = [ans("contact.full_name", "Jane")];
     const f = fillOf(plan([field("First name"), field("Last name")], { answers }));
     expect(f.map((x) => x.filled)).toEqual([true, false]);
   });
@@ -469,8 +469,8 @@ describe("full stops", () => {
 
   it("one key reached by the standard route, the bank question and an alternative fills", () => {
     const answers = [
-      ...BANK.filter((a) => a.key !== "profile.email"),
-      ans("profile.email", "jane.doe@example.test", {
+      ...BANK.filter((a) => a.key !== "contact.email"),
+      ans("contact.email", "jane.doe@example.test", {
         question: "Email",
         alternatives: ["E-mail address", "Email address"],
       }),
@@ -482,11 +482,11 @@ describe("full stops", () => {
   it("the owner's five contact labels, each also carried by a second key, stop naming both keys", () => {
     const labels = ["Full name", "Email", "Phone", "Current location", "LinkedIn URL"];
     const std = [
-      "profile.name",
-      "profile.email",
-      "profile.phone",
-      "profile.location",
-      "profile.linkedin",
+      "contact.full_name",
+      "contact.email",
+      "contact.phone",
+      "contact.location",
+      "contact.linkedin",
     ];
     const twins = labels.map((l, i) => ans(`contact.f${i}`, "x", { question: l }));
     const r = plan(
@@ -501,6 +501,46 @@ describe("full stops", () => {
         ...labels.map((l, i) => `${l} (${[`contact.f${i}`, std[i]].sort().join(", ")})`),
       ],
     });
+  });
+
+  it("a standard key with no approved answer is not a candidate: the other key alone fills", () => {
+    const answers = [
+      ...BANK.filter((a) => a.key !== "contact.email"),
+      ans("contact.mail", "other@example.test", { question: "Email address" }),
+    ];
+    // contact.email is absent from the bank: no phantom "contact.email" in the ambiguity list.
+    const r = plan([field("Email address")], { answers });
+    expect(r).not.toMatchObject({ kind: "stop", details: ["ambiguous match"] });
+    expect(JSON.stringify(r)).not.toContain("ambiguous");
+  });
+
+  it("a bank shaped like the real one (contact.* + profile.resume_file) fills the five contact fields", () => {
+    const real = [
+      ans("contact.full_name", "Jane Q Doe"),
+      ans("contact.email", "jane.doe@example.test"),
+      ans("contact.phone", "+1 555 0100 123"),
+      ans("contact.linkedin", "https://www.example.test/in/jane-doe"),
+      ans("contact.location", "Springfield"),
+      ans("profile.resume_file", RESUME),
+    ];
+    const p = plan(
+      [
+        field("Full name"),
+        field("Email"),
+        field("Phone"),
+        field("LinkedIn URL"),
+        field("Current location"),
+      ],
+      { answers: real },
+    );
+    expect(p).toMatchObject({ kind: "fill", status: "filled" });
+    expect(fillOf(p).map((f) => (f.filled ? f.answerKey : null))).toEqual([
+      "contact.full_name",
+      "contact.email",
+      "contact.phone",
+      "contact.linkedin",
+      "contact.location",
+    ]);
   });
 
   it("two wordings of one answer are not ambiguous", () => {
@@ -518,7 +558,7 @@ describe("full stops", () => {
     const twin = ans("contact.mail", "other@example.test", { question: "Email address" });
     expect(plan([field("Email address")], { answers: [...BANK, twin] })).toMatchObject({
       kind: "stop",
-      details: ["ambiguous match", "Email address (contact.mail, profile.email)"],
+      details: ["ambiguous match", "Email address (contact.email, contact.mail)"],
     });
     expect(
       plan([field("Email address")], { answers: [...BANK, { ...twin, approved: false }] }),

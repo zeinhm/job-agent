@@ -198,8 +198,8 @@ describe("full fill on the fixture", () => {
     });
     const { summary, seen } = await run(LEVER_FIXTURE_FORM_PATH, {
       context: (c) =>
-        via("profile.phone", "Phone", ["Phone number"])(
-          via("profile.email", "Email", ["Email address"])(c),
+        via("contact.phone", "Phone", ["Phone number"])(
+          via("contact.email", "Email", ["Email address"])(c),
         ),
     });
     expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 13, total: 13 });
@@ -213,7 +213,7 @@ describe("full fill on the fixture", () => {
     expect(rows).toHaveLength(13);
     expect(rows.every((r) => r.filled && r.note === null)).toBe(true);
     const by = (label: string) => rows.find((r) => r.label === label);
-    expect(by("Full name")).toMatchObject({ source: "standard", answer_key: "profile.name" });
+    expect(by("Full name")).toMatchObject({ source: "standard", answer_key: "contact.full_name" });
     expect(by("Resume/CV")).toMatchObject({ source: "resume", value: "fixture-resume.pdf" });
     expect(by("Expected salary (USD per year)")).toMatchObject({
       source: "tier_ask",
@@ -304,7 +304,7 @@ describe("questions read from the page are stored and matched", () => {
           updated_at: T,
         })
         .run();
-    add("profile.name", null, "Alex Example");
+    add("contact.full_name", null, "Alex Example");
     add("work.stack", "Which stack do you use most?", "TypeScript");
 
     const { summary } = await run(LEVER_FIXTURE_FORM_PATH, { context: () => undefined });
@@ -473,7 +473,7 @@ describe("stops (nothing is filled)", () => {
       "other",
     );
     expect(runOf(r.summary.runId)?.stop_detail).toBe(
-      "ambiguous match, Email (contact.mail, profile.email)",
+      "ambiguous match, Email (contact.email, contact.mail)",
     );
   }, 90_000);
 
