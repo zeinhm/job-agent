@@ -20,12 +20,16 @@ import { dataDirOfDb } from "../output.ts";
 import { ASHBY_READ_ONLY_OPERATIONS } from "../request-guard.ts";
 import { HarnessRefusalError, type DryRunSession } from "../session.ts";
 import { pageOf, resetRunLimit } from "../testing.ts";
+import { describeComparison } from "../greenhouse/form.ts";
+import { kept, phoneKept } from "../lever/filler.ts";
+import { compareQuestions, fieldsFromControls, type LeverControl } from "../lever/form.ts";
 import { loadStoredAshbyQuestions, runAshbyDryRun, type AshbyRunSummary } from "./filler.ts";
 import {
   ASHBY_FIXTURE_CAPTCHA_PATH,
   ASHBY_FIXTURE_CHANGED_PATH,
   ASHBY_FIXTURE_DATE_PATH,
   ASHBY_FIXTURE_FORM_PATH,
+  ASHBY_FIXTURE_PHONE_FORMAT_PATH,
   ASHBY_FIXTURE_PHONE_PAIR_PATH,
   ASHBY_FIXTURE_POSTING_ID,
   ashbyFixtureContext,
@@ -563,6 +567,161 @@ describe("stops (nothing is filled)", () => {
     const r = await stopped(run(), "form_changed");
     expect(runOf(r.summary.runId)?.stop_detail).toBe("form changed (different: Email)");
   }, 120_000);
+});
+
+describe("phone readback by digits (t_73f3d2e8)", () => {
+  const phoneRow = () => storedRows().find((q) => q.question_id === PHONE);
+  const setPhoneRow = (patch: Partial<typeof posting_questions.$inferInsert>) =>
+    db
+      .update(posting_questions)
+      .set(patch)
+      .where(
+        and(
+          eq(posting_questions.posting_id, ASHBY_FIXTURE_POSTING_ID),
+          eq(posting_questions.question_id, PHONE),
+        ),
+      )
+      .run();
+
+  it("a phone the page reformats on input is accepted: the run is filled like the plain fixture", async () => {
+    const { summary, seen } = await run(ASHBY_FIXTURE_PHONE_FORMAT_PATH);
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 13, total: 13 });
+    const plain = planFill({
+      fields: loadStoredAshbyQuestions(db, ASHBY_FIXTURE_POSTING_ID),
+      ...ashbyFixtureContext(dataDir),
+    });
+    if (plain.kind !== "fill") throw new Error("expected a fill plan");
+    const typed = (
+      plain.fields.find((f) => f.field.ats.id === PHONE) as Extract<PlannedField, { filled: true }>
+    ).value as string;
+    const shown = (seen as unknown as Seen).texts[PHONE] as string;
+    // The page rewrote the value (so an exact compare could not pass) and kept every typed digit.
+    expect(shown).not.toBe(typed);
+    expect(shown.startsWith("+1 ")).toBe(true);
+    expect(shown.replace(/\D/g, "").endsWith(typed.replace(/\D/g, ""))).toBe(true);
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Phone Number")).toMatchObject({
+      filled: true,
+      note: null,
+      source: "standard",
+      answer_key: "profile.phone",
+    });
+  }, 90_000);
+
+  it("a stored phone row written by an older reader (other) is a reader change: no form_changed, the row is refreshed", async () => {
+    await run();
+    // What the run before the phone widget was understood stored: type other (and a different required reading).
+    setPhoneRow({ type: "other", required: false });
+    // The old comparison reported exactly this on the owner's run.
+    const page = fieldsFromControls(
+      [
+        {
+          name: PHONE,
+          kind: "text",
+          label: "Phone Number",
+          required: true,
+          options: null,
+          optionValues: [],
+        },
+      ],
+      "ashby",
+    );
+    const stored = loadStoredAshbyQuestions(db, ASHBY_FIXTURE_POSTING_ID).filter(
+      (f) => f.ats.id === PHONE,
+    );
+    expect(describeComparison(compareQuestions(stored, page))).toBe(
+      "form changed (different: Phone Number)",
+    );
+    expect(compareQuestions(stored, page, { upgradeOther: true }).ok).toBe(true);
+
+    resetRunLimit();
+    const { summary } = await run();
+    expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+    expect(phoneRow()).toMatchObject({ type: "text", required: true, label: "Phone Number" });
+  }, 120_000);
+
+  it("a real label change on a row stored as other still stops form_changed", async () => {
+    await run();
+    setPhoneRow({ type: "other", label: "Mobile number" });
+    resetRunLimit();
+    const r = await run();
+    expect(r.summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
+    expect(runOf(r.summary.runId)?.stop_detail).toBe("form changed (different: Phone Number)");
+  }, 120_000);
+
+  it("a real required or option change on a known type still stops form_changed", async () => {
+    await run();
+    setPhoneRow({ required: false });
+    resetRunLimit();
+    const r = await run();
+    expect(runOf(r.summary.runId)?.stop_detail).toBe("form changed (different: Phone Number)");
+    const a = compareQuestions(
+      [
+        {
+          label: "X",
+          field_type: "other",
+          required: true,
+          options: ["a"],
+          ats: { type: "ashby", id: "x" },
+        },
+      ],
+      [
+        {
+          label: "X",
+          field_type: "choice",
+          required: false,
+          options: ["b"],
+          ats: { type: "ashby", id: "x" },
+        },
+      ],
+      { upgradeOther: true },
+    );
+    expect(a.ok).toBe(true); // other -> known: only name and label are compared
+    const b = compareQuestions(
+      [
+        {
+          label: "X",
+          field_type: "choice",
+          required: true,
+          options: ["a"],
+          ats: { type: "ashby", id: "x" },
+        },
+      ],
+      [
+        {
+          label: "X",
+          field_type: "choice",
+          required: true,
+          options: ["b"],
+          ats: { type: "ashby", id: "x" },
+        },
+      ],
+      { upgradeOther: true },
+    );
+    expect(b.different).toEqual(["X"]);
+  }, 120_000);
+
+  it("the rule: digits only, the typed digits are the end of the kept digits; any other text stays exact", () => {
+    const text: LeverControl = {
+      name: "n",
+      kind: "text",
+      label: "L",
+      required: false,
+      options: null,
+      optionValues: [],
+    };
+    expect(phoneKept("+62 812-3456-7890", ["+62 812 3456 7890"])).toBe(true);
+    expect(phoneKept("08123456", ["+1 081-234-56"])).toBe(true);
+    expect(phoneKept("5550100123", ["+1 555-0100-123"])).toBe(true);
+    expect(phoneKept("5550100123", ["+1 555-0100-124"])).toBe(false);
+    expect(phoneKept("5550100123", ["0100123"])).toBe(false); // the page lost digits
+    expect(phoneKept("5550100123", [])).toBe(false);
+    expect(phoneKept("no digits", ["no digits"])).toBe(false);
+    expect(kept(text, "5550100123", ["+1 555-0100-123"], true)).toBe(true);
+    // Not a phone: the reformatted value is a different value.
+    expect(kept(text, "5550100123", ["+1 555-0100-123"])).toBe(false);
+    expect(kept(text, "Example Corp", ["Example  Corp"])).toBe(false);
+    expect(kept(text, "Example Corp", ["Example Corp"])).toBe(true);
+  });
 });
 
 describe("refusals before a browser opens", () => {

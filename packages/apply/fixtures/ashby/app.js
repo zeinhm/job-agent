@@ -55,8 +55,20 @@ function control(field, required) {
   switch (field.type) {
     case "Email":
       return el("input", { ...attrs, type: "email", class: "ashby-application-form-input-text" });
-    case "Phone":
+    case "Phone": {
       // The real widget: a country selector next to the tel input, plus a texting-consent group, all in one entry.
+      const tel = el("input", {
+        ...attrs,
+        type: "tel",
+        class: "ashby-application-form-input-text",
+      });
+      // Variant: the page rewrites the typed number (country prefix, dashes), as real phone widgets do.
+      if (field.reformat)
+        tel.addEventListener("input", () => {
+          const digits = tel.value.replace(/\D/g, "");
+          const next = "+1 " + digits.replace(/(\d{3})(?=\d)/g, "$1-");
+          if (tel.value !== next) tel.value = next;
+        });
       return el(
         "div",
         { class: "ashby-application-form-phone-widget" },
@@ -66,7 +78,7 @@ function control(field, required) {
           el("option", { value: "ID", selected: "" }, "Indonesia (+62)"),
           el("option", { value: "US" }, "United States (+1)"),
         ),
-        el("input", { ...attrs, type: "tel", class: "ashby-application-form-input-text" }),
+        tel,
         el(
           "div",
           { class: "ashby-application-form-input-radio-group" },
@@ -80,6 +92,7 @@ function control(field, required) {
           ),
         ),
       );
+    }
     case "PhonePair":
       // A phone shape the reader does not understand: two tel inputs in one entry.
       return el(

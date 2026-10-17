@@ -578,6 +578,11 @@ only what differs. It **never submits**.
   whose controls the run does not understand stops `unexpected_field`; the stop detail is the label plus the field type and the
   DOM shape (tags and input types, e.g. `Mobile phone (other, input:tel+input:tel)`), never a value. Send those labels and
   shapes (never values) to the PM when a field stops.
+  The page may reformat the typed number (spaces, dashes, brackets, a country prefix): the phone is checked **by digits
+  only**, and counts as kept when the kept digits equal the typed digits or end with them (a prefix the page added). Every
+  other text field is still compared exactly. A stored question set written by an older version of the reader (the phone
+  stored as type `other`) is not a form change when the label under the same control name is the same; the stored row is
+  refreshed on the next run. A changed label, required flag or option set still stops `form_changed`.
 - **The ids are unverified on the real site** (research t_d0698332 could not read a real form without POSTing). If the first
   real runs show `form_changed`, empty or "page kept a different value" fields, send the PM the field labels (never values):
   that is the signal to correct the selectors from one owner-run recording. Because the draft writes are aborted, a real page

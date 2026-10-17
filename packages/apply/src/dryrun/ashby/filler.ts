@@ -1,6 +1,6 @@
 import type { Db } from "@job-agent/core";
 import { loadFillContext, recordUncoveredLabels } from "../../fill-plan-db.ts";
-import { planFill, type FormField, type ResumeProbe } from "../../fill-plan.ts";
+import { PROFILE_KEYS, planFill, type FormField, type ResumeProbe } from "../../fill-plan.ts";
 import type { DryRunFieldInput } from "../../dry-runs-store.ts";
 import { matchQuestions } from "../../match-questions.ts";
 import { FIXTURE_HOST } from "../request-guard.ts";
@@ -111,9 +111,10 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
 
     const fields = fieldsFromControls(controls, "ashby");
     const stored = loadStoredAshbyQuestions(opts.db, opts.postingId);
-    const comparison = compareQuestions(stored, fields);
-    // First visit (nothing stored) and a changed page both store what the page shows now; only a change stops the run.
-    if (stored.length === 0 || !comparison.ok)
+    const comparison = compareQuestions(stored, fields, { upgradeOther: true });
+    // First visit (nothing stored), a changed page and rows an older reader stored as `other` (same name and label, now read
+    // as a known type: a reader change, not a form change) all store what the page shows now; only a change stops the run.
+    if (stored.length === 0 || !comparison.ok || (comparison.upgraded ?? []).length > 0)
       storeQuestions(opts.db, opts.postingId, "ashby", fields, new Date());
     matchQuestions(opts.db);
     if (stored.length > 0 && !comparison.ok)
@@ -167,7 +168,9 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
       const control = byName.get(id) as AshbyControl;
       const why =
         refused.get(id) ??
-        (kept(control, p.value, got[id] ?? []) ? null : "page kept a different value");
+        (kept(control, p.value, got[id] ?? [], p.answerKey === PROFILE_KEYS.phone)
+          ? null
+          : "page kept a different value");
       return why === null
         ? { ...base, source: p.source, value: valueText(p), filled: true, note: null }
         : { ...base, source: p.source, value: null, filled: false, note: why };

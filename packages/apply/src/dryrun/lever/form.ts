@@ -167,11 +167,13 @@ const sameOptions = (a: readonly string[], b: readonly string[]): boolean => {
 export function compareQuestions(
   stored: readonly FormField[],
   page: readonly FormField[],
-): FormComparison {
+  opts: { upgradeOther?: boolean } = {},
+): FormComparison & { upgraded?: string[] } {
   const byId = new Map(page.map((f) => [f.ats.id, f]));
   const storedIds = new Set(stored.map((f) => f.ats.id));
   const missing: string[] = [];
   const different: string[] = [];
+  const upgraded: string[] = [];
   for (const f of stored) {
     const now = byId.get(f.ats.id);
     if (now === undefined) {
@@ -179,6 +181,13 @@ export function compareQuestions(
       continue;
     }
     const sameLabel = normalizeQuestion(now.label) === normalizeQuestion(f.label);
+    // A row an older reader could not classify (`other`) that the reader now understands, under the same name and label,
+    // is a reader change, not a page change: its type, required flag and options came from a different reading.
+    if (opts.upgradeOther === true && f.field_type === "other" && now.field_type !== "other") {
+      if (sameLabel) upgraded.push(now.label);
+      else different.push(now.label);
+      continue;
+    }
     const sameOpts =
       now.options === null || f.options === null
         ? now.options === f.options
@@ -192,6 +201,7 @@ export function compareQuestions(
     missing,
     extra,
     different,
+    ...(opts.upgradeOther === true ? { upgraded } : {}),
   };
 }
 

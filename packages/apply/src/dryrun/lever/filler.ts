@@ -157,8 +157,29 @@ export async function applyControl(
   }
 }
 
-/** True when what the page kept equals what was planned (texts exactly, choices and files by normalized label). */
-export function kept(c: LeverControl, value: string | string[], got: readonly string[]): boolean {
+const digitsOf = (s: string): string => s.replace(/\D/g, "");
+
+/**
+ * Phone rule: pages reformat a typed number (spaces, dashes, brackets, a country prefix), so only the digits count. The kept
+ * digits must equal the typed digits or end with them (a prefix the page added); the typed digits must not be empty.
+ */
+export function phoneKept(value: string | string[], got: readonly string[]): boolean {
+  const want = digitsOf(Array.isArray(value) ? value.join("") : value);
+  const have = got.length === 1 ? digitsOf(got[0] ?? "") : "";
+  return want !== "" && have.endsWith(want);
+}
+
+/**
+ * True when what the page kept equals what was planned (texts exactly, choices and files by normalized label). A phone
+ * field (`phone`) is compared by digits only (`phoneKept`).
+ */
+export function kept(
+  c: LeverControl,
+  value: string | string[],
+  got: readonly string[],
+  phone = false,
+): boolean {
+  if (phone && (c.kind === "text" || c.kind === "textarea")) return phoneKept(value, got);
   if (c.kind === "text" || c.kind === "textarea") return got.length === 1 && got[0] === value;
   const want = (Array.isArray(value) ? value : [value]).map((v) =>
     c.kind === "file" ? basename(v) : normalizeQuestion(v),

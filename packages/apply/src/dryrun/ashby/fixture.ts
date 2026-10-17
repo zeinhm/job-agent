@@ -34,6 +34,7 @@ export const ASHBY_FIXTURE_CAPTCHA_PATH = ASHBY_FIXTURE_CAPTCHA_PATHS["visible-c
 export const ASHBY_FIXTURE_CHANGED_PATH = `/acme/${POSTING_UUID}-changed/application`;
 export const ASHBY_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/application`;
 export const ASHBY_FIXTURE_PHONE_PAIR_PATH = `/acme/${POSTING_UUID}-phonepair/application`;
+export const ASHBY_FIXTURE_PHONE_FORMAT_PATH = `/acme/${POSTING_UUID}-phonefmt/application`;
 
 const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/ashby/", import.meta.url));
 
@@ -42,6 +43,7 @@ const PAGES: Record<string, string> = {
   [ASHBY_FIXTURE_CHANGED_PATH]: "app.html",
   [ASHBY_FIXTURE_DATE_PATH]: "app.html",
   [ASHBY_FIXTURE_PHONE_PAIR_PATH]: "app.html",
+  [ASHBY_FIXTURE_PHONE_FORMAT_PATH]: "app.html",
   "/app.js": "app.js",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
@@ -60,6 +62,8 @@ interface Entry {
     path: string;
     type: string;
     title: string;
+    /** The page rewrites the typed value as it is typed (phone: country prefix, dashes). */
+    reformat?: boolean;
     selectableValues?: { label: string; value: string }[];
   };
 }
@@ -124,6 +128,10 @@ const VARIANTS: Record<string, (p: Posting) => void> = {
         title: "Available start date",
       },
     });
+  },
+  // A phone input that reformats what is typed (a "+1 " prefix and dashes between digit groups), like real pages do.
+  [`${POSTING_UUID}-phonefmt`]: (p) => {
+    byTitle(p, "Phone Number").field.reformat = true;
   },
   // A phone question whose DOM is not understood (two tel inputs): the run stops with its label and DOM kinds.
   [`${POSTING_UUID}-phonepair`]: (p) => {
