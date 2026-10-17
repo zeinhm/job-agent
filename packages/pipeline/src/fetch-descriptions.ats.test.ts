@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import {
+  __testInjectTimeAndSleep,
   description_runs,
   fx_rates,
   openDb,
@@ -9,7 +10,9 @@ import {
   type NewPosting,
 } from "@job-agent/core";
 import type { DetailFetcher } from "@job-agent/sources";
-import { beforeEach, describe, expect, it } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { boardJobRef, jobTitleKey } from "./ats-match.ts";
 import { runFetchDescriptions, selectForDescription } from "./fetch-descriptions.ts";
 import { runProcess } from "./process.ts";
@@ -25,10 +28,24 @@ let n: number;
 const now = () => new Date(clock);
 const iso = (ms: number) => new Date(ms).toISOString();
 
+// A Greenhouse job link whose board cannot be verified is fetched by the ATS-link route: the recorded API answers 404.
+const server = setupServer(
+  http.get("https://boards-api.greenhouse.io/*", () => new HttpResponse(null, { status: 404 })),
+);
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterAll(() => server.close());
+afterEach(() => server.resetHandlers());
+
 beforeEach(() => {
   db = openDb(":memory:");
   clock = START;
   n = 0;
+  __testInjectTimeAndSleep(
+    () => new Date(clock),
+    async (ms) => {
+      clock += ms;
+    },
+  );
   db.insert(fx_rates)
     .values({
       id: "fx1",
@@ -226,10 +243,15 @@ describe("why the free route found 0 on every run (root cause)", () => {
       calls.push(id);
       return { kind: "failed", reason: "no description" };
     });
-    expect(calls).toHaveLength(3);
+    // The two company-page links are Greenhouse job links without a verifiable board (the recorded API answers 404): the
+    // ATS-link route handles them (a counted failure each), so only the posting with no ATS link costs a LinkedIn request.
+    expect(calls).toEqual([row("p-neg").external_id]);
     for (const id of ["p-neg", "p-gh-other", "p-gh-title"])
       expect(row(id).description_text).toBeNull();
+    expect(row("p-gh-other").description_attempts).toBe(1);
+    expect(row("p-gh-title").description_attempts).toBe(1);
     expect(r.out).toContain("from the ATS board 0");
+    expect(r.out).toContain("from the ATS link 0 (failed 2)");
   });
 
   it("the summary says why the others missed, as counts", async () => {

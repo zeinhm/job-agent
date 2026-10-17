@@ -1,0 +1,23 @@
+{
+  "jobs": [
+    {
+      "id": "99999999-8888-7777-6666-555555555555",
+      "title": "Backend Engineer",
+      "jobUrl": "https://jobs.ashbyhq.com/fakeco/99999999-8888-7777-6666-555555555555",
+      "isListed": true,
+      "descriptionPlain": "Ashby sample for another job of Fake Co. Not the wanted one."
+    },
+    {
+      "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "title": "Senior Frontend Engineer",
+      "location": "Remote",
+      "isRemote": true,
+      "isListed": true,
+      "publishedAt": "2026-10-01T10:00:00.000+00:00",
+      "jobUrl": "https://jobs.ashbyhq.com/fakeco/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "applyUrl": "https://jobs.ashbyhq.com/fakeco/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/application",
+      "descriptionHtml": "<p>Ashby sample for Fake Co. Build the web app with React and TypeScript.</p>",
+      "descriptionPlain": "Ashby sample for Fake Co. Build the web app with React and TypeScript. Fully remote worldwide, English only."
+    }
+  ]
+}

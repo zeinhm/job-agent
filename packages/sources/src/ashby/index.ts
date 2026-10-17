@@ -109,6 +109,21 @@ function mapJob(job: AshbyJob, companyName: string): RawPosting {
   };
 }
 
+/**
+ * The listed job with this id on a board response (ids compare case-insensitively), mapped like a board job; null when the
+ * board does not list it. Throws when the envelope or the job is invalid.
+ */
+export function findAshbyJob(body: unknown, id: string): RawPosting | null {
+  const envelope = envelopeSchema.parse(body);
+  for (const raw of envelope.jobs) {
+    const rawId = (raw as { id?: unknown } | null)?.id;
+    if (typeof rawId !== "string" || rawId.toLowerCase() !== id.toLowerCase()) continue;
+    const job = jobSchema.parse(raw);
+    return job.isListed === false ? null : mapJob(job, "");
+  }
+  return null;
+}
+
 async function fetchCompany(
   company: CompanyConfig,
   since: Date,

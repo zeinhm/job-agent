@@ -16,6 +16,7 @@ import {
 import {
   analysis,
   apply_links,
+  companies,
   description_runs,
   intel,
   loadConfig,
@@ -29,6 +30,8 @@ import {
   type Posting,
 } from "@job-agent/core";
 import { SEARCH_GAP_MS, type DetailFetcher } from "@job-agent/sources";
+import { effectiveApplyUrl } from "./apply-links/ats-links.ts";
+import { atsJobOf, AtsDescriptionFetcher, type AtsJob } from "./ats-description.ts";
 import { boardJobRef, jobTitleKey } from "./ats-match.ts";
 import { dedupeHash } from "./dedupe/index.ts";
 import { BLOCKED_PREFIX, blockBackoffUntil } from "./discover.ts";
@@ -54,6 +57,10 @@ export const DETAIL_MAX_AGE_MS = 24 * 3_600_000;
 export const MAX_DESCRIPTION_ATTEMPTS = 3;
 /** A posting that failed on this many runs while another posting got its description meanwhile is given up (a poison job). */
 export const POISON_FAILED_RUNS = 2;
+/** ATS job fetches (postings, not requests) in one run; the rest wait for the next run. */
+export const MAX_ATS_FETCHES_PER_RUN = 50;
+/** A posting whose ATS fetch failed is not fetched again for this long, so a closed job is not asked about every hour. */
+export const ATS_RETRY_GAP_MS = DETAIL_BACKOFF_HOURS * 3_600_000;
 export interface FetchDescriptionsOptions {
   db: Db;
   fetchDescription: DetailFetcher;
@@ -96,6 +103,19 @@ export function selectForDescription(db: Db): Posting[] {
         classifyLocation({ locationText: p.location_text, descriptionText: null, remote: p.remote })
           .class !== "restricted",
     );
+}
+
+/** The ATS job the posting's apply link names: the owner's correction or the resolved link, else the posting's own link. */
+function atsJobOfPosting(db: Db, p: Posting): AtsJob | null {
+  const link = db.select().from(apply_links).where(eq(apply_links.posting_id, p.id)).get();
+  const company =
+    p.company_id === null
+      ? undefined
+      : db.select().from(companies).where(eq(companies.id, p.company_id)).get();
+  return atsJobOf(effectiveApplyUrl(link?.apply_url, p.apply_url, p.url), p.company_name, [
+    { ats: link?.ats_type ?? null, slug: link?.ats_slug ?? null },
+    { ats: company?.ats_type ?? null, slug: company?.ats_slug ?? null },
+  ]);
 }
 
 /** Why the free route found no text for a posting (labels of the summary). */
@@ -253,7 +273,10 @@ function applyDescription(
 /**
  * The step between `process` and `enrich`. Free route first: a pending posting whose same job (company, normalized title)
  * is on an ATS board the DB already holds takes that text and sends no request (any age, also during a backoff).
- * Then LinkedIn detail requests (through JobSpy, logged out): at most MAX_DETAIL_REQUESTS_PER_RUN per run, newest first,
+ * Second, a posting whose resolved apply link is a job of Greenhouse / Lever / Ashby / Workable / Recruitee gets that one
+ * job's text from the ATS's public API (no LinkedIn request, any age, also during a backoff); a failure there is counted
+ * on the posting and the posting never goes on to LinkedIn.
+ * Then LinkedIn detail requests (only for postings with no ATS job link) (through JobSpy, logged out): at most MAX_DETAIL_REQUESTS_PER_RUN per run, newest first,
  * only for postings first seen in the last DETAIL_MAX_AGE_MS, the first one SEARCH_GAP_MS after the search's last request
  * and each next one DETAIL_GAP_MS after the previous. No retry inside a run.
  * Failures are counted per posting (`description_attempts`, a 429 included). A 429 on ONE posting is a failure of that
@@ -314,15 +337,61 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
     fromAts += 1;
     if (applyDescription(db, p, found.text, floor(), now()).rejected) rejected += 1;
   }
+
+  // Second route: the posting's resolved apply link is a job of one of the five ATSs: fetch that one job from the ATS's
+  // public API. A posting with such a link never goes on to LinkedIn, whatever the outcome.
+  const ats = new AtsDescriptionFetcher();
+  let fromAtsLink = 0;
+  let atsFailed = 0;
+  let atsHandled = 0;
+  const unlinked: Posting[] = [];
+  for (const p of open) {
+    const job = atsJobOfPosting(db, p);
+    if (job === null) {
+      unlinked.push(p);
+      continue;
+    }
+    // Waits for the retry gap after its last failure, or for a later run when this run's cap is used up.
+    const failedAt = p.description_failed_at === null ? NaN : Date.parse(p.description_failed_at);
+    if (atsHandled >= MAX_ATS_FETCHES_PER_RUN) continue;
+    if (now().getTime() - failedAt < ATS_RETRY_GAP_MS) continue;
+    atsHandled += 1;
+    const result = await ats.fetch(job);
+    if (result.kind === "ok") {
+      fromAtsLink += 1;
+      if (applyDescription(db, p, result.text, floor(), now()).rejected) rejected += 1;
+    } else if (result.kind === "failed") {
+      atsFailed += 1;
+      const { attempts } = recordFailure(db, p, now(), false);
+      log.warn("fetch-descriptions: no description from the ATS link", {
+        postingId: p.id,
+        vendor: job.vendor,
+        attempt: attempts,
+        reason: result.reason,
+      });
+      if (attempts >= MAX_DESCRIPTION_ATTEMPTS) {
+        db.update(postings)
+          .set({ description_unavailable_at: now().toISOString() })
+          .where(eq(postings.id, p.id))
+          .run();
+      }
+    } else {
+      log.warn("fetch-descriptions: ATS host refused, no more requests to it this run", {
+        postingId: p.id,
+        vendor: job.vendor,
+        status: result.status,
+      });
+    }
+  }
   const fromAtsText =
     `from the ATS board ${fromAts} (missed: ` +
     `${Object.entries(misses)
       .map(([label, n]) => `${label} ${n}`)
-      .join(", ")})`;
+      .join(", ")}), from the ATS link ${fromAtsLink} (failed ${atsFailed})`;
 
   const cutoff = startedAt.getTime() - DETAIL_MAX_AGE_MS;
-  const candidates = open.filter((p) => Date.parse(p.first_seen_at) >= cutoff);
-  const tooOld = open.length - candidates.length;
+  const candidates = unlinked.filter((p) => Date.parse(p.first_seen_at) >= cutoff);
+  const tooOld = unlinked.length - candidates.length;
 
   const searchBackoff = blockBackoffUntil(db, DESCRIPTION_SOURCE, startedAt);
   const detailBackoff = descriptionBackoffUntil(db, startedAt);

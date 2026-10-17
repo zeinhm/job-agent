@@ -87,6 +87,17 @@ function mapJob(job: WorkableJob, companyName: string): RawPosting {
   };
 }
 
+/** The job with this shortcode on a board response (case-insensitive), mapped like a board job; null when not listed. */
+export function findWorkableJob(body: unknown, shortcode: string): RawPosting | null {
+  const envelope = envelopeSchema.parse(body);
+  for (const raw of envelope.jobs) {
+    const code = (raw as { shortcode?: unknown } | null)?.shortcode;
+    if (typeof code !== "string" || code.toLowerCase() !== shortcode.toLowerCase()) continue;
+    return mapJob(workableJobSchema.parse(raw), "");
+  }
+  return null;
+}
+
 /** Returns null for an unknown slug (404). */
 async function fetchBoard(slug: string): Promise<unknown[] | null> {
   const url = `${BASE_URL}/${encodeURIComponent(slug)}?details=true`;

@@ -1,0 +1,20 @@
+{
+  "name": "Fake Co",
+  "jobs": [
+    {
+      "shortcode": "FAKE000001",
+      "title": "Backend Engineer",
+      "url": "https://apply.workable.com/j/FAKE000001",
+      "description": "<p>Workable sample for another job of Fake Co.</p>"
+    },
+    {
+      "shortcode": "FAKE123456",
+      "title": "Senior Frontend Engineer",
+      "url": "https://apply.workable.com/j/FAKE123456",
+      "application_url": "https://apply.workable.com/j/FAKE123456/apply",
+      "published_on": "2026-10-01",
+      "telecommuting": true,
+      "description": "<p>Workable sample for Fake Co. Build the web app with React and TypeScript. Fully remote worldwide, English only.</p>"
+    }
+  ]
+}

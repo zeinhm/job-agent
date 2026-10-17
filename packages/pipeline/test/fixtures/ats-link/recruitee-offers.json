@@ -1,0 +1,22 @@
+{
+  "offers": [
+    {
+      "id": 5002,
+      "slug": "backend-engineer",
+      "title": "Backend Engineer",
+      "status": "published",
+      "careers_url": "https://fakeco.recruitee.com/o/backend-engineer",
+      "description": "<p>Recruitee sample for another job of Fake Co.</p>"
+    },
+    {
+      "id": 5001,
+      "slug": "senior-frontend-engineer",
+      "title": "Senior Frontend Engineer",
+      "status": "published",
+      "remote": true,
+      "careers_url": "https://fakeco.recruitee.com/o/senior-frontend-engineer",
+      "description": "<p>Recruitee sample for Fake Co. Build the web app with React and TypeScript.</p>",
+      "requirements": "<p>Fully remote worldwide, English only.</p>"
+    }
+  ]
+}

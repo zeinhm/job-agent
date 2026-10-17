@@ -43,6 +43,11 @@ function toRawPosting(job: GreenhouseJob, company: string): RawPosting {
   };
 }
 
+/** One job of the single-job endpoint (`/boards/<slug>/jobs/<id>`), mapped like a board job. Throws when it is invalid. */
+export function parseGreenhouseJob(body: unknown): RawPosting {
+  return toRawPosting(jobSchema.parse(body), "");
+}
+
 /** Fetches one board. Returns null when the slug is unknown (404). */
 async function fetchBoard(company: CompanyConfig): Promise<RawPosting[] | null> {
   const url = `${BOARD_URL}/${encodeURIComponent(company.slug)}/jobs?content=true`;

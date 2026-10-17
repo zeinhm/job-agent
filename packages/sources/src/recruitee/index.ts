@@ -28,6 +28,7 @@ const dateString = z
 const offerSchema = z.object({
   id: z.number().int(),
   title: z.string().trim().min(1),
+  slug: z.string().nullish(),
   status: z.string().nullish(),
   company_name: z.string().nullish(),
   location: z.string().nullish(),
@@ -103,6 +104,22 @@ function mapOffer(offer: RecruiteeOffer, companyName: string): RawPosting {
     ...(postedAt && { postedAt: toIso(postedAt) }),
     ...(tags.length > 0 && { tags }),
   };
+}
+
+/** The published offer with this slug (or numeric id) on an offers response, mapped like a board offer; null when none. */
+export function findRecruiteeOffer(body: unknown, offer: string): RawPosting | null {
+  const envelope = envelopeSchema.parse(body);
+  for (const raw of envelope.offers) {
+    const r = raw as { id?: unknown; slug?: unknown } | null;
+    const same =
+      (typeof r?.slug === "string" && r.slug.toLowerCase() === offer.toLowerCase()) ||
+      (typeof r?.id === "number" && String(r.id) === offer);
+    if (!same) continue;
+    const parsed = offerSchema.parse(raw);
+    if (parsed.status != null && parsed.status !== "published") return null;
+    return mapOffer(parsed, "");
+  }
+  return null;
 }
 
 async function fetchCompany(

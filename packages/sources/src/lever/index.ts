@@ -89,6 +89,11 @@ function mapJob(job: LeverJob, companyName: string): RawPosting {
   };
 }
 
+/** One posting of the single-posting endpoint (`/postings/<slug>/<id>`), mapped like a board posting. Throws when invalid. */
+export function parseLeverJob(body: unknown): RawPosting {
+  return mapJob(leverJobSchema.parse(body), "");
+}
+
 /** Fetches every page of one board. Returns null for an unknown slug (404). */
 async function fetchBoard(slug: string): Promise<unknown[] | null> {
   const items: unknown[] = [];
