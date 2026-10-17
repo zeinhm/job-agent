@@ -29,7 +29,8 @@ import {
   type Posting,
 } from "@job-agent/core";
 import { SEARCH_GAP_MS, type DetailFetcher } from "@job-agent/sources";
-import { dedupeHash, normalizeTitle } from "./dedupe/index.ts";
+import { boardJobRef, jobTitleKey } from "./ats-match.ts";
+import { dedupeHash } from "./dedupe/index.ts";
 import { BLOCKED_PREFIX, blockBackoffUntil } from "./discover.ts";
 import {
   DESCRIPTION_SOURCE,
@@ -97,8 +98,16 @@ export function selectForDescription(db: Db): Posting[] {
     );
 }
 
-/** The text of the same job (same company, same normalized title) on an ATS board the DB already holds, or undefined. */
-function atsDescription(db: Db, p: Posting): string | undefined {
+/** Why the free route found no text for a posting (labels of the summary). */
+export type AtsMiss = "no board posting" | "title differs" | "board text empty";
+
+/**
+ * The text of the same job on an ATS board the DB already holds, or why there is none. Same job = the same title key AND
+ * one of: the same company (`company_id`, i.e. the same normalized name), the same dedupe hash, the same link, or the same
+ * board job id (a Greenhouse / Ashby / Lever id is unique across boards, so an id match is the same posting even when the
+ * company's own domain hosts the link and the names differ).
+ */
+function atsDescription(db: Db, p: Posting): { text: string } | { miss: AtsMiss } {
   const key = normalizeCompanyName(p.company_name) || "unknown";
   const hashes = [...new Set([p.dedupe_hash, dedupeHash(key, p.title)])].filter(
     (h): h is string => h !== null,
@@ -106,23 +115,25 @@ function atsDescription(db: Db, p: Posting): string | undefined {
   const link = db.select().from(apply_links).where(eq(apply_links.posting_id, p.id)).get();
   const urls = [p.apply_url, link?.apply_url].filter((u): u is string => !!u);
   const sameJob: SQL[] = [inArray(postings.dedupe_hash, hashes)];
+  if (p.company_id !== null) sameJob.push(eq(postings.company_id, p.company_id));
   if (urls.length > 0) sameJob.push(inArray(postings.url, urls), inArray(postings.apply_url, urls));
-  const wanted = normalizeTitle(p.title);
+  for (const ref of urls.map(boardJobRef)) {
+    if (ref === null) continue;
+    const ids = [...new Set([ref.id, ref.id.toLowerCase()])];
+    sameJob.push(and(eq(postings.source, ref.source), inArray(postings.external_id, ids)) as SQL);
+  }
+  const wanted = jobTitleKey(p.title);
   const rows = db
     .select()
     .from(postings)
-    .where(
-      and(
-        inArray(postings.source, [...ATS_SOURCE_NAMES]),
-        isNotNull(postings.description_text),
-        or(...sameJob),
-      ),
-    )
+    .where(and(inArray(postings.source, [...ATS_SOURCE_NAMES]), or(...sameJob)))
     .orderBy(desc(postings.last_seen_at), postings.id)
     .all();
-  return rows
-    .find((r) => normalizeTitle(r.title) === wanted && (r.description_text ?? "").trim() !== "")
-    ?.description_text?.trim();
+  const same = rows.filter((r) => jobTitleKey(r.title) === wanted);
+  const text = same.find((r) => (r.description_text ?? "").trim() !== "")?.description_text?.trim();
+  if (text !== undefined) return { text };
+  if (same.length > 0) return { miss: "board text empty" };
+  return { miss: rows.length > 0 ? "title differs" : "no board posting" };
 }
 
 /** Start of the latest LinkedIn request the search made: the end of its latest run that was not skipped. */
@@ -164,13 +175,22 @@ function otherBlockedWithin(db: Db, id: string, at: Date): boolean {
   );
 }
 
-/** A block is the source's, not the postings': take back the attempt of every posting with a pending 429 mark. */
-function takeBackBlocks(db: Db): void {
+/**
+ * A block is the source's, not the postings': take back the attempt of every posting whose 429 mark belongs to the block
+ * that starts the backoff (less than DETAIL_BACKOFF_HOURS old, the window of `otherBlockedWithin`). An older, stale mark
+ * is cleared without giving an attempt back: that 429 was a failure of its own posting.
+ */
+function takeBackBlocks(db: Db, at: Date): void {
+  const since = new Date(at.getTime() - DETAIL_BACKOFF_HOURS * 3_600_000).toISOString();
   db.update(postings)
     .set({
       description_attempts: sql`max(${postings.description_attempts} - 1, 0)`,
       description_blocked_at: null,
     })
+    .where(gte(postings.description_blocked_at, since))
+    .run();
+  db.update(postings)
+    .set({ description_blocked_at: null })
     .where(isNotNull(postings.description_blocked_at))
     .run();
 }
@@ -255,6 +275,18 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   const cap = opts.maxRequests ?? MAX_DETAIL_REQUESTS_PER_RUN;
   const startedAt = now();
 
+  // A posting given up keeps no 429 mark, so it never counts toward the "2 different jobs" rule (rows stored before this
+  // rule carry one; they are cleaned here, on the next run).
+  db.update(postings)
+    .set({ description_blocked_at: null })
+    .where(
+      and(
+        isNotNull(postings.description_unavailable_at),
+        isNotNull(postings.description_blocked_at),
+      ),
+    )
+    .run();
+
   const pending = selectForDescription(db);
   if (pending.length === 0) {
     out("fetch-descriptions: nothing to fetch\n");
@@ -266,16 +298,27 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
 
   let fromAts = 0;
   let rejected = 0;
+  const misses: Record<AtsMiss, number> = {
+    "no board posting": 0,
+    "title differs": 0,
+    "board text empty": 0,
+  };
   const open: Posting[] = [];
   for (const p of pending) {
-    const text = atsDescription(db, p);
-    if (text === undefined) {
+    const found = atsDescription(db, p);
+    if ("miss" in found) {
+      misses[found.miss] += 1;
       open.push(p);
       continue;
     }
     fromAts += 1;
-    if (applyDescription(db, p, text, floor(), now()).rejected) rejected += 1;
+    if (applyDescription(db, p, found.text, floor(), now()).rejected) rejected += 1;
   }
+  const fromAtsText =
+    `from the ATS board ${fromAts} (missed: ` +
+    `${Object.entries(misses)
+      .map(([label, n]) => `${label} ${n}`)
+      .join(", ")})`;
 
   const cutoff = startedAt.getTime() - DETAIL_MAX_AGE_MS;
   const candidates = open.filter((p) => Date.parse(p.first_seen_at) >= cutoff);
@@ -290,7 +333,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
         ? `skipped (details backoff after block until ${detailBackoff.toISOString()})`
         : "no posting from the last 24 h to request";
     out(
-      `fetch-descriptions: ${why}, from the ATS board ${fromAts} (rejected by the rules ${rejected}), ` +
+      `fetch-descriptions: ${why}, ${fromAtsText} (rejected by the rules ${rejected}), ` +
         `older than 24 h and never requested ${tooOld}, left for the next run ${selectForDescription(db).length}\n`,
     );
     return 0;
@@ -340,7 +383,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
         failures.push(recordFailure(db, p, now(), true));
         if (otherBlockedWithin(db, p.id, now())) {
           blocked = e.message;
-          takeBackBlocks(db);
+          takeBackBlocks(db, now());
           break;
         }
         continue; // one posting alone: its own failure, the next posting is tried
@@ -363,7 +406,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
       if (!giveUp) continue;
       unavailable += 1;
       db.update(postings)
-        .set({ description_unavailable_at: now().toISOString() })
+        .set({ description_unavailable_at: now().toISOString(), description_blocked_at: null })
         .where(eq(postings.id, f.id))
         .run();
     }
@@ -390,7 +433,7 @@ export async function runFetchDescriptions(opts: FetchDescriptionsOptions): Prom
   const left = selectForDescription(db).length;
   out(
     `fetch-descriptions: requested ${requested}, fetched ${fetched} (rejected by the rules ${rejected}), failed ${failed}` +
-      `${unavailable > 0 ? ` (unavailable ${unavailable})` : ""}, from the ATS board ${fromAts}, ` +
+      `${unavailable > 0 ? ` (unavailable ${unavailable})` : ""}, ${fromAtsText}, ` +
       `older than 24 h and never requested ${tooOld}, left for the next run ${left}\n`,
   );
   if (skipped !== undefined) out(`fetch-descriptions: skipped (${skipped})\n`);
