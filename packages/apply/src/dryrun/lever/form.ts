@@ -30,6 +30,8 @@ export interface LeverControl {
   options: string[] | null;
   /** `value` of each radio / checkbox input, parallel to `options`. */
   optionValues: string[];
+  /** Ashby only: tag and input type of the entry's controls (e.g. `input:tel+select`); kinds, never a value. */
+  shape?: string;
 }
 
 /** Fixed expression run in the page; the result is JSON (null when the page has no application form). */
@@ -147,6 +149,7 @@ export function fieldsFromControls(
       required: c.required,
       options: c.options,
       ats: { type: atsType, id: c.name },
+      ...(c.shape !== undefined ? { dom: c.shape } : {}),
     };
   });
 }

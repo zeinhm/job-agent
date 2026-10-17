@@ -437,6 +437,15 @@ describe("full stops", () => {
     },
   );
 
+  it("a stopping field with a DOM shape carries its label, type and shape in the detail", () => {
+    const f = { ...field("Mobile phone", "other"), dom: "input:tel+input:tel" };
+    expect(plan([field("Email"), f])).toEqual({
+      kind: "stop",
+      reason: "unexpected_field",
+      details: ["Mobile phone (other, input:tel+input:tel)"],
+    });
+  });
+
   it("a scam-flagged posting is never planned", () => {
     expect(plan([field("Email")], { scamFlagged: true })).toEqual({
       kind: "stop",

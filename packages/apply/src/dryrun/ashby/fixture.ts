@@ -33,6 +33,7 @@ export const ASHBY_FIXTURE_CAPTCHA_PATHS: Record<CaptchaVariant, string> = {
 export const ASHBY_FIXTURE_CAPTCHA_PATH = ASHBY_FIXTURE_CAPTCHA_PATHS["visible-challenge"];
 export const ASHBY_FIXTURE_CHANGED_PATH = `/acme/${POSTING_UUID}-changed/application`;
 export const ASHBY_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/application`;
+export const ASHBY_FIXTURE_PHONE_PAIR_PATH = `/acme/${POSTING_UUID}-phonepair/application`;
 
 const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/ashby/", import.meta.url));
 
@@ -40,6 +41,7 @@ const PAGES: Record<string, string> = {
   [ASHBY_FIXTURE_FORM_PATH]: "app.html",
   [ASHBY_FIXTURE_CHANGED_PATH]: "app.html",
   [ASHBY_FIXTURE_DATE_PATH]: "app.html",
+  [ASHBY_FIXTURE_PHONE_PAIR_PATH]: "app.html",
   "/app.js": "app.js",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
@@ -122,6 +124,12 @@ const VARIANTS: Record<string, (p: Posting) => void> = {
         title: "Available start date",
       },
     });
+  },
+  // A phone question whose DOM is not understood (two tel inputs): the run stops with its label and DOM kinds.
+  [`${POSTING_UUID}-phonepair`]: (p) => {
+    const f = byTitle(p, "Phone Number").field;
+    f.type = "PhonePair";
+    f.title = "Mobile phone";
   },
 };
 

@@ -37,6 +37,8 @@ export interface FormField {
   options: string[] | null;
   /** The ATS's own handle for the field, so a filler can find it again. */
   ats: { type: string; id: string; name?: string | null };
+  /** DOM shape of the control as a filler read it (tags and input types only); shown when the field stops the run. */
+  dom?: string;
 }
 
 /** The bank answers the planner may use; `approved: false` rows cover nothing. */
@@ -335,7 +337,13 @@ export function planFill(input: FillInput): FillPlan {
     (f) => !(SUPPORTED_FIELD_TYPES as readonly string[]).includes(f.field_type),
   );
   if (unsupported.length > 0)
-    return { kind: "stop", reason: "unexpected_field", details: unsupported.map((f) => f.label) };
+    return {
+      kind: "stop",
+      reason: "unexpected_field",
+      details: unsupported.map((f) =>
+        f.dom === undefined ? f.label : `${f.label} (${f.field_type}, ${f.dom})`,
+      ),
+    };
 
   const approved = input.answers.filter((a) => a.approved);
   const byKey = new Map(approved.map((a) => [a.key, a]));

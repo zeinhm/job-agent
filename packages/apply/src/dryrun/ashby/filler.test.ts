@@ -26,6 +26,7 @@ import {
   ASHBY_FIXTURE_CHANGED_PATH,
   ASHBY_FIXTURE_DATE_PATH,
   ASHBY_FIXTURE_FORM_PATH,
+  ASHBY_FIXTURE_PHONE_PAIR_PATH,
   ASHBY_FIXTURE_POSTING_ID,
   ashbyFixtureContext,
   seedAshbyFixture,
@@ -79,7 +80,14 @@ interface Seen {
   selected: Record<string, string[]>;
   checked: Record<string, string[]>;
   files: string[];
-  untouched: { consent: number; survey: number; autofill: number };
+  untouched: {
+    consent: number;
+    survey: number;
+    autofill: number;
+    phoneCountry: string;
+    phoneTexting: number;
+    textingQuestion: number;
+  };
 }
 
 /** What the page really holds, read straight from the DOM (not through the filler's own read-back). */
@@ -106,6 +114,9 @@ async function readPage(session: DryRunSession): Promise<Seen> {
         consent: els("_systemfield_texting_consent").filter((e) => e.checked).length,
         survey: [...document.querySelectorAll(".ashby-survey-container input")].filter((e) => e.checked).length,
         autofill: els("autofill-resume")[0].files.length,
+        phoneCountry: els(${JSON.stringify(PHONE + "-country")})[0].value,
+        phoneTexting: els(${JSON.stringify(PHONE + "-texting")}).filter((e) => e.checked).length,
+        textingQuestion: els(${JSON.stringify(PATH("0b"))}).filter((e) => e.checked).length,
       },
     };
   })()`);
@@ -186,7 +197,19 @@ describe("full fill on the fixture", () => {
     expect(s.selected[REGIONS]).toEqual(["Asia", "Europe"]);
     expect(s.files).toEqual(["fixture-resume.pdf"]);
     // Texting consent, the survey and the autofill drop zone are left alone.
-    expect(s.untouched).toEqual({ consent: 0, survey: 0, autofill: 0 });
+    expect(s.untouched).toEqual({
+      consent: 0,
+      survey: 0,
+      autofill: 0,
+      phoneCountry: "ID",
+      phoneTexting: 0,
+      textingQuestion: 0,
+    });
+    // The phone field ("Phone Number", a country selector + tel input) takes profile.phone.
+    expect(s.texts[PHONE]).not.toBe("");
+    const phone = storedRows().find((q) => q.question_id === PHONE);
+    expect(phone).toMatchObject({ label: "Phone Number", type: "text" });
+    expect(storedRows().some((q) => q.question_id === PATH("0b"))).toBe(false);
   }, 90_000);
 
   it("the page sends the allowed query and the submit mutation; the server receives the query only", async () => {
@@ -439,10 +462,15 @@ describe("stops (nothing is filled)", () => {
 
   it("an unsupported field type", async () => {
     const r = await stopped(run(ASHBY_FIXTURE_DATE_PATH), "unexpected_field");
-    expect(runOf(r.summary.runId)?.stop_detail).toBe("Available start date");
+    expect(runOf(r.summary.runId)?.stop_detail).toBe("Available start date (other, input:date)");
     expect(storedRows().find((q) => q.label === "Available start date")).toMatchObject({
       type: "other",
     });
+  }, 90_000);
+
+  it("a phone field that is not understood stops with its label and DOM kinds, never a value", async () => {
+    const r = await stopped(run(ASHBY_FIXTURE_PHONE_PAIR_PATH), "unexpected_field");
+    expect(runOf(r.summary.runId)?.stop_detail).toBe("Mobile phone (other, input:tel+input:tel)");
   }, 90_000);
 
   it("a field that matches two answers", async () => {

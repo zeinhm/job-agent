@@ -28,7 +28,7 @@
                 "field": {
                   "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a01",
                   "type": "Phone",
-                  "title": "Phone"
+                  "title": "Phone Number"
                 }
               },
               {
@@ -160,6 +160,16 @@
                   "path": "_systemfield_texting_consent",
                   "type": "Consent",
                   "title": "I agree to receive text messages about my application"
+                }
+              },
+              {
+                "id": "e15",
+                "isRequired": false,
+                "isHidden": false,
+                "field": {
+                  "path": "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7a0b",
+                  "type": "Boolean",
+                  "title": "Can we send you text messages about your application?"
                 }
               }
             ]

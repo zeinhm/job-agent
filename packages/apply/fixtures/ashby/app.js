@@ -56,7 +56,38 @@ function control(field, required) {
     case "Email":
       return el("input", { ...attrs, type: "email", class: "ashby-application-form-input-text" });
     case "Phone":
-      return el("input", { ...attrs, type: "tel", class: "ashby-application-form-input-text" });
+      // The real widget: a country selector next to the tel input, plus a texting-consent group, all in one entry.
+      return el(
+        "div",
+        { class: "ashby-application-form-phone-widget" },
+        el(
+          "select",
+          { name: path + "-country", id: path + "-country", "aria-label": "Phone number country" },
+          el("option", { value: "ID", selected: "" }, "Indonesia (+62)"),
+          el("option", { value: "US" }, "United States (+1)"),
+        ),
+        el("input", { ...attrs, type: "tel", class: "ashby-application-form-input-text" }),
+        el(
+          "div",
+          { class: "ashby-application-form-input-radio-group" },
+          option("radio", path + "-texting", { label: "Yes, text me", value: "yes" }, false, 0),
+          option(
+            "radio",
+            path + "-texting",
+            { label: "No, do not text me", value: "no" },
+            false,
+            1,
+          ),
+        ),
+      );
+    case "PhonePair":
+      // A phone shape the reader does not understand: two tel inputs in one entry.
+      return el(
+        "div",
+        {},
+        el("input", { ...attrs, type: "tel" }),
+        el("input", { name: path + "-alt", id: path + "-alt", type: "tel" }),
+      );
     case "LongText":
       return el("textarea", {
         ...attrs,

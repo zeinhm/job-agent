@@ -562,6 +562,12 @@ only what differs. It **never submits**.
   `ashby`), compares them with the last stored set (`form_changed` on a difference, as for Lever) and runs `match-questions`,
   then the same fill plan. The survey / self-identification block, the texting and WhatsApp consent boxes and the "Autofill
   from resume" drop zone are never read or touched.
+- **Phone.** Ashby's phone question is a country selector next to a `tel` input (often with a texting-consent group) inside
+  one field entry. The run reads the `tel` input as the question (label such as "Phone", "Phone Number", "Mobile phone"), fills
+  it from `profile.phone` through the usual phone check, and never touches the country selector or the consent radios. A field
+  whose controls the run does not understand stops `unexpected_field`; the stop detail is the label plus the field type and the
+  DOM shape (tags and input types, e.g. `Mobile phone (other, input:tel+input:tel)`), never a value. Send those labels and
+  shapes (never values) to the PM when a field stops.
 - **The ids are unverified on the real site** (research t_d0698332 could not read a real form without POSTing). If the first
   real runs show `form_changed`, empty or "page kept a different value" fields, send the PM the field labels (never values):
   that is the signal to correct the selectors from one owner-run recording. Because the draft writes are aborted, a real page

@@ -51,14 +51,27 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
   const out = [];
   for (const entry of container.querySelectorAll(".ashby-application-form-field-entry")) {
     if (entry.closest(".ashby-survey-container, [class*='autofill']")) continue;
-    const els = [...entry.querySelectorAll("input, textarea, select")].filter((e) => !skipped(e));
+    const all = [...entry.querySelectorAll("input, textarea, select")].filter((e) => !skipped(e));
+    // A phone widget is a country selector next to a tel input (it may carry a texting-consent group): the tel input is
+    // the question, everything else in the entry is left alone, like Greenhouse's phone country.
+    const tels = all.filter((e) => e.tagName === "INPUT" && (e.getAttribute("type") || "").toLowerCase() === "tel");
+    const els = tels.length === 1 ? tels : all;
     if (els.length === 0) continue;
+    // A texting / WhatsApp consent group under any name is not a question.
+    const consentOnly = els.every((e) => e.tagName === "INPUT" && ["radio", "checkbox"].includes(e.type));
+    if (consentOnly && /\\b(text messag|sms|whatsapp)/i.test(titleOf(entry))) continue;
     const nameOf = (e) => e.getAttribute("name") || e.id;
     const name = nameOf(els[0]);
     const first = els[0];
     const type = (first.getAttribute("type") || "").toLowerCase();
+    // Tag and input type of every control, never a value: what the owner reports when a field stops the run.
+    const shape = els
+      .map((e) => e.tagName.toLowerCase() + (e.tagName === "INPUT" ? ":" + (e.getAttribute("type") || "text").toLowerCase() : ""))
+      .join("+")
+      .slice(0, 60);
     const base = {
       name,
+      shape,
       label: titleOf(entry),
       required: els.some((e) => e.hasAttribute("required") || e.getAttribute("aria-required") === "true"),
       options: null,
