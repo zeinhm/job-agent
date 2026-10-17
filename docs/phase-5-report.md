@@ -403,3 +403,168 @@ Also still open from "Recommendations for Phase 6" above:
 - the prefill-and-hand-over decision and R1 questions 1 and 2, at the Phase 6 gate;
 - selector corrections from your first real runs;
 - the done-when itself.
+
+## Fix round 2
+
+Date: 2026-10-17. Author: PM (card t_7ebeda21). Plan: `docs/phase-5-fixround2-backlog.md` (card t_3e3cb038, your items 1-4
+from the real dry runs that all stopped at 0 / 0 fields). Re-audit #16 (t_f6cfb948, report `docs/audits/phase-16.md`)
+**failed**: no blocker, 1 major, 3 minor. The code of all four cards is correct. The major is a missing test in B1 (the DB
+backup), and I found a second B1 problem while writing this report (below). No `audit-16` tag was set. Next card: t_1df7c94a
+"Phase 5: owner review after fix round 2" (yours).
+
+### What shipped
+
+Range `audit-15..main`. All four cards were high risk, each audited on its own, then squash-merged.
+
+| Key | Your item | Card (dev / QA / audit) | Commit | What it does |
+|---|---|---|---|---|
+| B1 | 4 | t_3625211b / t_e954d3fa / t_2d48ed96 | `6c2b34c` | Before QA or the auditor merges, `bin/agent-step` looks for a report line starting with `OWNER: back up data/job-agent.db`. If it finds one, it runs `sqlite3 .backup` and checks the copy with `integrity_check`. It keeps the 5 newest `data/job-agent.db.bak-*`. If the backup fails, nothing is merged and the card is held `[OWNER]` |
+| M1 | 1 | t_bd12e1a8 / t_dc0b8789 / t_165f503d | `a6e92d5` | `ambiguous match` now names the keys per label (keys only, never values). The same key reached by several routes still fills; two different keys still stop |
+| P2 | 2 | t_73f3d2e8 / t_432edbc9 / t_02369457 | `e7ec3dc` | Ashby phone readback compares digits only. A stored phone row written by the older reader is refreshed, not reported as a changed form |
+| G2 | 3 | t_eafe628c / t_9bac4a90 / t_70cf4f09 | `a41523d` | Greenhouse "Location (City)" autocomplete plus its "Search" helper count as the stored Location question. It is never typed into; the run ends `needs_input` |
+
+### Root causes the dev cards found
+
+- **M1: the code was already right; the cause is in your data.** My plan guessed that the same key might be counted twice.
+  The dev confirmed the check already collects keys in a set (`fill-plan.ts` ~358), so one key reached by two routes never
+  stopped a run. Your stop on all five contact fields therefore means each label is reached by **two different keys**:
+  `profile.<field>` (the standard wording) plus another approved answer whose `question` or `alternatives` repeat that
+  wording. The dev's test reproduces exactly your five-label stop that way. Without your DB the agents cannot tell which of
+  these it is:
+  - (a) leftover `answer_bank` rows: the import never deletes rows that are no longer in the YAML;
+  - (b) a current answer that repeats a standard wording.
+
+  Nothing in the code was changed on that guess. Instead, the stop detail now names the keys, so your next run tells us.
+- **P2: the stop did not come from the phone readback.** A readback mismatch only gives the per-field note `page kept a
+  different value`. `form_changed "different: Phone Number"` came from comparing the stored questions with the page.
+  - Before fix round 1 (A1), the phone block (country selector + tel + texting radios) was stored as type `other`.
+  - After A1, the reader sees only the tel input, as `text`.
+  - Same name and label, different type: the run reported "different".
+
+  The fix: Ashby treats a stored `other` row that now reads as a known type with the **same label** as a reader change.
+  It refreshes the row and goes on. A changed label, or a changed required flag or options on a known type, still stops.
+  The digits-only readback you asked for was added too.
+- **G2:** as you described. The reader now recognises the location input and the "Search" helper by their labels and their
+  position (the helper must be within 3 parent elements of the location input). The real widget's markup is not known.
+  If the real "Search" input sits farther away, the run stops `form_changed` with `extra: Search` (safe, never a wrong
+  fill). Send me that detail if it happens.
+
+### How to use it
+
+1. **`ambiguous match`** now looks like `ambiguous match, Email (contact.email, profile.email)` (the detail is cut at 200
+   characters, so with five labels you may see only the first three or four). For each label, keep one key:
+   - a key that is not in your `config/answers.yaml` is a leftover row: unapprove it in the Answers tab;
+   - a key that is in the YAML repeats a standard wording: remove that wording from its `question` / `alternatives`, or
+     unapprove it.
+
+   Then run the dry run again. See `docs/running.md` "`ambiguous match`".
+2. **Ashby phone.** Nothing to do. On the next Ashby dry run of a posting stored before fix round 1, the phone row is
+   refreshed in the DB (this is why the card carried the backup line). The readback accepts a page that reformats the
+   number (`+1 555-...`) as long as the digits are equal or the page only added a prefix.
+3. **Greenhouse location.** The run fills everything else and ends `needs_input`. The Location row reads `location
+   autocomplete: pick the suggestion yourself`. That is expected: in a real application you pick the suggestion. Mark the
+   run Correct if the other fields are right.
+4. **Automatic DB backup.** When a card's report starts a line with `OWNER: back up data/job-agent.db`, the merge should
+   back up the DB first and name the file in the commit body and the card summary (`DB backup: data/job-agent.db.bak-<stamp>`).
+   If it cannot (no `sqlite3`, no DB, a bad copy), the card shows `[OWNER]` with the reason and nothing is merged. Restoring
+   is manual (`cp` the `.bak-*` file back while no run is active). **But see the warning below: in this round it did not fire.**
+
+**Warning: the P2 merge was not backed up.** P2 carried the backup line in both its dev report and its audit report, and it
+merged at 20:46 (after B1 at 20:24). But:
+- commit `e7ec3dc` has no `DB backup:` line in its body;
+- the audit card summary has no backup note either;
+- no `data/job-agent.db.bak-*` file was created after 19:58 (the newest is `bak-202610171958`).
+
+Both report texts match B1's line pattern when checked with `grep -E`. My best guess at the cause, **not reproduced**:
+- `bin/agent-step` runs with `set -o pipefail`;
+- the helper pipes the dev card text and then the reviewer file into `grep -q`;
+- `grep -q` exits on the first match (in the card text), and the later `cat` of the reviewer file gets SIGPIPE;
+- under pipefail the pipe then counts as "no line found", and the helper returns "nothing to do".
+
+The tests did not catch it because the helper's tests use short inputs, and the merge wiring is only checked by text greps
+(audit finding 1). No data was harmed: P2 rewrites rows only during your next Ashby dry run, not at merge. **Back up
+`data/job-agent.db` yourself before your next Ashby dry run.** One way, while no run is active:
+`sqlite3 data/job-agent.db ".backup 'data/job-agent.db.bak-manual'"`.
+
+### Re-audit #16
+
+Report: `docs/audits/phase-16.md`. Your items:
+- **2 (Ashby phone): closed.**
+- **3 (Greenhouse location): closed.**
+- **1 (ambiguous match): partly closed.** The stop is now diagnostic, but the cause is in your answer data and needs your re-run.
+- **4 (backup before merge): partly closed** (finding 1). After the warning above, I count item 4 as **open**.
+
+Break checks: five of the six were caught by tests:
+- (a) same key counted twice: 1 test failed;
+- (b) two different keys accepted: 3 failed;
+- (c) exact phone compare: 2 failed;
+- (d) digits-only for every text field: 22 failed;
+- (e) location widget treated as an extra field: 4 failed.
+
+The sixth, (f) "merge after a failed backup", was **not caught**: all shell tests still passed.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | The only test that a failed backup stops the merge is a text grep on `bin/agent-step`. Ignoring the failure keeps all 18 + 34 shell tests green | MAJOR | **open**. Needs a fix card (below) |
+| 2 | M1: the real cause of your five-field stop is not proven; the keys in the next stop detail decide | MINOR | **open**, waits on your re-run |
+| 3 | Lever and Greenhouse still compare the phone exactly. A page that reformats it there gives a not-filled row (`page kept a different value`), not a stop | MINOR | **open**. Only if you see it |
+| 4 | `phoneKept` uses "ends with": a very short typed number would match any longer kept number ending in it. Real phone answers are full numbers | MINOR | **open**, low risk |
+| - | P2 audit: no `docs/decisions.md` entry for the digits/suffix rule and the "stored `other` row is a reader change" rule. Both are in `docs/running.md` | MINOR | **open**. A docs line in the fix card |
+| - | PM, this report: the backup did not run on the P2 merge (warning above) | **MAJOR** (my rating) | **open**. Same fix card |
+
+**Fix card needed (not created by this report card).** "Merge automation: the backup line is found reliably, and a failed
+backup merges nothing". It should:
+- reproduce the missed P2 backup (dev card text with the line, then a reviewer file, under `pipefail`);
+- fix the match, for example by collecting the text first and then running `grep` on it, or by dropping `-q`;
+- add the behavioural test from audit finding 1: the real `squash_merge` path in a temp repo with a failing backup, which must
+  leave no new commit on main, release the lock, and end with a question starting `OWNER: DB backup before merging`;
+- break checks for both;
+- the missing decisions entry for P2.
+
+It is high risk (a fix task), individually audited. **Until it merges, back up the DB yourself before a run after any merge
+whose report carries the backup line.**
+
+### Test status
+
+From re-audit #16, on `a41523d`:
+- `pnpm check`: exit 0, **Test Files 156 passed (156), Tests 2980 passed (2980)**. At re-audit #15: 156 / 2964.
+- Shell tests: pre-commit 31, hold 15, agent-step 34, backup 18 (new), all passed, 0 failed. Python: OK.
+- `bin/smoke --demo`: all 7 sources `ok`, three fixture dry runs filled. Self-check: `/api/health 200`, `/api/queue 200
+  items=70`, `/api/dry-runs 200 runs=5`.
+- **Flaky:** the CLI end-to-end tests (`packages/pipeline/test/e2e*.test.ts`) time out at 5 s when the machine is busy (G2
+  dev: 1-5 failures per run; the P2 audit: one run with 2 failures, then green twice). They pass on a quiet machine. They do
+  not touch the fillers.
+
+The demo data has no Greenhouse location widget and no Ashby page that reformats the phone. Both were checked only on the
+fixtures in the tests.
+
+### Known limitations (after fix round 2)
+
+- **The automatic DB backup is not reliable yet** (warning above). Back up yourself.
+- **`ambiguous match` is diagnostic, not fixed:** your answers decide. The import still never deletes rows that are gone from
+  the YAML. If the stop names such leftovers, I can plan a card "import unapproves config rows missing from the YAML".
+- **The Greenhouse location widget is matched by its labels and position**, not by its real markup (which no agent can
+  see). Your next real run proves it.
+- **Phone digits-only readback is Ashby-only** (finding 3).
+- The fix-round-1 limitations still hold:
+  - CAPTCHA detection is built from fixtures;
+  - Ashby field ids are unverified on a real form;
+  - Lever location autocomplete;
+  - untouched EEO / consent fields;
+  - no Workable / Recruitee filler.
+
+### What you do next
+
+1. **Back up `data/job-agent.db` now** (command above), before any real dry run.
+2. **Re-run the three dry runs** that stopped (Lever, Ashby, Greenhouse) with `pnpm job-agent dry-run <posting-id>`.
+   Expected results:
+   - Lever: either it fills, or `ambiguous match` now names keys. Clear the extra key as in "How to use it" 1, then run it
+     again.
+   - Ashby: it fills the phone, with no `form_changed` for "Phone Number".
+   - Greenhouse: it ends `needs_input`, with the Location row left for you.
+3. **Send me on t_1df7c94a** (labels and key names only, never values, never posting ids in the repo):
+   - the key names from any `ambiguous match`, and whether each was in your YAML;
+   - any remaining `form_changed` / `unexpected_field` detail.
+4. **Let the PM plan the B1 fix card** above, so that later merges back up the DB on their own.
+5. Keep going toward the done-when: at least 20 dry runs reviewed as correct, at least 10 of them full fills, across
+   Greenhouse, Lever and Ashby. Then close t_1df7c94a, t_4532cd2c and t_7a87ffba.
