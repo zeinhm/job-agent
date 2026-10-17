@@ -256,3 +256,150 @@ PLAN 8 Phase 6 is "Auto-apply + learning: submitting for fully covered forms, ou
 7. **Open LinkedIn items:**
    - L2 if needed (above);
    - audit MINOR 4 and the L1 audit note (clear `description_blocked_at` when a posting is given up) as one low card.
+
+## Fix round
+
+Date: 2026-10-17. Author: PM (card t_8e8e6e9c). Plan: `docs/phase-5-fixround-backlog.md` (card t_e3f354ae, your decisions
+1-6). Re-audit #15 (t_bb5c6dc8, report `docs/audits/phase-15.md`, tag `audit-15` on `6e8bb9d`) **passed**: no blocker, no
+major, 3 minor findings. Next card: t_4532cd2c "Phase 5: owner review after the fix round" (yours). The first owner review,
+t_7a87ffba, stays open until the done-when is met.
+
+**Summary.** All seven fix-round cards are merged:
+- a passive CAPTCHA no longer stops a real dry run;
+- Greenhouse links on a company career page (`?gh_jid=`) now work;
+- the Ashby phone field is filled;
+- LinkedIn postings get their description from the company's ATS posting, with no LinkedIn request.
+
+This section settles "Decision needed from you" and "LinkedIn status after L1" above, and updates "Known limitations" and
+"Recommendations for Phase 6".
+
+### What shipped
+
+Range `audit-14..audit-15`. Each commit is a squash merge on `main`.
+
+| Key | Your item | Card (dev / QA / audit) | Risk | Commit | What it does |
+|---|---|---|---|---|---|
+| C1 | 1 | t_cbcbc227 / t_ab88eed4 / t_5753a0fe | **high** | `efb964d` | Dry-run CAPTCHA rule (b): a passive script, badge or invisible widget does not stop a run; a visible challenge stops it before filling, and also when it appears during the run (checked after every fill and before the screenshot). The old rule stays as `strict` mode for Phase 6 |
+| G1 | 2 | t_5b6fb1d5 / t_a3e87bce / t_099cbcff | **high** | `069456e` | Greenhouse career-page links: the job id is read from `?gh_jid=`, the resolved apply link is used, and the board is found (stored slug, then the company's board, then at most 5 `boards-api` lookups that must return that exact job id). A guessed board is never used. A verified board is stored |
+| A1 | 3 | t_a31b041a / t_8821df67 / t_f8a5834f | **high** | `b058bdb` | Ashby phone: the `tel` input next to the country selector is filled from `profile.phone`; the country selector and texting-consent radios are untouched. A field the run does not understand now stops with its label plus field type and DOM shape (never a value) |
+| L2a | 4 | t_bee8ac6e / t_94ad2f08 / t_4871d88a | **high** | `49a8238` | Explains and fixes "from the ATS board 0" (below); clears stale 429 marks (audit #14 MINOR 4 and the L1 note) |
+| L2b | 4 | t_3b2d9ff0 / t_e8e1daf6 / t_5bd9eeaa | **high** | `6e8bb9d` | LinkedIn description from the company's public Greenhouse / Lever / Ashby / Workable / Recruitee posting named by the apply link. Such a posting is never sent to LinkedIn |
+| H1 | 6 | t_9e75a5d6 / t_3314a12a | low | `cfb4a4c` | A test pins the exact Ashby read-only allowlist (audit #14 MINOR 1) |
+| H2 | 6 | t_bfe5e86b / t_5fc21c72 | low | `b192747` | The automation clears covered ledger rows on an audit PASS with a tag; AGENTS.md says `bin/agent-step` commits docs in main (audit #14 MINOR 3 and 5) |
+| - | 5 | no card | - | `41c22cc` | Live-mode GET policy (a) recorded in `docs/decisions.md`; option (b) is a Phase 6 prerequisite |
+
+**Why "from the ATS board 0" on every run (L2a).** The free route only looked at LinkedIn postings that were not duplicates.
+But `process` had already merged every LinkedIn posting with the same company and title as a board posting before this step
+ran. So every match the rule could find was already gone, and the postings that were left never matched, for three reasons:
+- the LinkedIn title had a location tag ("Engineer - US");
+- the apply link was on the company's domain, so it never equalled the board posting's URL;
+- `apply_links` rows exist only after `resolve-apply`, which runs later in the hourly run.
+
+The title key now cuts trailing location / remote tags, and a board posting also matches by the board job id in the apply link.
+The summary line now says why a posting was missed: `from the ATS board N (missed: no board posting a, title differs b, board
+text empty c)`. "No board posting" usually means the company is not on your company list.
+
+### How to use it
+
+**OWNER: back up `data/job-agent.db` before your next hourly run** if you have not done so since these merges. No card added a
+migration, but three rewrite stored rows:
+- G1 stores verified Greenhouse boards (`apply_links.ats_slug`, and `companies` for a company with no board yet);
+- L2a clears stale 429 marks;
+- L2b writes descriptions.
+
+1. **CAPTCHA on real runs.** A run that goes on past a passive CAPTCHA prints `captcha=passive` on its `dry-run:` line (the
+   stored detail lists labels only, e.g. `captcha=passive:script,badge`). Only a visible challenge stops it with `captcha`; the
+   screenshot is still taken and 0 / 0 fields are stored. The run never clicks, focuses or solves a challenge. **Never solve
+   one yourself inside a dry-run window.** If a visible challenge appears, let the run stop and try another posting.
+2. **Greenhouse career-page links.** Run `pnpm job-agent fetch-questions` first (the hourly run does this too). For a
+   `...?gh_jid=<id>` link it finds the board, and the dry run then opens `https://job-boards.greenhouse.io/<board>/jobs/<id>`,
+   never the career page. If `fetch-questions` printed `greenhouse board not found for gh_jid`, the dry run is refused: add
+   the company's Greenhouse board to `companies.yaml`, and the next run picks it up.
+3. **Ashby phone field.** Nothing to do; make sure `profile.phone` is approved in the Answers tab. If another Ashby field stops
+   with `unexpected_field`, the stop detail looks like `Mobile phone (other, input:tel+input:tel)`. **Send me that label and
+   shape (never the value)** on the owner review card.
+4. **LinkedIn descriptions.** The hourly `fetch-descriptions` line now reads `... from the ATS board N (missed: ...), from the
+   ATS link N (failed F), ...`. The ATS-link route sends only GET requests to the ATS's public API, logged out, 2 s apart per
+   host, at most 50 postings per run. A closed job or a job missing from the board counts as one failure: the posting is tried
+   again after 6 h and given up (`description_unavailable`) after 3 failures. Source health still shows the LinkedIn
+   `details N (K failed)` part, which should now be smaller.
+
+### Re-audit #15
+
+Report: `docs/audits/phase-15.md`. All six of your items and audit #14 MINOR 1-5 are **closed**. A1 (Ashby phone) is closed on
+fixtures only: the agents cannot see a real Ashby form, so your next real Ashby run is the final proof. A test caught each of the
+six break checks:
+- passive CAPTCHA stops: 15 tests failed;
+- visible challenge ignored: 11 failed;
+- unverified Greenhouse board accepted: caught;
+- Ashby phone mapping dropped: 12 failed;
+- `ApiSetFormValue` allowlisted: 2 failed;
+- a stale 429 gets an attempt back: caught.
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | Two golden test rows use a real company's career-page URL and job id that came from your examples. A public job URL is not personal data, but it ties the repo to your own targets | MINOR | **open**. Optional low card: swap it for an invented company and id |
+| 2 | The ATS-link route counts a network error or 5xx like a closed job. A day-long ATS outage can give up the descriptions of open jobs for good (3 failures, 6 h apart), and they are never sent to LinkedIn | MINOR | **open**. Optional low card: count only 404 / not on the board / other id / empty text |
+| 3 | A `?gh_jid=` posting with no known board costs up to 5 paced lookups (2 s each). With 50 postings that is up to ~10 min per run, repeated every 6 h for 3 attempts. GET only, paced and capped: slow but harmless | MINOR | **open**. Optional: remember "board not found" per host for the run |
+
+The auditor requires no fix card. I recommend one low card for findings 1 and 2 together before Phase 6. None of them blocks
+your dry runs.
+
+**Ledger.** On this PASS the automation cleared the H1 and H2 rows: `docs/audit-ledger.md` now reads `Last audit tag: audit-15
+(6e8bb9d)` with no rows. This is the first live run of H2, and it worked.
+
+### Test status
+
+From re-audit #15, on `6e8bb9d`:
+- `pnpm check`: exit 0, **Test Files 156 passed (156), Tests 2964 passed (2964)**. At audit #14: 151 / 2796.
+- Shell tests: 34 passed, 0 failed. Python: 25 tests OK.
+- `bin/smoke --demo`: three fixture dry runs `status=filled reason=- fields=13/13`. Self-check: `/api/health 200`,
+  `/api/queue 200 items=67`, `/api/dry-runs 200 runs=5`.
+
+The demo data has no LinkedIn rows and no `gh_jid` links. So the new description routes and the Greenhouse board lookup were
+exercised only by tests on recorded fixtures, not by the smoke run.
+
+### Known limitations (after the fix round)
+
+These replace the CAPTCHA, Ashby-ids, ledger and LinkedIn items of "Known limitations" above. The others still hold: Lever
+location autocomplete, aborted uploads and draft writes, untouched EEO / consent fields, no Workable / Recruitee filler, no
+review history.
+- **CAPTCHA detection is built from fixtures and research.** A real page may show a widget the detector does not know. A
+  visible frame of an unknown kind stops the run with `captcha` (fail-safe). If real runs still stop with `captcha` while you
+  see no challenge, tell me, and describe what the screenshot shows (do not send the screenshot).
+- **Ashby field ids are still unverified on a real form.** The phone fix follows R2 and the code. Expect a few more
+  `unexpected_field` / `form_changed` stops on the first real runs.
+- **A Greenhouse career page with no verifiable board** is refused until you add the board to `companies.yaml`. It is looked up
+  again on every run, because there is no "not found" memory (finding 3).
+- **A new LinkedIn posting may still cost one LinkedIn request on its first hourly run.** `resolve-apply` runs after
+  `fetch-descriptions`, so on that run only the link JobSpy found is known. If that link is not an ATS job link, the posting
+  goes to LinkedIn, within the old limits (3 per run, 45 s apart, last 24 h only).
+- **Postings with no ATS job link** (the company's own form, Workday, a link with no job id) still depend on LinkedIn detail
+  requests.
+- **Transient ATS errors count as failures** (finding 2).
+
+### What you do next
+
+1. **Back up the DB** (above), then let the hourly runs go on.
+2. **Run real dry runs toward the done-when:** at least 20 reviewed as correct, at least 10 of those full fills, across
+   Greenhouse, Lever and Ashby (`pnpm job-agent dry-run <posting-id>`, then review in the Dry runs tab). `captcha=passive` on
+   the line means the new rule is working.
+3. **Send me the labels (never values) of any field that still stops a run:** the `unexpected_field` detail (label, type,
+   DOM shape) or the labels in a `form_changed` detail. Each one becomes a small filler card.
+4. **Watch the LinkedIn descriptions line** for about a day of hourly runs: `from the ATS board N (missed: ...)`, `from the ATS
+   link N (failed F)`, and the `details` part in Source health. Tell me on t_4532cd2c whether most LinkedIn postings now get a
+   description, and the `missed` counts if `from the ATS board` stays at 0.
+5. **Close the reviews** (t_4532cd2c, then t_7a87ffba) once the done-when line in the Dry runs tab says `met`.
+
+### Phase 6 prerequisites still open
+
+Both are recorded in `docs/decisions.md` (2026-10-17) and must be done before Phase 6 adds any submit path:
+- **Live-mode GET host allowlist (option (b) of your decision 5):** a per-ATS host allowlist for real (non-fixture) runs,
+  pinned by a test. Today a real dry-run page may GET any host (option (a), accepted for owner-run dry runs only).
+- **The CAPTCHA rule for any submit path:** the relaxed rule is for dry runs only. A submit path must decide its rule again.
+  The code's `strict` mode (any CAPTCHA script, frame or widget stops) is ready and tested.
+
+Also still open from "Recommendations for Phase 6" above:
+- the prefill-and-hand-over decision and R1 questions 1 and 2, at the Phase 6 gate;
+- selector corrections from your first real runs;
+- the done-when itself.
