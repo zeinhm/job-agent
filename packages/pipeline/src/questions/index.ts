@@ -12,8 +12,13 @@ import {
   type Db,
 } from "@job-agent/core";
 import { matchQuestions } from "@job-agent/apply";
-import { atsLinkOf } from "../apply-links/ats-links.ts";
+import { atsLinkOf, effectiveApplyUrl, greenhouseJobIdOf } from "../apply-links/ats-links.ts";
 import { ATS_SOURCE_NAMES } from "../filters/keywords.ts";
+import {
+  BOARD_NOT_FOUND,
+  greenhouseSlugCandidates,
+  resolveGreenhouseSlug,
+} from "./greenhouse-board.ts";
 import { normalizeLabel } from "./normalize.ts";
 import {
   ParseError,
@@ -96,10 +101,22 @@ interface Target {
   offerSlug: string;
 }
 
-type TargetResult = { target: Target } | { ats: string; skip: string };
+/** A Greenhouse job on a company career page (`?gh_jid=`) whose board slug is not stored: verify these candidates. */
+interface SlugLookup {
+  jobId: string;
+  candidates: string[];
+}
+
+type TargetResult =
+  { target: Target } | { ats: string; skip: string } | { ats: "greenhouse"; lookup: SlugLookup };
 
 interface Candidate {
   id: string;
+  company_name: string | null;
+  company_id: string | null;
+  link_id: string | null;
+  /** `apply_links.apply_url`: the resolved link, or the owner's correction (method `owner`). */
+  link_url: string | null;
   source: string;
   external_id: string;
   url: string;
@@ -113,7 +130,8 @@ interface Candidate {
 
 /** Which ATS, board and job a posting's questions live at. Skips carry the reason. */
 export function resolveTarget(c: Candidate): TargetResult {
-  const link = atsLinkOf(c.apply_url ?? c.url) ?? atsLinkOf(c.url);
+  const applyUrl = effectiveApplyUrl(c.link_url, c.apply_url, c.url);
+  const link = atsLinkOf(applyUrl) ?? atsLinkOf(c.url);
   const ownSource = (ATS_SOURCE_NAMES as readonly string[]).includes(c.source) ? c.source : null;
   const ats = link?.vendor ?? c.link_ats ?? ownSource ?? "unknown";
   if (ats === "unknown") return { ats, skip: "no ATS link recognised" };
@@ -123,20 +141,18 @@ export function resolveTarget(c: Candidate): TargetResult {
     (c.link_ats === ats ? c.link_slug : null) ?? (c.company_ats === ats ? c.company_slug : null);
   const slug = link?.vendor === ats && link.slug !== "" ? link.slug : (stored ?? "");
   const own = c.source === ats;
-  const url = new URL(c.apply_url ?? c.url, "https://invalid.example/");
+  const url = new URL(applyUrl, "https://invalid.example/");
   const seg = url.pathname.split("/").filter((s) => s !== "");
 
   switch (ats) {
     case "greenhouse": {
-      const jobsAt = seg.indexOf("jobs");
-      const pathId = jobsAt >= 0 ? (seg[jobsAt + 1] ?? "") : "";
-      const jobId = own
-        ? c.external_id
-        : /^\d+$/.test(pathId)
-          ? pathId
-          : (url.searchParams.get("gh_jid") ?? "");
+      const jobId = own ? c.external_id : greenhouseJobIdOf(applyUrl);
       if (!/^\d+$/.test(jobId)) return { ats, skip: "no job id in the apply link" };
-      if (!SAFE_SLUG.test(slug)) return { ats, skip: "no board slug" };
+      if (!SAFE_SLUG.test(slug)) {
+        if (own) return { ats, skip: "no board slug" };
+        const candidates = greenhouseSlugCandidates(c.company_name, applyUrl);
+        return { ats, lookup: { jobId, candidates } };
+      }
       return { target: { ats, slug, jobId, offerSlug: "" } };
     }
     case "workable": {
@@ -232,6 +248,10 @@ function selectCandidates(db: Db, now: Date): Candidate[] {
   const rows = db
     .select({
       id: postings.id,
+      company_name: postings.company_name,
+      company_id: postings.company_id,
+      link_id: apply_links.id,
+      link_url: apply_links.apply_url,
       source: postings.source,
       external_id: postings.external_id,
       url: postings.url,
@@ -337,7 +357,43 @@ function storeQuestions(db: Db, postingId: string, ats: string, qs: FetchedQuest
   });
 }
 
+/**
+ * Stores a slug the boards-api lookup verified, so it is not looked up again: on the posting's `apply_links` row, and
+ * (only when the company has no board yet, config rows included) as the company's board the way resolve-apply's
+ * `saveBoard` does, which is what `save-ats` later appends to `companies.yaml`.
+ */
+function saveVerifiedSlug(db: Db, c: Candidate, slug: string, at: string): void {
+  db.transaction((tx) => {
+    if (c.link_id !== null) {
+      tx.update(apply_links)
+        .set({ ats_type: "greenhouse", ats_slug: slug })
+        .where(eq(apply_links.id, c.link_id))
+        .run();
+    }
+    if (c.company_id === null) return;
+    const company = tx.select().from(companies).where(eq(companies.id, c.company_id)).get();
+    if (company === undefined || company.ats_type !== null) return;
+    tx.update(companies)
+      .set({
+        ats_type: "greenhouse",
+        ats_slug: slug,
+        ...(company.discovered_via === "config"
+          ? {}
+          : { discovered_via: "apply_resolve" as const }),
+        discovered_at: company.discovered_at ?? at,
+        verified: true,
+        ats_checked_at: at,
+      })
+      .where(eq(companies.id, company.id))
+      .run();
+  });
+}
+
 interface AtsStats {
+  /** Greenhouse career-page links whose board slug the boards-api lookup verified (and stored). */
+  boardFound: number;
+  /** Greenhouse career-page links for which no candidate slug could be verified. */
+  boardNotFound: number;
   fetched: number;
   questions: number;
   gone: number;
@@ -362,7 +418,16 @@ export async function runFetchQuestions(opts: FetchQuestionsOptions): Promise<nu
   const stat = (ats: string): AtsStats => {
     let s = stats.get(ats);
     if (s === undefined) {
-      s = { fetched: 0, questions: 0, gone: 0, skipped: 0, deferred: 0, errors: 0 };
+      s = {
+        boardFound: 0,
+        boardNotFound: 0,
+        fetched: 0,
+        questions: 0,
+        gone: 0,
+        skipped: 0,
+        deferred: 0,
+        errors: 0,
+      };
       stats.set(ats, s);
     }
     return s;
@@ -383,7 +448,27 @@ export async function runFetchQuestions(opts: FetchQuestionsOptions): Promise<nu
     }
     if (attempted >= limit) continue; // due, but over this run's cap: the next run picks it up
     attempted++;
-    const { target } = resolved;
+    let target: Target;
+    if ("lookup" in resolved) {
+      const ls = stat(resolved.ats);
+      const { jobId, candidates } = resolved.lookup;
+      const found = await resolveGreenhouseSlug(http, jobId, candidates);
+      if (found.kind === "deferred") {
+        ls.deferred++;
+        continue;
+      }
+      if (found.kind === "not_found") {
+        ls.boardNotFound++; // counted apart from `skipped`: nothing was wrong with the link, the board is unknown
+        const key = `${resolved.ats}: ${BOARD_NOT_FOUND}`;
+        skipReasons.set(key, (skipReasons.get(key) ?? 0) + 1);
+        continue;
+      }
+      saveVerifiedSlug(db, c, found.slug, now().toISOString());
+      ls.boardFound++;
+      target = { ats: "greenhouse", slug: found.slug, jobId, offerSlug: "" };
+    } else {
+      target = resolved.target;
+    }
     const s = stat(target.ats);
     const outcome = await fetchOne(target, http, boards);
     switch (outcome.kind) {
@@ -411,6 +496,11 @@ export async function runFetchQuestions(opts: FetchQuestionsOptions): Promise<nu
     out(
       `fetch-questions: ${ats}: fetched ${s.fetched}, questions ${s.questions}, closed ${s.gone}, skipped ${s.skipped}, deferred ${s.deferred}, errors ${s.errors}\n`,
     );
+    if (s.boardFound > 0 || s.boardNotFound > 0) {
+      out(
+        `fetch-questions: ${ats}: career-page links: board found ${s.boardFound}, board not found ${s.boardNotFound}\n`,
+      );
+    }
   }
   for (const [reason, n] of [...skipReasons.entries()].sort()) {
     out(`fetch-questions: skipped ${n} (${reason})\n`);

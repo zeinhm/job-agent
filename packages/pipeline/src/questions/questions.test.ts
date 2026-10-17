@@ -23,7 +23,14 @@ import {
 } from "@job-agent/core";
 import { main } from "../cli.ts";
 import { normalizeCompanyName } from "../normalize/index.ts";
-import { DEFAULT_LIMIT, NO_ENDPOINT, REFETCH_WINDOW_MS, runFetchQuestions } from "./index.ts";
+import {
+  DEFAULT_LIMIT,
+  NO_ENDPOINT,
+  REFETCH_WINDOW_MS,
+  resolveTarget,
+  runFetchQuestions,
+} from "./index.ts";
+import { greenhouseSlugCandidates } from "./greenhouse-board.ts";
 import { normalizeLabel } from "./normalize.ts";
 import {
   ParseError,
@@ -99,6 +106,7 @@ interface Opts {
   seen?: string;
   updatedAt?: string;
   companyId?: string | null;
+  companyName?: string;
   link?: { type: (typeof APPLY_TYPES)[number]; ats?: string; slug?: string; url?: string };
 }
 
@@ -114,7 +122,7 @@ function addPosting(o: Opts = {}): string {
       apply_url: o.applyUrl ?? null,
       title: `Engineer ${id}`,
       company_id: o.companyId ?? null,
-      company_name: "Acme",
+      company_name: o.companyName ?? "Acme",
       first_seen_at: o.seen ?? "2026-10-13T00:00:00.000Z",
       last_seen_at: "2026-10-13T00:00:00.000Z",
       normalized_at: "2026-10-13T00:00:00.000Z",
@@ -357,6 +365,22 @@ describe("fetch-questions", () => {
       link: { type: "ats", ats: "greenhouse", slug: "gitlab" },
     });
     expect((await run()).code).toBe(0);
+    expect(rows(id)).toHaveLength(13);
+  });
+
+  it("reads gh_jid from the resolved apply link (apply_links), not only postings.apply_url", async () => {
+    gh200();
+    const id = addPosting({
+      applyUrl: null,
+      link: {
+        type: "ats",
+        ats: "greenhouse",
+        slug: "gitlab",
+        url: "https://instacart.careers/job/?gh_jid=8860302002",
+      },
+    });
+    const r = await run();
+    expect(r.out).not.toContain("no job id");
     expect(rows(id)).toHaveLength(13);
   });
 
@@ -702,5 +726,303 @@ describe("fetch-questions", () => {
     err.length = 0;
     expect(await main(["fetch-questions", "--nope"], io)).toBe(1);
     expect(err.join("")).toContain("fetch-questions:");
+  });
+});
+
+describe("Greenhouse career-page links (?gh_jid=)", () => {
+  const INSTACART = "https://instacart.careers/job/?gh_jid=8275403";
+  const POSIT = "https://posit.co/job-detail/?gh_jid=8031213003";
+  const API = "https://boards-api.greenhouse.io/v1/boards/:slug/jobs/:id";
+
+  /** boards-api answers 200 (the recorded job body with that id) for the slug that hosts the job, 404 otherwise. */
+  const boards = (hosted: Record<string, string>) =>
+    server.use(
+      http.get(API, ({ params }) =>
+        hosted[String(params.slug)] === params.id
+          ? HttpResponse.json({
+              ...(fixture("greenhouse-job.json") as object),
+              id: Number(params.id),
+            })
+          : new HttpResponse(null, { status: 404 }),
+      ),
+    );
+  const cand = (o: Partial<Parameters<typeof resolveTarget>[0]> = {}) => ({
+    id: "p",
+    company_name: "Instacart",
+    company_id: null,
+    link_id: null,
+    link_url: INSTACART,
+    source: "hn",
+    external_id: "e1",
+    url: "https://hn.example.test/item?id=1",
+    apply_url: null,
+    updated_at: null,
+    link_ats: "greenhouse",
+    link_slug: null,
+    company_ats: null,
+    company_slug: null,
+    ...o,
+  });
+  const tgt = (slug: string, jobId: string) => ({
+    target: { ats: "greenhouse", slug, jobId, offerSlug: "" },
+  });
+  const skip = (reason: string) => ({ ats: "greenhouse", skip: reason });
+
+  it.each([
+    [
+      "owner URL shape 1, slug stored on the link",
+      cand({ link_slug: "instacart" }),
+      tgt("instacart", "8275403"),
+    ],
+    [
+      "owner URL shape 2, slug in the company registry",
+      cand({
+        link_url: POSIT,
+        company_name: "Posit",
+        company_ats: "greenhouse",
+        company_slug: "posit",
+      }),
+      tgt("posit", "8031213003"),
+    ],
+    [
+      "the link's slug beats the company's",
+      cand({ link_slug: "instacart", company_ats: "greenhouse", company_slug: "other" }),
+      tgt("instacart", "8275403"),
+    ],
+    [
+      "a company on another ATS gives no stored slug: lookup",
+      cand({ company_ats: "lever", company_slug: "instacart" }),
+      { ats: "greenhouse", lookup: { jobId: "8275403", candidates: ["instacart"] } },
+    ],
+    [
+      "no stored slug: lookup with name and host candidates",
+      cand({ link_url: POSIT, company_name: "Posit" }),
+      { ats: "greenhouse", lookup: { jobId: "8031213003", candidates: ["posit"] } },
+    ],
+    [
+      "gh_jid only on postings.apply_url (no apply_links url)",
+      cand({ link_url: null, apply_url: INSTACART, link_slug: "instacart" }),
+      tgt("instacart", "8275403"),
+    ],
+    [
+      "apply_links url wins over postings.apply_url",
+      cand({ link_url: INSTACART, apply_url: POSIT, link_slug: "instacart" }),
+      tgt("instacart", "8275403"),
+    ],
+    [
+      "non-digit gh_jid",
+      cand({ link_url: "https://posit.co/job-detail/?gh_jid=80x31", link_slug: "posit" }),
+      skip("no job id in the apply link"),
+    ],
+    [
+      "path /jobs/<id> wins over gh_jid",
+      cand({ link_url: "https://acme.example/jobs/555?gh_jid=777", link_slug: "acme" }),
+      tgt("acme", "555"),
+    ],
+    [
+      "hosted job-boards link is unchanged (slug from the link, no lookup)",
+      cand({ link_url: "https://job-boards.greenhouse.io/acme/jobs/999" }),
+      tgt("acme", "999"),
+    ],
+    [
+      "an ATS source's own posting without a board stays 'no board slug' (no lookup)",
+      cand({ source: "greenhouse", external_id: "4242", link_url: null }),
+      skip("no board slug"),
+    ],
+  ])("resolveTarget golden row: %s", (_name, input, expected) => {
+    expect(resolveTarget(input)).toEqual(expected);
+  });
+
+  it("candidates: company-name guesses, then the career page's host name, at most 5, deduplicated", () => {
+    expect(greenhouseSlugCandidates("Unrelated Name", POSIT)).toEqual([
+      "unrelatedname",
+      "unrelated-name",
+      "unrelated",
+      "posit",
+    ]);
+    expect(greenhouseSlugCandidates(null, "https://careers.acme.co.uk/job?gh_jid=1")).toEqual([
+      "acme",
+    ]);
+    expect(greenhouseSlugCandidates("Instacart", INSTACART)).toEqual(["instacart"]);
+    expect(
+      greenhouseSlugCandidates("Alpha Beta Gamma", "https://x.example/").length,
+    ).toBeLessThanOrEqual(5);
+  });
+
+  it("looks the board up, verifies it, stores the questions and the slug (link and company), and does not look again", async () => {
+    boards({ instacart: "8275403" });
+    const co = addCompany("Instacart", null, null);
+    const id = addPosting({
+      applyUrl: null,
+      companyId: co,
+      companyName: "Instacart",
+      link: { type: "ats", ats: "greenhouse", url: INSTACART },
+    });
+    const r = await run();
+    expect(r.code).toBe(0);
+    expect(rows(id)).toHaveLength(13);
+    expect(requested).toEqual([
+      "GET https://boards-api.greenhouse.io/v1/boards/instacart/jobs/8275403",
+      "GET https://boards-api.greenhouse.io/v1/boards/instacart/jobs/8275403?questions=true",
+    ]);
+    expect(r.out).toContain("greenhouse: career-page links: board found 1, board not found 0");
+    expect(db.select().from(apply_links).where(eq(apply_links.posting_id, id)).get()).toMatchObject(
+      { ats_type: "greenhouse", ats_slug: "instacart", apply_url: INSTACART },
+    );
+    expect(db.select().from(companies).where(eq(companies.id, co)).get()).toMatchObject({
+      ats_type: "greenhouse",
+      ats_slug: "instacart",
+      discovered_via: "apply_resolve",
+      verified: true,
+    });
+
+    // the next due run uses the stored slug: one request, no lookup
+    requested.length = 0;
+    clock = new Date(T0.getTime() + REFETCH_WINDOW_MS + day(1));
+    expect((await run()).code).toBe(0);
+    expect(requested).toEqual([
+      "GET https://boards-api.greenhouse.io/v1/boards/instacart/jobs/8275403?questions=true",
+    ]);
+  });
+
+  it("finds the board from the career page's host name when the company name guesses miss", async () => {
+    boards({ posit: "8031213003" });
+    const id = addPosting({
+      applyUrl: null,
+      companyName: "Unrelated Name",
+      link: { type: "ats", ats: "greenhouse", url: POSIT },
+    });
+    const r = await run();
+    expect(r.code).toBe(0);
+    expect(rows(id)).toHaveLength(13);
+    expect(requested.filter((u) => !u.endsWith("questions=true"))).toHaveLength(4);
+    expect(
+      db.select().from(apply_links).where(eq(apply_links.posting_id, id)).get()?.ats_slug,
+    ).toBe("posit");
+  });
+
+  it("never overwrites a company's existing board when storing a verified slug", async () => {
+    boards({ instacart: "8275403" });
+    const co = addCompany("Instacart", "lever", "instacart-lever");
+    addPosting({
+      applyUrl: null,
+      companyId: co,
+      companyName: "Instacart",
+      link: { type: "ats", ats: "greenhouse", url: INSTACART },
+    });
+    await run();
+    expect(db.select().from(companies).where(eq(companies.id, co)).get()).toMatchObject({
+      ats_type: "lever",
+      ats_slug: "instacart-lever",
+    });
+  });
+
+  it("uses the company registry's Greenhouse board without any lookup", async () => {
+    boards({ posit: "8031213003" });
+    const co = addCompany("Posit", "greenhouse", "posit");
+    const id = addPosting({
+      applyUrl: null,
+      companyId: co,
+      companyName: "Posit",
+      link: { type: "ats", ats: "greenhouse", url: POSIT },
+    });
+    await run();
+    expect(rows(id)).toHaveLength(13);
+    expect(requested).toEqual([
+      "GET https://boards-api.greenhouse.io/v1/boards/posit/jobs/8031213003?questions=true",
+    ]);
+  });
+
+  it("no verifiable board: skipped with the reason, counted apart, nothing stored, at most 5 requests", async () => {
+    boards({});
+    const co = addCompany("Acme Rocket Labs", null, null);
+    const id = addPosting({
+      applyUrl: null,
+      companyId: co,
+      companyName: "Acme Rocket Labs",
+      link: { type: "ats", ats: "greenhouse", url: "https://rocket.example/job/?gh_jid=123" },
+    });
+    const r = await run();
+    expect(r.code).toBe(0);
+    expect(rows(id)).toEqual([]);
+    expect(requested.length).toBeGreaterThan(0);
+    expect(requested.length).toBeLessThanOrEqual(5);
+    expect(r.out).toContain("skipped 1 (greenhouse: greenhouse board not found for gh_jid)");
+    expect(r.out).toContain("board found 0, board not found 1");
+    expect(r.out).toContain("greenhouse: fetched 0, questions 0, closed 0, skipped 0,");
+    expect(
+      db.select().from(apply_links).where(eq(apply_links.posting_id, id)).get()?.ats_slug,
+    ).toBe(null);
+    expect(db.select().from(companies).where(eq(companies.id, co)).get()?.ats_slug).toBe(null);
+  });
+
+  it("a 200 for a different job id is not verified", async () => {
+    server.use(
+      http.get(API, () =>
+        HttpResponse.json({ ...(fixture("greenhouse-job.json") as object), id: 999 }),
+      ),
+    );
+    const id = addPosting({
+      applyUrl: null,
+      companyName: "Instacart",
+      link: { type: "ats", ats: "greenhouse", url: INSTACART },
+    });
+    const r = await run();
+    expect(r.out).toContain("board not found 1");
+    expect(rows(id)).toEqual([]);
+  });
+
+  it("a redirect is not followed and does not verify", async () => {
+    server.use(
+      http.get(
+        API,
+        () =>
+          new HttpResponse(null, {
+            status: 302,
+            headers: { location: "https://elsewhere.example/" },
+          }),
+      ),
+    );
+    addPosting({
+      applyUrl: null,
+      companyName: "Instacart",
+      link: { type: "ats", ats: "greenhouse", url: INSTACART },
+    });
+    const r = await run();
+    expect(r.out).toContain("board not found 1");
+    expect(requested.every((u) => u.includes("boards-api.greenhouse.io"))).toBe(true);
+  });
+
+  it("a host that answers 429 gets no more lookups and the postings count as deferred", async () => {
+    server.use(http.get(API, () => new HttpResponse(null, { status: 429 })));
+    for (const name of ["Aaa Bbb", "Ccc Ddd"]) {
+      addPosting({
+        applyUrl: null,
+        companyName: name,
+        link: {
+          type: "ats",
+          ats: "greenhouse",
+          url: `https://${name.slice(0, 3).toLowerCase()}.example/j/?gh_jid=5`,
+        },
+      });
+    }
+    const r = await run();
+    // the shared client retries one URL; the second posting and the other candidates are never requested
+    expect(new Set(requested).size).toBe(1);
+    expect(r.out).toContain("deferred 2");
+    expect(r.out).toContain("boards-api.greenhouse.io answered HTTP 429");
+  });
+
+  it("a lookup counts against --limit", async () => {
+    boards({});
+    for (const host of ["one", "two"]) {
+      addPosting({
+        applyUrl: null,
+        companyName: "Qqq Rrr",
+        link: { type: "ats", ats: "greenhouse", url: `https://${host}.example/j/?gh_jid=5` },
+      });
+    }
+    const r = await run(1);
+    expect(r.out).toContain("selected 2, attempted 1");
   });
 });

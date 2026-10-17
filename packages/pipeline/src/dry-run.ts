@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { apply_links, postings, type Db } from "@job-agent/core";
+import { apply_links, companies, postings, type Db } from "@job-agent/core";
 import {
   BrowserMissingError,
   FIXTURE_FORM_PATH,
@@ -26,7 +26,12 @@ import {
   type LeverRunSummary,
 } from "@job-agent/apply";
 import { eq } from "drizzle-orm";
-import { atsLinkOf, type AtsLink } from "./apply-links/ats-links.ts";
+import {
+  atsLinkOf,
+  effectiveApplyUrl,
+  greenhouseJobIdOf,
+  type AtsLink,
+} from "./apply-links/ats-links.ts";
 
 export const DRY_RUN_USAGE =
   "Usage: job-agent dry-run <posting-id> [--headless]\n       job-agent dry-run --fixture greenhouse|lever|ashby\n";
@@ -51,14 +56,26 @@ export interface DryRunCommandOptions {
 export function formUrl(link: AtsLink, storedSlug: string | null): string | null {
   const slug = link.slug !== "" ? link.slug : (storedSlug ?? "");
   const u = new URL(link.url);
-  const seg = u.pathname.split("/").filter((s) => s !== "");
-  const at = seg.indexOf("jobs");
-  const jobId = at >= 0 ? (seg[at + 1] ?? "") : (u.searchParams.get("gh_jid") ?? "");
+  const jobId = greenhouseJobIdOf(link.url);
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug) || !/^\d+$/.test(jobId)) return null;
   const host = u.hostname.includes(".eu.")
     ? "job-boards.eu.greenhouse.io"
     : "job-boards.greenhouse.io";
   return `https://${host}/${slug}/jobs/${jobId}`;
+}
+
+/** The stored Greenhouse board of a posting: `apply_links.ats_slug`, then the company's Greenhouse board. */
+function storedGreenhouseSlug(
+  db: Db,
+  link: { ats_type: string | null; ats_slug: string | null } | null,
+  companyId: string | null,
+): string | null {
+  if (link?.ats_slug && (link.ats_type === null || link.ats_type === "greenhouse")) {
+    return link.ats_slug;
+  }
+  if (companyId === null) return null;
+  const c = db.select().from(companies).where(eq(companies.id, companyId)).get();
+  return c?.ats_type === "greenhouse" ? (c.ats_slug ?? null) : null;
 }
 
 /** The hosted apply URL of a Lever job link, or null when the company or the posting id is missing. */
@@ -185,7 +202,7 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
   const posting = db.select().from(postings).where(eq(postings.id, postingId)).get();
   if (posting === undefined) return refuse(`no posting ${postingId}`);
   const link = db.select().from(apply_links).where(eq(apply_links.posting_id, postingId)).get();
-  const parsedLink = atsLinkOf(link?.apply_url ?? posting.apply_url ?? posting.url);
+  const parsedLink = atsLinkOf(effectiveApplyUrl(link?.apply_url, posting.apply_url, posting.url));
   if (
     parsedLink === null ||
     (parsedLink.vendor !== "greenhouse" &&
@@ -200,7 +217,7 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
       ? ashbyFormUrl(parsedLink)
       : vendor === "lever"
         ? leverFormUrl(parsedLink)
-        : formUrl(parsedLink, link?.ats_slug ?? null);
+        : formUrl(parsedLink, storedGreenhouseSlug(db, link ?? null, posting.company_id));
   if (url === null)
     return refuse(
       vendor === "ashby"

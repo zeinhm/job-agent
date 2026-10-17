@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
   apply_links,
+  companies,
   dry_run_fields,
   dry_runs,
   openDb,
@@ -212,6 +213,35 @@ describe("dry-run <posting-id> refusals (before any browser opens)", () => {
     expect((await cli(["noid"], true)).err).toContain("board or job id is missing");
   });
 
+  it("a career-page link (?gh_jid=) passes the slug check with a stored slug, on the link or the company", async () => {
+    const careers = "https://instacart.careers/job/?gh_jid=8275403";
+    const noQuestions = "has no stored Greenhouse questions";
+    addPosting("careers-link", careers);
+    db.update(apply_links)
+      .set({ ats_type: "greenhouse", ats_slug: "instacart" })
+      .where(eq(apply_links.posting_id, "careers-link"))
+      .run();
+    expect((await cli(["careers-link"], true)).err).toContain(noQuestions);
+
+    addPosting("careers-company", careers);
+    db.insert(companies)
+      .values({
+        id: "c1",
+        name: "Instacart",
+        normalized_name: "instacart",
+        ats_type: "greenhouse",
+        ats_slug: "instacart",
+        created_at: T,
+      })
+      .run();
+    db.update(postings).set({ company_id: "c1" }).where(eq(postings.id, "careers-company")).run();
+    expect((await cli(["careers-company"], true)).err).toContain(noQuestions);
+
+    // a company on another ATS gives no Greenhouse board
+    db.update(companies).set({ ats_type: "lever" }).where(eq(companies.id, "c1")).run();
+    expect((await cli(["careers-company"], true)).err).toContain("board or job id is missing");
+  });
+
   it("a scam-flagged posting", async () => {
     addPosting("p1", GH);
     seedQuestions("p1");
@@ -340,5 +370,48 @@ describe("formUrl", () => {
     );
     expect(url("https://acme.example/careers?gh_jid=1001")).toBeNull();
     expect(url("https://job-boards.greenhouse.io/acme/jobs/abc")).toBeNull();
+  });
+
+  it.each([
+    // [link, stored slug, expected]; owner URL shapes of company career pages
+    [
+      "https://instacart.careers/job/?gh_jid=8275403",
+      "instacart",
+      "https://job-boards.greenhouse.io/instacart/jobs/8275403",
+    ],
+    [
+      "https://posit.co/job-detail/?gh_jid=8031213003",
+      "posit",
+      "https://job-boards.greenhouse.io/posit/jobs/8031213003",
+    ],
+    ["https://instacart.careers/job/?gh_jid=8275403", null, null],
+    ["https://posit.co/job-detail/?gh_jid=8031213003", null, null],
+    // a career page whose own path has a non-numeric "jobs" segment still reads gh_jid
+    [
+      "https://posit.co/jobs/?gh_jid=8031213003",
+      "posit",
+      "https://job-boards.greenhouse.io/posit/jobs/8031213003",
+    ],
+    // the path id wins over gh_jid, as the hosted form is at that id
+    [
+      "https://acme.example/jobs/555?gh_jid=777",
+      "acme",
+      "https://job-boards.greenhouse.io/acme/jobs/555",
+    ],
+    // existing hosted links are unchanged, the stored slug does not override the link's own board
+    [
+      "https://job-boards.greenhouse.io/acme/jobs/1001",
+      "other",
+      "https://job-boards.greenhouse.io/acme/jobs/1001",
+    ],
+    [
+      "https://job-boards.eu.greenhouse.io/acme/jobs/1001",
+      null,
+      "https://job-boards.eu.greenhouse.io/acme/jobs/1001",
+    ],
+    // non-digit gh_jid is no job id (the link is not even recognised as Greenhouse)
+    ["https://posit.co/job-detail/?gh_jid=abc", "posit", "no link"],
+  ])("golden row %s (slug %s)", (raw, slug, expected) => {
+    expect(url(raw, slug)).toBe(expected);
   });
 });

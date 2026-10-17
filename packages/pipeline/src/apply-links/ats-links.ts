@@ -211,6 +211,38 @@ export function atsLinkOf(raw: string): AtsLink | null {
   return null;
 }
 
+/**
+ * The link the owner would be sent to for a posting: the `apply_links` row (the resolved link, or the owner's
+ * correction, which is stored there with method `owner`), then `postings.apply_url`, then `postings.url`.
+ * The digest and queue use the same order (`digest/selection.ts`, `applyUrl`).
+ */
+export function effectiveApplyUrl(
+  resolvedUrl: string | null | undefined,
+  postingApplyUrl: string | null | undefined,
+  postingUrl: string,
+): string {
+  return resolvedUrl ?? postingApplyUrl ?? postingUrl;
+}
+
+/**
+ * The Greenhouse job id of a link: the digits after `/jobs/` in the path (hosted pages; the path wins), else the
+ * digits of the `gh_jid` query parameter (company career pages). "" when neither is all digits.
+ */
+export function greenhouseJobIdOf(raw: string): string {
+  let u: URL;
+  try {
+    u = new URL(raw, "https://invalid.example/");
+  } catch {
+    return "";
+  }
+  const seg = u.pathname.split("/").filter((s) => s !== "");
+  const at = seg.indexOf("jobs");
+  const pathId = at >= 0 ? (seg[at + 1] ?? "") : "";
+  if (/^\d+$/.test(pathId)) return pathId;
+  const q = u.searchParams.get("gh_jid") ?? "";
+  return /^\d+$/.test(q) ? q : "";
+}
+
 const ENTITIES: Record<string, string> = {
   amp: "&",
   lt: "<",
