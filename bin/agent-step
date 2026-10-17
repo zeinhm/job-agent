@@ -16,6 +16,7 @@ cd "$REPO"
 H="$REPO/data/handoff"; mkdir -p "$H"
 CARDF="$H/$ID-card.md"; PROMPTF="$H/$ID-prompt.md"; OUTF="$H/$ID-out.txt"; COMMENTF="$H/$ID-comment.md"; REPORTF="$H/$ID-report.md"
 LOCK="$REPO/.git/agent-step.lock"
+NL=$'\n'
 
 act()      { echo; echo "AGENT-STEP RESULT"; echo "ACTION: $1"; shift; for kv in "$@"; do echo "$kv"; done; exit 0; }
 complete() { act complete "SUMMARY: $1"; }
@@ -38,12 +39,14 @@ task_branch(){ local b; b="$(git branch --list "task/$1-*" --format='%(refname:s
 squash_merge(){ # $1 branch, $2 commit title -> merged and pushed, or a sync rework
   local br="$1" ref cf
   lock_main; main_ready
+  # a report with the OWNER backup line: back up the DB first, or hold the card; nothing is merged without it
+  backup_before_merge "$(card "$(printf '%s' "$br" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')")" "$COMMENTF" || { unlock_main; question "OWNER: DB backup before merging $br failed: $STEP_ERR"; }
   git fetch -q origin "$br" 2>/dev/null; ref="origin/$br"; git show-ref --quiet "refs/remotes/$ref" || ref="$br"
   if ! git merge -q --squash "$ref" >/dev/null 2>&1; then
     cf="$(git diff --name-only --diff-filter=U)"; git reset -q --hard HEAD; unlock_main; sync_rework "$br" "$cf"
   fi
   git diff --cached --quiet && { unlock_main; complete "Nothing to merge: $br is already in main"; }
-  CE="$(git commit -q -m "$2 ($ID, squash of $br)" 2>&1)" || { git reset -q --hard HEAD; unlock_main; question "the squash commit of $br was refused by the pre-commit hook: $(errtail "$CE")"; }
+  CE="$(git commit -q -m "$2 ($ID, squash of $br)${BACKUP_NOTE:+$NL$NL$BACKUP_NOTE}" 2>&1)" || { git reset -q --hard HEAD; unlock_main; question "the squash commit of $br was refused by the pre-commit hook: $(errtail "$CE")"; }
   PE="$(gpush -q origin main 2>&1)" || { git reset -q --hard HEAD~1; unlock_main; question "push of main failed after merging $br: $(errtail "$PE")"; }
 }
 sync_rework(){ # $1 branch, $2 conflicting files
@@ -142,7 +145,7 @@ case "$ROLE" in
     git add docs/audit-ledger.md && git commit -q -m "chore: audit ledger $DEVID" && gpush -q origin main
     echo "$DEVID ${RISK:-medium}" >> "$STATE/merged.log"
     git worktree remove --force ".worktrees/$DEVID" 2>/dev/null; git branch -q -D "$BR" 2>/dev/null; gpush -q origin --delete "$BR" 2>/dev/null
-    unlock_main; complete "QA PASS, merged $BR: $VSUM" ;;
+    unlock_main; complete "QA PASS, merged $BR${BACKUP_NOTE:+ ($BACKUP_NOTE)}: $VSUM" ;;
   auditor)
     if [ "$BR" != "-" ]; then
       [ "$VERDICT" = FAIL ] && fail_rework
@@ -151,7 +154,7 @@ case "$ROLE" in
       squash_merge "$BR" "${DEVTITLE:-Merge $BR}"
       echo "$DEVID high" >> "$STATE/merged.log"
       git worktree remove --force ".worktrees/$DEVID" 2>/dev/null; git branch -q -D "$BR" 2>/dev/null; gpush -q origin --delete "$BR" 2>/dev/null
-      unlock_main; complete "Audit PASS, merged $BR: $VSUM"
+      unlock_main; complete "Audit PASS, merged $BR${BACKUP_NOTE:+ ($BACKUP_NOTE)}: $VSUM"
     fi
     lock_main; main_ready
     N="$(printf '%s' "$TITLE" | grep -oE '#[0-9]+' | tr -d '#' | head -1)"

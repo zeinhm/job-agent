@@ -97,3 +97,37 @@ record_audit() {
   fi
   return 0
 }
+
+# ---- DB backup before a merge (card t_3625211b) ----------------------------------------------------------------
+# Match rule: a line that, after optional spaces, an optional hermes comment prefix ("[2026-10-17 18:25] author: ")
+# and an optional `**`, starts with `OWNER: back up data/job-agent.db`. A mention elsewhere in a line does not count.
+BACKUP_LINE_RE='^[[:space:]]*(\[[0-9: -]+\] [^:]+: )?[[:space:]]*(\*\*)?[[:space:]]*OWNER: back up data/job-agent\.db'
+BACKUP_KEEP=5
+
+# Does stdin carry the backup line?
+has_backup_line() { grep -qE "$BACKUP_LINE_RE"; }
+
+# Dev card text without its Body section (the card body quotes the rule, it is not a report).
+card_reports() { printf '%s\n' "$1" | awk '/^Body:/{skip=1;next} /^(Latest summary|Comments|Events|Runs)( \([0-9]+\))?:/{skip=0} !skip'; }
+
+# $1 dev card text, $2 reviewer comment file. Sets BACKUP_NOTE ("" when no backup was needed); returns non-zero with
+# STEP_ERR when the line is there and the backup failed. DB path: $BACKUP_DB (tests override), else <repo>/data/job-agent.db.
+BACKUP_NOTE=""
+backup_before_merge() {
+  local db="${BACKUP_DB:-$REPO/data/job-agent.db}" dir base name bak out f n
+  BACKUP_NOTE=""
+  { card_reports "$1"; if [ -f "$2" ]; then cat "$2"; fi; } | has_backup_line || return 0
+  dir="$(dirname "$db")"; base="$(basename "$db")"; name="$base.bak-$(date +%Y%m%d%H%M)"; bak="$dir/$name"
+  command -v sqlite3 >/dev/null 2>&1 || { STEP_ERR="sqlite3 is not installed"; return 1; }
+  [ -s "$db" ] || { STEP_ERR="no database file at data/$base"; return 1; }
+  if ! out="$(sqlite3 "$db" ".backup '$bak'" 2>&1)"; then rm -f "$bak"; STEP_ERR="sqlite3 .backup failed: $(errtail "$out" 1)"; return 1; fi
+  [ -s "$bak" ] || { rm -f "$bak"; STEP_ERR="the backup file is missing or empty"; return 1; }
+  out="$(sqlite3 "$bak" "PRAGMA integrity_check;" 2>/dev/null)"
+  [ "$out" = ok ] || { rm -f "$bak"; STEP_ERR="integrity_check of the backup did not return ok"; return 1; }
+  # keep the newest $BACKUP_KEEP backups (the timestamp sorts); only <db>.bak-<digits> files are ever removed
+  n=0; for f in $(ls -1 "$dir" | grep -E "^$base\.bak-[0-9]+$" | sort -r); do
+    n=$((n+1)); [ $n -gt $BACKUP_KEEP ] && rm -f "$dir/$f"
+  done
+  BACKUP_NOTE="DB backup: data/$name"
+  return 0
+}
