@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifyRequest, describeRequest, type GuardPolicy } from "./request-guard.ts";
+import {
+  ASHBY_READ_ONLY_OPERATIONS,
+  classifyRequest,
+  describeRequest,
+  type GuardPolicy,
+} from "./request-guard.ts";
 
 const fixtureAshby: GuardPolicy = { ats: "ashby", fixture: true };
 const liveAshby: GuardPolicy = { ats: "ashby", fixture: false };
@@ -161,6 +166,36 @@ describe("classifyRequest: Ashby read-only allowlist", () => {
       ).allow,
     ).toBe(false);
   });
+});
+
+describe("Ashby allowlist is pinned", () => {
+  it("holds exactly the five operations of decision D2 note (2)", () => {
+    const expected = [
+      "ApiOrganizationFromHostedJobsPageName",
+      "ApiJobPosting",
+      "ApiJobPostingForApplicationRequest",
+      "ApiAutocompleteGeoLocation",
+      "ApiSearchSchoolByCanonicalName",
+    ];
+    expect(ASHBY_READ_ONLY_OPERATIONS.size).toBe(5);
+    expect([...ASHBY_READ_ONLY_OPERATIONS].sort()).toEqual([...expected].sort());
+  });
+
+  it.each(["ApiSetFormValue", "ApiSubmitSingleApplicationFormAction", "ApiSomethingUnknown"])(
+    "aborts %s even when the body has no mutation keyword",
+    (op) => {
+      const body = gql(op, `query ${op} { x { id } }`);
+      expect(classifyRequest({ method: "POST", url: ashbyUrl(op), body }, liveAshby).allow).toBe(
+        false,
+      );
+      expect(
+        classifyRequest(
+          { method: "POST", url: `http://127.0.0.1:5/api/non-user-graphql?op=${op}`, body },
+          fixtureAshby,
+        ).allow,
+      ).toBe(false);
+    },
+  );
 });
 
 describe("describeRequest", () => {
