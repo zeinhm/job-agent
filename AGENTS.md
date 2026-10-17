@@ -136,6 +136,7 @@ This repository is **public**. The owner's personal data must never reach a comm
 - Every source adapter implements `fetch(since) -> RawPosting[]`
 - LLM extracts facts; plain code makes decisions (see PLAN.md 5.1)
 - Vitest for tests; external HTTP is recorded as fixtures, never hit live in tests
+- Answer keys come from `packages/core/src/answer-keys.json` (the owner's real bank keys, names only), never invented; a test enforces it. A card that needs a new key lists it under `Owner applies` (key name only); the owner adds it to the bank and to the list.
 - Small, focused modules; no new abstractions without a reason in the PR description
 
 ## Communication

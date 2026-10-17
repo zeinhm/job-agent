@@ -215,8 +215,8 @@ describe("Phase 4 schema migration", () => {
 
     const answer = {
       id: "ab1",
-      key: "work.notice_period",
-      group: "work",
+      key: "work_setup.notice_period",
+      group: "work_setup",
       question: "What is your notice period?",
       answer: "Two weeks",
       type: "text",

@@ -84,7 +84,7 @@ const keys = () =>
 
 describe("matchQuestions", () => {
   it("covers approved answers and standard fields, flags salary, inboxes the rest", () => {
-    addAnswer("work.notice", "What is your notice period?", true);
+    addAnswer("work_setup.notice_period", "What is your notice period?", true);
     const a = addPosting();
     const b = addPosting();
     const q1 = addQuestion(a, "What is your notice period? *");
@@ -101,7 +101,7 @@ describe("matchQuestions", () => {
       unknownWordings: 1,
     });
     expect(keys()).toEqual({
-      [q1]: "work.notice",
+      [q1]: "work_setup.notice_period",
       [q2]: "standard.email",
       [q3]: "salary",
       [q4]: null,
@@ -125,7 +125,7 @@ describe("matchQuestions", () => {
   });
 
   it("does not cover a question with an unapproved answer", () => {
-    addAnswer("work.notice", "What is your notice period?", false);
+    addAnswer("work_setup.notice_period", "What is your notice period?", false);
     const q1 = addQuestion(addPosting(), "What is your notice period?");
     matchQuestions(db);
     expect(keys()[q1]).toBeNull();
@@ -205,7 +205,7 @@ describe("matchQuestions", () => {
   });
 
   it("is idempotent: a second run changes nothing", () => {
-    addAnswer("work.notice", "What is your notice period?", true);
+    addAnswer("work_setup.notice_period", "What is your notice period?", true);
     const a = addPosting();
     addQuestion(a, "What is your notice period?");
     addQuestion(a, "Favourite editor?");
@@ -221,15 +221,18 @@ describe("matchQuestions", () => {
   });
 
   it("un-covers questions when their answer becomes unapproved", () => {
-    addAnswer("work.notice", "What is your notice period?", true);
+    addAnswer("work_setup.notice_period", "What is your notice period?", true);
     const a = addPosting();
     const q1 = addQuestion(a, "What is your notice period?");
     matchQuestions(db);
-    expect(keys()[q1]).toBe("work.notice");
+    expect(keys()[q1]).toBe("work_setup.notice_period");
     expect(questionCounts(db, [a]).get(a)).toMatchObject({ covered: 1, unknown: 0 });
     expect(db.select().from(unknown_questions).all()).toHaveLength(0);
 
-    db.update(answer_bank).set({ approved: false }).where(eq(answer_bank.key, "work.notice")).run();
+    db.update(answer_bank)
+      .set({ approved: false })
+      .where(eq(answer_bank.key, "work_setup.notice_period"))
+      .run();
     const s = matchQuestions(db);
     expect(s.changed).toBe(1);
     expect(keys()[q1]).toBeNull();
@@ -246,8 +249,8 @@ describe("matchQuestions", () => {
       .set({ status: "dismissed" })
       .where(eq(unknown_questions.normalized_label, "pronouns"))
       .run();
-    addAnswer("work.notice", "Notice period?", true);
-    addAnswer("misc.pronouns", "Pronouns?", true);
+    addAnswer("work_setup.notice_period", "Notice period?", true);
+    addAnswer("misc.open_to_crypto_web3", "Pronouns?", true);
     matchQuestions(db);
     const rows = db.select().from(unknown_questions).all();
     expect(rows).toHaveLength(1);

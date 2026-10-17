@@ -82,7 +82,7 @@ function addAnswer(key: string, question: string, approved = true, answer = "FAK
 
 const save = (chosen: string[], over: { label?: string; options?: string[] } = {}) =>
   saveChoiceMapping(db, {
-    answer_key: "work.notice",
+    answer_key: "work_setup.notice_period",
     label: over.label ?? LABEL,
     options: over.options ?? OPTIONS,
     chosen,
@@ -90,7 +90,7 @@ const save = (chosen: string[], over: { label?: string; options?: string[] } = {
 
 describe("coverage rule", () => {
   it("a choice question with an approved answer is not covered until an approved mapping exists", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     const p = addPosting();
     ask(p, LABEL, "choice", OPTIONS);
     ask(p, "Email", "text", null);
@@ -108,7 +108,7 @@ describe("coverage rule", () => {
   });
 
   it("a mapping that is saved but not approved does not cover", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     const p = addPosting();
     ask(p, LABEL, "choice", OPTIONS);
     matchQuestions(db);
@@ -119,7 +119,7 @@ describe("coverage rule", () => {
   });
 
   it("text and yes/no questions never need a mapping; multi-choice does", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     const p = addPosting();
     ask(p, LABEL, "text", null);
     expect(matchQuestions(db)).toMatchObject({ covered: 1, needsMapping: 0 });
@@ -129,7 +129,7 @@ describe("coverage rule", () => {
   });
 
   it("the same wording and option set is covered on every form, in any option order or case", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     const a = addPosting();
     const b = addPosting();
     ask(a, LABEL, "choice", OPTIONS);
@@ -145,7 +145,7 @@ describe("coverage rule", () => {
   });
 
   it("a changed option set is a new mapping; the old one stays", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     const a = addPosting();
     const b = addPosting();
     ask(a, LABEL, "choice", OPTIONS);
@@ -161,7 +161,7 @@ describe("coverage rule", () => {
   });
 
   it("an unapproved answer leaves the question in the inbox, not in needs-a-mapping", () => {
-    addAnswer("work.notice", LABEL, false);
+    addAnswer("work_setup.notice_period", LABEL, false);
     ask(addPosting(), LABEL, "choice", OPTIONS);
     expect(matchQuestions(db)).toMatchObject({ covered: 0, needsMapping: 0, unknown: 1 });
     expect(listInbox(db).mappings).toEqual([]);
@@ -170,7 +170,7 @@ describe("coverage rule", () => {
 
 describe("listMappingNeeds", () => {
   it("shows the options as the form lists them, the answer text, counts and a pre-existing pick", () => {
-    addAnswer("work.notice", LABEL, true, "Within 1 month");
+    addAnswer("work_setup.notice_period", LABEL, true, "Within 1 month");
     const a = addPosting();
     const b = addPosting();
     ask(a, LABEL, "choice", OPTIONS);
@@ -179,7 +179,7 @@ describe("listMappingNeeds", () => {
     const needs = listMappingNeeds(db);
     expect(needs).toEqual([
       {
-        answerKey: "work.notice",
+        answerKey: "work_setup.notice_period",
         label: LABEL,
         normalizedLabel: "what is your notice period",
         options: OPTIONS,
@@ -197,12 +197,12 @@ describe("listMappingNeeds", () => {
   });
 
   it("a mapping whose approval was cleared comes back with its pick; saving it again approves it", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     ask(addPosting(), LABEL, "choice", OPTIONS);
     matchQuestions(db);
     save(["Immediately"]);
-    updateAnswer(db, "work.notice", { answer: "FAKE-OTHER" });
-    updateAnswer(db, "work.notice", { approved: true });
+    updateAnswer(db, "work_setup.notice_period", { answer: "FAKE-OTHER" });
+    updateAnswer(db, "work_setup.notice_period", { approved: true });
     matchQuestions(db);
     expect(listMappingNeeds(db)[0]?.picked).toEqual(["Immediately"]);
     save(["Immediately"]);
@@ -212,7 +212,7 @@ describe("listMappingNeeds", () => {
 
 describe("saveChoiceMapping", () => {
   beforeEach(() => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     ask(addPosting(), LABEL, "choice", OPTIONS);
     ask(addPosting(), "Which of these do you use?", "multi_choice", ["A", "B", "C"]);
     matchQuestions(db);
@@ -222,7 +222,11 @@ describe("saveChoiceMapping", () => {
     const m = save(["Within 1 month"]);
     expect(m).toMatchObject({ approved: true, chosen: ["Within 1 month"] });
     expect(
-      getChoiceMapping(db, { answer_key: "work.notice", label: LABEL, options: OPTIONS })?.approved,
+      getChoiceMapping(db, {
+        answer_key: "work_setup.notice_period",
+        label: LABEL,
+        options: OPTIONS,
+      })?.approved,
     ).toBe(true);
   });
 
@@ -273,7 +277,7 @@ describe("saveChoiceMapping", () => {
     expect(() => save(["Immediately"], { label: "Something else?" })).toThrowError(
       expect.objectContaining({ kind: "not_found" }),
     );
-    updateAnswer(db, "work.notice", { approved: false });
+    updateAnswer(db, "work_setup.notice_period", { approved: false });
     expect(() => save(["Immediately"])).toThrowError(
       expect.objectContaining({ kind: "not_found" }),
     );
@@ -282,7 +286,7 @@ describe("saveChoiceMapping", () => {
   it("never maps by itself: an option equal to the answer text stays unmapped", () => {
     db.update(answer_bank)
       .set({ answer: "Immediately" })
-      .where(eq(answer_bank.key, "work.notice"))
+      .where(eq(answer_bank.key, "work_setup.notice_period"))
       .run();
     matchQuestions(db);
     expect(db.select().from(choice_mappings).all()).toHaveLength(0);
@@ -292,7 +296,7 @@ describe("saveChoiceMapping", () => {
 
 describe("approval clearing (F3)", () => {
   beforeEach(() => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     ask(addPosting(), LABEL, "choice", OPTIONS);
     matchQuestions(db);
     save(["Immediately"]);
@@ -300,40 +304,40 @@ describe("approval clearing (F3)", () => {
   const mapping = () => db.select().from(choice_mappings).get();
 
   it("editing the answer clears its mappings' approval, keeping the pick", () => {
-    updateAnswer(db, "work.notice", { answer: "FAKE-CHANGED" });
+    updateAnswer(db, "work_setup.notice_period", { answer: "FAKE-CHANGED" });
     expect(mapping()).toMatchObject({
       approved: false,
       approved_at: null,
       chosen: '["Immediately"]',
     });
     // Re-approving the answer does not bring the mapping back.
-    updateAnswer(db, "work.notice", { approved: true });
+    updateAnswer(db, "work_setup.notice_period", { approved: true });
     expect(mapping()?.approved).toBe(false);
     expect(matchQuestions(db)).toMatchObject({ covered: 0, needsMapping: 1 });
   });
 
   it("unticking approval, or changing wording / alternatives, clears it", () => {
-    updateAnswer(db, "work.notice", { approved: false });
+    updateAnswer(db, "work_setup.notice_period", { approved: false });
     expect(mapping()?.approved).toBe(false);
-    updateAnswer(db, "work.notice", { approved: true });
+    updateAnswer(db, "work_setup.notice_period", { approved: true });
     matchQuestions(db);
     save(["Immediately"]);
     expect(mapping()?.approved).toBe(true);
-    updateAnswer(db, "work.notice", { alternatives: ["Notice?"] });
+    updateAnswer(db, "work_setup.notice_period", { alternatives: ["Notice?"] });
     expect(mapping()?.approved).toBe(false);
   });
 
   it("a no-op patch keeps the mapping approved", () => {
-    updateAnswer(db, "work.notice", { answer: "FAKE-ANSWER", approved: true });
+    updateAnswer(db, "work_setup.notice_period", { answer: "FAKE-ANSWER", approved: true });
     expect(mapping()?.approved).toBe(true);
   });
 
   it("only that answer's mappings are cleared", () => {
-    addAnswer("work.other", "Other?");
+    addAnswer("experience.years_react", "Other?");
     db.insert(choice_mappings)
       .values({
         id: "m2",
-        answer_key: "work.other",
+        answer_key: "experience.years_react",
         normalized_label: "other",
         options_hash: "h",
         options: "[]",
@@ -343,7 +347,7 @@ describe("approval clearing (F3)", () => {
         updated_at: "2026-10-13T00:00:00.000Z",
       })
       .run();
-    updateAnswer(db, "work.notice", { answer: "FAKE-CHANGED" });
+    updateAnswer(db, "work_setup.notice_period", { answer: "FAKE-CHANGED" });
     expect(
       db.select().from(choice_mappings).where(eq(choice_mappings.id, "m2")).get()?.approved,
     ).toBe(true);
@@ -355,8 +359,8 @@ describe("approval clearing (F3)", () => {
       db,
       [
         {
-          key: "work.notice",
-          group: "work",
+          key: "work_setup.notice_period",
+          group: "work_setup",
           question: LABEL,
           answer: "FAKE-ANSWER",
           type: null,
@@ -373,15 +377,23 @@ describe("approval clearing (F3)", () => {
 
 describe("removeChoiceMapping", () => {
   it("deletes one mapping and the question needs a mapping again", () => {
-    addAnswer("work.notice", LABEL);
+    addAnswer("work_setup.notice_period", LABEL);
     ask(addPosting(), LABEL, "choice", OPTIONS);
     matchQuestions(db);
     save(["Immediately"]);
     expect(
-      removeChoiceMapping(db, { answer_key: "work.notice", label: LABEL, options: OPTIONS }),
+      removeChoiceMapping(db, {
+        answer_key: "work_setup.notice_period",
+        label: LABEL,
+        options: OPTIONS,
+      }),
     ).toBe(true);
     expect(
-      removeChoiceMapping(db, { answer_key: "work.notice", label: LABEL, options: OPTIONS }),
+      removeChoiceMapping(db, {
+        answer_key: "work_setup.notice_period",
+        label: LABEL,
+        options: OPTIONS,
+      }),
     ).toBe(false);
     expect(matchQuestions(db)).toMatchObject({ needsMapping: 1, covered: 0 });
   });

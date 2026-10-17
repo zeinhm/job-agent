@@ -34,8 +34,8 @@ describe("loadAnswers", () => {
 
   it("parses the optional fields", () => {
     write(`
-work_setup:
-  how_heard:
+misc:
+  how_did_you_hear:
     answer: "Job board"
     approved: false
     question: "How did you hear about this job?"
@@ -45,8 +45,8 @@ work_setup:
 `);
     expect(loadAnswers(dir, out)).toEqual([
       {
-        key: "work_setup.how_heard",
-        group: "work_setup",
+        key: "misc.how_did_you_hear",
+        group: "misc",
         answer: "Job board",
         approved: false,
         question: "How did you hear about this job?",

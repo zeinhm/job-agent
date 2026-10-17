@@ -53,7 +53,7 @@ export function leverFixtureContext(dataDir: string): PlanContext {
     answers: [
       ...fixtureAnswers(ensureFixtureResume(dataDir)),
       {
-        key: "work.company",
+        key: "experience.current_role",
         question: "Current company",
         alternatives: null,
         answer: "Example Corp",

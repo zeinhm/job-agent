@@ -161,25 +161,29 @@ export function fixtureAnswers(resumePath: string): PlanAnswer[] {
     answer("contact.phone", "+1 555 0100 123"),
     answer("contact.linkedin", "https://www.example.test/in/alex-example"),
     answer("profile.resume_file", resumePath),
-    answer("work.remote", "Yes", {
+    answer("work_setup.remote_only", "Yes", {
       type: "yes_no",
       question: "Are you comfortable working remotely?",
     }),
-    answer("work.why", "I like building reliable backend systems.", {
+    answer("misc.open_to_crypto_web3", "I like building reliable backend systems.", {
       question: "Why do you want to work here?",
     }),
-    answer("work.timezone", "UTC+7 (Jakarta)", {
+    answer("contact.timezone", "UTC+7 (Jakarta)", {
       question: "Preferred time zone",
       type: "choice",
       choices: ["UTC+7 (Jakarta)", "UTC+1 (Berlin)", "UTC-5 (New York)"],
     }),
-    answer("work.tools", "Git, Docker", { question: "Which tools do you use?" }),
-    answer("work.stack", "TypeScript", {
+    answer("experience.years_nodejs_backend", "Git, Docker", {
+      question: "Which tools do you use?",
+    }),
+    answer("experience.current_role", "TypeScript", {
       question: "Which stack do you use most?",
       type: "choice",
       choices: ["TypeScript", "Go", "Python"],
     }),
-    answer("work.regions", "Asia, Europe", { question: "Which regions can you work in?" }),
+    answer("work_setup.working_hours_overlap", "Asia, Europe", {
+      question: "Which regions can you work in?",
+    }),
   ];
 }
 
@@ -193,10 +197,10 @@ export function fixtureChoiceMappings(): Map<string, string[]> {
     return [mappingId(key, q.label, optionsOf(id)), chosen];
   };
   return new Map([
-    entry("work.timezone", "question_1004", ["UTC+7 (Jakarta)"]),
-    entry("work.tools", "question_1005", ["Git", "Docker"]),
-    entry("work.stack", "question_1006", ["TypeScript"]),
-    entry("work.regions", "question_1007", ["Asia", "Europe"]),
+    entry("contact.timezone", "question_1004", ["UTC+7 (Jakarta)"]),
+    entry("experience.years_nodejs_backend", "question_1005", ["Git", "Docker"]),
+    entry("experience.current_role", "question_1006", ["TypeScript"]),
+    entry("work_setup.working_hours_overlap", "question_1007", ["Asia", "Europe"]),
   ]);
 }
 

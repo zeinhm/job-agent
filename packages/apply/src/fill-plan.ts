@@ -144,14 +144,14 @@ export const probeResumeFile: ResumeProbe = (path) => {
 };
 
 /** Standard fields come from approved answers under the real bank's keys (`contact.*`; files stay `profile.*`). `name` is split by `nameRole`. */
-export const PROFILE_KEYS: Record<StandardField, string> = {
+export const PROFILE_KEYS: Record<StandardField, string | null> = {
   name: "contact.full_name",
   email: "contact.email",
   phone: "contact.phone",
   resume: "profile.resume_file",
-  cover_letter: "profile.cover_letter",
+  cover_letter: null, // no such key in answer-keys.json: the field is never filled
   linkedin: "contact.linkedin",
-  website: "profile.website",
+  website: "contact.portfolio",
   location: "contact.location",
 };
 
@@ -363,7 +363,8 @@ export function planFill(input: FillInput): FillPlan {
     const n = normalizeQuestion(f.label);
     const keys = new Set(keysOf.get(n) ?? []);
     const m = matchQuestion(n, new Map());
-    if (m?.kind === "standard" && byKey.has(PROFILE_KEYS[m.field])) keys.add(PROFILE_KEYS[m.field]);
+    const pk = m?.kind === "standard" ? PROFILE_KEYS[m.field] : null;
+    if (pk != null && byKey.has(pk)) keys.add(pk);
     if (keys.size > 1) ambiguous.push(`${f.label} (${[...keys].sort().join(", ")})`);
   }
   if (ambiguous.length > 0)
@@ -427,6 +428,7 @@ function coverField(
 
   if (m?.kind === "standard") {
     const key = PROFILE_KEYS[m.field];
+    if (key === null) return miss(`no answer-bank key for ${m.field}`);
     const a = byKey.get(key);
     if (a === undefined) return miss(`no approved ${key}`, key);
     if (m.field === "resume") {

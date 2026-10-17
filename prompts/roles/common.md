@@ -12,6 +12,8 @@ Never stop to ask or wait. Decide sensibly from the docs and the card, and write
 ## Hard rules
 - The repo is public. Never put personal data (the owner's CV, salary, answers, contact details, IP addresses,
   anything from config/ or data/) into code, tests, fixtures, docs or comments. Never read .env or config/.
+- Answer keys come from `packages/core/src/answer-keys.json`, never invented (code, fixtures, tests, seed data). A card that
+  needs a new key lists it under "Owner applies" (key name only); the owner adds it to the bank and to the list.
 - No logins, no CAPTCHA bypass, no LinkedIn automation, no real job applications, no contacting anyone.
 - Never push to main and never merge: the automation does that. Never create, complete or block cards
   (only the PM creates cards when planning). `hermes kanban show` and `list` are fine.

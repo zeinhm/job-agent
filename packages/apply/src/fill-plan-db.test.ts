@@ -74,14 +74,14 @@ function addReview(id: string, action: "scam" | "not_scam", at: string) {
 describe("loadFillContext", () => {
   it("reads answers, approved mappings and the tier ask; the plan fills from them", () => {
     addAnswer("contact.email", "Email", "jane.doe@example.test");
-    addAnswer("work.tools", "Which tools do you use?", "Git", true);
+    addAnswer("experience.years_nodejs_backend", "Which tools do you use?", "Git", true);
     addAnswer("pay.old", "Old pay", "1", false);
     addIntel({ ask_idr_month: 30_000_000, ask_usd_year: 24_000, ask_text: "around 30M IDR" });
     const options = ["Git", "Docker"];
     db.insert(choice_mappings)
       .values({
         id: "m1",
-        answer_key: "work.tools",
+        answer_key: "experience.years_nodejs_backend",
         normalized_label: normalizeQuestion("Which tools do you use?"),
         options_hash: optionsHash(options),
         options: JSON.stringify(options),
@@ -94,7 +94,7 @@ describe("loadFillContext", () => {
     db.insert(choice_mappings)
       .values({
         id: "m2",
-        answer_key: "work.tools",
+        answer_key: "experience.years_nodejs_backend",
         normalized_label: "other",
         options_hash: "h",
         options: "[]",
@@ -112,7 +112,9 @@ describe("loadFillContext", () => {
     });
     expect(ctx.choiceMappings.size).toBe(1);
     expect(
-      ctx.choiceMappings.get(mappingId("work.tools", "Which tools do you use?", options)),
+      ctx.choiceMappings.get(
+        mappingId("experience.years_nodejs_backend", "Which tools do you use?", options),
+      ),
     ).toEqual(["Docker"]);
     const plan = planFill({
       ...ctx,

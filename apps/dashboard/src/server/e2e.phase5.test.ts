@@ -172,7 +172,14 @@ describe("phase 5 dry-run workflow end to end", () => {
   it("fixture dry runs for all three ATSs -> mapping through the API -> review -> done-when line", async () => {
     // Demo day + the fake persona's approved answers in the answer bank (not config/).
     expect((await cli("seed-demo", "--date", DATE)).code).toBe(0);
+    // The demo bank already holds approved answers under real keys (e.g. contact.full_name); the persona fills the rest.
+    const seeded = new Set(
+      (await json<{ answers: { key: string }[] }>(await api("/api/answers"))).answers.map(
+        (a) => a.key,
+      ),
+    );
     for (const a of fixtureContext(dir).answers) {
+      if (seeded.has(a.key)) continue;
       const [group, ...rest] = a.key.split(".");
       createAnswer(db, {
         group: group as string,
@@ -186,23 +193,18 @@ describe("phase 5 dry-run workflow end to end", () => {
       });
     }
     createAnswer(db, {
-      group: "work",
-      key: "company",
+      group: "experience",
+      key: "years_nextjs",
       answer: "Example Corp",
       question: "Current company",
       approved: true,
     });
     createAnswer(db, {
-      group: "profile",
+      group: "contact",
       key: "location",
       answer: "Jakarta, Indonesia",
       approved: true,
     });
-    // The demo bank already holds an approved "Full name" answer; two answers for one field would be an ambiguous match,
-    // so the owner's persona is the one that stays approved.
-    expect(
-      (await api("/api/answers/identity.full_name", { approved: false }, "PATCH")).status,
-    ).toBe(200);
     seedGreenhouseFixture(db);
     seedLeverFixture(db);
     seedAshbyFixture(db);
@@ -277,7 +279,7 @@ describe("phase 5 dry-run workflow end to end", () => {
     }
 
     // 6. An answer the owner no longer approves: that field stays empty, the run is needs_input and the label is in the Inbox.
-    const why = await api("/api/answers/work.why", { approved: false }, "PATCH");
+    const why = await api("/api/answers/misc.open_to_crypto_web3", { approved: false }, "PATCH");
     expect(why.status).toBe(200);
     for (const k of KINDS) {
       uncovered[k] = await dryRun(k, FORM[k], dbContext(k));

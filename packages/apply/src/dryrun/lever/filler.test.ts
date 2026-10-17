@@ -305,7 +305,7 @@ describe("questions read from the page are stored and matched", () => {
         })
         .run();
     add("contact.full_name", null, "Alex Example");
-    add("work.stack", "Which stack do you use most?", "TypeScript");
+    add("experience.current_role", "Which stack do you use most?", "TypeScript");
 
     const { summary } = await run(LEVER_FIXTURE_FORM_PATH, { context: () => undefined });
     expect(summary).toMatchObject({ status: "needs_input", stopReason: "uncovered_question" });
@@ -315,9 +315,11 @@ describe("questions read from the page are stored and matched", () => {
       expect.arrayContaining(["why do you want to work here", "which tools do you use"]),
     );
     expect(inbox.every((q) => q.status === "open")).toBe(true);
-    expect(storedRows().find((q) => q.question_id === STACK)?.matched_key).toBe("work.stack");
+    expect(storedRows().find((q) => q.question_id === STACK)?.matched_key).toBe(
+      "experience.current_role",
+    );
     // The stack question matched an approved answer but has no approved mapping for this option set yet.
-    const need = listMappingNeeds(db).find((n) => n.answerKey === "work.stack");
+    const need = listMappingNeeds(db).find((n) => n.answerKey === "experience.current_role");
     expect(need).toMatchObject({
       label: "Which stack do you use most?",
       options: ["TypeScript", "Go", "Python"],
@@ -335,7 +337,7 @@ describe("questions read from the page are stored and matched", () => {
 describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
   it("an uncovered question stays empty, the rest is filled, the label goes to the Inbox", async () => {
     const { summary, seen } = await run(LEVER_FIXTURE_FORM_PATH, {
-      context: without("work.why"),
+      context: without("misc.open_to_crypto_web3"),
     });
     expect(summary).toMatchObject({
       status: "needs_input",
@@ -403,7 +405,7 @@ describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
       context: (c) => ({
         ...c,
         answers: c.answers.map((a) =>
-          a.key === "work.why" ? { ...a, answer: "x".repeat(600) } : a,
+          a.key === "misc.open_to_crypto_web3" ? { ...a, answer: "x".repeat(600) } : a,
         ),
       }),
     });
@@ -459,7 +461,7 @@ describe("stops (nothing is filled)", () => {
           answers: [
             ...c.answers,
             {
-              key: "contact.mail",
+              key: "contact.github",
               question: "Email",
               alternatives: null,
               answer: "other@example.test",
@@ -473,7 +475,7 @@ describe("stops (nothing is filled)", () => {
       "other",
     );
     expect(runOf(r.summary.runId)?.stop_detail).toBe(
-      "ambiguous match, Email (contact.email, contact.mail)",
+      "ambiguous match, Email (contact.email, contact.github)",
     );
   }, 90_000);
 

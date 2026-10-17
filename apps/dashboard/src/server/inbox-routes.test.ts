@@ -90,8 +90,8 @@ async function seed() {
   ask(ps[0] as string, "Work permit?");
   matchQuestions(db);
   const made = await post("/api/answers", {
-    group: "legal",
-    key: "visa",
+    group: "work_setup",
+    key: "needs_visa_sponsorship",
     answer: "FAKE-ANSWER-no sponsorship needed",
     question: "Do you need visa sponsorship?",
     type: "text",
@@ -123,7 +123,7 @@ describe("GET /api/inbox", () => {
 describe("POST /api/inbox/:id/answer", () => {
   const body = {
     group: "work_setup",
-    key: "notice",
+    key: "notice_period",
     answer: "30",
     type: "number",
   };
@@ -133,24 +133,24 @@ describe("POST /api/inbox/:id/answer", () => {
     const id = await idOf("What is your notice period?");
     const res = await post(`/api/inbox/${id}/answer`, body);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ openCount: 2, key: "work_setup.notice" });
+    expect(await res.json()).toEqual({ openCount: 2, key: "work_setup.notice_period" });
     const list = (await (await get("/api/answers")).json()) as {
       answers: { key: string; approved: boolean; question: string | null; source: string }[];
     };
-    expect(list.answers.find((a) => a.key === "work_setup.notice")).toMatchObject({
+    expect(list.answers.find((a) => a.key === "work_setup.notice_period")).toMatchObject({
       approved: false,
       question: "What is your notice period?",
       source: "dashboard",
     });
-    expect(matched("work_setup.notice")).toBe(0);
+    expect(matched("work_setup.notice_period")).toBe(0);
   });
 
   it("approve: true covers every open posting that asks it, and the count drops", async () => {
     await seed();
     const id = await idOf("What is your notice period?");
     const res = await post(`/api/inbox/${id}/answer`, { ...body, answer: "30", approved: true });
-    expect(await res.json()).toEqual({ openCount: 2, key: "work_setup.notice" });
-    expect(matched("work_setup.notice")).toBe(4);
+    expect(await res.json()).toEqual({ openCount: 2, key: "work_setup.notice_period" });
+    expect(matched("work_setup.notice_period")).toBe(4);
     expect((await inbox()).items.map((i) => i.label)).not.toContain("What is your notice period?");
   });
 
@@ -186,8 +186,8 @@ describe("POST /api/inbox/:id/answer", () => {
     await seed();
     const id = await idOf("Open to remote work?");
     const res = await post(`/api/inbox/${id}/answer`, {
-      group: "legal",
-      key: "visa",
+      group: "work_setup",
+      key: "needs_visa_sponsorship",
       answer: "yes",
       type: "yes_no",
     });
@@ -227,7 +227,9 @@ describe("POST /api/inbox/:id/answer", () => {
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "invalid request", issues: [{ path: "salary" }] });
-    expect((await post("/api/inbox/u-salary/link", { key: "legal.visa" })).status).toBe(400);
+    expect(
+      (await post("/api/inbox/u-salary/link", { key: "work_setup.needs_visa_sponsorship" })).status,
+    ).toBe(400);
   });
 });
 
@@ -265,7 +267,7 @@ describe("salary wordings in the inbox", () => {
     });
     expect(answer.status).toBe(400);
     expect(await answer.json()).toEqual({ error: "invalid request", issues: [{ path: "salary" }] });
-    const link = await post("/api/inbox/u-pay/link", { key: "legal.visa" });
+    const link = await post("/api/inbox/u-pay/link", { key: "work_setup.needs_visa_sponsorship" });
     expect(link.status).toBe(400);
     expect(await link.json()).toEqual({ error: "invalid request", issues: [{ path: "salary" }] });
   });
@@ -283,57 +285,60 @@ describe("POST /api/inbox/:id/link", () => {
       (await (await get("/api/answers")).json()) as {
         answers: { key: string; approved: boolean; approvedAt: string | null }[];
       }
-    ).answers.find((a) => a.key === "legal.visa");
+    ).answers.find((a) => a.key === "work_setup.needs_visa_sponsorship");
 
   it("adds the wording as an alternative and clears the target's approval until approved again", async () => {
     await seed();
     ask(addPosting(), "Do you need visa sponsorship?");
     matchQuestions(db);
-    expect(matched("legal.visa")).toBe(1);
+    expect(matched("work_setup.needs_visa_sponsorship")).toBe(1);
     const id = await idOf("Work permit?");
-    const res = await post(`/api/inbox/${id}/link`, { key: "legal.visa" });
+    const res = await post(`/api/inbox/${id}/link`, { key: "work_setup.needs_visa_sponsorship" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ openCount: 3, key: "legal.visa" });
+    expect(await res.json()).toEqual({ openCount: 3, key: "work_setup.needs_visa_sponsorship" });
     const answers = (await (await get("/api/answers")).json()) as {
       answers: { key: string; alternatives: string[] | null }[];
     };
-    expect(answers.answers.find((a) => a.key === "legal.visa")?.alternatives).toEqual([
-      "Work permit?",
-    ]);
+    expect(
+      answers.answers.find((a) => a.key === "work_setup.needs_visa_sponsorship")?.alternatives,
+    ).toEqual(["Work permit?"]);
     expect(await visa()).toMatchObject({ approved: false, approvedAt: null });
     // The posting covered only through that answer is uncovered again, and so is the linked wording.
-    expect(matched("legal.visa")).toBe(0);
+    expect(matched("work_setup.needs_visa_sponsorship")).toBe(0);
     // A separate approve covers both wordings.
-    const approve = await patchAnswer("legal.visa", { approved: true });
+    const approve = await patchAnswer("work_setup.needs_visa_sponsorship", { approved: true });
     expect(await approve.json()).toMatchObject({ approved: true });
-    expect(matched("legal.visa")).toBe(2);
+    expect(matched("work_setup.needs_visa_sponsorship")).toBe(2);
   });
 
   it("a PATCH edit that clears approval uncovers its postings at once", async () => {
     await seed();
     ask(addPosting(), "Do you need visa sponsorship?");
     matchQuestions(db);
-    expect(matched("legal.visa")).toBe(1);
-    await patchAnswer("legal.visa", { answer: "FAKE-CHANGED", approved: true });
+    expect(matched("work_setup.needs_visa_sponsorship")).toBe(1);
+    await patchAnswer("work_setup.needs_visa_sponsorship", {
+      answer: "FAKE-CHANGED",
+      approved: true,
+    });
     expect(await visa()).toMatchObject({ approved: false });
-    expect(matched("legal.visa")).toBe(0);
+    expect(matched("work_setup.needs_visa_sponsorship")).toBe(0);
   });
 
   it("does not duplicate a wording the answer already has", async () => {
     await seed();
     const id = await idOf("Work permit?");
-    await app().request("http://x/api/answers/legal.visa", {
+    await app().request("http://x/api/answers/work_setup.needs_visa_sponsorship", {
       method: "PATCH",
       headers: { Host: HOST, "Content-Type": "application/json", Origin: `http://${HOST}` },
       body: JSON.stringify({ alternatives: ["work permit"] }),
     });
-    await post(`/api/inbox/${id}/link`, { key: "legal.visa" });
+    await post(`/api/inbox/${id}/link`, { key: "work_setup.needs_visa_sponsorship" });
     const answers = (await (await get("/api/answers")).json()) as {
       answers: { key: string; alternatives: string[] | null }[];
     };
-    expect(answers.answers.find((a) => a.key === "legal.visa")?.alternatives).toEqual([
-      "work permit",
-    ]);
+    expect(
+      answers.answers.find((a) => a.key === "work_setup.needs_visa_sponsorship")?.alternatives,
+    ).toEqual(["work permit"]);
   });
 
   it("linking a wording the answer already has keeps its approval", async () => {
@@ -341,11 +346,11 @@ describe("POST /api/inbox/:id/link", () => {
     ask(addPosting(), "Do you need visa sponsorship?");
     matchQuestions(db);
     const id = await idOf("Work permit?");
-    await patchAnswer("legal.visa", { alternatives: ["work permit"] });
-    await patchAnswer("legal.visa", { approved: true });
-    await post(`/api/inbox/${id}/link`, { key: "legal.visa" });
+    await patchAnswer("work_setup.needs_visa_sponsorship", { alternatives: ["work permit"] });
+    await patchAnswer("work_setup.needs_visa_sponsorship", { approved: true });
+    await post(`/api/inbox/${id}/link`, { key: "work_setup.needs_visa_sponsorship" });
     expect(await visa()).toMatchObject({ approved: true });
-    expect(matched("legal.visa")).toBe(2);
+    expect(matched("work_setup.needs_visa_sponsorship")).toBe(2);
   });
 
   it("404 for an unknown answer key, nothing decided", async () => {
@@ -358,7 +363,10 @@ describe("POST /api/inbox/:id/link", () => {
   it("400 for a body that is not just a key", async () => {
     await seed();
     const id = await idOf("Work permit?");
-    expect((await post(`/api/inbox/${id}/link`, { key: "legal.visa", extra: 1 })).status).toBe(400);
+    expect(
+      (await post(`/api/inbox/${id}/link`, { key: "work_setup.needs_visa_sponsorship", extra: 1 }))
+        .status,
+    ).toBe(400);
   });
 });
 

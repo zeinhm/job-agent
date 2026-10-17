@@ -39,8 +39,8 @@ beforeEach(() => {
   db.insert(answer_bank)
     .values({
       id: "a1",
-      key: "work.authorization",
-      group: "work",
+      key: "work_setup.work_authorization",
+      group: "work_setup",
       answer: "Yes",
       source: "dashboard",
       updated_at: T0,
@@ -53,7 +53,7 @@ const NAME_FIELD: DryRunFieldInput = {
   field_type: "input_text",
   required: true,
   source: "answer",
-  answer_key: "identity.full_name",
+  answer_key: "contact.full_name",
   value: "Alex Example",
   filled: true,
 };
@@ -191,7 +191,7 @@ describe("setDryRunReview / listDryRuns", () => {
 
 describe("choice mappings", () => {
   const ref = {
-    answer_key: "work.authorization",
+    answer_key: "work_setup.work_authorization",
     label: "Are you authorized to work?",
     options: ["Yes", "No", "Prefer not to say"],
   };
@@ -205,7 +205,7 @@ describe("choice mappings", () => {
     expect(getChoiceMapping(db, ref)).toBeNull();
     const m = setChoiceMapping(db, { ...ref, chosen: ["Yes"] });
     expect(m).toMatchObject({
-      answerKey: "work.authorization",
+      answerKey: "work_setup.work_authorization",
       normalizedLabel: "are you authorized to work",
       options: ["Yes", "No", "Prefer not to say"],
       chosen: ["Yes"],
@@ -219,7 +219,7 @@ describe("choice mappings", () => {
     };
     expect(getChoiceMapping(db, shuffled)?.optionsHash).toBe(m.optionsHash);
     setChoiceMapping(db, { ...shuffled, chosen: ["Yes"] });
-    expect(listChoiceMappings(db, "work.authorization")).toHaveLength(1);
+    expect(listChoiceMappings(db, "work_setup.work_authorization")).toHaveLength(1);
   });
 
   it("a new option set has no mapping", () => {
@@ -255,8 +255,8 @@ describe("choice mappings", () => {
     db.insert(answer_bank)
       .values({
         id: "a2",
-        key: "work.region",
-        group: "work",
+        key: "work_setup.working_hours_overlap",
+        group: "work_setup",
         answer: "x",
         source: "dashboard",
         updated_at: T0,
@@ -264,20 +264,20 @@ describe("choice mappings", () => {
       .run();
     setChoiceMapping(db, { ...ref, chosen: ["Yes", "No"] });
     setChoiceMapping(db, {
-      answer_key: "work.region",
+      answer_key: "work_setup.working_hours_overlap",
       label: "Regions",
       options: ["A", "B"],
       chosen: ["A"],
     });
     setChoiceMapping(db, { ...ref, label: "Visa needed?", chosen: ["No"] });
-    const list = listChoiceMappings(db, "work.authorization");
+    const list = listChoiceMappings(db, "work_setup.work_authorization");
     expect(list.map((m) => m.normalizedLabel)).toEqual([
       "are you authorized to work",
       "visa needed",
     ]);
     expect(list[0]?.chosen).toEqual(["Yes", "No"]);
-    expect(listChoiceMappings(db, "work.region")).toHaveLength(1);
-    expect(listChoiceMappings(db, "work.none")).toEqual([]);
+    expect(listChoiceMappings(db, "work_setup.working_hours_overlap")).toHaveLength(1);
+    expect(listChoiceMappings(db, "experience.years_react")).toEqual([]);
   });
 
   it("rejects a salary question, a pick outside the options and an unknown answer key", () => {
@@ -290,19 +290,23 @@ describe("choice mappings", () => {
     expect(() => setChoiceMapping(db, salary)).toThrow(DryRunStoreError);
     expect(() => setChoiceMapping(db, { ...ref, chosen: ["Maybe"] })).toThrow(DryRunStoreError);
     expect(() =>
-      setChoiceMapping(db, { ...ref, answer_key: "work.ghost", chosen: ["Yes"] }),
+      setChoiceMapping(db, { ...ref, answer_key: "experience.years_typescript", chosen: ["Yes"] }),
     ).toThrow(expect.objectContaining({ kind: "not_found" }));
     expect(() => setChoiceMapping(db, { ...ref, answer_key: "bad key", chosen: ["Yes"] })).toThrow(
       ZodError,
     );
     expect(() => setChoiceMapping(db, { ...ref, chosen: [] })).toThrow(ZodError);
-    expect(listChoiceMappings(db, "work.authorization")).toEqual([]);
+    expect(listChoiceMappings(db, "work_setup.work_authorization")).toEqual([]);
   });
 
   it("deleting nothing: the answer row is untouched by mapping writes", () => {
     setChoiceMapping(db, { ...ref, chosen: ["Yes"] });
     expect(
-      db.select().from(answer_bank).where(eq(answer_bank.key, "work.authorization")).get()?.answer,
+      db
+        .select()
+        .from(answer_bank)
+        .where(eq(answer_bank.key, "work_setup.work_authorization"))
+        .get()?.answer,
     ).toBe("Yes");
   });
 });

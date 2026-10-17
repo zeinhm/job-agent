@@ -37,21 +37,23 @@ const BANK: PlanAnswer[] = [
   ans("contact.email", "jane.doe@example.test"),
   ans("contact.phone", "+1 555 0100 123"),
   ans("contact.linkedin", "https://www.example.test/in/jane-doe"),
-  ans("profile.website", "https://jane-doe.example.test"),
+  ans("contact.portfolio", "https://jane-doe.example.test"),
   ans("contact.location", "Springfield"),
   ans("profile.resume_file", RESUME),
-  ans("work.remote", "Yes", {
+  ans("work_setup.remote_only", "Yes", {
     type: "yes_no",
     question: "Are you comfortable working remotely?",
   }),
-  ans("work.notice", "30", { type: "number", question: "Notice period in days" }),
-  ans("work.why", "I like the product.", { question: "Why do you want to work here?" }),
-  ans("work.stack", "TypeScript", {
+  ans("work_setup.notice_period", "30", { type: "number", question: "Notice period in days" }),
+  ans("misc.open_to_crypto_web3", "I like the product.", {
+    question: "Why do you want to work here?",
+  }),
+  ans("experience.current_role", "TypeScript", {
     question: "Which stack do you use most?",
     type: "choice",
     choices: ["TypeScript"],
   }),
-  ans("work.tools", "Git", { question: "Which tools do you use?" }),
+  ans("experience.years_nodejs_backend", "Git", { question: "Which tools do you use?" }),
 ];
 
 const ASK: TierAsk = { askIdrMonth: 30_000_000, askUsdYear: 24_000, askText: null };
@@ -86,7 +88,10 @@ describe("full fill", () => {
   it("fills every field with its value and source", () => {
     const tools = ["Git", "Docker", "Kubernetes"];
     const mappings = new Map([
-      [mappingId("work.tools", "Which tools do you use?", tools), ["Git", "Docker"]],
+      [
+        mappingId("experience.years_nodejs_backend", "Which tools do you use?", tools),
+        ["Git", "Docker"],
+      ],
     ]);
     const p = plan(
       [
@@ -119,13 +124,23 @@ describe("full fill", () => {
       ["Email *", "jane.doe@example.test", "standard", "contact.email"],
       ["Phone", "+1 555 0100 123", "standard", "contact.phone"],
       ["LinkedIn Profile", "https://www.example.test/in/jane-doe", "standard", "contact.linkedin"],
-      ["Website", "https://jane-doe.example.test", "standard", "profile.website"],
+      ["Website", "https://jane-doe.example.test", "standard", "contact.portfolio"],
       ["Location (City)", "Springfield", "standard", "contact.location"],
       ["Resume/CV", RESUME, "resume", "profile.resume_file"],
-      ["Are you comfortable working remotely?", "Yes", "answer", "work.remote"],
-      ["Notice period in days", "30", "answer", "work.notice"],
-      ["Why do you want to work here?", "I like the product.", "answer", "work.why"],
-      ["Which tools do you use?", ["Git", "Docker"], "choice_mapping", "work.tools"],
+      ["Are you comfortable working remotely?", "Yes", "answer", "work_setup.remote_only"],
+      ["Notice period in days", "30", "answer", "work_setup.notice_period"],
+      [
+        "Why do you want to work here?",
+        "I like the product.",
+        "answer",
+        "misc.open_to_crypto_web3",
+      ],
+      [
+        "Which tools do you use?",
+        ["Git", "Docker"],
+        "choice_mapping",
+        "experience.years_nodejs_backend",
+      ],
       ["Expected salary (USD per year)", "24000", "tier_ask", null],
       ["Salary expectations", "24000 USD per year (30000000 IDR per month)", "tier_ask", null],
     ]);
@@ -141,7 +156,10 @@ describe("full fill", () => {
     const options = ["typescript", "Go"];
     const p = plan([field("Which stack do you use most?", "choice", { options })], {
       choiceMappings: new Map([
-        [mappingId("work.stack", "Which stack do you use most?", options), ["TypeScript"]],
+        [
+          mappingId("experience.current_role", "Which stack do you use most?", options),
+          ["TypeScript"],
+        ],
       ]),
     });
     expect(fillOf(p)[0]).toMatchObject({
@@ -171,7 +189,9 @@ describe("needs input (partial plan)", () => {
   });
 
   it("an unapproved answer covers nothing", () => {
-    const answers = BANK.map((a) => (a.key === "work.why" ? { ...a, approved: false } : a));
+    const answers = BANK.map((a) =>
+      a.key === "misc.open_to_crypto_web3" ? { ...a, approved: false } : a,
+    );
     const f = fillOf(plan([field("Why do you want to work here?", "long_text")], { answers }));
     expect(f[0]).toMatchObject({ filled: false, reason: "uncovered_question", inbox: true });
   });
@@ -194,7 +214,7 @@ describe("needs input (partial plan)", () => {
     expect(fillOf(p)[0]).toMatchObject({
       filled: false,
       reason: "choice_unmapped",
-      answerKey: "work.tools",
+      answerKey: "experience.years_nodejs_backend",
     });
   });
 
@@ -203,7 +223,10 @@ describe("needs input (partial plan)", () => {
       [field("Which tools do you use?", "multi_choice", { options: ["Git", "Docker"] })],
       {
         choiceMappings: new Map([
-          [mappingId("work.tools", "Which tools do you use?", ["Git", "Hg"]), ["Git"]],
+          [
+            mappingId("experience.years_nodejs_backend", "Which tools do you use?", ["Git", "Hg"]),
+            ["Git"],
+          ],
         ]),
       },
     );
@@ -212,7 +235,7 @@ describe("needs input (partial plan)", () => {
 
   it("a mapping that does not fit the options, or two picks for a single choice, is not used", () => {
     const options = ["TypeScript", "Go"];
-    const id = mappingId("work.stack", "Which stack do you use most?", options);
+    const id = mappingId("experience.current_role", "Which stack do you use most?", options);
     for (const chosen of [["Rust"], ["TypeScript", "Go"], []]) {
       const p = plan([field("Which stack do you use most?", "choice", { options })], {
         choiceMappings: new Map([[id, chosen]]),
@@ -236,8 +259,8 @@ describe("needs input (partial plan)", () => {
 
   it("an answer that fails typed validation for the field is not filled", () => {
     const answers = [
-      ans("work.remote", "maybe", { question: "Remote ok?" }),
-      ans("work.notice", "thirty", { question: "Notice days" }),
+      ans("work_setup.remote_only", "maybe", { question: "Remote ok?" }),
+      ans("work_setup.notice_period", "thirty", { question: "Notice days" }),
     ];
     const f = fillOf(
       plan([field("Remote ok?", "yes_no"), field("Notice days", "number")], { answers }),
@@ -506,7 +529,7 @@ describe("full stops", () => {
   it("a standard key with no approved answer is not a candidate: the other key alone fills", () => {
     const answers = [
       ...BANK.filter((a) => a.key !== "contact.email"),
-      ans("contact.mail", "other@example.test", { question: "Email address" }),
+      ans("contact.github", "other@example.test", { question: "Email address" }),
     ];
     // contact.email is absent from the bank: no phantom "contact.email" in the ambiguity list.
     const r = plan([field("Email address")], { answers });
@@ -555,10 +578,10 @@ describe("full stops", () => {
   });
 
   it("a standard wording also carried by another answer is ambiguous; an unapproved twin is not", () => {
-    const twin = ans("contact.mail", "other@example.test", { question: "Email address" });
+    const twin = ans("contact.github", "other@example.test", { question: "Email address" });
     expect(plan([field("Email address")], { answers: [...BANK, twin] })).toMatchObject({
       kind: "stop",
-      details: ["ambiguous match", "Email address (contact.email, contact.mail)"],
+      details: ["ambiguous match", "Email address (contact.email, contact.github)"],
     });
     expect(
       plan([field("Email address")], { answers: [...BANK, { ...twin, approved: false }] }),

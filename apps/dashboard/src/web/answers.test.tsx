@@ -36,17 +36,17 @@ beforeEach(() => {
   exports = 0;
   store = [
     answer({
-      key: "links.site",
+      key: "contact.portfolio",
       answer: "https://example.com",
       approved: true,
       approvedAt: "x",
     }),
     answer({
-      key: "work_setup.notice",
+      key: "work_setup.notice_period",
       question: "What is your notice period?",
       alternatives: ["When can you start?"],
     }),
-    answer({ key: "work_setup.timezone", answer: "FAKE-UTC+7" }),
+    answer({ key: "work_setup.remote_only", answer: "FAKE-UTC+7" }),
   ];
 });
 
@@ -116,8 +116,8 @@ describe("Answers tab", () => {
   it("lists answers grouped by group with one heading per group", async () => {
     renderTab();
     await screen.findByRole("table", { name: "Answers" });
-    const headings = screen.getAllByRole("columnheader", { name: /^(links|work_setup)$/ });
-    expect(headings.map((h) => h.textContent)).toEqual(["links", "work_setup"]);
+    const headings = screen.getAllByRole("columnheader", { name: /^(contact|work_setup)$/ });
+    expect(headings.map((h) => h.textContent)).toEqual(["contact", "work_setup"]);
     expect(screen.getByText("What is your notice period?")).toBeTruthy();
     expect(screen.getByText("https://example.com")).toBeTruthy();
   });
@@ -129,21 +129,24 @@ describe("Answers tab", () => {
     await user.click(screen.getByRole("checkbox", { name: "Not approved only" }));
     expect(screen.queryByText("https://example.com")).toBeNull();
     expect(screen.getAllByRole("columnheader", { name: "work_setup" })).toHaveLength(1);
-    expect(screen.queryByRole("columnheader", { name: "links" })).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "contact" })).toBeNull();
   });
 
   it("toggles approval with a PATCH", async () => {
     const user = userEvent.setup();
     renderTab();
-    const box = await screen.findByRole("checkbox", { name: "Approved work_setup.timezone" });
+    const box = await screen.findByRole("checkbox", { name: "Approved work_setup.remote_only" });
     await user.click(box);
     await waitFor(() =>
-      expect(patches).toEqual([{ key: "work_setup.timezone", body: { approved: true } }]),
+      expect(patches).toEqual([{ key: "work_setup.remote_only", body: { approved: true } }]),
     );
     await waitFor(() =>
       expect(
-        (screen.getByRole("checkbox", { name: "Approved work_setup.timezone" }) as HTMLInputElement)
-          .checked,
+        (
+          screen.getByRole("checkbox", {
+            name: "Approved work_setup.remote_only",
+          }) as HTMLInputElement
+        ).checked,
       ).toBe(true),
     );
   });
@@ -151,19 +154,20 @@ describe("Answers tab", () => {
   it("edits an answer inline; the saved text clears approval", async () => {
     const user = userEvent.setup();
     renderTab();
-    await user.click(await screen.findByRole("button", { name: "Edit links.site" }));
-    const box = screen.getByRole("textbox", { name: "Answer for links.site" });
+    await user.click(await screen.findByRole("button", { name: "Edit contact.portfolio" }));
+    const box = screen.getByRole("textbox", { name: "Answer for contact.portfolio" });
     await user.clear(box);
     await user.type(box, "https://example.org");
-    await user.click(screen.getByRole("button", { name: "Save links.site" }));
+    await user.click(screen.getByRole("button", { name: "Save contact.portfolio" }));
     await waitFor(() =>
       expect(patches).toEqual([
-        { key: "links.site", body: { answer: "https://example.org", question: null } },
+        { key: "contact.portfolio", body: { answer: "https://example.org", question: null } },
       ]),
     );
     await screen.findByText("https://example.org");
     expect(
-      (screen.getByRole("checkbox", { name: "Approved links.site" }) as HTMLInputElement).checked,
+      (screen.getByRole("checkbox", { name: "Approved contact.portfolio" }) as HTMLInputElement)
+        .checked,
     ).toBe(false);
     // The edited, previously approved answer is flagged, and the edit never carried an approved flag.
     expect(screen.getAllByText("needs approval").length).toBeGreaterThan(0);
@@ -177,10 +181,10 @@ describe("Answers tab", () => {
     const row = screen.getByText("https://example.com").closest("tr") as HTMLElement;
     expect(within(row).queryByText("needs approval")).toBeNull();
     await user.type(
-      screen.getByRole("textbox", { name: "New alternative for links.site" }),
+      screen.getByRole("textbox", { name: "New alternative for contact.portfolio" }),
       "Website?",
     );
-    await user.click(screen.getByRole("button", { name: "Add alternative to links.site" }));
+    await user.click(screen.getByRole("button", { name: "Add alternative to contact.portfolio" }));
     await waitFor(() =>
       expect(
         within(screen.getByText("https://example.com").closest("tr") as HTMLElement).getByText(
@@ -188,14 +192,15 @@ describe("Answers tab", () => {
         ),
       ).toBeTruthy(),
     );
-    expect(patches).toEqual([{ key: "links.site", body: { alternatives: ["Website?"] } }]);
-    await user.click(screen.getByRole("checkbox", { name: "Approved links.site" }));
+    expect(patches).toEqual([{ key: "contact.portfolio", body: { alternatives: ["Website?"] } }]);
+    await user.click(screen.getByRole("checkbox", { name: "Approved contact.portfolio" }));
     await waitFor(() =>
-      expect(patches[1]).toEqual({ key: "links.site", body: { approved: true } }),
+      expect(patches[1]).toEqual({ key: "contact.portfolio", body: { approved: true } }),
     );
     await waitFor(() =>
       expect(
-        (screen.getByRole("checkbox", { name: "Approved links.site" }) as HTMLInputElement).checked,
+        (screen.getByRole("checkbox", { name: "Approved contact.portfolio" }) as HTMLInputElement)
+          .checked,
       ).toBe(true),
     );
   });
@@ -204,26 +209,30 @@ describe("Answers tab", () => {
     const user = userEvent.setup();
     renderTab();
     await user.type(
-      await screen.findByRole("textbox", { name: "New alternative for work_setup.notice" }),
+      await screen.findByRole("textbox", { name: "New alternative for work_setup.notice_period" }),
       "Notice?",
     );
-    await user.click(screen.getByRole("button", { name: "Add alternative to work_setup.notice" }));
+    await user.click(
+      screen.getByRole("button", { name: "Add alternative to work_setup.notice_period" }),
+    );
     await waitFor(() =>
       expect(patches).toEqual([
         {
-          key: "work_setup.notice",
+          key: "work_setup.notice_period",
           body: { alternatives: ["When can you start?", "Notice?"] },
         },
       ]),
     );
-    const list = await screen.findByRole("list", { name: "Alternatives for work_setup.notice" });
+    const list = await screen.findByRole("list", {
+      name: "Alternatives for work_setup.notice_period",
+    });
     await within(list).findByText("Notice?");
     await user.click(
       screen.getByRole("button", { name: "Remove alternative When can you start?" }),
     );
     await waitFor(() =>
       expect(patches[1]).toEqual({
-        key: "work_setup.notice",
+        key: "work_setup.notice_period",
         body: { alternatives: ["Notice?"] },
       }),
     );
@@ -243,12 +252,12 @@ describe("Answers tab", () => {
   it("adds a new answer without approving it", async () => {
     const user = userEvent.setup();
     renderTab();
-    await user.type(await screen.findByRole("textbox", { name: "New group" }), "links");
-    await user.type(screen.getByRole("textbox", { name: "New key" }), "blog");
+    await user.type(await screen.findByRole("textbox", { name: "New group" }), "contact");
+    await user.type(screen.getByRole("textbox", { name: "New key" }), "github");
     await user.type(screen.getByRole("textbox", { name: "New answer" }), "https://example.net");
     await user.click(screen.getByRole("button", { name: "Add answer" }));
     await waitFor(() =>
-      expect(created).toEqual([{ group: "links", key: "blog", answer: "https://example.net" }]),
+      expect(created).toEqual([{ group: "contact", key: "github", answer: "https://example.net" }]),
     );
     await screen.findByText("https://example.net");
   });
@@ -261,7 +270,9 @@ describe("Answers tab", () => {
     );
     const user = userEvent.setup();
     renderTab();
-    await user.click(await screen.findByRole("checkbox", { name: "Approved work_setup.timezone" }));
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Approved work_setup.remote_only" }),
+    );
     await screen.findByRole("alert");
   });
 });

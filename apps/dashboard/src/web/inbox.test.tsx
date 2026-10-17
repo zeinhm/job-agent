@@ -22,8 +22,8 @@ function item(over: Partial<InboxItem> & { id: string; label: string }): InboxIt
 }
 
 const visa: Answer = {
-  key: "legal.visa",
-  group: "legal",
+  key: "work_setup.needs_visa_sponsorship",
+  group: "work_setup",
   question: "Do you need visa sponsorship?",
   answer: "FAKE-ANSWER",
   type: "text",
@@ -34,7 +34,7 @@ const visa: Answer = {
   source: "dashboard",
   updatedAt: "2026-10-16T00:00:00.000Z",
 };
-const notice: Answer = { ...visa, key: "work.notice", question: "Notice period?" };
+const notice: Answer = { ...visa, key: "work_setup.notice_period", question: "Notice period?" };
 
 let items: InboxItem[];
 let calls: { kind: string; id: string; body: unknown }[];
@@ -195,12 +195,18 @@ describe("Inbox tab", () => {
     await user.click(
       await screen.findByRole("button", { name: "Link Work permit? to an existing answer" }),
     );
-    expect(await screen.findByRole("button", { name: "Link to work.notice" })).toBeTruthy();
+    expect(
+      await screen.findByRole("button", { name: "Link to work_setup.notice_period" }),
+    ).toBeTruthy();
     await user.type(screen.getByLabelText("Search answers"), "visa");
-    expect(screen.queryByRole("button", { name: "Link to work.notice" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Link to legal.visa" }));
+    expect(screen.queryByRole("button", { name: "Link to work_setup.notice_period" })).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Link to work_setup.needs_visa_sponsorship" }),
+    );
     await waitFor(() =>
-      expect(calls).toEqual([{ kind: "link", id: "u2", body: { key: "legal.visa" } }]),
+      expect(calls).toEqual([
+        { kind: "link", id: "u2", body: { key: "work_setup.needs_visa_sponsorship" } },
+      ]),
     );
     await waitFor(() => expect(screen.queryByText("Work permit?")).toBeNull());
   });

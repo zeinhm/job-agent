@@ -40,19 +40,19 @@ const SALARY: SalaryConfig = {
   review_salary_answers: true,
 };
 
-// identity.full_name collides with the seeded dashboard answer (kept); the visa answer is approved, the other is not.
-const ANSWERS_YAML = `identity:
+// contact.full_name collides with the seeded dashboard answer (kept); the visa answer is approved, the other is not.
+const ANSWERS_YAML = `contact:
   full_name:
     answer: Alex Example
     approved: true
     question: Full name
-work:
-  visa:
+work_setup:
+  needs_visa_sponsorship:
     answer: "No"
     approved: true
     type: yes_no
     question: Will you now or in the future require sponsorship for a visa to remain in your current location?
-  former_employee:
+  open_to_crypto_web3:
     answer: "No"
     approved: false
     type: yes_no
@@ -200,7 +200,7 @@ describe("phase 4 review workflow end to end", () => {
     // answers import: config entries upserted, the dashboard-edited one kept.
     const imp = await cli("answers", "import");
     expect(imp.code).toBe(0);
-    expect(imp.out).toContain("kept dashboard version: identity.full_name");
+    expect(imp.out).toContain("kept dashboard version: contact.full_name");
     expect(imp.out).toContain("answers import: 2 added, 0 updated, 0 unchanged, 1 kept");
 
     // fetch-questions: one GET to the public Greenhouse job API, 13 questions from the recorded fixture.
@@ -222,7 +222,7 @@ describe("phase 4 review workflow end to end", () => {
       rows<{ matched_key: string | null }>(
         "select matched_key from posting_questions where label like 'Will you now%'",
       )[0]?.matched_key,
-    ).toBe("work.visa");
+    ).toBe("work_setup.needs_visa_sponsorship");
     // The not-approved answer does not cover its question.
     expect(
       rows<{ matched_key: string | null }>(

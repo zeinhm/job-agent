@@ -223,7 +223,12 @@ describe("PATCH /api/answers/:key", () => {
 describe("POST /api/answers/export", () => {
   it("writes answers-<date>.yaml into the exports dir and returns only path and count", async () => {
     await create({ approved: true });
-    await create({ group: "links", key: "site", answer: "https://example.com", question: null });
+    await create({
+      group: "contact",
+      key: "portfolio",
+      answer: "https://example.com",
+      question: null,
+    });
     const exportsDir = join(dir, "exports");
     const res = await mutate("POST", "/api/answers/export");
     expect(res.status).toBe(200);
@@ -253,7 +258,7 @@ describe("POST /api/answers/export", () => {
   it("the exported file loads back through the answers.yaml loader", async () => {
     await create({ approved: true });
     await create({
-      key: "level",
+      key: "remote_only",
       type: "choice",
       choices: ["a", "b"],
       answer: "a",
@@ -266,16 +271,6 @@ describe("POST /api/answers/export", () => {
     copyFileSync(join(dir, "exports", "answers-2026-10-16.yaml"), join(loadDir, "answers.yaml"));
     expect(loadAnswers(loadDir, () => undefined)).toEqual([
       {
-        key: "work_setup.level",
-        group: "work_setup",
-        answer: "a",
-        approved: false,
-        question: NEW.question,
-        alternatives: null,
-        type: "choice",
-        choices: ["a", "b"],
-      },
-      {
         key: "work_setup.notice_period",
         group: "work_setup",
         answer: NEW.answer,
@@ -284,6 +279,16 @@ describe("POST /api/answers/export", () => {
         alternatives: ["When can you start?"],
         type: "text",
         choices: null,
+      },
+      {
+        key: "work_setup.remote_only",
+        group: "work_setup",
+        answer: "a",
+        approved: false,
+        question: NEW.question,
+        alternatives: null,
+        type: "choice",
+        choices: ["a", "b"],
       },
     ]);
   });

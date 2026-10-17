@@ -58,7 +58,7 @@ const detail = (id: string): DryRunDetail => {
         fieldType: "input_text",
         required: true,
         source: "answer",
-        answerKey: "identity.full_name",
+        answerKey: "contact.full_name",
         value: "Alex Example",
         filled: true,
         note: null,
@@ -168,7 +168,7 @@ describe("DryRunsTab", () => {
     const fields = within(await screen.findByRole("table", { name: "Filled fields" }));
     expect(fields.getByText("Full name")).toBeTruthy();
     expect(fields.getByText("Alex Example")).toBeTruthy();
-    expect(fields.getByText("identity.full_name")).toBeTruthy();
+    expect(fields.getByText("contact.full_name")).toBeTruthy();
     expect(fields.getByText("Why us?")).toBeTruthy();
     expect(screen.getByText(/one question has no approved answer/)).toBeTruthy();
     expect(screen.getByText(/Blocked requests recorded: 0/)).toBeTruthy();

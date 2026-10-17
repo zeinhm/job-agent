@@ -198,7 +198,7 @@ describe("full fill on the fixture", () => {
 describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
   it("an uncovered question stays empty, the rest is filled, the label goes to the Inbox", async () => {
     const { summary, seen } = await run(FIXTURE_FORM_PATH, {
-      context: (c) => without("work.why")(c),
+      context: (c) => without("misc.open_to_crypto_web3")(c),
     });
     expect(summary).toMatchObject({
       status: "needs_input",
@@ -265,7 +265,9 @@ describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
     const { summary } = await run(FIXTURE_FORM_PATH, {
       context: (c) => ({
         ...c,
-        answers: c.answers.map((a) => (a.key === "work.why" ? { ...a, answer: long } : a)),
+        answers: c.answers.map((a) =>
+          a.key === "misc.open_to_crypto_web3" ? { ...a, answer: long } : a,
+        ),
       }),
     });
     expect(summary).toMatchObject({ status: "needs_input", filled: 12, total: 13 });
@@ -411,7 +413,7 @@ describe("stops (nothing is filled)", () => {
           answers: [
             ...c.answers,
             {
-              key: "contact.mail",
+              key: "contact.github",
               question: "Email",
               alternatives: null,
               answer: "other@example.test",

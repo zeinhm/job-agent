@@ -46,7 +46,7 @@ function run(over: Partial<NewDryRunInput> = {}): string {
         field_type: "input_text",
         required: true,
         source: "answer",
-        answer_key: "identity.full_name",
+        answer_key: "contact.full_name",
         value: FAKE_VALUE,
         filled: true,
       },
@@ -147,7 +147,7 @@ describe("dry run list and detail", () => {
       label: "Full name",
       value: FAKE_VALUE,
       source: "answer",
-      answerKey: "identity.full_name",
+      answerKey: "contact.full_name",
       filled: true,
     });
     expect(d.blockedRequestsRecorded).toBe(1);

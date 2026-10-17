@@ -14,7 +14,7 @@ const LABEL = "What is your notice period?";
 const OPTIONS = ["Immediately", "Within 1 month", "More than 1 month"];
 
 const need = (over: Partial<MappingNeed> = {}): MappingNeed => ({
-  answerKey: "work.notice",
+  answerKey: "work_setup.notice_period",
   label: LABEL,
   normalizedLabel: "what is your notice period",
   options: OPTIONS,
@@ -27,8 +27,8 @@ const need = (over: Partial<MappingNeed> = {}): MappingNeed => ({
 });
 
 const answer: Answer = {
-  key: "work.notice",
-  group: "work",
+  key: "work_setup.notice_period",
+  group: "work_setup",
   question: LABEL,
   answer: "FAKE-ANSWER",
   type: "text",
@@ -41,7 +41,7 @@ const answer: Answer = {
 };
 
 const mapping = (over: Partial<ChoiceMapping> = {}): ChoiceMapping => ({
-  answerKey: "work.notice",
+  answerKey: "work_setup.notice_period",
   normalizedLabel: "what is your notice period",
   optionsHash: "h1",
   options: OPTIONS,
@@ -121,7 +121,7 @@ describe("Inbox: choice mapping picker", () => {
     await user.click(within(row).getByRole("button", { name: `Save mapping for ${LABEL}` }));
     await waitFor(() => expect(saved).toHaveLength(1));
     expect(saved[0]).toEqual({
-      answer_key: "work.notice",
+      answer_key: "work_setup.notice_period",
       label: LABEL,
       options: OPTIONS,
       chosen: ["Immediately"],
@@ -179,7 +179,9 @@ describe("Answers: choice mappings", () => {
       mapping({ optionsHash: "h2", normalizedLabel: "other", chosen: ["A", "B"], approved: false }),
     ];
     renderTab("answers");
-    const list = await screen.findByRole("list", { name: "Choice mappings for work.notice" });
+    const list = await screen.findByRole("list", {
+      name: "Choice mappings for work_setup.notice_period",
+    });
     expect(within(list).getByText("what is your notice period:")).toBeTruthy();
     expect(within(list).getByText("Within 1 month")).toBeTruthy();
     expect(within(list).getByText("A, B")).toBeTruthy();
@@ -192,19 +194,19 @@ describe("Answers: choice mappings", () => {
     renderTab("answers");
     await user.click(
       await screen.findByRole("button", {
-        name: "Remove mapping what is your notice period for work.notice",
+        name: "Remove mapping what is your notice period for work_setup.notice_period",
       }),
     );
     await waitFor(() => expect(removed).toHaveLength(1));
     expect(removed[0]).toEqual({
-      answer_key: "work.notice",
+      answer_key: "work_setup.notice_period",
       label: "what is your notice period",
       options: OPTIONS,
     });
     await waitFor(() =>
       expect(
         within(
-          screen.getByRole("list", { name: "Choice mappings for work.notice" }),
+          screen.getByRole("list", { name: "Choice mappings for work_setup.notice_period" }),
         ).queryAllByRole("listitem"),
       ).toHaveLength(0),
     );

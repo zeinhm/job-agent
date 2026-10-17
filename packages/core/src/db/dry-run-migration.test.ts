@@ -92,7 +92,7 @@ describe("dry-run tables migration (0008)", () => {
     old
       .prepare(
         `INSERT INTO answer_bank (id, key, "group", answer, approved, source, updated_at)
-         VALUES ('a1', 'identity.full_name', 'identity', 'Alex Example', 1, 'dashboard', '2026-10-01T00:00:00Z')`,
+         VALUES ('a1', 'contact.full_name', 'identity', 'Alex Example', 1, 'dashboard', '2026-10-01T00:00:00Z')`,
       )
       .run();
     const tables = (d: Database.Database) =>
@@ -129,7 +129,7 @@ describe("dry-run tables migration (0008)", () => {
     const db = openDb(":memory:");
     const mapping = {
       id: "m1",
-      answer_key: "work.auth",
+      answer_key: "work_setup.work_authorization",
       normalized_label: "work authorization",
       options_hash: "h",
       options: "[]",

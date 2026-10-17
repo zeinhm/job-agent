@@ -34,7 +34,7 @@ beforeEach(() => {
     })
     .run();
   for (const [key, question] of [
-    ["work.notice", LABEL],
+    ["work_setup.notice_period", LABEL],
     ["pay.any", "Expected salary?"],
   ] as const) {
     db.insert(answer_bank)
@@ -87,7 +87,7 @@ const send = (method: string, path: string, body: unknown, headers: Record<strin
 const post = (path: string, body: unknown) => send("POST", path, body);
 const save = (over: Record<string, unknown> = {}) =>
   post("/api/choice-mappings", {
-    answer_key: "work.notice",
+    answer_key: "work_setup.notice_period",
     label: LABEL,
     options: OPTIONS,
     chosen: ["Within 1 month"],
@@ -103,7 +103,7 @@ describe("choice mapping routes", () => {
     };
     expect(r.mappings).toHaveLength(1);
     expect(r.mappings[0]).toMatchObject({
-      answerKey: "work.notice",
+      answerKey: "work_setup.notice_period",
       label: LABEL,
       options: OPTIONS,
       answerText: SECRET,
@@ -114,7 +114,7 @@ describe("choice mapping routes", () => {
     const res = await save();
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({
-      answerKey: "work.notice",
+      answerKey: "work_setup.notice_period",
       chosen: ["Within 1 month"],
       approved: true,
     });
@@ -159,7 +159,7 @@ describe("choice mapping routes", () => {
 
   it("keeps the same-origin and JSON guards", async () => {
     const body = {
-      answer_key: "work.notice",
+      answer_key: "work_setup.notice_period",
       label: LABEL,
       options: OPTIONS,
       chosen: [OPTIONS[0]],
@@ -179,7 +179,7 @@ describe("choice mapping routes", () => {
 
   it("remove deletes one mapping (404 when absent) and the question needs a mapping again", async () => {
     await save();
-    const ref = { answer_key: "work.notice", label: LABEL, options: OPTIONS };
+    const ref = { answer_key: "work_setup.notice_period", label: LABEL, options: OPTIONS };
     expect((await post("/api/choice-mappings/remove", ref)).status).toBe(200);
     expect((await post("/api/choice-mappings/remove", ref)).status).toBe(404);
     expect((await post("/api/choice-mappings/remove", { ...ref, chosen: ["x"] })).status).toBe(400);
@@ -189,13 +189,15 @@ describe("choice mapping routes", () => {
 
   it("an answer edit that clears approval clears the mapping and the question needs one again", async () => {
     await save();
-    const patch = await send("PATCH", "/api/answers/work.notice", { answer: "FAKE-NEW" });
+    const patch = await send("PATCH", "/api/answers/work_setup.notice_period", {
+      answer: "FAKE-NEW",
+    });
     expect(patch.status).toBe(200);
     const list = (await (await get("/api/choice-mappings")).json()) as {
       mappings: { approved: boolean }[];
     };
     expect(list.mappings.map((m) => m.approved)).toEqual([false]);
-    await send("PATCH", "/api/answers/work.notice", { approved: true });
+    await send("PATCH", "/api/answers/work_setup.notice_period", { approved: true });
     const inbox = (await (await get("/api/inbox")).json()) as {
       mappings: { picked: string[] | null }[];
     };
