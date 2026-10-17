@@ -109,6 +109,24 @@ function control(field, required) {
       });
     case "File":
       return el("input", { ...attrs, type: "file", class: "ashby-application-form-input-file" });
+    case "Combobox": {
+      // The location autocomplete: an input with role=combobox and an id but no name, a dropdown of suggestions.
+      const input = el("input", {
+        id: path,
+        type: "text",
+        role: "combobox",
+        "aria-autocomplete": "list",
+        "aria-expanded": "false",
+        placeholder: "Start typing...",
+        class: "ashby-application-form-input-text",
+      });
+      if (required) input.setAttribute("aria-required", "true");
+      const list = el("ul", { role: "listbox", hidden: "" });
+      for (const o of field.selectableValues || [])
+        list.append(el("li", { role: "option" }, o.label));
+      input.addEventListener("input", () => list.toggleAttribute("hidden", input.value === ""));
+      return el("div", { class: "ashby-application-form-input-combobox" }, input, list);
+    }
     case "Date":
       return el("input", { ...attrs, type: "date", class: "ashby-application-form-input-date" });
     case "Consent":
@@ -163,6 +181,17 @@ const entry = (e) => {
   return wrap;
 };
 
+// A question drawn outside the entry markup, with buttons instead of inputs: a shape no reader hook covers.
+const orphan = (field) => {
+  const wrap = el("div", { class: "orphan-question" });
+  wrap.append(
+    el("div", { class: "ashby-application-form-question-title" }, field.title),
+    el("button", { type: "button" }, "Yes"),
+    el("button", { type: "button" }, "No"),
+  );
+  return wrap;
+};
+
 function render(posting) {
   const form = el("form", { class: "ashby-application-form-container", novalidate: "" });
   // The "Autofill from resume" drop zone: attaching a file would upload the CV for parsing. The filler never touches it.
@@ -184,7 +213,8 @@ function render(posting) {
   );
   for (const section of posting.applicationForm.sections) {
     const box = el("div", { class: "ashby-application-form-section-container" });
-    for (const e of section.fieldEntries) if (!e.isHidden) box.append(entry(e));
+    for (const e of section.fieldEntries)
+      if (!e.isHidden) box.append(e.field.type === "Orphan" ? orphan(e.field) : entry(e));
     form.append(box);
   }
   form.addEventListener("change", (ev) => {

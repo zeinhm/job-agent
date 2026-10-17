@@ -152,6 +152,8 @@ export async function applyControl(
       }
       return;
     }
+    case "combobox":
+      throw new HarnessRefusalError("refused: a combobox is picked by the owner");
     case "unsupported":
       throw new HarnessRefusalError("refused: unsupported control");
   }

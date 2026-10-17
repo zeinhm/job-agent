@@ -18,9 +18,13 @@ import {
   ASHBY_READY_SELECTOR,
   ASHBY_SCOPE,
   READ_CONTROLS_EXPRESSION,
+  missingFromTable,
   readValuesExpression,
   type AshbyControl,
+  type AshbyPage,
 } from "./form.ts";
+
+const COMBOBOX_NOTE = "combobox / autocomplete: the owner picks the suggestion";
 
 /** The one host a real (owner-run) Ashby dry run may open: the hosted job pages. */
 const ASHBY_HOST = "jobs.ashbyhq.com";
@@ -101,13 +105,26 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
   try {
     if (session.stop) return await done(undefined);
 
-    const controls = await session.snapshot<AshbyControl[] | null>(READ_CONTROLS_EXPRESSION);
-    if (controls === null || controls.length === 0)
+    const page = await session.snapshot<AshbyPage | null>(READ_CONTROLS_EXPRESSION);
+    if (page === null || page.controls.length === 0)
       return await done({
         status: "stopped",
         stop_reason: "form_changed",
-        stop_detail: controls === null ? "application form not found" : "no questions on the page",
+        stop_detail: page === null ? "application form not found" : "no questions on the page",
       });
+    // A question the page shows but the table would not list: never a full fill, never a silent gap.
+    const missing = missingFromTable(page);
+    if (missing.length > 0)
+      return await done({
+        status: "stopped",
+        stop_reason: "form_changed",
+        stop_detail:
+          `question(s) on the page missing from the field table: ${missing.join(", ")}`.slice(
+            0,
+            200,
+          ),
+      });
+    const { controls } = page;
 
     const fields = fieldsFromControls(controls, "ashby");
     const stored = loadStoredAshbyQuestions(opts.db, opts.postingId);
@@ -125,8 +142,9 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
       });
 
     const byName = new Map(controls.map((c) => [c.name, c]));
+    // A combobox (location autocomplete) is never planned or filled: the owner picks the suggestion.
     const plan = planFill({
-      fields,
+      fields: fields.filter((f) => byName.get(f.ats.id)?.kind !== "combobox"),
       ...(opts.context ?? loadFillContext(opts.db, opts.postingId)),
       ...(opts.probeResume !== undefined ? { probeResume: opts.probeResume } : {}),
     });
@@ -156,7 +174,20 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
     }
     if (session.stop) return await done(undefined);
     const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(controls));
-    const rows: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {
+    const planned = new Map(plan.fields.map((p) => [p.field.ats.id, p]));
+    const rows: DryRunFieldInput[] = fields.map((field): DryRunFieldInput => {
+      const p = planned.get(field.ats.id);
+      if (p === undefined)
+        return {
+          label: field.label,
+          field_type: field.field_type,
+          required: field.required,
+          answer_key: null,
+          source: "none",
+          value: null,
+          filled: false,
+          note: COMBOBOX_NOTE,
+        };
       const base = {
         label: p.field.label,
         field_type: p.field.field_type,
@@ -176,18 +207,35 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
         : { ...base, source: p.source, value: null, filled: false, note: why };
     });
 
+    // Untouched blocks (survey / EEO / veteran, SMS consent) are listed after the questions so a gap is always visible; they
+    // never count as open, filled or total.
+    const skippedRows = page.skipped.map((s): DryRunFieldInput => ({
+      label: s.label,
+      field_type: "other",
+      required: false,
+      answer_key: null,
+      source: "none",
+      value: null,
+      filled: false,
+      note: `skipped: ${s.reason}`,
+    }));
     const open = rows.filter((r) => !r.filled).length;
     const pageRefused = rows.filter((r) => !r.filled && r.source !== "none").length;
     const filled = rows.length - open;
     await opts.beforeFinish?.(session);
-    if (open === 0) return await done({ status: "filled", fields: rows }, filled, rows.length);
+    if (open === 0)
+      return await done(
+        { status: "filled", fields: [...rows, ...skippedRows] },
+        filled,
+        rows.length,
+      );
     return await done(
       {
         status: "needs_input",
         stop_reason:
           pageRefused > 0 ? "uncovered_question" : (plan.needsInputReason ?? "uncovered_question"),
         stop_detail: `${open} field(s) need input${pageRefused > 0 ? `; the page refused ${pageRefused}` : ""}`,
-        fields: rows,
+        fields: [...rows, ...skippedRows],
       },
       filled,
       rows.length,

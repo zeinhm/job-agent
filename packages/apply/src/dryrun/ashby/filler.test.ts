@@ -24,15 +24,24 @@ import { describeComparison } from "../greenhouse/form.ts";
 import { kept, phoneKept } from "../lever/filler.ts";
 import { compareQuestions, fieldsFromControls, type LeverControl } from "../lever/form.ts";
 import { loadStoredAshbyQuestions, runAshbyDryRun, type AshbyRunSummary } from "./filler.ts";
+import { missingFromTable } from "./form.ts";
 import {
+  AI_OPTIONS,
+  AI_QUESTION,
   ASHBY_FIXTURE_CAPTCHA_PATH,
   ASHBY_FIXTURE_CHANGED_PATH,
   ASHBY_FIXTURE_DATE_PATH,
   ASHBY_FIXTURE_FORM_PATH,
+  ASHBY_FIXTURE_ORPHAN_PATH,
   ASHBY_FIXTURE_PHONE_FORMAT_PATH,
   ASHBY_FIXTURE_PHONE_PAIR_PATH,
   ASHBY_FIXTURE_POSTING_ID,
+  ASHBY_FIXTURE_REALSHAPE_PATH,
+  FAMILIAL_QUESTION,
+  SPONSORSHIP_QUESTION,
+  WORK_AUTH_QUESTION,
   ashbyFixtureContext,
+  ashbyRealShapeContext,
   seedAshbyFixture,
   startAshbyFixtureServer,
   type AshbyFixtureServer,
@@ -246,8 +255,17 @@ describe("full fill on the fixture", () => {
   it("records the run, every field with filled true and where it came from, and a private screenshot", async () => {
     const { summary } = await run();
     const rows = fieldsOf(summary.runId);
-    expect(rows).toHaveLength(13);
-    expect(rows.every((r) => r.filled && r.note === null)).toBe(true);
+    // 13 questions plus the 4 untouched blocks, listed as skipped (never filled, never counted).
+    expect(rows).toHaveLength(17);
+    const questions = rows.filter((r) => !r.note?.startsWith("skipped: "));
+    expect(questions).toHaveLength(13);
+    expect(questions.every((r) => r.filled && r.note === null)).toBe(true);
+    expect(rows.filter((r) => r.note?.startsWith("skipped: ")).map((r) => r.label)).toEqual([
+      "Phone Number: text message consent",
+      "I agree to receive text messages about my application",
+      "Can we send you text messages about your application?",
+      "Gender",
+    ]);
     const by = (label: string) => rows.find((r) => r.label === label);
     expect(by("Name")).toMatchObject({ source: "standard", answer_key: "contact.full_name" });
     expect(by("Resume")).toMatchObject({ source: "resume", value: "fixture-resume.pdf" });
@@ -375,7 +393,9 @@ describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
     const s = seen as unknown as Seen;
     expect(s.texts[WHY]).toBe("");
     expect(s.texts[NAME]).toBe("Alex Example");
-    const open = fieldsOf(summary.runId).filter((r) => !r.filled);
+    const open = fieldsOf(summary.runId).filter(
+      (r) => !r.filled && !r.note?.startsWith("skipped: "),
+    );
     expect(open).toHaveLength(1);
     expect(open[0]).toMatchObject({
       label: "Why do you want to work here?",
@@ -571,6 +591,174 @@ describe("stops (nothing is filled)", () => {
     const r = await stopped(run(), "form_changed");
     expect(runOf(r.summary.runId)?.stop_detail).toBe("form changed (different: Email)");
   }, 120_000);
+});
+
+describe("every question on the page reaches the table (t_c7d6e06d)", () => {
+  const P = (n: string) => `4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7c${n}`;
+
+  async function runReal(opts: { mapAi?: boolean } = {}) {
+    let checked: Record<string, string[]> = {};
+    let location = "";
+    const summary = await runAshbyDryRun({
+      db,
+      dataDir,
+      postingId: ASHBY_FIXTURE_POSTING_ID,
+      url: `${server.origin}${ASHBY_FIXTURE_REALSHAPE_PATH}`,
+      fixture: true,
+      context: ashbyRealShapeContext(dataDir, opts),
+      beforeFinish: async (s) => {
+        const seen = await pageOf(s).evaluate<{
+          checked: Record<string, string[]>;
+          location: string;
+        }>(`(() => {
+          const text = (el) => el.textContent.replace(/\\s+/g, " ").trim();
+          const checked = (name) =>
+            [...document.querySelectorAll('input[name="' + name + '"]')]
+              .filter((e) => e.checked)
+              .map((e) => text(e.closest("label")));
+          return {
+            checked: Object.fromEntries(
+              ${JSON.stringify([P("02"), P("03"), P("04"), P("05"), "survey-veteran", "survey-race"])}.map((n) => [n, checked(n)]),
+            ),
+            location: document.getElementById(${JSON.stringify(P("01"))}).value,
+          };
+        })()`);
+        checked = seen.checked;
+        location = seen.location;
+      },
+    });
+    return { summary, checked, location };
+  }
+
+  it("lists radio groups, the combobox and the untouched blocks; radios are mapped, the combobox and the unanswered radio stay open", async () => {
+    const { summary, checked, location } = await runReal();
+    // Never a full fill while a combobox and an unanswered question are open.
+    expect(summary).toMatchObject({ status: "needs_input", stopReason: "uncovered_question" });
+    expect(summary).toMatchObject({ filled: 16, total: 18 });
+    const rows = fieldsOf(summary.runId);
+    const by = (label: string) => rows.find((r) => r.label === label);
+
+    // Table = 18 questions + 6 skipped blocks (the base form's 4, plus veteran status and race).
+    expect(rows.filter((r) => !r.note?.startsWith("skipped: "))).toHaveLength(18);
+    expect(rows.filter((r) => r.note?.startsWith("skipped: ")).map((r) => r.label)).toEqual([
+      "Phone Number: text message consent",
+      "I agree to receive text messages about my application",
+      "Can we send you text messages about your application?",
+      "Gender",
+      "Veteran status",
+      "Race",
+    ]);
+    expect(by("Gender")).toMatchObject({ filled: false, source: "none", value: null });
+
+    // Location: a combobox, listed, never typed into.
+    expect(by("Location")).toMatchObject({
+      field_type: "text",
+      required: true,
+      filled: false,
+      source: "none",
+      note: "combobox / autocomplete: the owner picks the suggestion",
+    });
+    expect(location).toBe("");
+
+    // Radio groups go through the plan: yes/no from the bank, the 4-option group through its approved mapping.
+    expect(by(AI_QUESTION)).toMatchObject({
+      field_type: "choice",
+      source: "choice_mapping",
+      value: "I use AI tools daily",
+      filled: true,
+    });
+    expect(by(WORK_AUTH_QUESTION)).toMatchObject({
+      field_type: "yes_no",
+      value: "No",
+      filled: true,
+    });
+    expect(by(SPONSORSHIP_QUESTION)).toMatchObject({ field_type: "yes_no", value: "Yes" });
+    expect(by(FAMILIAL_QUESTION)).toMatchObject({
+      field_type: "yes_no",
+      filled: false,
+      source: "none",
+    });
+    expect(checked[P("02")]).toEqual(["I use AI tools daily"]);
+    expect(checked[P("03")]).toEqual(["No"]);
+    expect(checked[P("04")]).toEqual(["Yes"]);
+    expect(checked[P("05")]).toEqual([]); // no answer: left empty
+    // EEO and veteran blocks are untouched.
+    expect(checked["survey-veteran"]).toEqual([]);
+    expect(checked["survey-race"]).toEqual([]);
+
+    // The stored table has the new questions with their types and options; skipped blocks are not stored.
+    const stored = storedRows();
+    expect(stored.find((q) => q.question_id === P("02"))).toMatchObject({
+      type: "choice",
+      options: JSON.stringify(AI_OPTIONS),
+    });
+    expect(stored.find((q) => q.question_id === P("03"))).toMatchObject({ type: "yes_no" });
+    expect(stored.find((q) => q.question_id === P("01"))).toMatchObject({ label: "Location" });
+    expect(stored.some((q) => q.label === "Race" || q.label === "Veteran status")).toBe(false);
+    // The unanswered radio question reaches the Inbox.
+    expect(
+      db
+        .select()
+        .from(unknown_questions)
+        .where(eq(unknown_questions.label, FAMILIAL_QUESTION))
+        .get(),
+    ).toMatchObject({ status: "open" });
+    expect(server.graphql.every((g) => g.kind === "query")).toBe(true);
+  }, 90_000);
+
+  it("an unmapped radio group is left empty and listed as needing input", async () => {
+    const { summary, checked } = await runReal({ mapAi: false });
+    expect(summary.status).toBe("needs_input");
+    expect(checked[P("02")]).toEqual([]);
+    const row = fieldsOf(summary.runId).find((r) => r.label === AI_QUESTION);
+    expect(row).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "no approved choice mapping",
+    });
+  }, 90_000);
+
+  it("a second run on the same real-shape page is not a form change", async () => {
+    await runReal();
+    resetRunLimit();
+    const second = await runReal();
+    expect(second.summary.status).toBe("needs_input");
+    expect(second.summary.stopReason).toBe("uncovered_question");
+  }, 120_000);
+
+  it("a question on the page that the table would not list stops the run form_changed, nothing is filled", async () => {
+    const out = await run(ASHBY_FIXTURE_ORPHAN_PATH);
+    expect(out.summary).toMatchObject({
+      status: "stopped",
+      stopReason: "form_changed",
+      filled: 0,
+      total: 0,
+    });
+    expect(out.seen).toBeNull();
+    expect(fieldsOf(out.summary.runId)).toEqual([]);
+    expect(runOf(out.summary.runId)?.stop_detail).toBe(
+      "question(s) on the page missing from the field table: Do you need an accommodation?",
+    );
+    expect(storedRows()).toEqual([]);
+  }, 90_000);
+
+  it("missingFromTable compares titles seen with controls and skipped blocks, ignoring case and spacing", () => {
+    const control = (label: string): LeverControl => ({
+      name: label,
+      kind: "text",
+      label,
+      required: false,
+      options: null,
+      optionValues: [],
+    });
+    expect(
+      missingFromTable({
+        controls: [control("Name"), control("Why  here?")],
+        skipped: [{ label: "Race", reason: "x" }],
+        seen: ["name", "Why here?", "RACE", "Pronouns", "Pronouns"],
+      }),
+    ).toEqual(["Pronouns"]);
+  });
 });
 
 describe("phone readback by digits (t_73f3d2e8)", () => {

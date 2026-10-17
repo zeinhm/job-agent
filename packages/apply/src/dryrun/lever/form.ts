@@ -18,6 +18,7 @@ export type LeverKind =
   | "multiselect"
   | "radio_group"
   | "checkbox_group"
+  | "combobox"
   | "unsupported";
 
 export interface LeverControl {
@@ -128,6 +129,7 @@ export function fieldsFromControls(
     const field_type = ((): string => {
       switch (c.kind) {
         case "text":
+        case "combobox": // Ashby only (an autocomplete input); the filler never fills it
           return "text";
         case "textarea":
           return "long_text";

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { postings, type Db } from "@job-agent/core";
+import { mappingId } from "../../choice-coverage.ts";
 import type { PlanContext } from "../greenhouse/filler.ts";
 import {
   CAPTCHA_RECORDER_PAGE,
@@ -36,6 +37,24 @@ export const ASHBY_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/application`;
 export const ASHBY_FIXTURE_PHONE_PAIR_PATH = `/acme/${POSTING_UUID}-phonepair/application`;
 export const ASHBY_FIXTURE_PHONE_FORMAT_PATH = `/acme/${POSTING_UUID}-phonefmt/application`;
 
+export const ASHBY_FIXTURE_REALSHAPE_PATH = `/acme/${POSTING_UUID}-realshape/application`;
+export const ASHBY_FIXTURE_ORPHAN_PATH = `/acme/${POSTING_UUID}-orphan/application`;
+
+/** The questions of the real-shape variant (fake employer; wording follows the owner's real dry run). */
+export const AI_QUESTION =
+  "Select a response that accurately describes your level of experience with AI tools";
+export const AI_OPTIONS = [
+  "I do not use AI tools",
+  "I use AI tools occasionally",
+  "I use AI tools daily",
+  "I build AI-powered tools",
+];
+export const WORK_AUTH_QUESTION = "Are you legally authorized to work in the United States?";
+export const SPONSORSHIP_QUESTION =
+  "Will you now or in the future require sponsorship for employment visa status?";
+export const FAMILIAL_QUESTION =
+  "Do you have any familial relationships with current Fixture Co employees?";
+
 const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/ashby/", import.meta.url));
 
 const PAGES: Record<string, string> = {
@@ -44,6 +63,8 @@ const PAGES: Record<string, string> = {
   [ASHBY_FIXTURE_DATE_PATH]: "app.html",
   [ASHBY_FIXTURE_PHONE_PAIR_PATH]: "app.html",
   [ASHBY_FIXTURE_PHONE_FORMAT_PATH]: "app.html",
+  [ASHBY_FIXTURE_REALSHAPE_PATH]: "app.html",
+  [ASHBY_FIXTURE_ORPHAN_PATH]: "app.html",
   "/app.js": "app.js",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
@@ -64,11 +85,14 @@ interface Entry {
     title: string;
     /** The page rewrites the typed value as it is typed (phone: country prefix, dashes). */
     reformat?: boolean;
+    /** `radio` / `dropdown` / `checkbox` for the select types. */
+    display?: string;
     selectableValues?: { label: string; value: string }[];
   };
 }
 interface Posting {
   recaptchaAction: string | null;
+  surveyForms?: unknown[];
   applicationForm: { sections: { fieldEntries: Entry[] }[] };
 }
 interface Answer {
@@ -115,6 +139,82 @@ const VARIANTS: Record<string, (p: Posting) => void> = {
     byTitle(p, "LinkedIn URL").field.title = "LinkedIn profile";
     const zone = byTitle(p, "Preferred time zone").field;
     zone.selectableValues = (zone.selectableValues ?? []).filter((o) => o.value !== "tz-berlin");
+  },
+  // The shape of a real Ashby form (research t_d0698332 + the owner's dry run): a location autocomplete, a four-option radio
+  // group, three Yes/No radio groups, the SMS consent radios (already in the base form), an EEO block and a veteran block.
+  [`${POSTING_UUID}-realshape`]: (p) => {
+    const add = (
+      type: string,
+      title: string,
+      suffix: string,
+      extra: Partial<Entry["field"]> = {},
+    ) =>
+      entries(p).push({
+        id: `r${suffix}`,
+        isRequired: true,
+        isHidden: false,
+        field: { path: `4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7c${suffix}`, type, title, ...extra },
+      });
+    add("Combobox", "Location", "01", {
+      selectableValues: [{ label: "Example City, Exampleland", value: "loc-1" }],
+    });
+    add("ValueSelect", AI_QUESTION, "02", {
+      display: "radio",
+      selectableValues: AI_OPTIONS.map((label, i) => ({ label, value: `ai-${i}` })),
+    });
+    add("Boolean", WORK_AUTH_QUESTION, "03");
+    add("Boolean", SPONSORSHIP_QUESTION, "04");
+    add("Boolean", FAMILIAL_QUESTION, "05");
+    const surveys = p.surveyForms ?? [];
+    surveys.push({
+      title: "Veteran status",
+      fieldEntries: [
+        {
+          id: "s2",
+          isRequired: false,
+          isHidden: false,
+          field: {
+            path: "survey-veteran",
+            type: "ValueSelect",
+            title: "Veteran status",
+            display: "radio",
+            selectableValues: [
+              { label: "I am not a veteran", value: "v-no" },
+              { label: "Prefer not to disclose", value: "v-none" },
+            ],
+          },
+        },
+        {
+          id: "s3",
+          isRequired: false,
+          isHidden: false,
+          field: {
+            path: "survey-race",
+            type: "ValueSelect",
+            title: "Race",
+            display: "radio",
+            selectableValues: [
+              { label: "Prefer not to disclose", value: "r-none" },
+              { label: "Other", value: "r-other" },
+            ],
+          },
+        },
+      ],
+    });
+    p.surveyForms = surveys;
+  },
+  // A question the reader's entry hooks do not cover (a title with buttons, outside any entry): the run must not go on.
+  [`${POSTING_UUID}-orphan`]: (p) => {
+    entries(p).push({
+      id: "x3",
+      isRequired: true,
+      isHidden: false,
+      field: {
+        path: "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7b03",
+        type: "Orphan",
+        title: "Do you need an accommodation?",
+      },
+    });
   },
   // A question type the filler does not fill (a date).
   [`${POSTING_UUID}-date`]: (p) => {
@@ -167,6 +267,42 @@ function formAnswer(jobPostingId: string): Answer {
 
 /** Plan inputs of the fixture persona: the Lever persona (same questions, Ashby's labels). */
 export const ashbyFixtureContext = (dataDir: string): PlanContext => leverFixtureContext(dataDir);
+
+/**
+ * Plan inputs for the real-shape variant: the Lever persona plus answers (keys from answer-keys.json) for the work
+ * authorization, sponsorship and AI-experience questions, and an approved mapping for the AI question. The familial
+ * question and the location combobox have no answer: they stay open.
+ */
+export function ashbyRealShapeContext(
+  dataDir: string,
+  opts: { mapAi?: boolean } = {},
+): PlanContext {
+  const base = ashbyFixtureContext(dataDir);
+  const answer = (key: string, text: string, question: string, type: "yes_no" | "choice") => ({
+    key,
+    question,
+    alternatives: null,
+    answer: text,
+    type,
+    choices: type === "choice" ? AI_OPTIONS : null,
+    approved: true,
+  });
+  const choiceMappings = new Map(base.choiceMappings);
+  if (opts.mapAi !== false)
+    choiceMappings.set(mappingId("experience.total_years_professional", AI_QUESTION, AI_OPTIONS), [
+      "I use AI tools daily",
+    ]);
+  return {
+    ...base,
+    answers: [
+      ...base.answers,
+      answer("work_setup.work_authorization", "No", WORK_AUTH_QUESTION, "yes_no"),
+      answer("work_setup.needs_visa_sponsorship", "Yes", SPONSORSHIP_QUESTION, "yes_no"),
+      answer("experience.total_years_professional", AI_OPTIONS[2] as string, AI_QUESTION, "choice"),
+    ],
+    choiceMappings,
+  };
+}
 
 /** Inserts the fixture posting (idempotent). Its questions are stored by the first run, from the page. */
 export function seedAshbyFixture(db: Db, now: Date = new Date()): string {

@@ -157,10 +157,12 @@ interface Detail {
   stopReason: string | null;
   fixture: boolean;
   hasScreenshot: boolean;
-  fields: { label: string; filled: boolean; source: string }[];
+  fields: { label: string; filled: boolean; source: string; note: string | null }[];
 }
 const detail = async (id: string): Promise<Detail> => json(await api(`/api/dry-runs/${id}`));
-const unfilled = (d: Detail) => d.fields.filter((f) => !f.filled).map((f) => f.label);
+// Untouched blocks (survey, consent) are listed as "skipped:" rows: never open questions.
+const open = (d: Detail) => d.fields.filter((f) => !f.filled && !f.note?.startsWith("skipped: "));
+const unfilled = (d: Detail) => open(d).map((f) => f.label);
 
 interface Inbox {
   items: { label: string }[];
@@ -290,7 +292,7 @@ describe("phase 5 dry-run workflow end to end", () => {
       const d = await detail(uncovered[k].runId);
       const empty = unfilled(d);
       expect(empty, k).toHaveLength(1);
-      expect(d.fields.find((f) => !f.filled)?.source).toBe("none");
+      expect(open(d)[0]?.source).toBe("none");
       expect((await inbox()).items.map((i) => i.label)).toContain(empty[0]);
       expect(uncovered[k].filled).toBe(uncovered[k].total - 1);
     }

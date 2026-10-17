@@ -70,7 +70,7 @@ describe("dry-run --fixture ashby", () => {
         .from(dry_run_fields)
         .where(eq(dry_run_fields.dry_run_id, run?.id ?? ""))
         .all(),
-    ).toHaveLength(13);
+    ).toHaveLength(17); // 13 questions + 4 untouched blocks listed as skipped
     expect(
       db.select().from(posting_questions).where(eq(posting_questions.ats_type, "ashby")).all(),
     ).toHaveLength(13);

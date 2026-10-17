@@ -577,8 +577,22 @@ only what differs. It **never submits**.
   `.ashby-application-form-field-entry` per question, the control's `name` (the field path: `_systemfield_name`,
   `_systemfield_email`, `_systemfield_resume` or a uuid) as the question id. It stores them as `posting_questions` (ats type
   `ashby`), compares them with the last stored set (`form_changed` on a difference, as for Lever) and runs `match-questions`,
-  then the same fill plan. The survey / self-identification block, the texting and WhatsApp consent boxes and the "Autofill
-  from resume" drop zone are never read or touched.
+  then the same fill plan. The "Autofill from resume" drop zone is never read or touched.
+- **Every question is in the table.** The reader covers text, textarea, select, **combobox / autocomplete**, **radio group**,
+  **checkbox group** and file questions; a shape it does not understand is listed as an `unsupported` field (the run stops
+  `unexpected_field` with its label and DOM shape), never dropped. Radio and checkbox groups go through the same choice
+  mapping as Lever: unmapped, the field stays empty and the run is `needs_input`. The **Location** combobox is never typed
+  into: it is listed as needing input ("the owner picks the suggestion"), so a form with a location autocomplete is never a
+  full fill. The blocks the run never touches (survey / EEO / veteran status, SMS / WhatsApp consent) are read and listed in
+  the table as `skipped: ...` rows (not filled, not counted in `fields=<filled>/<total>`), so a missing question is always
+  visible. As a last check the run compares every question title found on the page, independently of the field reader, with
+  the table; a title the table would not list stops the run `form_changed` ("question(s) on the page missing from the field
+  table: ..."), never a full fill. The first real run after this change finds more fields than the stored set and stops
+  `form_changed` once; the new set is stored and the next run goes on.
+- **Ashby runs are never full fills.** The resume upload handle (`ApiCreateFileUploadHandle`) is aborted by the request guard
+  (D2), so a real Ashby page drops the attached CV and the Resume field is recorded as not filled; together with the location
+  combobox this keeps every real Ashby run at `needs_input`. The "done when" full fills come from Greenhouse and Lever. The
+  Ashby dry run still proves the rest of the table (names, choices, radios) for the owner's review.
 - **Phone.** Ashby's phone question is a country selector next to a `tel` input (often with a texting-consent group) inside
   one field entry. The run reads the `tel` input as the question (label such as "Phone", "Phone Number", "Mobile phone"), fills
   it from `contact.phone` through the usual phone check, and never touches the country selector or the consent radios. A field
