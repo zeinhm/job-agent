@@ -446,7 +446,8 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 
 `--fixture` is refused on the real database (the default DB or one under `data/`), and a real posting id is refused on a
 scratch DB: only the owner's real DB opens a real form. The fixture run is stored with `fixture` = true and never counts
-for the done-when line. The folder holds other pages used by the tests: `changed.html` (stops `form_changed`) and
+for the done-when line. The folder holds other pages used by the tests: `changed.html` (stops `form_changed`),
+`location.html` (the location autocomplete: `needs_input`) and
 `captcha/<variant>.html`, snippets the fixture server adds to `form.html` (`passive`, `visible-checkbox`,
 `visible-challenge`, `hidden-challenge`, `late-challenge`; the form itself is not changed).
 
@@ -479,6 +480,11 @@ hosted form, and then:
    left empty, or when the page did not keep a value (the field row shows `filled` = false and a note); `filled` when
    every field is in. Labels with no matching answer go to the Inbox. The EEO block and the phone country are never
    touched.
+   **Location.** A board's Location question renders as an autocomplete (a "Location (City)" field with a helper "Search"
+   input). The reader treats it as the stored Location question and never types into it, like Lever's location: the field
+   is recorded as not filled (`location autocomplete: pick the suggestion yourself`) and the run is `needs_input`. Pick
+   the suggestion yourself when you review. A form with a location control but no stored Location question, or the
+   reverse, still stops `form_changed`.
 3. Prints one line: `dry-run: status=<status> reason=<reason or -> fields=<filled>/<total> screenshot=<path>`. It never
    prints a value. The window closes by itself after the screenshot (it is not left open to submit from).
 

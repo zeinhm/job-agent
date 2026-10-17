@@ -86,6 +86,37 @@ describe("compareForm", () => {
     );
   });
 
+  describe("location autocomplete", () => {
+    const L = [stored("location", "Location", "text"), stored("a", "Name", "text")];
+    const control = dom("candidate-location", "location", "Location (City)");
+
+    it("the location control is the stored Location question, by label not id", () => {
+      expect(compareForm(L, [dom("a", "text", "Name"), control]).ok).toBe(true);
+    });
+
+    it("a form without the stored Location question stops: the control is extra", () => {
+      expect(
+        compareForm([stored("a", "Name", "text")], [dom("a", "text", "Name"), control]),
+      ).toMatchObject({
+        ok: false,
+        extra: ["Location (City)"],
+      });
+    });
+
+    it("a stored Location question with no location control is missing", () => {
+      expect(compareForm(L, [dom("a", "text", "Name")])).toMatchObject({
+        ok: false,
+        missing: ["Location"],
+      });
+    });
+
+    it("an unrelated new control next to the location control still stops", () => {
+      expect(
+        compareForm(L, [dom("a", "text", "Name"), control, dom("z", "text", "Search")]),
+      ).toMatchObject({ ok: false, extra: ["Search"] });
+    });
+  });
+
   it("the stop detail stays within 200 characters", () => {
     const many = Array.from({ length: 40 }, (_, i) => `Extra question number ${i}`);
     const text = describeComparison({ ok: false, missing: [], extra: many, different: [] });

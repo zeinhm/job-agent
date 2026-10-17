@@ -22,12 +22,16 @@ import {
   READ_CONTROLS_EXPRESSION,
   compareForm,
   describeComparison,
+  pairLocation,
   readValuesExpression,
   type DomControl,
 } from "./form.ts";
 
 /** Hosts a real (owner-run) Greenhouse dry run may open: the hosted job-boards pages, nothing else. */
 const GREENHOUSE_HOST = /^(?:job-)?boards(?:\.eu)?\.greenhouse\.io$/;
+
+/** Note of the Location question's row: the autocomplete only keeps a picked suggestion, so the owner picks it. */
+const LOCATION_NOTE = "location autocomplete: pick the suggestion yourself";
 
 export type PlanContext = Pick<FillInput, "answers" | "choiceMappings" | "ask" | "scamFlagged">;
 
@@ -138,6 +142,7 @@ async function apply(
       }
       return;
     }
+    case "location": // never typed into: a typed location is not a picked suggestion
     case "unsupported":
       throw new HarnessRefusalError("refused: unsupported control");
   }
@@ -209,11 +214,16 @@ export async function runGreenhouseDryRun(
         stop_detail: describeComparison(comparison),
       });
 
-    const byId = new Map(controls.map((c) => [c.id, c]));
-    const order = new Map(controls.map((c, i) => [c.id, i]));
-    const fields = [...stored].sort(
-      (a, b) => (order.get(a.ats.id) ?? 0) - (order.get(b.ats.id) ?? 0),
-    );
+    // The location autocomplete is the stored Location question. It is never typed into (a typed location is not kept
+    // and a suggestion is the owner's pick): it stays out of the plan and is recorded as not filled with a fixed note.
+    const location = pairLocation(stored, controls);
+    const locationField = stored.find((f) => f.ats.id === location?.storedId);
+    const fillable = controls.filter((c) => c.kind !== "location");
+    const byId = new Map(fillable.map((c) => [c.id, c]));
+    const order = new Map(fillable.map((c, i) => [c.id, i]));
+    const fields = stored
+      .filter((f) => f.ats.id !== location?.storedId)
+      .sort((a, b) => (order.get(a.ats.id) ?? 0) - (order.get(b.ats.id) ?? 0));
     const plan = planFill({
       fields,
       ...(opts.context ?? loadFillContext(opts.db, opts.postingId)),
@@ -244,8 +254,8 @@ export async function runGreenhouseDryRun(
       }
     }
     if (session.stop) return await done(undefined);
-    const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(controls));
-    const rows: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {
+    const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(fillable));
+    const planned: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {
       const base = {
         label: p.field.label,
         field_type: p.field.field_type,
@@ -262,6 +272,22 @@ export async function runGreenhouseDryRun(
         ? { ...base, source: p.source, value: valueText(p), filled: true, note: null }
         : { ...base, source: p.source, value: null, filled: false, note: why };
     });
+    const rows: DryRunFieldInput[] =
+      locationField === undefined
+        ? planned
+        : [
+            ...planned,
+            {
+              label: locationField.label,
+              field_type: locationField.field_type,
+              required: locationField.required,
+              answer_key: null,
+              source: "none",
+              value: null,
+              filled: false,
+              note: LOCATION_NOTE,
+            },
+          ];
 
     const open = rows.filter((r) => !r.filled).length;
     const pageRefused = rows.filter((r) => !r.filled && r.source !== "none").length;

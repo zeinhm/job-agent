@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,11 +13,14 @@ import {
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { planFill, type PlannedField } from "../../fill-plan.ts";
+import { normalizeQuestion } from "../../match.ts";
 import { loadStoredQuestions, runGreenhouseDryRun, type GreenhouseRunSummary } from "./filler.ts";
 import {
   FIXTURE_CAPTCHA_PATH,
   FIXTURE_CHANGED_PATH,
   FIXTURE_FORM_PATH,
+  FIXTURE_LOCATION_PATH,
+  FIXTURE_LOCATION_QUESTION,
   FIXTURE_POSTING_ID,
   fixtureContext,
   seedGreenhouseFixture,
@@ -269,6 +273,97 @@ describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
     expect(row).toMatchObject({ filled: false, value: null, source: "answer" });
     expect(row?.note).toMatch(/page (kept a different value|refused the value)/);
     expect(runOf(summary.runId)?.stop_detail).toBe("1 field(s) need input; the page refused 1");
+  }, 90_000);
+});
+
+describe("location autocomplete (the stored Location question: the owner picks)", () => {
+  const seedLocation = () =>
+    db
+      .insert(posting_questions)
+      .values({
+        id: randomUUID(),
+        posting_id: FIXTURE_POSTING_ID,
+        ats_type: "greenhouse",
+        question_id: FIXTURE_LOCATION_QUESTION.id,
+        label: FIXTURE_LOCATION_QUESTION.label,
+        required: false,
+        type: FIXTURE_LOCATION_QUESTION.type,
+        options: null,
+        normalized_label: normalizeQuestion(FIXTURE_LOCATION_QUESTION.label),
+        matched_key: null,
+        fetched_at: new Date().toISOString(),
+      })
+      .run();
+
+  it("is recorded not filled with a fixed note, never typed into; the other fields fill; needs_input", async () => {
+    seedLocation();
+    const { summary } = await run(FIXTURE_LOCATION_PATH, {
+      context: (c) => ({
+        ...c,
+        // Even an approved answer for the question is not typed.
+        answers: [
+          ...c.answers,
+          {
+            key: "profile.location",
+            question: "Location",
+            alternatives: null,
+            answer: "Springfield",
+            type: null,
+            choices: null,
+            approved: true,
+          },
+        ],
+      }),
+    });
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(runOf(summary.runId)).toMatchObject({
+      status: "needs_input",
+      stop_reason: "uncovered_question",
+      stop_detail: "1 field(s) need input",
+    });
+    const rows = fieldsOf(summary.runId);
+    expect(rows.find((r) => r.label === "Location")).toMatchObject({
+      filled: false,
+      value: null,
+      source: "none",
+      note: "location autocomplete: pick the suggestion yourself",
+    });
+    expect(rows.filter((r) => r.filled)).toHaveLength(13);
+    expect(rows.find((r) => r.label === "First Name")).toMatchObject({ filled: true });
+    expect(rows.some((r) => r.label === "Search")).toBe(false);
+  }, 90_000);
+
+  it("neither location input is touched on the page", async () => {
+    seedLocation();
+    let typed: string[] = [];
+    await runGreenhouseDryRun({
+      db,
+      dataDir,
+      postingId: FIXTURE_POSTING_ID,
+      url: `${server.origin}${FIXTURE_LOCATION_PATH}`,
+      fixture: true,
+      context: fixtureContext(dataDir),
+      beforeFinish: async (s) => {
+        typed = await pageOf(s).evaluate<string[]>(
+          `["candidate-location", "candidate-location-search"].map((id) => document.getElementById(id).value)`,
+        );
+      },
+    });
+    expect(typed).toEqual(["", ""]);
+    expect(server.nonGet()).toEqual([]);
+  }, 90_000);
+
+  it("without the stored Location question the control is an extra field: form_changed", async () => {
+    const { summary } = await run(FIXTURE_LOCATION_PATH);
+    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
+    expect(runOf(summary.runId)?.stop_detail).toBe("form changed (extra: Location (City))");
+  }, 90_000);
+
+  it("the Location question on a form that has no location control: form_changed", async () => {
+    seedLocation();
+    const { summary } = await run();
+    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
+    expect(runOf(summary.runId)?.stop_detail).toBe("form changed (missing: Location)");
   }, 90_000);
 });
 

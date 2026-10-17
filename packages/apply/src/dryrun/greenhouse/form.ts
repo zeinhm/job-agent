@@ -14,6 +14,7 @@ export type DomKind =
   | "select"
   | "multiselect"
   | "combobox"
+  | "location"
   | "radio_group"
   | "checkbox_group"
   | "unsupported";
@@ -51,6 +52,27 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     el.getAttribute("aria-hidden") === "true";
   const out = [];
   const grouped = new Set();
+  // Location autocomplete: a "Location (City)" text / combobox input plus a helper "Search" input in the same widget
+  // (at most 3 levels up from the location input), both with ids that are not the stored question id.
+  const plain = (el) => labelOf(el).replace(/[^a-z0-9]+/gi, " ").trim().toLowerCase();
+  const isInput = (el) =>
+    el.tagName === "INPUT" &&
+    (el.getAttribute("role") === "combobox" ||
+      ["", "text"].includes((el.getAttribute("type") || "").toLowerCase()));
+  const locations = new Set();
+  const helpers = new Set();
+  for (const el of form.querySelectorAll("input")) {
+    if (!el.id || skipped(el) || !isInput(el) || plain(el) !== "location city") continue;
+    locations.add(el);
+    let box = el.parentElement;
+    for (let i = 0; i < 3 && box && box !== form; i++, box = box.parentElement) {
+      const found = [...box.querySelectorAll("input")].filter((n) => n !== el && isInput(n) && plain(n) === "search");
+      if (found.length > 0) {
+        found.forEach((n) => helpers.add(n));
+        break;
+      }
+    }
+  }
   for (const g of form.querySelectorAll("[role='group'][id], [role='radiogroup'][id]")) {
     const boxes = [...g.querySelectorAll("input[type='checkbox'], input[type='radio']")];
     if (boxes.length === 0 || skipped(g)) continue;
@@ -64,12 +86,13 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     });
   }
   for (const el of form.querySelectorAll("input, textarea, select")) {
-    if (grouped.has(el) || skipped(el) || el.type === "hidden" || !el.id) continue;
+    if (grouped.has(el) || helpers.has(el) || skipped(el) || el.type === "hidden" || !el.id) continue;
     const type = (el.getAttribute("type") || "").toLowerCase();
     if (["submit", "button", "image", "reset"].includes(type)) continue;
     let kind = "unsupported";
     let options = null;
-    if (el.tagName === "TEXTAREA") kind = "textarea";
+    if (locations.has(el)) kind = "location";
+    else if (el.tagName === "TEXTAREA") kind = "textarea";
     else if (el.tagName === "SELECT") {
       kind = el.hasAttribute("multiple") ? "multiselect" : "select";
       options = [...el.options].filter((o) => o.value !== "").map((o) => o.textContent.trim());
@@ -107,11 +130,31 @@ const sameOptions = (a: readonly string[], b: readonly string[]): boolean => {
   return x.size === y.size && [...x].every((o) => y.has(o));
 };
 
-/** Stored questions (`FormField.ats.id` = question id) against the controls read from the page. Labels only. */
-export function compareForm(
+/**
+ * The stored Location question and the page's location autocomplete control, paired by the question's label (the page's
+ * ids are not the stored id). Null unless both exist exactly once.
+ */
+export function pairLocation(
   stored: readonly FormField[],
   dom: readonly DomControl[],
+): { storedId: string; domId: string } | null {
+  const questions = stored.filter((f) => normalizeQuestion(f.label) === "location");
+  const controls = dom.filter((c) => c.kind === "location");
+  const [q, c] = [questions[0], controls[0]];
+  return questions.length === 1 && controls.length === 1 && q && c
+    ? { storedId: q.ats.id, domId: c.id }
+    : null;
+}
+
+/** Stored questions (`FormField.ats.id` = question id) against the controls read from the page. Labels only. */
+export function compareForm(
+  allStored: readonly FormField[],
+  allDom: readonly DomControl[],
 ): FormComparison {
+  // The location autocomplete is the stored Location question: left out of the by-id comparison on both sides.
+  const pair = pairLocation(allStored, allDom);
+  const stored = pair ? allStored.filter((f) => f.ats.id !== pair.storedId) : allStored;
+  const dom = pair ? allDom.filter((c) => c.id !== pair.domId) : allDom;
   const byId = new Map(dom.map((c) => [c.id, c]));
   const storedIds = new Set(stored.map((f) => f.ats.id));
   const missing: string[] = [];

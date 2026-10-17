@@ -20,6 +20,8 @@ import type { PlanContext } from "./filler.ts";
 export const FIXTURE_POSTING_ID = "fixture-greenhouse-1001";
 export const FIXTURE_FORM_PATH = "/acme/jobs/1001";
 export const FIXTURE_CHANGED_PATH = "/acme/jobs/1003";
+/** The form with a location autocomplete (the stored Location question is `FIXTURE_LOCATION_QUESTION`). */
+export const FIXTURE_LOCATION_PATH = "/acme/jobs/1004";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -57,6 +59,7 @@ const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/greenhouse/", impo
 const PAGES: Record<string, string> = {
   [FIXTURE_FORM_PATH]: "form.html",
   [FIXTURE_CHANGED_PATH]: "changed.html",
+  [FIXTURE_LOCATION_PATH]: "location.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
@@ -129,6 +132,15 @@ export const FIXTURE_QUESTIONS: readonly StoredQuestion[] = [
     options: null,
   },
 ];
+
+/** The Location question the location page's autocomplete stands for (its id is not any control's id on that page). */
+export const FIXTURE_LOCATION_QUESTION: StoredQuestion = {
+  id: "location",
+  label: "Location",
+  required: false,
+  type: "text",
+  options: null,
+};
 
 const answer = (key: string, text: string, extra: Partial<PlanAnswer> = {}): PlanAnswer => ({
   key,

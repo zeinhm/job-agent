@@ -1,0 +1,382 @@
+<!doctype html>
+<!--
+  Synthetic Greenhouse job-boards application form (t_5ffb85b7). Built from the selector map in
+  docs/research/t_d0698332-ats-form-structure.md (section 2) and the trimmed public excerpt next to it, not recorded
+  from a real employer page. Fake company and fake questions only; no personal data.
+  Kept from the real page: form#application-form, div.field-wrapper, label[for] + control id == question id, no name
+  attributes, react-select style comboboxes, hidden file input, EEOC container, submit button.
+  Added for the tests: a native select, a multi-select, a radio group, a checkbox group and a page script that POSTs
+  analytics on load and on change (the dry run must abort every one of them).
+
+  location.html: form.html plus a location autocomplete widget (invented markup, the shape owner dry runs showed): a
+  "Location (City)" combobox input and a helper "Search" input, with ids that are not the stored question id.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture Co - Senior Backend Engineer</title>
+  </head>
+  <body>
+    <h1>Senior Backend Engineer</h1>
+    <form method="get" action="/acme/jobs/1001" id="application-form" class="application--form">
+      <div class="application--questions">
+        <div class="field-wrapper">
+          <div class="text-input-wrapper">
+            <div class="input-wrapper">
+              <label id="first_name-label" for="first_name" class="label"
+                >First Name<span aria-hidden="true">*</span></label
+              >
+              <input
+                id="first_name"
+                class="input input__single-line"
+                aria-label="First Name"
+                aria-required="true"
+                type="text"
+                maxlength="255"
+                autocomplete="given-name"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+        <div class="field-wrapper">
+          <div class="text-input-wrapper">
+            <div class="input-wrapper">
+              <label id="last_name-label" for="last_name" class="label"
+                >Last Name<span aria-hidden="true">*</span></label
+              >
+              <input
+                id="last_name"
+                class="input input__single-line"
+                aria-required="true"
+                type="text"
+                maxlength="255"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+        <div class="field-wrapper">
+          <div class="text-input-wrapper">
+            <div class="input-wrapper">
+              <label id="email-label" for="email" class="label"
+                >Email<span aria-hidden="true">*</span></label
+              >
+              <input
+                id="email"
+                class="input input__single-line"
+                aria-required="true"
+                type="text"
+                maxlength="255"
+                autocomplete="email"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+        <div>
+          <fieldset class="phone-input">
+            <legend class="visually-hidden">Phone</legend>
+            <div class="phone-input__country">
+              <div class="select">
+                <div class="select__container">
+                  <label id="country-label" for="country" class="label select__label"
+                    >Country</label
+                  >
+                  <input
+                    class="select__input"
+                    id="country"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-labelledby="country-label"
+                    type="text"
+                    value=""
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="phone-input__phone">
+              <div class="text-input-wrapper">
+                <div class="input-wrapper">
+                  <label id="phone-label" for="phone" class="label">Phone</label>
+                  <input
+                    id="phone"
+                    class="input input__single-line"
+                    aria-required="false"
+                    type="tel"
+                    maxlength="255"
+                  />
+                </div>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+        <div class="field-wrapper">
+          <div
+            role="group"
+            aria-labelledby="upload-label-resume"
+            aria-required="true"
+            class="file-upload"
+            data-allow-s3="false"
+          >
+            <div id="upload-label-resume" class="label upload-label">
+              Resume/CV<span class="required">*</span>
+            </div>
+            <div class="file-upload__wrapper">
+              <button type="button" class="btn btn--pill">Attach</button>
+              <label class="visually-hidden" for="resume">Attach</label>
+              <input
+                id="resume"
+                class="visually-hidden"
+                type="file"
+                accept=".pdf,.doc,.docx,.txt,.rtf"
+              />
+              <p id="accepted-filetypes" class="file-upload__filetypes">
+                Accepted file types: pdf, doc, docx, txt, rtf
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="application--questions">
+        <hr />
+        <div class="field-wrapper">
+          <div class="text-input-wrapper">
+            <div class="input-wrapper">
+              <label id="question_1001-label" for="question_1001" class="label"
+                >LinkedIn Profile</label
+              >
+              <input
+                id="question_1001"
+                class="input input__single-line"
+                aria-required="false"
+                type="text"
+                maxlength="255"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+        <div class="field-wrapper">
+          <div class="text-input-wrapper">
+            <div class="input-wrapper">
+              <label id="question_1002-label" for="question_1002" class="label"
+                >Why do you want to work here?<span aria-hidden="true">*</span></label
+              >
+              <textarea
+                id="question_1002"
+                class="input input__multi-line"
+                aria-required="true"
+                maxlength="400"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="field-wrapper">
+          <div class="select">
+            <div class="select__container">
+              <label id="question_1003-label" for="question_1003" class="label select__label"
+                >Are you comfortable working remotely?<span aria-hidden="true">*</span></label
+              >
+              <div class="select-shell">
+                <div class="select__control">
+                  <div class="select__value-container">
+                    <div class="select__input-container">
+                      <input
+                        class="select__input"
+                        id="question_1003"
+                        role="combobox"
+                        aria-haspopup="true"
+                        aria-expanded="false"
+                        aria-required="true"
+                        aria-labelledby="question_1003-label"
+                        data-options="Yes|No"
+                        type="text"
+                        value=""
+                      />
+                    </div>
+                  </div>
+                </div>
+                <input required="" tabindex="-1" aria-hidden="true" value="" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field-wrapper">
+          <label id="question_1004-label" for="question_1004" class="label"
+            >Preferred time zone</label
+          >
+          <select id="question_1004" aria-required="false">
+            <option value="">Select...</option>
+            <option value="1">UTC+7 (Jakarta)</option>
+            <option value="2">UTC+1 (Berlin)</option>
+            <option value="3">UTC-5 (New York)</option>
+          </select>
+        </div>
+        <div class="field-wrapper">
+          <label id="question_1005-label" for="question_1005" class="label"
+            >Which tools do you use?</label
+          >
+          <select id="question_1005" multiple aria-required="false">
+            <option value="1">Git</option>
+            <option value="2">Docker</option>
+            <option value="3">Kubernetes</option>
+            <option value="4">Terraform</option>
+          </select>
+        </div>
+        <div class="field-wrapper">
+          <fieldset
+            id="question_1006"
+            role="radiogroup"
+            aria-labelledby="question_1006-label"
+            aria-required="false"
+          >
+            <legend id="question_1006-label" class="label">Which stack do you use most?</legend>
+            <input type="radio" id="question_1006_1" name="stack" value="1" /><label
+              for="question_1006_1"
+              >TypeScript</label
+            >
+            <input type="radio" id="question_1006_2" name="stack" value="2" /><label
+              for="question_1006_2"
+              >Go</label
+            >
+            <input type="radio" id="question_1006_3" name="stack" value="3" /><label
+              for="question_1006_3"
+              >Python</label
+            >
+          </fieldset>
+        </div>
+        <div class="field-wrapper">
+          <fieldset
+            id="question_1007"
+            role="group"
+            aria-labelledby="question_1007-label"
+            aria-required="false"
+          >
+            <legend id="question_1007-label" class="label">Which regions can you work in?</legend>
+            <input type="checkbox" id="question_1007_1" value="1" /><label for="question_1007_1"
+              >Asia</label
+            >
+            <input type="checkbox" id="question_1007_2" value="2" /><label for="question_1007_2"
+              >Europe</label
+            >
+            <input type="checkbox" id="question_1007_3" value="3" /><label for="question_1007_3"
+              >Americas</label
+            >
+          </fieldset>
+        </div>
+        <div class="field-wrapper">
+          <div class="location-widget">
+            <div class="select__container">
+              <label
+                id="candidate-location-label"
+                for="candidate-location"
+                class="label select__label"
+                >Location (City)</label
+              >
+              <input
+                class="select__input"
+                id="candidate-location"
+                role="combobox"
+                aria-expanded="false"
+                aria-labelledby="candidate-location-label"
+                type="text"
+                value=""
+              />
+            </div>
+            <div class="location-widget__search">
+              <input
+                id="candidate-location-search"
+                class="input input__single-line"
+                aria-label="Search"
+                type="text"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+        <div class="field-wrapper">
+          <div class="text-input-wrapper">
+            <div class="input-wrapper">
+              <label id="question_1008-label" for="question_1008" class="label"
+                >Expected salary (USD per year)</label
+              >
+              <input
+                id="question_1008"
+                class="input input__single-line"
+                aria-required="false"
+                type="text"
+                maxlength="255"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="eeoc__container body">
+        <h2 class="section-header">Voluntary Self-Identification</h2>
+        <div class="eeoc__question__wrapper">
+          <div class="select">
+            <div class="select__container">
+              <label id="gender-label" for="gender" class="label select__label">Gender</label>
+              <input
+                class="select__input"
+                id="gender"
+                role="combobox"
+                aria-required="false"
+                data-options="Female|Male|Decline to self-identify"
+                type="text"
+                value=""
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="application--submit">
+        <button type="submit" class="btn btn--pill" aria-disabled="false">
+          Submit application
+        </button>
+      </div>
+    </form>
+
+    <script>
+      // A tiny react-select stand-in: click the input to open a listbox of role=option items, click one to pick it.
+      // The picked text shows in .select__single-value, like the real component.
+      for (const input of document.querySelectorAll("input[role=combobox][data-options]")) {
+        const container = input.closest(".select__container");
+        input.addEventListener("click", () => {
+          container.querySelector("[role=listbox]")?.remove();
+          const list = document.createElement("div");
+          list.setAttribute("role", "listbox");
+          for (const text of input.dataset.options.split("|")) {
+            const option = document.createElement("div");
+            option.setAttribute("role", "option");
+            option.textContent = text;
+            option.addEventListener("click", () => {
+              container.querySelector(".select__single-value")?.remove();
+              const shown = document.createElement("div");
+              shown.className = "select__single-value";
+              shown.textContent = text;
+              container.appendChild(shown);
+              list.remove();
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+            list.appendChild(option);
+          }
+          container.appendChild(list);
+        });
+      }
+      // Like the real page: analytics and validation calls on load and on change. A dry run aborts every one of them.
+      const post = (path) => fetch(path, { method: "POST", body: "{}" }).catch(() => {});
+      post("/collect/pageview");
+      navigator.sendBeacon("/collect/beacon", "{}");
+      document
+        .getElementById("application-form")
+        .addEventListener("change", () => post("/collect/change"));
+      document.getElementById("application-form").addEventListener("submit", () => post("/apply"));
+    </script>
+  </body>
+</html>
