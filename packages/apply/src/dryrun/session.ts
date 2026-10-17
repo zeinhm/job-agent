@@ -3,7 +3,7 @@ import { dry_runs, type Db, type DRY_RUN_STOP_REASONS } from "@job-agent/core";
 import { eq } from "drizzle-orm";
 import type { Browser, BrowserContext, Locator, Page } from "playwright";
 import { launchChromium, newGuardedContext } from "./browser.ts";
-import { detectStop, type StopSignal } from "./detectors.ts";
+import { detectCaptcha, detectStop, type PassiveCaptcha, type StopSignal } from "./detectors.ts";
 import { finalizeScreenshot, writePendingScreenshot } from "./output.ts";
 import { SUBMIT_ATTEMPT_KINDS, type PageAttempt } from "./page-guard.ts";
 import type { AbortedRequest, GuardAts } from "./request-guard.ts";
@@ -53,6 +53,8 @@ export interface FinishedRun {
   /** Method, host and path of every blocked request (never a body). */
   aborted: readonly AbortedRequest[];
   attempts: readonly PageAttempt[];
+  /** Passive CAPTCHA signals seen during the run (labels only); the run went on with them present. */
+  captchaPassive: readonly PassiveCaptcha[];
 }
 
 /** One run per process: no loop, retry or batch mode. */
@@ -78,8 +80,17 @@ interface ElementFacts {
 }
 
 export class DryRunSession {
-  /** Set when a detector stopped the run before any field was filled. */
-  readonly stop: StopSignal | null;
+  /** Set when a detector stopped the run: at load (nothing filled) or after a fill (a challenge appeared mid-run). */
+  get stop(): StopSignal | null {
+    return this.#stop;
+  }
+  /** Passive CAPTCHA signals seen so far (dry-run rule, decisions.md 2026-10-17); they did not stop the run. */
+  get captchaPassive(): readonly PassiveCaptcha[] {
+    return [...this.#passive];
+  }
+  #stop: StopSignal | null;
+  #passive: Set<PassiveCaptcha>;
+  #seenUrls: readonly string[];
   // ES private fields: the page is not a property, so nothing can reach `session.page` and click.
   #opts: DryRunSessionOptions;
   #browser: Browser;
@@ -98,14 +109,35 @@ export class DryRunSession {
     readonly aborted: AbortedRequest[],
     readonly attempts: PageAttempt[],
     stop: StopSignal | null,
+    passive: readonly PassiveCaptcha[],
+    seenUrls: readonly string[],
   ) {
     this.#opts = opts;
     this.#browser = browser;
     this.#context = context;
     this.#page = page;
     this.#startedAt = startedAt;
-    this.stop = stop;
+    this.#stop = stop;
+    this.#passive = new Set(passive);
+    this.#seenUrls = seenUrls;
     internals.pages.set(this, page);
+  }
+
+  /**
+   * The CAPTCHA re-check of the dry-run rule: after every fill and before the screenshot. A challenge can appear when a
+   * field changes (e.g. on a risk score); polling after each action needs no page-side code (a DOM-change hook would), so
+   * the guards stay the only script the harness puts in the page. A visible challenge sets the stop: later helpers refuse
+   * and `finish()` records `stopped` / `captcha`. Read-only, never touches a CAPTCHA.
+   */
+  private async recheck(): Promise<void> {
+    if (this.#stop) return;
+    try {
+      const check = await detectCaptcha(this.#page, this.#seenUrls, "dry-run", "run");
+      for (const label of check.passive) this.#passive.add(label);
+      if (check.stop) this.#stop = check.stop;
+    } catch {
+      this.#stop = { reason: "page_error", detail: "page unreadable" };
+    }
   }
 
   private async locate(ref: FieldRef): Promise<{ locator: Locator; facts: ElementFacts }> {
@@ -158,6 +190,7 @@ export class DryRunSession {
     if (!ok) throw new HarnessRefusalError(`refused: cannot fill a ${facts.tag}[${facts.type}]`);
     await locator.fill(value);
     await locator.blur();
+    await this.recheck();
   }
 
   /** Picks an option of a `<select>` by value or visible label. */
@@ -166,6 +199,7 @@ export class DryRunSession {
     if (facts.tag !== "select")
       throw new HarnessRefusalError(`refused: cannot select in a ${facts.tag}`);
     await locator.selectOption(option);
+    await this.recheck();
   }
 
   /** Picks several options of a `<select multiple>` by visible label (the others are unselected). */
@@ -175,6 +209,7 @@ export class DryRunSession {
       facts.tag === "select" && (await locator.evaluate((el) => el.hasAttribute("multiple")));
     if (!multiple) throw new HarnessRefusalError(`refused: ${facts.tag} is not a multi-select`);
     await locator.selectOption(labels.map((label) => ({ label })));
+    await this.recheck();
   }
 
   /**
@@ -191,6 +226,7 @@ export class DryRunSession {
       await this.inspect(option);
       await option.click();
     }
+    await this.recheck();
   }
 
   /** Checks or unchecks a checkbox or radio. */
@@ -200,6 +236,7 @@ export class DryRunSession {
       throw new HarnessRefusalError(`refused: cannot check a ${facts.tag}[${facts.type}]`);
     }
     await locator.setChecked(checked);
+    await this.recheck();
   }
 
   /** Attaches a local file to a file input. */
@@ -209,6 +246,7 @@ export class DryRunSession {
       throw new HarnessRefusalError(`refused: cannot upload into a ${facts.tag}[${facts.type}]`);
     }
     await locator.setInputFiles(filePath);
+    await this.recheck();
   }
 
   /**
@@ -220,6 +258,7 @@ export class DryRunSession {
     if (this.#finished) throw new HarnessRefusalError("run is finished");
     this.#finished = true;
     try {
+      await this.recheck();
       const png = await this.#page.screenshot({ fullPage: true });
       const day = this.#startedAt.toISOString().slice(0, 10);
       const pending = writePendingScreenshot(this.#opts.dataDir, day, randomUUID(), png);
@@ -249,6 +288,7 @@ export class DryRunSession {
         screenshotPath,
         aborted: this.aborted,
         attempts: this.attempts,
+        captchaPassive: this.captchaPassive,
       };
     } finally {
       await this.close();
@@ -269,16 +309,23 @@ export class DryRunSession {
       return {
         status: "stopped" as const,
         stopReason: "blocked_request" as const,
-        stopDetail: "the page tried to submit; the attempt was blocked",
+        stopDetail: this.withPassive("the page tried to submit; the attempt was blocked"),
         fields: given.fields ?? [],
       };
     }
     return {
       status: given.status,
       stopReason: given.stop_reason ?? null,
-      stopDetail: given.stop_detail ?? null,
+      stopDetail: this.withPassive(given.stop_detail ?? null),
       fields: given.fields ?? [],
     };
+  }
+
+  /** Adds `captcha=passive:<labels>` to a detail (labels only) when the run went on with a passive CAPTCHA present. */
+  private withPassive(detail: string | null): string | null {
+    if (this.#passive.size === 0) return detail;
+    const note = `captcha=passive:${[...this.#passive].join(",")}`;
+    return detail === null ? note : `${detail}; ${note}`.slice(0, 200);
   }
 
   /** Closes the browser without recording anything (error paths). Safe to call twice. */
@@ -319,10 +366,29 @@ export async function openDryRunSession(opts: DryRunSessionOptions): Promise<Dry
     }
     if (opts.ready !== undefined && mainStatus !== null && mainStatus < 400)
       await page.waitForSelector(opts.ready).catch(() => undefined);
-    const stop = await detectStop({ page, requestedUrl: opts.url, mainStatus, seenUrls }).catch(
-      (): StopSignal => ({ reason: "page_error", detail: "page unreadable" }),
+    // The dry-run CAPTCHA rule (decisions.md 2026-10-17): a passive script or badge does not stop, a visible challenge does.
+    const { stop, passive } = await detectStop({
+      page,
+      requestedUrl: opts.url,
+      mainStatus,
+      seenUrls,
+      captchaMode: "dry-run",
+    }).catch((): { stop: StopSignal; passive: PassiveCaptcha[] } => ({
+      stop: { reason: "page_error", detail: "page unreadable" },
+      passive: [],
+    }));
+    return new DryRunSession(
+      opts,
+      browser,
+      context,
+      page,
+      startedAt,
+      aborted,
+      attempts,
+      stop,
+      passive,
+      seenUrls,
     );
-    return new DryRunSession(opts, browser, context, page, startedAt, aborted, attempts, stop);
   } catch (err) {
     await browser.close().catch(() => undefined);
     throw err;

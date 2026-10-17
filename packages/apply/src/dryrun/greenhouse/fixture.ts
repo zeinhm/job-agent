@@ -19,15 +19,48 @@ import type { PlanContext } from "./filler.ts";
  */
 export const FIXTURE_POSTING_ID = "fixture-greenhouse-1001";
 export const FIXTURE_FORM_PATH = "/acme/jobs/1001";
-export const FIXTURE_CAPTCHA_PATH = "/acme/jobs/1002";
 export const FIXTURE_CHANGED_PATH = "/acme/jobs/1003";
+
+/**
+ * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
+ * `passive`: script + invisible badge / widget; `visible-checkbox`: a widget that asks the user to act; `visible-challenge`:
+ * a challenge frame on the page; `hidden-challenge`: passive + a challenge frame that is not visible; `late-challenge`:
+ * passive, and a challenge appears when the first field changes.
+ */
+export const CAPTCHA_VARIANTS = [
+  "passive",
+  "visible-checkbox",
+  "visible-challenge",
+  "hidden-challenge",
+  "late-challenge",
+] as const;
+export type CaptchaVariant = (typeof CAPTCHA_VARIANTS)[number];
+
+/** Shared by the three fixtures: serves `fixtures/captcha-recorder.js`, which reports every touch of a CAPTCHA element. */
+export const CAPTCHA_RECORDER_PAGE = { "/captcha-recorder.js": "../captcha-recorder.js" } as const;
+/** Request path prefix the recorder uses; a fixture server must have seen none under a dry run. */
+export const CAPTCHA_HIT_PREFIX = "/__captcha-hit/";
+export const FIELD_CHANGE_PATH = "/__field-change";
+
+export const FIXTURE_CAPTCHA_PATHS: Record<CaptchaVariant, string> = {
+  passive: "/acme/jobs/captcha-passive",
+  "visible-checkbox": "/acme/jobs/captcha-visible-checkbox",
+  "visible-challenge": "/acme/jobs/captcha-visible-challenge",
+  "hidden-challenge": "/acme/jobs/captcha-hidden-challenge",
+  "late-challenge": "/acme/jobs/captcha-late-challenge",
+};
+/** The CAPTCHA page the stop tests use: a visible challenge (a passive script alone no longer stops a run). */
+export const FIXTURE_CAPTCHA_PATH = FIXTURE_CAPTCHA_PATHS["visible-challenge"];
 
 const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/greenhouse/", import.meta.url));
 
 const PAGES: Record<string, string> = {
   [FIXTURE_FORM_PATH]: "form.html",
-  [FIXTURE_CAPTCHA_PATH]: "captcha.html",
   [FIXTURE_CHANGED_PATH]: "changed.html",
+  ...CAPTCHA_RECORDER_PAGE,
+  ...Object.fromEntries(
+    CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
+  ),
 };
 
 interface StoredQuestion {
@@ -277,12 +310,20 @@ export async function startFixtureServer(
     const chunks: Buffer[] = [];
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
-      const file = pages[url.pathname];
-      if (file !== undefined && (method === "GET" || method === "HEAD")) {
+      const spec = pages[url.pathname];
+      if (spec !== undefined && (method === "GET" || method === "HEAD")) {
+        // "page.html+snippet.html": the snippet (a CAPTCHA variant) goes in before </body>; the page file is not changed.
+        const [file = "", snippet] = spec.split("+");
         const ext = file.slice(file.lastIndexOf("."));
+        let body = readFileSync(join(dir, file), "utf8");
+        if (snippet !== undefined) {
+          const add = readFileSync(join(dir, snippet), "utf8");
+          const at = body.lastIndexOf("</body>");
+          body = at === -1 ? body + add : `${body.slice(0, at)}${add}${body.slice(at)}`;
+        }
         res
           .writeHead(200, { "content-type": CONTENT_TYPES[ext] ?? "text/html; charset=utf-8" })
-          .end(readFileSync(join(dir, file)));
+          .end(body);
         return;
       }
       const reply = respond?.({ method, url, body: Buffer.concat(chunks).toString("utf8") });

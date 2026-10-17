@@ -222,7 +222,7 @@ describe("phase 5 dry-run workflow end to end", () => {
     }
     matchQuestions(db);
 
-    // 2. A CAPTCHA page stops before any field is filled.
+    // 2. A page with a visible CAPTCHA challenge (a passive script alone does not stop a run) stops before any field is filled.
     for (const k of KINDS) {
       captcha[k] = await dryRun(k, CAPTCHA[k]);
       expect(captcha[k], k).toMatchObject({ status: "stopped", stopReason: "captcha", filled: 0 });

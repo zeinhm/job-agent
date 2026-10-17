@@ -1,0 +1,26 @@
+<!--
+  CAPTCHA variant (t_cbcbc227): the passive variant plus a challenge frame that exists but is not visible: reCAPTCHA parks
+  its bframe at top:-10000px with visibility:hidden until a challenge is needed. The dry run goes on. Synthetic.
+-->
+<script src="/captcha-recorder.js"></script>
+<div
+  class="grecaptcha-badge"
+  data-fixture-captcha
+  style="position: fixed; bottom: 14px; right: -186px; width: 256px; height: 60px"
+>
+  <iframe
+    src="https://www.recaptcha.net/recaptcha/enterprise/anchor?k=fixture-key&size=invisible"
+    title="reCAPTCHA"
+    width="256"
+    height="60"
+  ></iframe>
+</div>
+<div style="visibility: hidden; position: absolute; top: -10000px; left: -10000px">
+  <iframe
+    data-fixture-captcha
+    src="https://www.recaptcha.net/recaptcha/enterprise/bframe?hl=en&k=fixture-key"
+    title="recaptcha challenge expires in two minutes"
+    width="400"
+    height="580"
+  ></iframe>
+</div>

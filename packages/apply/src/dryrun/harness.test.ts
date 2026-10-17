@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import type { Browser } from "playwright";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { BROWSER_INSTALL_COMMAND, BrowserMissingError, launchChromium } from "./browser.ts";
+import { detectStop } from "./detectors.ts";
 import { dataDirOfDb } from "./output.ts";
 import {
   HarnessRefusalError,
@@ -315,6 +316,140 @@ describe("stop detectors", () => {
   it("a clean form is not stopped", async () => {
     const session = await start("/plain");
     expect(session.stop).toBeNull();
+    expect(session.captchaPassive).toEqual([]);
+  }, 60_000);
+});
+
+// Dry-run CAPTCHA rule (decisions.md 2026-10-17): passive does not stop, a visible challenge or widget does.
+describe("CAPTCHA, dry-run rule", () => {
+  it.each([
+    ["/captcha-google", "visible captcha challenge on the page"],
+    ["/captcha-hcaptcha", "visible captcha challenge on the page"],
+    ["/captcha-turnstile", "visible captcha challenge on the page"],
+    ["/captcha-below-fold", "visible captcha challenge on the page"],
+    // Fail safe: a state that cannot be decided stops.
+    ["/captcha-sized-container", "captcha container in an unknown state"],
+    ["/captcha-unknown-frame", "captcha container in an unknown state"],
+  ])(
+    "%s stops as captcha (%s)",
+    async (path, detail) => {
+      const session = await start(path);
+      expect(session.stop).toEqual({ reason: "captcha", detail });
+    },
+    60_000,
+  );
+
+  it.each([
+    ["/passive-google", ["script"]],
+    ["/passive-hcaptcha", ["script"]],
+    // "script" = any request to a CAPTCHA host, which an iframe src counts as.
+    ["/passive-badge", ["badge", "script"]],
+    ["/passive-invisible-size", ["invisible-widget"]],
+    ["/passive-button-binding", ["invisible-widget"]],
+    ["/passive-turnstile-execute", ["invisible-widget"]],
+    ["/passive-turnstile-hidden-frame", ["invisible-widget", "hidden-frame", "script"]],
+    ["/passive-unrendered-container", ["unrendered-container"]],
+    ["/hidden-display-none", ["hidden-frame", "script"]],
+    ["/hidden-visibility", ["hidden-frame", "script"]],
+    ["/hidden-opacity", ["hidden-frame", "script"]],
+    ["/hidden-zero-size", ["hidden-frame", "script"]],
+    ["/hidden-offscreen", ["hidden-frame", "script"]],
+  ])(
+    "%s does not stop; passive labels recorded",
+    async (path, labels) => {
+      const session = await start(path);
+      expect(session.stop).toBeNull();
+      expect([...session.captchaPassive].sort()).toEqual([...labels].sort());
+      await session.fill({ css: "#a" }, "x");
+      expect(session.stop).toBeNull();
+      const run = await session.finish({
+        status: "needs_input",
+        stop_reason: "uncovered_question",
+        fields: [],
+      });
+      expect(run.status).toBe("needs_input");
+      // Labels only, no value, in the stored detail.
+      const row = db.select().from(dry_runs).where(eq(dry_runs.id, run.runId)).get();
+      expect(row?.stop_detail).toBe(`captcha=passive:${session.captchaPassive.join(",")}`);
+    },
+    60_000,
+  );
+
+  it("a challenge that appears after the first fill stops the run: no further fill, screenshot taken, stopped", async () => {
+    const session = await start("/captcha-late");
+    expect(session.stop).toBeNull();
+    await session.fill({ css: "#a" }, "one");
+    expect(session.stop).toEqual({
+      reason: "captcha",
+      detail: "visible captcha challenge appeared during the run",
+    });
+    await expect(session.fill({ css: "#b" }, "two")).rejects.toThrow(/run is stopped/);
+    expect(await pageOf(session).inputValue("#b")).toBe("");
+    const run = await session.finish({ status: "filled", fields: [] });
+    expect(run).toMatchObject({ status: "stopped", stopReason: "captcha" });
+    expect(existsSync(join(dir, run.screenshotPath))).toBe(true);
+    expect(
+      db.select().from(dry_run_fields).where(eq(dry_run_fields.dry_run_id, run.runId)).all(),
+    ).toEqual([]);
+  }, 60_000);
+
+  it("a challenge that appears after the last fill is caught before the screenshot", async () => {
+    const session = await start("/captcha-late");
+    // The page raises it on a change the harness did not cause through a helper: only the final check can see it.
+    await pageOf(session).evaluate(
+      `document.getElementById("a").dispatchEvent(new Event("change", { bubbles: true }))`,
+    );
+    expect(session.stop).toBeNull();
+    const run = await session.finish({ status: "filled", fields: [] });
+    expect(run).toMatchObject({ status: "stopped", stopReason: "captcha" });
+  }, 60_000);
+});
+
+describe("CAPTCHA, strict rule", () => {
+  const detect = async (path: string, captchaMode: "strict" | "dry-run") => {
+    const { context, page } = await openPartiallyGuardedPage(browser, {
+      requestGuard: { ats: "greenhouse", fixture: true },
+    });
+    try {
+      const response = await page.goto(`${server.origin}${path}`, { waitUntil: "load" });
+      return (
+        await detectStop({
+          page,
+          requestedUrl: `${server.origin}${path}`,
+          mainStatus: response?.status() ?? null,
+          seenUrls: [],
+          captchaMode,
+        })
+      ).stop;
+    } finally {
+      await context.close();
+    }
+  };
+
+  it.each([
+    "/passive-google",
+    "/passive-hcaptcha",
+    "/passive-badge",
+    "/passive-invisible-size",
+    "/hidden-display-none",
+    "/passive-unrendered-container",
+    "/captcha-google",
+  ])(
+    "strict mode stops on %s (any script, iframe or widget); dry-run mode only on a visible one",
+    async (path) => {
+      expect(await detect(path, "strict")).toEqual({
+        reason: "captcha",
+        detail: "captcha script or widget on the page",
+      });
+    },
+    60_000,
+  );
+
+  it("the two modes agree on a page without a CAPTCHA, and dry-run lets a passive page through", async () => {
+    expect(await detect("/plain", "strict")).toBeNull();
+    expect(await detect("/plain", "dry-run")).toBeNull();
+    expect(await detect("/passive-google", "dry-run")).toBeNull();
+    expect(await detect("/captcha-google", "dry-run")).toMatchObject({ reason: "captcha" });
   }, 60_000);
 });
 

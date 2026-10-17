@@ -2,7 +2,7 @@ export { BROWSER_INSTALL_COMMAND, BrowserMissingError } from "./browser.ts";
 export { dataDirOfDb } from "./output.ts";
 export { ASHBY_READ_ONLY_OPERATIONS, type AbortedRequest, type GuardAts } from "./request-guard.ts";
 export type { PageAttempt } from "./page-guard.ts";
-export type { StopSignal } from "./detectors.ts";
+export type { CaptchaMode, PassiveCaptcha, StopSignal } from "./detectors.ts";
 export {
   DryRunSession,
   HarnessRefusalError,
@@ -20,12 +20,17 @@ export {
   type PlanContext,
 } from "./greenhouse/filler.ts";
 export {
+  CAPTCHA_HIT_PREFIX,
+  CAPTCHA_VARIANTS,
+  FIELD_CHANGE_PATH,
   FIXTURE_CAPTCHA_PATH,
+  FIXTURE_CAPTCHA_PATHS,
   FIXTURE_FORM_PATH,
   FIXTURE_POSTING_ID,
   fixtureContext,
   seedGreenhouseFixture,
   startGreenhouseFixtureServer,
+  type CaptchaVariant,
   type GreenhouseFixtureServer,
 } from "./greenhouse/fixture.ts";
 export {
@@ -42,6 +47,7 @@ export {
 } from "./ashby/filler.ts";
 export {
   ASHBY_FIXTURE_CAPTCHA_PATH,
+  ASHBY_FIXTURE_CAPTCHA_PATHS,
   ASHBY_FIXTURE_FORM_PATH,
   ASHBY_FIXTURE_POSTING_ID,
   ashbyFixtureContext,
@@ -50,6 +56,7 @@ export {
 } from "./ashby/fixture.ts";
 export {
   LEVER_FIXTURE_CAPTCHA_PATH,
+  LEVER_FIXTURE_CAPTCHA_PATHS,
   LEVER_FIXTURE_FORM_PATH,
   LEVER_FIXTURE_POSTING_ID,
   leverFixtureContext,

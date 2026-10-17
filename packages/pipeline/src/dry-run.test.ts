@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { seedGreenhouseFixture } from "@job-agent/apply";
 import { main } from "./cli.ts";
-import { ashbyFormUrl, formUrl, leverFormUrl, runDryRun } from "./dry-run.ts";
+import { ashbyFormUrl, formUrl, leverFormUrl, runDryRun, summaryLine } from "./dry-run.ts";
 import { atsLinkOf } from "./apply-links/ats-links.ts";
 
 const T = "2026-10-13T00:00:00.000Z";
@@ -54,6 +54,27 @@ async function cli(args: string[], isRealDb = false) {
   });
   return { code, out: out.join(""), err: err.join("") };
 }
+
+describe("summary line", () => {
+  const base = {
+    runId: "r",
+    status: "filled" as const,
+    stopReason: null,
+    screenshotPath: "dryruns/d/r/screenshot.png",
+    aborted: [],
+    attempts: [],
+    filled: 13,
+    total: 13,
+  };
+  it("says captcha=passive (a label, no value) only when a passive CAPTCHA was present", () => {
+    expect(summaryLine({ ...base, captchaPassive: [] }, "/d")).toBe(
+      "dry-run: status=filled reason=- fields=13/13 screenshot=/d/dryruns/d/r/screenshot.png\n",
+    );
+    expect(summaryLine({ ...base, captchaPassive: ["script", "badge"] }, "/d")).toBe(
+      "dry-run: status=filled reason=- fields=13/13 captcha=passive screenshot=/d/dryruns/d/r/screenshot.png\n",
+    );
+  });
+});
 
 describe("dry-run --fixture greenhouse", () => {
   it("fills the fixture form, prints one summary line without values, records a private fixture run", async () => {

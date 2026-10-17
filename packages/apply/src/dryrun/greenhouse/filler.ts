@@ -186,7 +186,11 @@ export async function runGreenhouseDryRun(
     result: Parameters<DryRunSession["finish"]>[0],
     filled = 0,
     total = 0,
-  ): Promise<GreenhouseRunSummary> => ({ ...(await session.finish(result)), filled, total });
+  ): Promise<GreenhouseRunSummary> => {
+    const run = await session.finish(result);
+    // A challenge that appeared mid-run stops the run: nothing counts as filled.
+    return session.stop ? { ...run, filled: 0, total: 0 } : { ...run, filled, total };
+  };
   try {
     if (session.stop) return await done(undefined);
 
@@ -226,6 +230,7 @@ export async function runGreenhouseDryRun(
     // Fill every covered field; a refusal by the page is kept per field and never stops the others.
     const refused = new Map<string, string>();
     for (const p of plan.fields) {
+      if (session.stop) break; // a CAPTCHA challenge appeared: no further field is filled
       if (!p.filled) continue;
       const control = byId.get(p.field.ats.id) as DomControl;
       try {
@@ -238,6 +243,7 @@ export async function runGreenhouseDryRun(
         );
       }
     }
+    if (session.stop) return await done(undefined);
     const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(controls));
     const rows: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {
       const base = {

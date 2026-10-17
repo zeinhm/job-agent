@@ -104,16 +104,84 @@ function page(body: string): string {
   return `<!doctype html><html><body>${body}</body></html>`;
 }
 
+const BFRAME = "https://www.google.com/recaptcha/api2/bframe?hl=en&k=x";
+
+/** A CAPTCHA frame; the real vendor URL is only a `src`, the request guard aborts it. */
+function frame(src: string, width: string, height: string, style = ""): string {
+  return `<iframe src="${src}" width="${width}" height="${height}" style="${style}" title="captcha"></iframe>`;
+}
+
 const PAGES: Record<string, string> = {
   "/form": FORM_PAGE,
+  // Visible challenge or widget: stops under the dry-run rule.
   "/captcha-google": page(
-    `<form><input id="a" type="text"></form><script src="https://www.google.com/recaptcha/enterprise.js?render=x"></script>`,
+    `<form><input id="a" type="text"></form><script src="https://www.google.com/recaptcha/enterprise.js?render=x"></script>${frame("https://www.google.com/recaptcha/api2/anchor?k=x&size=normal", "304", "78")}`,
   ),
   "/captcha-hcaptcha": page(
-    `<form><input id="a" type="text"></form><script src="https://js.hcaptcha.com/1/secure-api.js"></script>`,
+    `<form><input id="a" type="text"></form><script src="https://js.hcaptcha.com/1/secure-api.js"></script>${frame("https://newassets.hcaptcha.com/captcha/v1/x/static/hcaptcha.html#frame=challenge", "400", "580")}`,
   ),
   "/captcha-turnstile": page(
-    `<form><input id="a" type="text"></form><div class="cf-turnstile"></div>`,
+    `<form><input id="a" type="text"></form><div class="cf-turnstile">${frame("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/if/ov2/av0/x", "300", "65")}</div>`,
+  ),
+  // Fail safe: the state cannot be decided, so it stops.
+  "/captcha-sized-container": page(
+    `<form><input id="a" type="text"></form><div class="g-recaptcha" data-sitekey="x" style="width:304px;height:78px"></div>`,
+  ),
+  "/captcha-unknown-frame": page(
+    `<form><input id="a" type="text"></form>${frame("https://www.google.com/recaptcha/api2/other", "300", "100")}`,
+  ),
+  // Passive: a script, a badge, an invisible widget, a frame that is not visible. Nothing here stops a dry run.
+  "/passive-google": page(
+    `<form><input id="a" type="text"></form><script src="https://www.google.com/recaptcha/enterprise.js?render=x"></script>`,
+  ),
+  "/passive-hcaptcha": page(
+    `<form><input id="a" type="text"></form><script src="https://js.hcaptcha.com/1/secure-api.js"></script>`,
+  ),
+  "/passive-badge": page(
+    `<form><input id="a" type="text"></form><div class="grecaptcha-badge" style="position:fixed;bottom:14px;right:-186px;width:256px;height:60px">${frame("https://www.google.com/recaptcha/api2/anchor?k=x&size=invisible", "256", "60")}</div>`,
+  ),
+  "/passive-invisible-size": page(
+    `<form><input id="a" type="text"></form><div class="g-recaptcha" data-sitekey="x" data-size="invisible"></div><div class="h-captcha" data-sitekey="x" data-size="invisible" style="height:20px"></div>`,
+  ),
+  "/passive-button-binding": page(
+    `<form><input id="a" type="text"><button class="g-recaptcha" data-sitekey="x" data-callback="cb" type="button">Go</button></form>`,
+  ),
+  "/passive-turnstile-execute": page(
+    `<form><input id="a" type="text"></form><div class="cf-turnstile" data-sitekey="x" data-appearance="execute" style="height:20px"></div>`,
+  ),
+  "/passive-turnstile-hidden-frame": page(
+    `<form><input id="a" type="text"></form><div class="cf-turnstile" data-appearance="interaction-only">${frame("https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/if/ov2/av0/x", "300", "65", "visibility:hidden")}</div>`,
+  ),
+  "/passive-unrendered-container": page(
+    `<form><input id="a" type="text"></form><div class="h-captcha" data-sitekey="x"></div>`,
+  ),
+  "/hidden-display-none": page(
+    `<form><input id="a" type="text"></form>${frame(BFRAME, "400", "580", "display:none")}`,
+  ),
+  "/hidden-visibility": page(
+    `<form><input id="a" type="text"></form>${frame(BFRAME, "400", "580", "visibility:hidden")}`,
+  ),
+  "/hidden-opacity": page(
+    `<form><input id="a" type="text"></form>${frame(BFRAME, "400", "580", "opacity:0")}<div style="opacity:0">${frame(BFRAME, "400", "580")}</div>`,
+  ),
+  "/hidden-zero-size": page(
+    `<form><input id="a" type="text"></form>${frame(BFRAME, "0", "0")}${frame(BFRAME, "1", "1", "border:0")}`,
+  ),
+  "/hidden-offscreen": page(
+    `<form><input id="a" type="text"></form>${frame(BFRAME, "400", "580", "position:absolute;top:-10000px;left:-10000px")}`,
+  ),
+  // A challenge that appears after the first field changes (mid-run).
+  "/captcha-late": page(
+    `<form><input id="a" type="text"><input id="b" type="text"><input id="c" type="text"></form><script>
+    document.addEventListener("change", () => {
+      if (document.getElementById("late")) return;
+      document.body.insertAdjacentHTML("beforeend", ${JSON.stringify(frame(BFRAME, "400", "580", "position:fixed;top:0;left:0").replace("<iframe", '<iframe id="late"'))});
+    }, true);
+  </script>`,
+  ),
+  // A visible challenge that is not at the top of the page is still visible.
+  "/captcha-below-fold": page(
+    `<form><input id="a" type="text"></form><div style="height:3000px"></div>${frame(BFRAME, "400", "580")}`,
   ),
   "/login": page(`<form><input id="u" type="text"><input id="p" type="password"></form>`),
   "/plain": page(`<form><input id="a" type="text"></form>`),

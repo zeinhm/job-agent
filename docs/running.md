@@ -418,8 +418,9 @@ exception is an Ashby GraphQL query on the read-only allowlist), WebSockets, `se
 and `form.submit()` / `requestSubmit()` / `submit` events are cancelled and recorded. The helpers only fill, select,
 check and upload, plus picking an option of a combobox (it clicks only the combobox input and one `role=option` item); there is
 no other click, and any element that is a submit control or inside one is refused. Fixture mode (tests,
-`bin/smoke`) also aborts every host other than `127.0.0.1`. A CAPTCHA script or widget, a login wall or a page error
-stops the run before a field is filled. Output goes to `<data dir>/dryruns/<YYYY-MM-DD>/<run id>/screenshot.png` (dirs
+`bin/smoke`) also aborts every host other than `127.0.0.1`. A visible CAPTCHA challenge (a passive script, badge or
+hidden widget does not stop a run), a login wall or a page error stops the run before a field is filled; a challenge that
+appears after a fill stops it there, and nothing more is filled. Output goes to `<data dir>/dryruns/<YYYY-MM-DD>/<run id>/screenshot.png` (dirs
 0700, file 0600; the data dir is the folder of the DB file, so a smoke run writes inside its smoke dir). Screenshots
 and filled values are personal data: never commit or share them.
 
@@ -445,8 +446,9 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 
 `--fixture` is refused on the real database (the default DB or one under `data/`), and a real posting id is refused on a
 scratch DB: only the owner's real DB opens a real form. The fixture run is stored with `fixture` = true and never counts
-for the done-when line. The folder holds other pages used by the tests: `captcha.html` (stops `captcha`) and
-`changed.html` (stops `form_changed`).
+for the done-when line. The folder holds other pages used by the tests: `changed.html` (stops `form_changed`) and
+`captcha/<variant>.html`, snippets the fixture server adds to `form.html` (`passive`, `visible-checkbox`,
+`visible-challenge`, `hidden-challenge`, `late-challenge`; the form itself is not changed).
 
 ### Owner: a real dry run
 
@@ -462,7 +464,8 @@ If the browser is missing, run `pnpm playwright:install` once. The command refus
 line) a posting that has no Greenhouse job link, is scam-flagged or has no stored questions. Otherwise it opens the
 hosted form, and then:
 
-1. **Stops** (nothing filled, screenshot taken, status `stopped`) when the page shows a CAPTCHA widget or script, a login
+1. **Stops** (nothing filled, screenshot taken, status `stopped`) when the page shows a visible CAPTCHA challenge (also one
+   that appears while fields are filled; a passive script or badge does not stop), a login
    wall, an error page or another host; when the form differs from the stored questions (`form_changed`: the detail lists
    the labels of missing, extra and different fields); on a question type the planner cannot fill (`unexpected_field`);
    on a field that matches two answers or a scam flag (`other`).
@@ -482,9 +485,11 @@ What to check, then review the run in the dashboard's Dry runs tab (Correct / Wr
 - The stop or `needs_input` reason is the right one: a wrongly stopped or wrongly filled run is "wrong" with the reason.
 - Nothing was sent: the page stays on the form; the application is not in your Greenhouse confirmation email.
 
-Greenhouse loads an invisible reCAPTCHA Enterprise script on its forms (research t_ec2ae4c6). The harness stops on any
-CAPTCHA script, so if your first real runs all stop with `captcha`, that is the reason, not a bug: tell the PM, since
-whether a passive script alone should stop is an owner decision (D2 decision note, `docs/decisions.md`).
+Greenhouse loads an invisible reCAPTCHA Enterprise script on its forms (research t_ec2ae4c6). A passive script or badge no
+longer stops a run (decision "Dry-run CAPTCHA rule", `docs/decisions.md`): the run goes on and its line says
+`captcha=passive` (the stored detail lists labels only, e.g. `captcha=passive:script,badge`). Only a visible challenge stops
+it. Never solve a challenge inside a dry-run window: the run does not touch it, and a solved or clicked challenge is not
+part of a dry run.
 
 The run, its fields and the screenshot are personal data under `<data dir>/dryruns/` (dirs 0700, files 0600): never commit
 or share them.
@@ -511,9 +516,9 @@ browser either; the file still attaches locally.
 - **Location.** The "Current location" field is an autocomplete that clears itself unless a suggestion is picked, so a typed
   location is not kept: the field is recorded as not filled (`page kept a different value`) and the run is `needs_input`.
   Pick the suggestion yourself when you review.
-- **CAPTCHA.** Every real Lever apply page carries an hCaptcha widget (research t_d0698332). The CAPTCHA detector is
-  unchanged (same open owner decision as Greenhouse's reCAPTCHA script), so a real Lever page may stop with `captcha` before
-  anything is read.
+- **CAPTCHA.** Every real Lever apply page carries an hCaptcha widget (research t_d0698332). A passive widget
+  (invisible, or not drawn because the vendor script is blocked) does not stop a run; a visible hCaptcha checkbox or
+  challenge does, with `captcha`, before anything is read.
 
 Agents and smoke use the committed fixture (`packages/apply/fixtures/lever/`, synthetic, served from `127.0.0.1`, fake persona):
 
@@ -526,7 +531,7 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 ```
 
 `--fixture lever` is refused on the real database, like `--fixture greenhouse`. Besides `form.html` the folder holds the
-pages the tests use: `captcha.html` (stops `captcha`), `changed.html` (stops `form_changed` after a run on `form.html`),
+pages the tests use: `captcha/<variant>.html` (snippets added to `form.html`, see the Greenhouse fixture), `changed.html` (stops `form_changed` after a run on `form.html`),
 `date.html` (a date question: stops `unexpected_field`) and `location.html` (the self-clearing location field).
 
 ## Ashby dry run (Phase 5)
@@ -556,8 +561,8 @@ only what differs. It **never submits**.
   real runs show `form_changed`, empty or "page kept a different value" fields, send the PM the field labels (never values):
   that is the signal to correct the selectors from one owner-run recording. Because the draft writes are aborted, a real page
   may also drop a typed value (or show an error toast); that field is then recorded as not filled, never as a wrong value.
-- **CAPTCHA.** Ashby's job response carries a `recaptchaAction` and the page loads reCAPTCHA; the detector is unchanged (same
-  open owner decision as Greenhouse's and Lever's), so a real Ashby page may stop with `captcha`.
+- **CAPTCHA.** Ashby's job response carries a `recaptchaAction` and the page loads reCAPTCHA, which is passive (does not stop a
+  run); only a visible challenge stops it with `captcha`.
 
 Agents and smoke use the committed fixture (`packages/apply/fixtures/ashby/`, synthetic: `app.html` + `app.js` draw the form
 from fake GraphQL answers the fixture server serves from `127.0.0.1`, fake persona):
@@ -572,8 +577,8 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 
 `--fixture ashby` is refused on the real database, like the other fixtures. The fixture page itself sends the submit mutation
 and a mutation hidden under an allowlisted operation name, and a draft write per field; the tests show that none of them reaches
-the fixture server. `form.json` is the fake GraphQL answer; the tests use its variants (CAPTCHA script, changed form, a date
-question) built in `packages/apply/src/dryrun/ashby/fixture.ts`.
+the fixture server. `form.json` is the fake GraphQL answer; the tests use its variants (changed form, a date
+question; the CAPTCHA variants are snippets in `captcha/`) built in `packages/apply/src/dryrun/ashby/fixture.ts`.
 
 ## Dry runs (Phase 5)
 
@@ -631,7 +636,7 @@ scratch DB.
 | `filled` | Every field of the form is in; nothing is empty. A **full fill**. | Check the screenshot and the values, then mark Correct or Wrong. |
 | `needs_input` / `uncovered_question` | Covered fields are filled; a question has no approved answer (a salary field with no tier ask, a missing or invalid resume file, or a value the page did not keep, too). The label is in the Inbox. | Answer it in the Inbox, then run again, or mark the run Correct if leaving it empty was right. |
 | `needs_input` / `choice_unmapped` | A choice question has an approved answer but no approved mapping to the form's options. | Map it in the Inbox (options shown), then run again. |
-| `stopped` / `captcha` | A CAPTCHA widget or script is on the page. Nothing was filled and it is never bypassed. | Mark Correct if the page really had one. If every real run of an ATS stops here, tell the PM (Greenhouse and Ashby load a passive script; whether that alone should stop is an owner decision). |
+| `stopped` / `captcha` | A visible CAPTCHA challenge (or a widget that asks you to act) is on the page, at load or after a field was filled; a CAPTCHA container whose state could not be told also stops. A passive script, badge or hidden widget does not stop a run (the line says `captcha=passive`). Nothing more was filled and it is never bypassed or clicked. | Never solve a challenge inside a dry-run window. Mark Correct if the page really showed one; if every real run of an ATS stops here, tell the PM. |
 | `stopped` / `login_wall` | The page asks you to log in. | Nothing to fix; the harness never logs in. |
 | `stopped` / `form_changed` | The page's fields differ from the stored questions (the detail lists labels). | Run again: the new set was stored and the new questions are in the Inbox. |
 | `stopped` / `unexpected_field` | A question type the filler does not fill (a date, a file other than the resume, ...). | Fill it yourself in a normal application; mark Correct if stopping was right. |

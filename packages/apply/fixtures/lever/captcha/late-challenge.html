@@ -1,0 +1,33 @@
+<!--
+  CAPTCHA variant (t_cbcbc227): the passive variant, and the first time a field changes the page lays a visible hCaptcha
+  challenge frame over itself (a risk check that fires mid-run). The dry run must stop `captcha`, fill nothing more and still
+  take the screenshot. Synthetic.
+-->
+<script src="/captcha-recorder.js"></script>
+<script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+<div class="h-captcha" data-fixture-captcha data-sitekey="fixture-key" data-size="invisible">
+  <iframe
+    src="https://newassets.hcaptcha.com/captcha/v1/fixture/static/hcaptcha.html#frame=checkbox-invisible&id=fixture"
+    title="Widget containing checkbox for hCaptcha security challenge"
+    width="0"
+    height="0"
+  ></iframe>
+</div>
+<script>
+  document.addEventListener(
+    "change",
+    () => {
+      if (document.getElementById("late-challenge")) return;
+      const frame = document.createElement("iframe");
+      frame.id = "late-challenge";
+      frame.setAttribute("data-fixture-captcha", "");
+      frame.src =
+        "https://newassets.hcaptcha.com/captcha/v1/fixture/static/hcaptcha.html#frame=challenge&id=fixture";
+      // pointer-events: none, so the browser does not report a hover on it when it opens under the test's mouse position.
+      frame.style.cssText =
+        "position: fixed; top: 20px; left: 20px; width: 400px; height: 580px; z-index: 99999; pointer-events: none";
+      document.body.append(frame);
+    },
+    true,
+  );
+</script>

@@ -1,0 +1,23 @@
+<!--
+  CAPTCHA variant (t_cbcbc227): the passive variant plus an hCaptcha challenge frame that exists but is not visible
+  (display:none, as hCaptcha keeps it until a challenge is needed). The dry run goes on. Synthetic.
+-->
+<script src="/captcha-recorder.js"></script>
+<script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+<div class="h-captcha" data-fixture-captcha data-sitekey="fixture-key" data-size="invisible">
+  <iframe
+    src="https://newassets.hcaptcha.com/captcha/v1/fixture/static/hcaptcha.html#frame=checkbox-invisible&id=fixture"
+    title="Widget containing checkbox for hCaptcha security challenge"
+    width="0"
+    height="0"
+  ></iframe>
+</div>
+<div style="display: none">
+  <iframe
+    data-fixture-captcha
+    src="https://newassets.hcaptcha.com/captcha/v1/fixture/static/hcaptcha.html#frame=challenge&id=fixture"
+    title="Main content of the hCaptcha challenge"
+    width="400"
+    height="580"
+  ></iframe>
+</div>

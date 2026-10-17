@@ -79,11 +79,13 @@ export function ashbyFormUrl(link: AtsLink): string | null {
   return `https://${u.hostname}/${link.slug}/${id}/application`;
 }
 
-function summaryLine(
+export function summaryLine(
   s: GreenhouseRunSummary | LeverRunSummary | AshbyRunSummary,
   dataDir: string,
 ): string {
-  return `dry-run: status=${s.status} reason=${s.stopReason ?? "-"} fields=${s.filled}/${s.total} screenshot=${join(dataDir, s.screenshotPath)}\n`;
+  // `captcha=passive`: the run went on with a CAPTCHA script / badge / hidden widget on the page (labels in stop_detail).
+  const captcha = s.captchaPassive.length > 0 ? " captcha=passive" : "";
+  return `dry-run: status=${s.status} reason=${s.stopReason ?? "-"} fields=${s.filled}/${s.total}${captcha} screenshot=${join(dataDir, s.screenshotPath)}\n`;
 }
 
 /** Never prints a value: only our own fixed refusal wordings reach the terminal. */

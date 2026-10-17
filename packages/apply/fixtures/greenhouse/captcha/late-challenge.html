@@ -1,0 +1,36 @@
+<!--
+  CAPTCHA variant (t_cbcbc227): the passive variant, and the first time a field changes the page lays a visible reCAPTCHA
+  image challenge over itself (a risk check that fires mid-run). The dry run must stop `captcha`, fill nothing more and still
+  take the screenshot. Synthetic.
+-->
+<script src="/captcha-recorder.js"></script>
+<script src="https://www.recaptcha.net/recaptcha/enterprise.js?render=fixture-key" async></script>
+<div
+  class="grecaptcha-badge"
+  data-fixture-captcha
+  style="position: fixed; bottom: 14px; right: -186px; width: 256px; height: 60px"
+>
+  <iframe
+    src="https://www.recaptcha.net/recaptcha/enterprise/anchor?k=fixture-key&size=invisible"
+    title="reCAPTCHA"
+    width="256"
+    height="60"
+  ></iframe>
+</div>
+<script>
+  document.addEventListener(
+    "change",
+    () => {
+      if (document.getElementById("late-challenge")) return;
+      const frame = document.createElement("iframe");
+      frame.id = "late-challenge";
+      frame.setAttribute("data-fixture-captcha", "");
+      frame.src = "https://www.recaptcha.net/recaptcha/enterprise/bframe?hl=en&k=fixture-key";
+      // pointer-events: none, so the browser does not report a hover on it when it opens under the test's mouse position.
+      frame.style.cssText =
+        "position: fixed; top: 20px; left: 20px; width: 400px; height: 580px; z-index: 99999; pointer-events: none";
+      document.body.append(frame);
+    },
+    true,
+  );
+</script>

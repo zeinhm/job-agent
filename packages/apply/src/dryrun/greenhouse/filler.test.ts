@@ -334,7 +334,7 @@ describe("stops (nothing is filled)", () => {
 
   it("the CAPTCHA page", async () => {
     const r = await stopped(run(FIXTURE_CAPTCHA_PATH), "captcha");
-    expect(runOf(r.summary.runId)?.stop_detail).toBe("captcha script or widget on the page");
+    expect(runOf(r.summary.runId)?.stop_detail).toBe("visible captcha challenge on the page");
   }, 90_000);
 
   it("a changed form: labels of the missing, extra and different fields, no values", async () => {

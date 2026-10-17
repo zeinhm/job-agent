@@ -471,7 +471,7 @@ describe("stops (nothing is filled)", () => {
 
   it("the CAPTCHA page: nothing is read, nothing is stored", async () => {
     const r = await stopped(run(ASHBY_FIXTURE_CAPTCHA_PATH), "captcha");
-    expect(runOf(r.summary.runId)?.stop_detail).toBe("captcha script or widget on the page");
+    expect(runOf(r.summary.runId)?.stop_detail).toBe("visible captcha challenge on the page");
     expect(storedRows()).toEqual([]);
   }, 90_000);
 

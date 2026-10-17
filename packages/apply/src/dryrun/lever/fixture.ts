@@ -2,10 +2,13 @@ import { fileURLToPath } from "node:url";
 import { postings, type Db } from "@job-agent/core";
 import type { PlanContext } from "../greenhouse/filler.ts";
 import {
+  CAPTCHA_RECORDER_PAGE,
+  CAPTCHA_VARIANTS,
   ensureFixtureResume,
   fixtureAnswers,
   fixtureChoiceMappings,
   startFixtureServer,
+  type CaptchaVariant,
   type FixtureServer,
 } from "../greenhouse/fixture.ts";
 
@@ -18,7 +21,15 @@ import {
 export const LEVER_FIXTURE_POSTING_ID = "fixture-lever-2001";
 const POSTING_UUID = "2f6e9a54-3c1b-4d7e-8a20-5b9c4e1d7f03";
 export const LEVER_FIXTURE_FORM_PATH = `/acme/${POSTING_UUID}/apply`;
-export const LEVER_FIXTURE_CAPTCHA_PATH = `/acme/${POSTING_UUID}-captcha/apply`;
+export const LEVER_FIXTURE_CAPTCHA_PATHS: Record<CaptchaVariant, string> = {
+  passive: `/acme/${POSTING_UUID}-captcha-passive/apply`,
+  "visible-checkbox": `/acme/${POSTING_UUID}-captcha-visible-checkbox/apply`,
+  "visible-challenge": `/acme/${POSTING_UUID}-captcha-visible-challenge/apply`,
+  "hidden-challenge": `/acme/${POSTING_UUID}-captcha-hidden-challenge/apply`,
+  "late-challenge": `/acme/${POSTING_UUID}-captcha-late-challenge/apply`,
+};
+/** The CAPTCHA page the stop tests use: a visible challenge (a passive widget alone no longer stops a run). */
+export const LEVER_FIXTURE_CAPTCHA_PATH = LEVER_FIXTURE_CAPTCHA_PATHS["visible-challenge"];
 export const LEVER_FIXTURE_CHANGED_PATH = `/acme/${POSTING_UUID}-changed/apply`;
 export const LEVER_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/apply`;
 export const LEVER_FIXTURE_LOCATION_PATH = `/acme/${POSTING_UUID}-location/apply`;
@@ -27,10 +38,13 @@ const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/lever/", import.me
 
 const PAGES: Record<string, string> = {
   [LEVER_FIXTURE_FORM_PATH]: "form.html",
-  [LEVER_FIXTURE_CAPTCHA_PATH]: "captcha.html",
   [LEVER_FIXTURE_CHANGED_PATH]: "changed.html",
   [LEVER_FIXTURE_LOCATION_PATH]: "location.html",
   [LEVER_FIXTURE_DATE_PATH]: "date.html",
+  ...CAPTCHA_RECORDER_PAGE,
+  ...Object.fromEntries(
+    CAPTCHA_VARIANTS.map((v) => [LEVER_FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
+  ),
 };
 
 /** Plan inputs of the fixture persona: approved answers (plus the company question Lever asks), mappings, an ask, no scam flag. */

@@ -3,7 +3,10 @@ import { fileURLToPath } from "node:url";
 import { postings, type Db } from "@job-agent/core";
 import type { PlanContext } from "../greenhouse/filler.ts";
 import {
+  CAPTCHA_RECORDER_PAGE,
+  CAPTCHA_VARIANTS,
   startFixtureServer,
+  type CaptchaVariant,
   type FixtureReply,
   type FixtureServer,
 } from "../greenhouse/fixture.ts";
@@ -19,7 +22,15 @@ import { leverFixtureContext } from "../lever/fixture.ts";
 export const ASHBY_FIXTURE_POSTING_ID = "fixture-ashby-3001";
 const POSTING_UUID = "7c3d2b18-5a4e-4f19-b6c0-9e8d1a2f3b04";
 export const ASHBY_FIXTURE_FORM_PATH = `/acme/${POSTING_UUID}/application`;
-export const ASHBY_FIXTURE_CAPTCHA_PATH = `/acme/${POSTING_UUID}-captcha/application`;
+export const ASHBY_FIXTURE_CAPTCHA_PATHS: Record<CaptchaVariant, string> = {
+  passive: `/acme/${POSTING_UUID}-captcha-passive/application`,
+  "visible-checkbox": `/acme/${POSTING_UUID}-captcha-visible-checkbox/application`,
+  "visible-challenge": `/acme/${POSTING_UUID}-captcha-visible-challenge/application`,
+  "hidden-challenge": `/acme/${POSTING_UUID}-captcha-hidden-challenge/application`,
+  "late-challenge": `/acme/${POSTING_UUID}-captcha-late-challenge/application`,
+};
+/** The CAPTCHA page the stop tests use: a visible challenge (a passive script alone no longer stops a run). */
+export const ASHBY_FIXTURE_CAPTCHA_PATH = ASHBY_FIXTURE_CAPTCHA_PATHS["visible-challenge"];
 export const ASHBY_FIXTURE_CHANGED_PATH = `/acme/${POSTING_UUID}-changed/application`;
 export const ASHBY_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/application`;
 
@@ -27,10 +38,13 @@ const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/ashby/", import.me
 
 const PAGES: Record<string, string> = {
   [ASHBY_FIXTURE_FORM_PATH]: "app.html",
-  [ASHBY_FIXTURE_CAPTCHA_PATH]: "app.html",
   [ASHBY_FIXTURE_CHANGED_PATH]: "app.html",
   [ASHBY_FIXTURE_DATE_PATH]: "app.html",
   "/app.js": "app.js",
+  ...CAPTCHA_RECORDER_PAGE,
+  ...Object.fromEntries(
+    CAPTCHA_VARIANTS.map((v) => [ASHBY_FIXTURE_CAPTCHA_PATHS[v], `app.html+captcha/${v}.html`]),
+  ),
 };
 
 const GRAPHQL_PATH = "/api/non-user-graphql";
@@ -65,10 +79,17 @@ const byTitle = (p: Posting, title: string): Entry => {
 /** The variants of the fake form: each is `form.json` with a small, named change (the page itself is the same). */
 const VARIANTS: Record<string, (p: Posting) => void> = {
   [POSTING_UUID]: () => undefined,
-  // Real Ashby pages carry a recaptchaAction and load reCAPTCHA (research t_d0698332): the page adds the script.
-  [`${POSTING_UUID}-captcha`]: (p) => {
+  // Real Ashby pages carry a recaptchaAction and load reCAPTCHA (research t_d0698332): the page adds the script. The
+  // other CAPTCHA variants (the snippet is added by the server) have the same form as the plain one.
+  [`${POSTING_UUID}-captcha-passive`]: (p) => {
     p.recaptchaAction = "fixture_apply";
   },
+  ...Object.fromEntries(
+    CAPTCHA_VARIANTS.filter((v) => v !== "passive").map((v) => [
+      `${POSTING_UUID}-captcha-${v}`,
+      (): void => undefined,
+    ]),
+  ),
   // A changed form: a field gone, a new one, a changed label and a changed option set.
   [`${POSTING_UUID}-changed`]: (p) => {
     const section = p.applicationForm.sections[0] as { fieldEntries: Entry[] };
