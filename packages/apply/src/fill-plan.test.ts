@@ -463,7 +463,43 @@ describe("full stops", () => {
     expect(plan([field("Email"), field("Dev setup?", "text")], { answers })).toEqual({
       kind: "stop",
       reason: "other",
-      details: ["ambiguous match", "Dev setup?"],
+      details: ["ambiguous match", "Dev setup? (a.one, b.two)"],
+    });
+  });
+
+  it("one key reached by the standard route, the bank question and an alternative fills", () => {
+    const answers = [
+      ...BANK.filter((a) => a.key !== "profile.email"),
+      ans("profile.email", "jane.doe@example.test", {
+        question: "Email",
+        alternatives: ["E-mail address", "Email address"],
+      }),
+    ];
+    const p = plan([field("Email"), field("Email address"), field("E-mail address")], { answers });
+    expect(p).toMatchObject({ kind: "fill", status: "filled" });
+  });
+
+  it("the owner's five contact labels, each also carried by a second key, stop naming both keys", () => {
+    const labels = ["Full name", "Email", "Phone", "Current location", "LinkedIn URL"];
+    const std = [
+      "profile.name",
+      "profile.email",
+      "profile.phone",
+      "profile.location",
+      "profile.linkedin",
+    ];
+    const twins = labels.map((l, i) => ans(`contact.f${i}`, "x", { question: l }));
+    const r = plan(
+      labels.map((l) => field(l)),
+      { answers: [...BANK, ...twins] },
+    );
+    expect(r).toEqual({
+      kind: "stop",
+      reason: "other",
+      details: [
+        "ambiguous match",
+        ...labels.map((l, i) => `${l} (${[`contact.f${i}`, std[i]].sort().join(", ")})`),
+      ],
     });
   });
 
@@ -482,7 +518,7 @@ describe("full stops", () => {
     const twin = ans("contact.mail", "other@example.test", { question: "Email address" });
     expect(plan([field("Email address")], { answers: [...BANK, twin] })).toMatchObject({
       kind: "stop",
-      details: ["ambiguous match", "Email address"],
+      details: ["ambiguous match", "Email address (contact.mail, profile.email)"],
     });
     expect(
       plan([field("Email address")], { answers: [...BANK, { ...twin, approved: false }] }),

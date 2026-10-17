@@ -355,7 +355,8 @@ export function planFill(input: FillInput): FillPlan {
   );
   const probe = input.probeResume ?? probeResumeFile;
 
-  // Ambiguity: a wording that more than one approved answer (or the standard profile key and another answer) carries.
+  // Ambiguity: a wording reached by more than one distinct answer key (the standard profile key is one key, however
+  // many routes lead to it). The stop names the keys per field, never values.
   const ambiguous: string[] = [];
   for (const f of input.fields) {
     if (isSalaryWording(f.label)) continue;
@@ -363,7 +364,7 @@ export function planFill(input: FillInput): FillPlan {
     const keys = new Set(keysOf.get(n) ?? []);
     const m = matchQuestion(n, new Map());
     if (m?.kind === "standard") keys.add(PROFILE_KEYS[m.field]);
-    if (keys.size > 1) ambiguous.push(f.label);
+    if (keys.size > 1) ambiguous.push(`${f.label} (${[...keys].sort().join(", ")})`);
   }
   if (ambiguous.length > 0)
     return { kind: "stop", reason: "other", details: ["ambiguous match", ...ambiguous] };

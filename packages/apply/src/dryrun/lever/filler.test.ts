@@ -191,6 +191,22 @@ describe("full fill on the fixture", () => {
     expect(summary.attempts.map((a) => a.kind)).not.toContain("form_request_submit_call");
   }, 90_000);
 
+  it("contact fields reached by two routes with one key still fill (standard wording + bank question / alternative)", async () => {
+    const via = (key: string, question: string, alternatives: string[]) => (c: PlanContext) => ({
+      ...c,
+      answers: c.answers.map((a) => (a.key === key ? { ...a, question, alternatives } : a)),
+    });
+    const { summary, seen } = await run(LEVER_FIXTURE_FORM_PATH, {
+      context: (c) =>
+        via("profile.phone", "Phone", ["Phone number"])(
+          via("profile.email", "Email", ["Email address"])(c),
+        ),
+    });
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 13, total: 13 });
+    expect((seen as unknown as Seen).texts["email"]).not.toBe("");
+    expect((seen as unknown as Seen).texts["phone"]).not.toBe("");
+  }, 90_000);
+
   it("records the run, every field with filled true and where it came from, and a private screenshot", async () => {
     const { summary } = await run();
     const rows = fieldsOf(summary.runId);
@@ -456,7 +472,9 @@ describe("stops (nothing is filled)", () => {
       }),
       "other",
     );
-    expect(runOf(r.summary.runId)?.stop_detail).toContain("ambiguous match");
+    expect(runOf(r.summary.runId)?.stop_detail).toBe(
+      "ambiguous match, Email (contact.mail, profile.email)",
+    );
   }, 90_000);
 
   it("the CAPTCHA page: nothing is read, nothing is stored", async () => {

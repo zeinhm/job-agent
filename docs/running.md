@@ -496,6 +496,16 @@ longer stops a run (decision "Dry-run CAPTCHA rule", `docs/decisions.md`): the r
 it. Never solve a challenge inside a dry-run window: the run does not touch it, and a solved or clicked challenge is not
 part of a dry run.
 
+**`ambiguous match` (stop reason `other`, nothing filled).** A form label is reached by two *different* answer keys, so the
+run will not guess. A standard contact label (name, email, phone, location, LinkedIn, ...) counts as the key
+`profile.<field>`; any other approved answer whose `question` or `alternatives` repeats that wording is a second key. The
+same key reached by several routes is not ambiguous. The stop detail lists, per label, the keys (never values), e.g.
+`ambiguous match, Email (contact.email, profile.email)` (the detail is cut at 200 characters). What to do: open the
+answers (dashboard Answers tab, or `config/answers.yaml` and `import-answers`) and look at the named keys: remove the
+wording from the answer that should not carry it, or unapprove it. Rows that were once imported and later removed from
+the YAML stay in the database (the import never deletes them), so a key named in the detail that is not in your YAML is
+such a leftover: unapprove it in the dashboard.
+
 The run, its fields and the screenshot are personal data under `<data dir>/dryruns/` (dirs 0700, files 0600): never commit
 or share them.
 
