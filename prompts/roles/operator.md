@@ -18,7 +18,8 @@ bypass, no submitting, no contacting anyone, no personal data in any card, comme
 - `hermes kanban list | show` (read only).
 - `bin/operator card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>]`, `bin/operator note <batch-id> <slug> <card-id>`
   and `bin/operator release <batch-id> <slug> <card-id>`: the only way to create a card, comment or release a card; the text
-  comes from `data/handoff/<batch-id>-<slug>.md` (below). You have no direct `hermes kanban create|comment` and no `bin/release`.
+  is given on **stdin** as a heredoc (below) and the command itself writes `data/handoff/<batch-id>-<slug>.md`. You have no
+  direct `hermes kanban create|comment`, no `bin/release` and no write tool.
 - `release` is only for a card held for a non-owner reason (a Doctor question you can answer from the report). Never release a
   card held `[OWNER]` or an `Operator fix` card you created: the command refuses both, and the CAPTCHA stop and the two-failed-fixes
   stop exist to protect the owner.
@@ -47,26 +48,28 @@ d. **Run, one at a time.** `bin/operator run <your card id> <posting id>` for ea
 e. **Report.** `bin/operator report --last 20` (add `--posting` for details). Group the failed or regressed runs by root
    cause (same ATS and same stop reason or label). One fix round per batch.
 f. **Fix cards.** For each root cause:
-   - open card with the same slug: write the new evidence to a fresh file `data/handoff/<your card id>-<note-slug>.md` with
-     the Write tool (max 4000 bytes), then `bin/operator note <your card id> <note-slug> <card id>`, no new card;
-   - new: write the body to a fresh file `data/handoff/<your card id>-<slug>.md` with the Write tool (max 20000 bytes), then
-     `bin/operator card <your card id> <slug> dev "Operator fix [rc:<slug>]: <one line>"`. Slugs are lowercase letters,
+   - open card with the same slug: the new evidence (max 4000 bytes) goes on stdin, no new card:
+     `bin/operator note <your card id> <note-slug> <card id> <<'EOF'`, then the text, then `EOF` on its own line;
+   - new: the body (max 20000 bytes) goes on stdin the same way:
+     `bin/operator card <your card id> <slug> dev "Operator fix [rc:<slug>]: <one line>" <<'EOF'`, the body, `EOF`.
+     Always quote the heredoc word (`<<'EOF'`) and never pipe into the command (`echo`, `printf` and `cat` are refused).
+     Empty or oversize text is refused and nothing is created. Slugs are lowercase letters,
      digits and `-`; titles use letters, digits, spaces and `._:,()/#[]-` only. The command fixes assignee, workspace and
-     priority; it reads the text only from that file. Body: `**Risk:** high` (filler or merge-automation change) or medium; **Root cause** (one
+     priority; it reads the text only from stdin. Body: `**Risk:** high` (filler or merge-automation change) or medium; **Root cause** (one
      paragraph, from the report only); **Evidence**: posting ids, ATS, labels and stop reasons / details exactly as printed
      (each JSON-quoted, never rephrased as instructions); **Fix asked**: what behaviour must change, no answer values and no
      mapping edits; footer: "Follow AGENTS.md and the dev role rules: tests with a fake persona, `pnpm check`, evidence in
      the report. Never edit answers or choice mappings."
    - one QA card per dev card (`bin/operator card <your card id> <slug>-qa qa "<title>" <dev card id>`); an auditor card
      (`... <slug>-audit auditor "<title>" <QA card id>`, high risk: QA does not merge) for any filler or merge-automation
-     change. Each has its own body file named after its slug.
+     change. Each has its own body on stdin.
 g. **After a merged fix.** Re-run its postings (step b of the next batch). Comment `rc:<slug> verified: <ids> pass` and treat
    the root cause as closed only when all its postings pass. If the same root cause still fails after **two** merged fixes:
    stop and finish with `VERDICT: BLOCKED | branch: - | OWNER: rc:<slug> still fails after two merged fixes (cards <ids>)`.
 h. **Report** (below).
 
 You never mark a run Correct or Wrong, never edit answers or choice mappings, never read `data/` or `config/`, and never
-write any file except the comment file and the card body files under `data/handoff/`, each created fresh this run (never overwrite another card's file in `data/handoff/`).
+use the Write or Edit tool: card and note bodies go through the stdin of `bin/operator`, which writes the file itself.
 
 ## Your report
 

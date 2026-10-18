@@ -23,4 +23,27 @@ for cmd in "sort data/fake.txt" "cut -c1-40 data/fake.txt" "diff data/fake.txt c
     echo "PASS: '$cmd' refused"
   fi
 done
+
+# a card body given on stdin through the real settings (dontAsk, no write tool) reaches hermes: a temp git repo holds a copy of
+# bin/operator and a stub hermes that stores the --body-file text; the marker must be in what the stub received
+R="$T/repo"; mkdir -p "$R/bin" "$R/data/handoff" "$T/stub"
+git -C "$R" init -q
+cp "$BIN/operator" "$R/bin/operator"
+cat > "$T/stub/hermes" <<EOF
+#!/usr/bin/env bash
+prev=""; for a in "\$@"; do [ "\$prev" = --body-file ] && cp "\$a" "$T/hermes.body"; prev="\$a"; done
+echo "created t_live1"
+EOF
+chmod +x "$T/stub/hermes"
+BMARK="FAKE_BODY_MARKER_$$"
+(cd "$R" && PATH="$T/stub:$PATH" claude -p "Run exactly this shell command with the Bash tool (the heredoc is part of it) and print its raw output, nothing else:
+bin/operator card t_live fix-a dev \"Operator fix [rc:live]: fake\" <<'EOF'
+**Risk:** high
+$BMARK
+EOF" --model sonnet --settings "$SETTINGS" --permission-mode dontAsk >/dev/null 2>&1 </dev/null)
+if grep -q "$BMARK" "$T/hermes.body" 2>/dev/null && grep -q "$BMARK" "$R/data/handoff/t_live-fix-a.md" 2>/dev/null; then
+  echo "PASS: a stdin card body reached hermes"
+else
+  echo "FAIL: the stdin card body did not reach hermes"; fail=1
+fi
 [ $fail -eq 0 ]

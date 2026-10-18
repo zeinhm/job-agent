@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # operator candidates [--limit <n>] | report [--batch <id>] [--posting <id>] [--since <date>] [--last <n>] | run <batch-id> <posting-id>
 #          | card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>] | note <batch-id> <slug> <card-id> | release <batch-id> <slug> <card-id>
-# card / note / release are the role's only way to create a card, comment or release a card: the text comes from
-# data/handoff/<batch-id>-<slug>.md in the main checkout (a regular file, not a symlink, size-limited), so no argument can
-# name another file; assignee, workspace and priority are fixed here; release refuses [OWNER] holds and the operator's own cards.
+# card / note / release are the role's only way to create a card, comment or release a card: the text comes from stdin
+# (a heredoc; non-empty, size-limited) and is written here to data/handoff/<batch-id>-<slug>.md in the main checkout (never
+# through a symlink), so no argument can name another file and the role needs no write tool; assignee, workspace and priority are fixed here; release refuses [OWNER] holds and the operator's own cards.
 # The only command the operator role may run (.claude/roles/operator.json). It calls dry-run-candidates, dry-run-report or
 # operator-dry-run in the main checkout and prints their stdout only: stderr is discarded, so nothing but the value-free
 # lines of those commands can reach the transcript. Arguments are checked here and never echoed back.
@@ -60,10 +60,19 @@ MAIN="$(dirname "$COMMON")"
 
 case "$SUB" in
   card|note|release)
+    mkdir -p "$MAIN/data/handoff" 2>/dev/null
     HD="$(cd "$MAIN/data/handoff" 2>/dev/null && pwd -P)" || refuse "no handoff directory"
     FILE="$HD/$BATCH-$SLUG.md"
-    { [ -f "$FILE" ] && [ ! -L "$FILE" ]; } || refuse "text file missing or not a regular file"
-    { [ -s "$FILE" ] && [ "$(wc -c < "$FILE" | tr -d ' ')" -le "$MAXB" ]; } || refuse "text file empty or too long"
+    { [ ! -e "$FILE" ] || { [ -f "$FILE" ] && [ ! -L "$FILE" ]; }; } || refuse "text file is not a regular file"
+    # the text comes from stdin (a heredoc), is size-checked, then written here: the role never needs a write tool
+    TMPF="$(mktemp "$HD/.stdin.XXXXXX" 2>/dev/null)" || refuse "cannot write the handoff directory"
+    trap 'rm -f "$TMPF"' EXIT
+    head -c $((MAXB + 1)) > "$TMPF" 2>/dev/null
+    SZ="$(wc -c < "$TMPF" | tr -d ' ')"
+    [ "$SZ" -gt 0 ] || refuse "text empty (give it on stdin)"
+    [ "$SZ" -le "$MAXB" ] || refuse "text too long"
+    [ "$(tr -d '\000' < "$TMPF" | wc -c | tr -d ' ')" -eq "$SZ" ] || refuse "text contains NUL bytes"
+    mv -f "$TMPF" "$FILE" && chmod 600 "$FILE" || refuse "cannot write the text file"
     HOUT=""; RC=0
     case "$SUB" in
       card)

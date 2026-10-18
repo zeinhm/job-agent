@@ -24,7 +24,7 @@ EOF
 chmod +x "$T/stub/pnpm"
 export PATH="$T/stub:$PATH"
 OP="$R/bin/operator"
-run() { rm -f "$T/pnpm.call"; STDOUT="$(bash "$OP" "$@" 2>"$T/err")"; RC=$?; STDERR="$(cat "$T/err")"; }
+run() { rm -f "$T/pnpm.call"; STDOUT="$(bash "$OP" "$@" 2>"$T/err" <"${STDIN_FILE:-/dev/null}")"; RC=$?; STDERR="$(cat "$T/err")"; }
 called() { [ -f "$T/pnpm.call" ]; }
 
 rm -f "$T/out" "$T/rc"
@@ -89,6 +89,7 @@ check "from a worktree: runs in the main checkout" "[ \"\$(cut -d'|' -f1 \"$T/pn
 cat > "$T/stub/hermes" <<EOF
 #!/usr/bin/env bash
 { echo "\$PWD"; for a in "\$@"; do echo "ARG:\$a"; done; } > "$T/hermes.call"
+prev=""; for a in "\$@"; do [ "\$prev" = --body-file ] && cp "\$a" "$T/hermes.body"; prev="\$a"; done
 [ "\$2" = show ] && cat "$T/show" 2>/dev/null
 echo "created t_new1"; echo "MARKER_STDERR_Q7Z" >&2
 exit "\$(cat "$T/hrc" 2>/dev/null || echo 0)"
@@ -96,10 +97,12 @@ EOF
 printf '#!/usr/bin/env bash\necho "$*" > "%s/release.call"\n' "$T" > "$R/bin/release"
 chmod +x "$T/stub/hermes" "$R/bin/release"
 HD="$R/data/handoff"; mkdir -p "$HD" "$R/data/dispatch/notes"
-printf 'body one\n' > "$HD/t_b1-fix-a.md"
 hcalled() { [ -f "$T/hermes.call" ]; }
-hrun() { rm -f "$T/hermes.call" "$T/release.call"; run "$@"; }
+sin() { printf '%s' "$1" > "$T/stdin"; STDIN_FILE="$T/stdin"; }   # the next call's stdin
+hrun() { rm -f "$T/hermes.call" "$T/hermes.body" "$T/release.call"; run "$@"; }
+sin $'body one\n'
 hrun card t_b1 fix-a dev "Operator fix [rc:fix-a]: label not filled"
+check "card: stdin body reaches hermes through the written handoff file" "[ \"\$(cat \"$HD/t_b1-fix-a.md\")\" = 'body one' ] && [ \"\$(cat \"$T/hermes.body\")\" = 'body one' ] && [ -z \"\$(ls -A \"$HD\" | grep '^\\.stdin')\" ]"
 check "card: fixed flags and the body file" "[ \$RC -eq 0 ] && [ \"\$STDOUT\" = 'created t_new1' ] && grep -qx 'ARG:create' \"$T/hermes.call\" && grep -qx 'ARG:--assignee' \"$T/hermes.call\" && grep -qx 'ARG:dev' \"$T/hermes.call\" && grep -qx 'ARG:--priority' \"$T/hermes.call\" && grep -qx 'ARG:9' \"$T/hermes.call\" && grep -q \"^ARG:--body-file\$\" \"$T/hermes.call\" && grep -q \"^ARG:.*/data/handoff/t_b1-fix-a.md\$\" \"$T/hermes.call\" && grep -Fqx 'ARG:Operator fix [rc:fix-a]: label not filled' \"$T/hermes.call\" && ! grep -q parent \"$T/hermes.call\""
 check "card: stderr dropped" "! printf '%s%s' \"\$STDOUT\" \"\$STDERR\" | grep -q MARKER_STDERR_Q7Z"
 hrun card t_b1 fix-a qa "QA for fix a" t_dev9
@@ -113,29 +116,45 @@ crefused "card: title with a dash first" card t_b1 fix-a dev "--body-file ZZ_TYP
 crefused "card: title with shell characters" card t_b1 fix-a dev 'T $(ZZ_TYPED)'
 crefused "card: parent with a dash" card t_b1 fix-a qa "T" --workspace
 crefused "card: too many arguments" card t_b1 fix-a dev T t_p ZZ_TYPED
-crefused "card: missing file" card t_b1 nofile dev "T"
 printf 'SECRET_ZZ' > "$T/secretfile"; ln -s "$T/secretfile" "$HD/t_b1-link.md"
 crefused "card: symlink body file" card t_b1 link dev "T"
 crefused "note: symlink text file" note t_b1 link t_x1
-: > "$HD/t_b1-empty.md"
-crefused "card: empty file" card t_b1 empty dev "T"
-head -c 20001 /dev/zero | tr '\0' a > "$HD/t_b1-big.md"
-crefused "card: file over 20000 bytes" card t_b1 big dev "T"
-crefused "note: file over 4000 bytes" note t_b1 big t_x1
+check "symlink target untouched by a refused write" "[ \"\$(cat \"$T/secretfile\")\" = SECRET_ZZ ]"
+sin ''
+crefused "card: empty stdin" card t_b1 empty dev "T"
+crefused "note: empty stdin" note t_b1 empty t_x1
+check "empty stdin: no handoff file written" "[ ! -e \"$HD/t_b1-empty.md\" ]"
+STDIN_FILE=/dev/null
+crefused "card: stdin closed (/dev/null)" card t_b1 empty dev "T"
+head -c 20001 /dev/zero | tr '\0' a > "$T/stdin"; STDIN_FILE="$T/stdin"
+crefused "card: stdin over 20000 bytes" card t_b1 big dev "T"
+check "oversize card: no handoff file written" "[ ! -e \"$HD/t_b1-big.md\" ]"
+head -c 4001 /dev/zero | tr '\0' a > "$T/stdin"
+crefused "note: stdin over 4000 bytes" note t_b1 big t_x1
+crefused "release: stdin over 4000 bytes" release t_b1 big t_x1
+head -c 20000 /dev/zero | tr '\0' a > "$T/stdin"
+hrun card t_b1 exact dev "T"
+check "card: exactly 20000 bytes accepted" "[ \$RC -eq 0 ] && [ \"\$(wc -c < \"$T/hermes.body\" | tr -d ' ')\" = 20000 ]"
+head -c 4000 /dev/zero | tr '\0' a > "$T/stdin"
+hrun note t_b1 exactn t_x1
+check "note: exactly 4000 bytes accepted" "[ \$RC -eq 0 ] && hcalled"
+printf 'ab\0cd' > "$T/stdin"
+crefused "card: NUL byte in stdin" card t_b1 nul dev "T"
+sin 'x'
 crefused "note: bad card id" note t_b1 fix-a '-x'
 mkdir -p "$HD/t_b1-dir.md"
 crefused "card: a directory" card t_b1 dir dev "T"
-printf 'evidence\n' > "$HD/t_b1-ev.md"
+sin $'evidence\n'
 hrun note t_b1 ev t_x1
-check "note: comment text from the file" "[ \$RC -eq 0 ] && grep -qx 'ARG:comment' \"$T/hermes.call\" && grep -qx 'ARG:t_x1' \"$T/hermes.call\" && grep -qx 'ARG:evidence' \"$T/hermes.call\""
-printf -- '--body-file x\n' > "$HD/t_b1-dash.md"
+check "note: comment text from stdin" "[ \$RC -eq 0 ] && grep -qx 'ARG:comment' \"$T/hermes.call\" && grep -qx 'ARG:t_x1' \"$T/hermes.call\" && grep -qx 'ARG:evidence' \"$T/hermes.call\" && [ \"\$(cat \"$HD/t_b1-ev.md\")\" = evidence ]"
+sin $'--body-file x\n'
 hrun note t_b1 dash t_x1
 check "note: text starting with a dash is not an option" "grep -qx 'ARG:Note: --body-file x' \"$T/hermes.call\""
 echo 4 > "$T/hrc"; hrun card t_b1 fix-a dev "T"
 check "card: failure line and exit code" "[ \$RC -eq 4 ] && [ \"\$STDOUT\" = 'operator: card failed (exit 4)' ]"
 rm -f "$T/hrc"
 printf 'Task t_x2: Some question card\n' > "$T/show"
-printf 'go ahead\n' > "$HD/t_b1-ans.md"
+sin $'go ahead\n'
 hrun release t_b1 ans t_x2
 check "release: a non-owner card is released with the file text" "[ \$RC -eq 0 ] && [ \"\$(cat \"$T/release.call\")\" = 't_x2 go ahead' ]"
 printf 'Task t_x3: Operator fix [rc:a]: b\n' > "$T/show"
@@ -147,7 +166,7 @@ check "release: a card with OWNER in its title is refused" "[ \$RC -eq 2 ] && [ 
 printf 'Task t_x5: Some question card\n' > "$T/show"; : > "$R/data/dispatch/notes/t_x5.owner"
 hrun release t_b1 ans t_x5
 check "release: an owner-held card (notes/<id>.owner) is refused" "[ \$RC -eq 2 ] && [ ! -f \"$T/release.call\" ]"
-rm -f "$T/show"
+rm -f "$T/show"; STDIN_FILE=""
 
 # ---- bin/cc-run: the overrides never remove a deny rule ----
 cat > "$T/stub/claude" <<EOF
