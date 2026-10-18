@@ -1,17 +1,22 @@
 import { join } from "node:path";
 import { apply_links, companies, postings, type Db } from "@job-agent/core";
 import {
+  BATCH_ID,
   BrowserMissingError,
   FIXTURE_FORM_PATH,
   ASHBY_FIXTURE_FORM_PATH,
   LEVER_FIXTURE_FORM_PATH,
+  acquireOwner,
   ashbyFixtureContext,
+  batchState,
   dataDirOfDb,
   errorLine,
+  isDryRunCandidate,
   fixtureContext,
   loadFillContext,
   leverFixtureContext,
   loadStoredQuestions,
+  ownerWaiting,
   refusalLine,
   runAshbyDryRun,
   runGreenhouseDryRun,
@@ -21,10 +26,13 @@ import {
   seedLeverFixture,
   startAshbyFixtureServer,
   startGreenhouseFixtureServer,
+  sanitizeText,
   startLeverFixtureServer,
+  tryAcquire,
   type AshbyRunSummary,
   type GreenhouseRunSummary,
   type LeverRunSummary,
+  type LockOptions,
 } from "@job-agent/apply";
 import { eq } from "drizzle-orm";
 import {
@@ -51,6 +59,8 @@ export interface DryRunCommandOptions {
   isRealDb: boolean;
   out: (text: string) => void;
   err: (text: string) => void;
+  /** Test seam for the lock's clock and waiting; empty in production. */
+  lock?: LockOptions;
 }
 
 /** The hosted job-boards URL of a Greenhouse job link, or null when board slug or job id is missing. */
@@ -218,8 +228,46 @@ async function runDryRunUnguarded(opts: DryRunCommandOptions): Promise<number> {
       "a real form is only opened with the real database (agents use --fixture greenhouse|lever|ashby)",
     );
   if (dataDir === null) return refuse("a dry run needs a DB file");
+  const prepared = prepareRealRun(db, postingId);
+  if ("refusal" in prepared) return refuse(prepared.refusal);
+
+  // The owner's run wins: it waits for the one form the operator is on, never for a whole batch.
+  const lock = await acquireOwner(
+    dataDir,
+    () => out("dry-run: waiting for the operator's current form\n"),
+    opts.lock,
+  );
+  if (!lock.ok) return refuse("another dry run is running");
+  try {
+    const summary = await runFiller(prepared, {
+      db,
+      dataDir,
+      postingId,
+      headless: values.headless,
+      starter: { by: "owner", batch: null },
+    });
+    out(summaryLine(summary, dataDir));
+    return summary.status === "error" ? 1 : 0;
+  } catch (e) {
+    err(describeError(e));
+    return 1;
+  } finally {
+    lock.release();
+  }
+}
+
+interface PreparedRun {
+  vendor: "greenhouse" | "lever" | "ashby";
+  url: string;
+}
+
+/**
+ * What both real-form commands check before a form is opened: the posting, its Greenhouse / Lever / Ashby job link, the
+ * form URL, the scam flag and (Greenhouse) the stored questions. A refusal is fixed text, never an id or a typed value.
+ */
+export function prepareRealRun(db: Db, postingId: string): PreparedRun | { refusal: string } {
   const posting = db.select().from(postings).where(eq(postings.id, postingId)).get();
-  if (posting === undefined) return refuse(`no posting ${postingId}`);
+  if (posting === undefined) return { refusal: `no posting ${postingId}` };
   const link = db.select().from(apply_links).where(eq(apply_links.posting_id, postingId)).get();
   const parsedLink = atsLinkOf(effectiveApplyUrl(link?.apply_url, posting.apply_url, posting.url));
   if (
@@ -229,7 +277,7 @@ async function runDryRunUnguarded(opts: DryRunCommandOptions): Promise<number> {
       parsedLink.vendor !== "ashby") ||
     parsedLink.kind !== "job"
   )
-    return refuse("the posting's apply link is not a Greenhouse, Lever or Ashby job link");
+    return { refusal: "the posting's apply link is not a Greenhouse, Lever or Ashby job link" };
   const vendor = parsedLink.vendor;
   const url =
     vendor === "ashby"
@@ -238,37 +286,131 @@ async function runDryRunUnguarded(opts: DryRunCommandOptions): Promise<number> {
         ? leverFormUrl(parsedLink)
         : formUrl(parsedLink, storedGreenhouseSlug(db, link ?? null, posting.company_id));
   if (url === null)
-    return refuse(
-      vendor === "ashby"
-        ? "the Ashby organization or posting id is missing from the apply link"
-        : vendor === "lever"
-          ? "the Lever company or posting id is missing from the apply link"
-          : "the Greenhouse board or job id is missing from the apply link",
-    );
-  if (loadFillContext(db, postingId).scamFlagged) return refuse("the posting is scam-flagged");
+    return {
+      refusal:
+        vendor === "ashby"
+          ? "the Ashby organization or posting id is missing from the apply link"
+          : vendor === "lever"
+            ? "the Lever company or posting id is missing from the apply link"
+            : "the Greenhouse board or job id is missing from the apply link",
+    };
+  if (loadFillContext(db, postingId).scamFlagged) return { refusal: "the posting is scam-flagged" };
   // Greenhouse questions come from fetch-questions; Lever and Ashby have no public questions endpoint, the run stores what its page shows.
   if (vendor === "greenhouse" && loadStoredQuestions(db, postingId).length === 0)
-    return refuse("the posting has no stored Greenhouse questions (run fetch-questions)");
+    return { refusal: "the posting has no stored Greenhouse questions (run fetch-questions)" };
+  return { vendor, url };
+}
 
+/** The one filler path of `dry-run` and `operator-dry-run`. */
+function runFiller(
+  p: PreparedRun,
+  o: {
+    db: Db;
+    dataDir: string;
+    postingId: string;
+    headless: boolean;
+    starter: { by: "owner" | "operator"; batch: string | null };
+  },
+): Promise<GreenhouseRunSummary | LeverRunSummary | AshbyRunSummary> {
+  const run =
+    p.vendor === "ashby"
+      ? runAshbyDryRun
+      : p.vendor === "lever"
+        ? runLeverDryRun
+        : runGreenhouseDryRun;
+  return run({ ...o, url: p.url, fixture: false });
+}
+
+export const OPERATOR_DRY_RUN_USAGE = "Usage: job-agent operator-dry-run <batch-id> <posting-id>\n";
+
+export interface OperatorDryRunOptions {
+  /** Arguments that are not flags: the batch id and the posting id. */
+  positionals: string[];
+  db: Db;
+  dbPath: string;
+  isRealDb: boolean;
+  out: (text: string) => void;
+  err: (text: string) => void;
+  /** Test seam for the lock's clock; empty in production. */
+  lock?: LockOptions;
+}
+
+/**
+ * `operator-dry-run <batch-id> <posting-id>`: the agent-only twin of `dry-run` (same filler path, always headed: no flag
+ * changes it, owner decision 4), real database only. The batch limits are enforced here, not by the role prompt: one form
+ * at a time (the shared lock; an owner run that waits wins), at most the batch maximum of runs (a re-run counts), no run in
+ * a batch that stopped on a CAPTCHA, and only a candidate posting. A refusal is one fixed line and exit 2; an unexpected
+ * error is `operator-dry-run: error <Name> at <path>:<line>` and exit 1. Prints ids, enums and counts only.
+ */
+export async function runOperatorDryRun(opts: OperatorDryRunOptions): Promise<number> {
   try {
-    const run =
-      vendor === "ashby"
-        ? runAshbyDryRun
-        : vendor === "lever"
-          ? runLeverDryRun
-          : runGreenhouseDryRun;
-    const summary = await run({
+    return await runOperatorDryRunUnguarded(opts);
+  } catch (e) {
+    opts.err(errorLine("operator-dry-run", e));
+    return 1;
+  }
+}
+
+async function runOperatorDryRunUnguarded(opts: OperatorDryRunOptions): Promise<number> {
+  const { db, out, err } = opts;
+  const refuse = (reason: string): number => {
+    err(refusalLine("operator-dry-run", reason));
+    return 2;
+  };
+  const [batchId, postingId, ...extra] = opts.positionals;
+  if (
+    batchId === undefined ||
+    !BATCH_ID.test(batchId) ||
+    postingId === undefined ||
+    postingId === "" ||
+    extra.length > 0
+  ) {
+    err(`operator-dry-run: refused: invalid arguments\n${OPERATOR_DRY_RUN_USAGE}`);
+    return 2;
+  }
+  if (!opts.isRealDb) return refuse("a real form is only opened with the real database");
+  let dataDir: string;
+  try {
+    dataDir = dataDirOfDb(opts.dbPath);
+  } catch {
+    return refuse("a dry run needs a DB file");
+  }
+  if (ownerWaiting(dataDir, opts.lock)) return refuse("an owner run is waiting");
+  const lock = tryAcquire(dataDir, "operator", opts.lock);
+  if (!lock.ok) return refuse("a dry run is already running");
+  try {
+    // Counted under the lock, so two operator calls cannot both take the last place.
+    const state = batchState(db, batchId);
+    if (state.captchaHalt) {
+      err("operator-dry-run: batch halted: captcha\n");
+      return 2;
+    }
+    if (state.runs >= state.limit) return refuse("batch full");
+    if (state.windowFull) return refuse("daily operator limit reached");
+    if (!isDryRunCandidate(db, postingId)) return refuse("not a candidate");
+    const prepared = prepareRealRun(db, postingId);
+    if ("refusal" in prepared) return refuse(prepared.refusal);
+    // The starter goes into the run's own insert: a run that throws afterwards is still counted.
+    const summary = await runFiller(prepared, {
       db,
       dataDir,
       postingId,
-      url,
-      fixture: false,
-      headless: values.headless,
+      headless: false,
+      starter: { by: "operator", batch: batchId },
     });
-    out(summaryLine(summary, dataDir));
+    out(operatorSummaryLine(summary, postingId, prepared.vendor));
     return summary.status === "error" ? 1 : 0;
-  } catch (e) {
-    err(describeError(e));
-    return 1;
+  } finally {
+    lock.release();
   }
+}
+
+/** The operator's summary line: run id, posting id, ATS, status, stop reason, filled / total. No value, no path. */
+export function operatorSummaryLine(
+  s: GreenhouseRunSummary | LeverRunSummary | AshbyRunSummary,
+  postingId: string,
+  ats: string,
+): string {
+  const captcha = s.captchaPassive.length > 0 ? " captcha=passive" : "";
+  return `operator-dry-run: run=${sanitizeText(s.runId)} posting=${sanitizeText(postingId)} ats=${ats} status=${s.status} reason=${s.stopReason ?? "-"} fields=${s.filled}/${s.total}${captcha}\n`;
 }

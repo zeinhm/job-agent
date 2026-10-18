@@ -1,5 +1,14 @@
 export { BROWSER_INSTALL_COMMAND, BrowserMissingError } from "./browser.ts";
 export { dataDirOfDb } from "./output.ts";
+export {
+  LOCK_STALE_MS,
+  acquireOwner,
+  ownerWaiting,
+  tryAcquire,
+  type Acquired,
+  type LockKind,
+  type LockOptions,
+} from "./lock.ts";
 export { AUTOCOMPLETE_NOTES } from "./autocomplete.ts";
 export { MAX_PRINTED, errorLine, errorWhere, refusalLine, sanitizeText } from "./safe-output.ts";
 export { ASHBY_READ_ONLY_OPERATIONS, type AbortedRequest, type GuardAts } from "./request-guard.ts";

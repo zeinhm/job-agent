@@ -193,7 +193,7 @@ describe("dry-run-report", () => {
       stop_reason: "other",
     });
     const r = await report();
-    expect(r.out).toMatch(/started="2026-10-11T10:00:00.000Z" fixture status=stopped/);
+    expect(r.out).toMatch(/started="2026-10-11T10:00:00.000Z"( by=\S+)? fixture status=stopped/);
     expect(r.out).not.toContain("REGRESSION");
   });
 

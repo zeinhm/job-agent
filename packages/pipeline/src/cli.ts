@@ -11,7 +11,7 @@ import {
   openDb,
   source_runs,
 } from "@job-agent/core";
-import { importAnswers, loadAnswers, matchQuestions } from "@job-agent/apply";
+import { errorLine, importAnswers, loadAnswers, matchQuestions } from "@job-agent/apply";
 import { buildAdapters, createLinkedInDetailFetcher } from "@job-agent/sources";
 import { loadPollableCompanies, syncConfigCompanies } from "./companies.ts";
 import { runResolveApply } from "./apply-links/index.ts";
@@ -27,7 +27,13 @@ import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
 import { computeDayStats, formatStats, isDigestDate, jakartaDate } from "./review/index.ts";
-import { DRY_RUN_USAGE, describeError as describeDryRunError, runDryRun } from "./dry-run.ts";
+import {
+  DRY_RUN_USAGE,
+  OPERATOR_DRY_RUN_USAGE,
+  describeError as describeDryRunError,
+  runDryRun,
+  runOperatorDryRun,
+} from "./dry-run.ts";
 import { runDryRunReport, type RawArgs } from "./dry-run-report.ts";
 import { refusalReason, runSeedDemo } from "./seed-demo.ts";
 
@@ -305,6 +311,37 @@ const commands: Record<string, Command> = {
       db.$client.close();
     }
   },
+  "operator-dry-run": async (args, io) => {
+    let positionals: string[];
+    try {
+      // No option exists: the run is always headed and always on the real database.
+      positionals = parseArgs({ args, allowPositionals: true, options: {} }).positionals;
+    } catch {
+      io.err(`operator-dry-run: refused: invalid arguments\n${OPERATOR_DRY_RUN_USAGE}`);
+      return 2;
+    }
+    let dbPath: string;
+    let db;
+    try {
+      dbPath = defaultDbPath();
+      db = openDb(dbPath);
+    } catch (e) {
+      io.err(errorLine("operator-dry-run", e));
+      return 1;
+    }
+    try {
+      return await runOperatorDryRun({
+        positionals,
+        db,
+        dbPath,
+        isRealDb: refusalReason(process.env["JOB_AGENT_DB"]) !== null,
+        out: io.out,
+        err: io.err,
+      });
+    } finally {
+      db.$client.close();
+    }
+  },
   "dry-run-report": (args, io) => {
     let parsed: RawArgs | null = null;
     try {
@@ -412,7 +449,7 @@ const usage = (): string =>
     Object.keys(commands)
       .map((name) => `  ${name}`)
       .join("\n") || "  (none yet)"
-  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse, Lever or Ashby form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever|ashby  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n  dry-run-report [--batch <id>] [--posting <id>] [--since <ISO date>] [--last <n>]  read-only, value-free report of recent dry runs with a regression flag\n`;
+  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse, Lever or Ashby form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever|ashby  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n  operator-dry-run <batch-id> <posting-id>  agent-only: the same real-form run, always headed, with the batch limits, the shared lock and the CAPTCHA halt enforced (real DB only)\n  dry-run-report [--batch <id>] [--posting <id>] [--since <ISO date>] [--last <n>]  read-only, value-free report of recent dry runs with a regression flag\n`;
 
 export async function main(
   argv: string[],

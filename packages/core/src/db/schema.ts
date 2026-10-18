@@ -337,6 +337,8 @@ export const unknown_questions = sqliteTable("unknown_questions", {
 });
 
 export const DRY_RUN_ATS_TYPES = ["greenhouse", "lever", "ashby"] as const;
+/** Who started a run; NULL (every run before the operator role) means the owner. */
+export const DRY_RUN_STARTERS = ["owner", "operator"] as const;
 export const DRY_RUN_STATUSES = ["filled", "needs_input", "stopped", "error"] as const;
 export const DRY_RUN_STOP_REASONS = [
   "uncovered_question",
@@ -390,6 +392,8 @@ export const dry_runs = sqliteTable(
     review_note: text("review_note"),
     reviewed_at: text("reviewed_at"), // ISO 8601 UTC
     fixture: integer("fixture", { mode: "boolean" }).notNull().default(false),
+    started_by: text("started_by", { enum: DRY_RUN_STARTERS }), // NULL = owner (rows from before the operator role)
+    operator_batch: text("operator_batch"), // batch id of an operator-started run
   },
   (table) => ({
     dry_runs_posting: index("dry_runs_posting").on(table.posting_id),

@@ -123,4 +123,15 @@ export {
   type TierAsk,
 } from "./fill-plan.ts";
 export { loadFillContext, recordUncoveredLabels } from "./fill-plan-db.ts";
+export { isDryRunCandidate } from "./dry-run-candidate.ts";
+export {
+  BATCH_ID,
+  EARLY_BATCHES,
+  EARLY_BATCH_RUNS,
+  LATER_BATCH_RUNS,
+  OPERATOR_WINDOW_MS,
+  OPERATOR_WINDOW_RUNS,
+  batchState,
+  type BatchState,
+} from "./operator-batch.ts";
 export * from "./dryrun/index.ts";

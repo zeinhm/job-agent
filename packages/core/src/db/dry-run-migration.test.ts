@@ -42,6 +42,8 @@ describe("dry-run tables migration (0008)", () => {
       "review_note",
       "reviewed_at",
       "fixture",
+      "started_by",
+      "operator_batch",
     ]);
     expect(cols(db, "dry_run_fields")).toEqual([
       "id",
@@ -122,6 +124,42 @@ describe("dry-run tables migration (0008)", () => {
     expect(db.select().from(dry_runs).all()).toEqual([]);
     expect(db.select().from(dry_run_fields).all()).toEqual([]);
     expect(db.select().from(choice_mappings).all()).toEqual([]);
+    db.$client.close();
+  });
+
+  it("0009 adds nullable started_by / operator_batch; an existing run keeps every value and reads NULL (= owner)", () => {
+    const folder = join(dir, "before9");
+    mkdirSync(join(folder, "meta"), { recursive: true });
+    const journal = JSON.parse(readFileSync(join(drizzleDir, "meta/_journal.json"), "utf8")) as {
+      entries: Array<{ tag: string }>;
+    };
+    journal.entries = journal.entries.filter((e) => e.tag < "0009");
+    for (const e of journal.entries)
+      cpSync(join(drizzleDir, `${e.tag}.sql`), join(folder, `${e.tag}.sql`));
+    writeFileSync(join(folder, "meta/_journal.json"), JSON.stringify(journal));
+    const file = join(dir, "old9.db");
+    const old = new Database(file);
+    migrate(drizzle(old), { migrationsFolder: folder });
+    old
+      .prepare(
+        `INSERT INTO postings (id, source, external_id, url, title, company_name, first_seen_at, last_seen_at)
+         VALUES ('p1', 'greenhouse', 'gh1', 'https://example.com/jobs/1', 'Fake title', 'Fake Co', '2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z')`,
+      )
+      .run();
+    old
+      .prepare(
+        `INSERT INTO dry_runs (id, posting_id, ats_type, started_at, finished_at, status, fixture)
+         VALUES ('r1', 'p1', 'greenhouse', '2026-10-01T00:00:00Z', '2026-10-01T00:00:01Z', 'filled', 0)`,
+      )
+      .run();
+    const before = old.prepare("SELECT * FROM dry_runs").all();
+    old.close();
+
+    const db = openDb(file);
+    expect(cols(db, "dry_runs").slice(-2)).toEqual(["started_by", "operator_batch"]);
+    expect(db.$client.prepare("SELECT * FROM dry_runs").all()).toEqual([
+      { ...(before[0] as object), started_by: null, operator_batch: null },
+    ]);
     db.$client.close();
   });
 

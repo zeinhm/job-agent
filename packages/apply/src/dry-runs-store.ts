@@ -6,6 +6,7 @@ import {
   DRY_RUN_FIELD_SOURCES,
   DRY_RUN_REVIEW_REASONS,
   DRY_RUN_REVIEWS,
+  DRY_RUN_STARTERS,
   DRY_RUN_STATUSES,
   DRY_RUN_STOP_REASONS,
   dry_run_fields,
@@ -71,6 +72,9 @@ export const NewDryRunSchema = z
     stop_detail: nullableText(200),
     screenshot_path: relativePath.nullish(),
     fixture: z.boolean(),
+    /** Who started the run and, for the operator, its batch: written with the row so a run is never uncounted. */
+    started_by: z.enum(DRY_RUN_STARTERS).nullish(),
+    operator_batch: z.string().min(1).max(64).nullish(),
     fields: z.array(DryRunFieldInputSchema).max(500),
   })
   .superRefine((run, ctx) => {
@@ -127,6 +131,8 @@ export function recordDryRun(db: Db, input: NewDryRunInput): string {
         stop_detail: run.stop_detail ?? null,
         screenshot_path: run.screenshot_path ?? null,
         fixture: run.fixture,
+        started_by: run.started_by ?? null,
+        operator_batch: run.started_by === "operator" ? (run.operator_batch ?? null) : null,
       })
       .run();
     for (const f of run.fields) {

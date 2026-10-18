@@ -13,6 +13,7 @@ import {
   DryRunSession,
   HarnessRefusalError,
   openDryRunSession,
+  type DryRunSessionOptions,
   type FinishedRun,
 } from "../session.ts";
 import { describeComparison } from "../greenhouse/form.ts";
@@ -38,6 +39,8 @@ export interface LeverRunOptions {
   fixture: boolean;
   /** Default true; the owner-run CLI opens a visible window unless `--headless`. */
   headless?: boolean;
+  /** Who started the run (see `DryRunSessionOptions.starter`). */
+  starter?: DryRunSessionOptions["starter"];
   /** Answers, choice mappings, tier ask and scam flag; default: read from the DB (`loadFillContext`). */
   context?: PlanContext;
   probeResume?: ResumeProbe;
@@ -219,6 +222,7 @@ export async function runLeverDryRun(opts: LeverRunOptions): Promise<LeverRunSum
     url: opts.url,
     fixture: opts.fixture,
     ...(opts.headless !== undefined ? { headless: opts.headless } : {}),
+    ...(opts.starter !== undefined ? { starter: opts.starter } : {}),
   });
   const done = async (
     result: Parameters<DryRunSession["finish"]>[0],

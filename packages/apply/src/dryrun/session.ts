@@ -39,6 +39,8 @@ export interface DryRunSessionOptions {
   ready?: string;
   /** Opened once when `url` redirects to another host (same guards and detectors); never tried after any other stop. */
   fallbackUrl?: string;
+  /** Written with the run row (`started_by`, `operator_batch`); omitted for fixture runs. */
+  starter?: { by: "owner" | "operator"; batch: string | null };
 }
 
 export interface DryRunResult {
@@ -343,6 +345,9 @@ export class DryRunSession {
         stop_detail: resolved.stopDetail,
         screenshot_path: null,
         fixture: this.#opts.fixture,
+        ...(this.#opts.starter !== undefined
+          ? { started_by: this.#opts.starter.by, operator_batch: this.#opts.starter.batch }
+          : {}),
         fields: resolved.fields,
       });
       const screenshotPath = finalizeScreenshot(this.#opts.dataDir, day, pending, runId);
