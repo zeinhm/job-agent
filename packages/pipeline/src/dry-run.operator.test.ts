@@ -307,6 +307,9 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     const line = "operator-dry-run: refused: not a candidate\n";
     fakeFiller();
     await refused(["b", `nope-${M}`], line);
+    addCandidate("noi");
+    db.delete(intel).where(eq(intel.posting_id, "noi")).run();
+    await refused(["b", "noi"], line);
     addCandidate("rej", "reject");
     await refused(["b", "rej"], line);
     addCandidate("sus", "suspicious");

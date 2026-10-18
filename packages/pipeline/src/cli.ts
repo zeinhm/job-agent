@@ -34,6 +34,7 @@ import {
   runDryRun,
   runOperatorDryRun,
 } from "./dry-run.ts";
+import { runDryRunCandidates, type CandidatesArgs } from "./dry-run-candidates.ts";
 import { runDryRunReport, type RawArgs } from "./dry-run-report.ts";
 import { refusalReason, runSeedDemo } from "./seed-demo.ts";
 
@@ -360,6 +361,19 @@ const commands: Record<string, Command> = {
     }
     return runDryRunReport({ args: parsed, dbPath: defaultDbPath(), out: io.out, err: io.err });
   },
+  "dry-run-candidates": (args, io) => {
+    let parsed: CandidatesArgs | null = null;
+    try {
+      parsed = parseArgs({
+        args,
+        allowPositionals: true,
+        options: { limit: { type: "string" } },
+      });
+    } catch {
+      // The parser's message quotes what was typed: runDryRunCandidates prints fixed text only.
+    }
+    return runDryRunCandidates({ args: parsed, dbPath: defaultDbPath(), out: io.out, err: io.err });
+  },
   "seed-demo": (args, io) => {
     let date: string | undefined;
     try {
@@ -449,7 +463,7 @@ const usage = (): string =>
     Object.keys(commands)
       .map((name) => `  ${name}`)
       .join("\n") || "  (none yet)"
-  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse, Lever or Ashby form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever|ashby  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n  operator-dry-run <batch-id> <posting-id>  agent-only: the same real-form run, always headed, with the batch limits, the shared lock and the CAPTCHA halt enforced (real DB only)\n  dry-run-report [--batch <id>] [--posting <id>] [--since <ISO date>] [--last <n>]  read-only, value-free report of recent dry runs with a regression flag\n`;
+  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse, Lever or Ashby form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever|ashby  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n  operator-dry-run <batch-id> <posting-id>  agent-only: the same real-form run, always headed, with the batch limits, the shared lock and the CAPTCHA halt enforced (real DB only)\n  dry-run-report [--batch <id>] [--posting <id>] [--since <ISO date>] [--last <n>]  read-only, value-free report of recent dry runs with a regression flag\n  dry-run-candidates [--limit <n>]  read-only list of the postings worth a real dry run, nearest to a full fill first (ids, ATS, title, counts; no values)\n`;
 
 export async function main(
   argv: string[],

@@ -1,5 +1,6 @@
-import { intel, REVIEW_STATUS_ACTIONS, reviews, type Db } from "@job-agent/core";
+import { intel, REVIEW_ACTIONS, REVIEW_STATUS_ACTIONS, reviews, type Db } from "@job-agent/core";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod";
 import { loadFillContext } from "./fill-plan-db.ts";
 
 /**
@@ -18,6 +19,8 @@ export function isDryRunCandidate(db: Db, postingId: string): boolean {
     .where(eq(reviews.posting_id, postingId))
     .orderBy(desc(reviews.reviewed_at), desc(reviews.id))
     .all()
+    // A stored action outside the schema throws (the candidate list prints nothing then) instead of passing as "no status".
+    .map((r) => ({ action: z.enum(REVIEW_ACTIONS).parse(r.action) }))
     .find((r) => (REVIEW_STATUS_ACTIONS as readonly string[]).includes(r.action));
   return status?.action !== "not_interested" && status?.action !== "applied_manually";
 }

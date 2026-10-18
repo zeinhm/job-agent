@@ -76,7 +76,7 @@ export function formUrl(link: AtsLink, storedSlug: string | null): string | null
 }
 
 /** The stored Greenhouse board of a posting: `apply_links.ats_slug`, then the company's Greenhouse board. */
-function storedGreenhouseSlug(
+export function storedGreenhouseSlug(
   db: Db,
   link: { ats_type: string | null; ats_slug: string | null } | null,
   companyId: string | null,
