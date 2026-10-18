@@ -1,5 +1,5 @@
 {
   "permissions": {
-    "allow": []
+    "allow": ["Bash(./bin/test-:*)", "Bash(bash bin/test-:*)", "Bash(bin/test-:*)"]
   }
 }
