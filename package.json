@@ -15,7 +15,7 @@
     "build:web": "pnpm --filter @job-agent/dashboard build",
     "check": "pnpm typecheck && pnpm lint && pnpm build:web && pnpm test && bash .githooks/test-pre-commit.sh && bash bin/test-hold.sh && bash bin/test-agent-step.sh && bash bin/test-backup.sh && bash scripts/test-python.sh",
     "job-agent": "tsx packages/pipeline/src/cli.ts",
-    "dashboard": "tsx apps/dashboard/src/server/main.ts",
+    "dashboard": "pnpm build:web && tsx apps/dashboard/src/server/main.ts",
     "playwright:install": "pnpm --filter @job-agent/apply exec playwright install chromium",
     "db:generate": "drizzle-kit generate",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"

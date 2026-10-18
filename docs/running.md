@@ -170,6 +170,9 @@ pnpm dashboard --port 4600  # another port
 pnpm dashboard --self-check # starts on a free port, requests /api/health and /api/queue, prints one line each, exits
 ```
 
+`pnpm dashboard` runs `pnpm build:web` first, so merged dashboard changes always show. A failed build exits non-zero and
+starts no server. Expect the build output (and a few seconds) before the `dashboard:` line.
+
 Open the printed URL. It listens on **127.0.0.1 only** (there is no flag or variable to open another interface), reads
 the same database as the CLI (`JOB_AGENT_DB`, default `data/job-agent.db`) and refuses requests with a foreign `Host`
 or `Origin` header. Stop it with Ctrl-C. A busy port prints `dashboard: cannot listen on 127.0.0.1:<port> (<code>)` and
