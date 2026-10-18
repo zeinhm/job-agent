@@ -11,9 +11,10 @@
 #   waiting for a rework    -> card back to Todo, linked to the rework card
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
+. "$(dirname "$0")/operator-dispatch.sh"
 cd "$REPO"
 ONCE=0; [ "${1:-}" = "--once" ] && ONCE=1
-ROLES=" dev qa auditor researcher pm "
+ROLES=" dev qa auditor researcher pm operator "
 
 hold() { # $1 id, $2 DOCTOR|OWNER, $3 text  (unique reason -> never triage); owner-only causes are always OWNER
   local k; k="$(counter notes "$1.hold")"
@@ -145,6 +146,7 @@ pass() {
   for f in "$STATE"/running/*; do [ -e "$f" ] || continue; pid="$(cat "$f")"; kill -0 "$pid" 2>/dev/null || rm -f "$f"; done
   [ -f "$STATE/pro-paused-until" ] && ! pro_paused && { rm -f "$STATE/pro-paused-until"; log "Pro limit reset: Pro roles resume"; }
   poll_cloud
+  op_tick
   B="$(board)"
   while read -r id st role; do          # promote todo cards whose parents are done
     [ "$st" = todo ] || continue
@@ -173,6 +175,7 @@ EOF
       continue
     fi
     pro_paused && continue
+    [ "$role" = operator ] && ! op_in_window && continue   # batches only start inside the window
     [ "$(local_count)" -ge "$MAX_PARALLEL" ] && break
     busy_role "$role" && continue
     hk claim "$id" >/dev/null 2>&1 || { log "claim failed for $id"; continue; }

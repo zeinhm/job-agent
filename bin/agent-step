@@ -10,8 +10,9 @@
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
 . "$(dirname "$0")/step-git.sh"
+. "$(dirname "$0")/operator-dispatch.sh"
 ROLE="${1:?role}"; ID="${2:?task id}"
-case "$ROLE" in dev|qa|auditor|researcher|pm) ;; *) echo "unknown role $ROLE" >&2; exit 2 ;; esac
+case "$ROLE" in dev|qa|auditor|researcher|pm|operator) ;; *) echo "unknown role $ROLE" >&2; exit 2 ;; esac
 cd "$REPO"
 H="$REPO/data/handoff"; mkdir -p "$H"
 CARDF="$H/$ID-card.md"; PROMPTF="$H/$ID-prompt.md"; OUTF="$H/$ID-out.txt"; COMMENTF="$H/$ID-comment.md"; REPORTF="$H/$ID-report.md"
@@ -48,6 +49,7 @@ squash_merge(){ # $1 branch, $2 commit title -> merged and pushed, or a sync rew
   git diff --cached --quiet && { unlock_main; complete "Nothing to merge: $br is already in main"; }
   CE="$(git commit -q -m "$2 ($ID, squash of $br)${BACKUP_NOTE:+$NL$NL$BACKUP_NOTE}" 2>&1)" || { git reset -q --hard HEAD; unlock_main; question "the squash commit of $br was refused by the pre-commit hook: $(errtail "$CE")"; }
   PE="$(gpush -q origin main 2>&1)" || { git reset -q --hard HEAD~1; unlock_main; question "push of main failed after merging $br: $(errtail "$PE")"; }
+  operator_note_merge HEAD "$(printf '%s' "$br" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')"   # dispatch turns it into an operator batch
 }
 sync_rework(){ # $1 branch, $2 conflicting files
   local f="$H/$ID-sync.md"
@@ -127,6 +129,7 @@ VLINE="$(grep '^VERDICT:' "$OUTF" | tail -1)"
 VERDICT="$(printf '%s' "$VLINE" | sed -E 's/^VERDICT: *([A-Z]+).*/\1/')"
 VSUM="$(printf '%s' "$VLINE" | awk -F'|' '{print $NF}' | sed -E 's/^ +//; s/ +$//')"
 post_comment
+[ "$ROLE" = operator ] && { copy_owner_summary "$COMMENTF" || log "could not copy the operator summary"; }   # also after BLOCKED (CAPTCHA)
 [ "$VERDICT" = BLOCKED ] && question "$VSUM"
 
 # ------------------------------------------------------------------ act on the verdict
@@ -164,6 +167,9 @@ case "$ROLE" in
     if [ -n "$AUDIT_TAG" ]; then TAGNOTE="tag $AUDIT_TAG set"; [ "$AUDIT_TAG" != "audit-$N" ] && TAGNOTE="$TAGNOTE (audit-$N already existed)"
     else TAGNOTE="no tag set"; fi
     complete "Audit $VERDICT ($TAGNOTE${AUDIT_REPORT:+, report $AUDIT_REPORT}${LEDGER_NOTE:+, $LEDGER_NOTE}): $VSUM (fix tasks, if any, are listed in the report)" ;;
+  operator)   # main checkout, no main lock, no commit, no worktree
+    [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the operator run"
+    complete "$VSUM" ;;
   researcher|pm)
     [ "$VERDICT" = DONE ] || question "unexpected verdict $VERDICT from the $ROLE run"
     lock_main; main_ready

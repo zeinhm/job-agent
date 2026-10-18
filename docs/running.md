@@ -959,8 +959,21 @@ The last section of every digest has one line per source that has ever run, buil
 ## Operator
 
 The `operator` role (prompts/roles/operator.md, model `MODEL_operator`, default sonnet) runs the real dry-run loop for you:
-candidates -> real dry runs -> report -> fix cards -> re-run after a merged fix. Dispatch and triggers come with the O6 card;
-until then it only runs when started by hand.
+candidates -> real dry runs -> report -> fix cards -> re-run after a merged fix. `bin/dispatch` starts it by itself (below).
+
+- **Dispatch and triggers (`bin/operator-dispatch.sh`, settings in `bin/jobagent.conf`).** `operator` is a dispatched local role:
+  `bin/agent-step operator <id>` runs in the main checkout, takes no main lock, commits nothing and creates no worktree;
+  `VERDICT: DONE` completes the card, `BLOCKED` becomes a question (an `OWNER:` summary is held `[OWNER]`).
+  Two triggers create one card `Operator batch <YYYY-MM-DD HH:MM> (after <dev card ids>)` / `(daily)`, assigned to the operator
+  (the card id is the batch id; the body names the merged cards so their postings are re-run first):
+  (1) **merge**: after a squash merge is pushed, `agent-step` records the dev card when the merged commit touches
+  `OPERATOR_PATHS` (default `packages/apply/src/`, `packages/pipeline/src/dry-run*`, `packages/pipeline/src/cli.ts`, prefix match);
+  (2) **daily**: at `OPERATOR_DAILY_AT` (default 10:00) if no batch card was created that day.
+  Batches only start inside `OPERATOR_WINDOW_START`-`OPERATOR_WINDOW_END` (default 08:00-22:00, local time, merge-triggered ones
+  included); a trigger outside the window waits (kept in `data/dispatch/operator-pending`) and fires when the window opens, and
+  the dispatcher does not start a ready operator card outside it. **Never two:** while an operator card is todo / ready /
+  running / blocked, a trigger only becomes a comment on that card, never a second card (also when the board cannot be read).
+  Hand-start a batch: create a card assigned to `operator`.
 
 - **What it runs.** Only `bin/operator candidates [--limit n] | report [--posting id] [--since date] [--last n] | run <batch-id> <posting-id>`
   (it calls `dry-run-candidates`, `dry-run-report`, `operator-dry-run` in the main checkout, prints their stdout and drops stderr;
@@ -979,5 +992,7 @@ until then it only runs when started by hand.
 - **How to stop it.** Block its card (`hermes kanban block <card>`); a form already open ends by itself (the
   lock is stale after 30 minutes). Your own `dry-run` always wins the lock.
 - **Where the summary is.** The last section of its report (`## Owner summary`: runs ready for your Correct/Wrong, open root causes,
-  `[OWNER]` holds) on the operator card; the O6 card copies it to `data/dispatch/operator-summary.md`. You still mark runs
-  Correct/Wrong; the operator never does.
+  `[OWNER]` holds) on the operator card; `agent-step` copies exactly that section to `data/dispatch/operator-summary.md`
+  after every batch (DONE or BLOCKED), overwriting the previous one; a report without the section leaves a one-line note
+  instead. **Owner applies, outside this repo:** add `data/dispatch/operator-summary.md` to the NEEDS-ZEIN generator in
+  job-agent-ops. You still mark runs Correct/Wrong; the operator never does.
