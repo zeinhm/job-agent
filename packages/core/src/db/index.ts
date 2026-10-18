@@ -54,6 +54,17 @@ export function openDb(path: string) {
   return db;
 }
 
+/**
+ * Opens an existing DB file for reading only: no folder is created, no migration runs, and every statement that would
+ * change the file fails. For commands that must never write (reports).
+ */
+export function openDbReadonly(path: string): Db {
+  const sqlite = new Database(path, { readonly: true, fileMustExist: true });
+  sqlite.pragma("query_only = ON");
+  sqlite.pragma("busy_timeout = 5000");
+  return drizzle(sqlite, { schema });
+}
+
 export type Db = ReturnType<typeof openDb>;
 
 // Re-export inferred row types from schema

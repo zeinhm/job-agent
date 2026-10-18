@@ -43,7 +43,7 @@ describe("Phase 3 run docs", () => {
     ...new Set(
       [
         ...cli.matchAll(
-          /(?:^|[\s{,])"?(source|force|limit|no-reextract|reextract-only|reprocess|date|out-dir|include-unpaid|headless|fixture)"?: \{/g,
+          /(?:^|[\s{,])"?(source|force|limit|no-reextract|reextract-only|reprocess|date|out-dir|include-unpaid|headless|fixture|batch|posting|since|last)"?: \{/g,
         ),
       ].map((m) => m[1] as string),
     ),
@@ -74,16 +74,20 @@ describe("Phase 3 run docs", () => {
     );
     expect(flagNames.sort()).toEqual(
       [
+        "batch",
         "date",
         "fixture",
         "force",
         "headless",
         "include-unpaid",
+        "last",
         "limit",
         "no-reextract",
         "out-dir",
+        "posting",
         "reextract-only",
         "reprocess",
+        "since",
         "source",
       ].sort(),
     );

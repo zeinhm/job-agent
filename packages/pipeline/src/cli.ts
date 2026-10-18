@@ -28,6 +28,7 @@ import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
 import { computeDayStats, formatStats, isDigestDate, jakartaDate } from "./review/index.ts";
 import { DRY_RUN_USAGE, describeError as describeDryRunError, runDryRun } from "./dry-run.ts";
+import { runDryRunReport, type RawArgs } from "./dry-run-report.ts";
 import { refusalReason, runSeedDemo } from "./seed-demo.ts";
 
 export interface Io {
@@ -304,6 +305,24 @@ const commands: Record<string, Command> = {
       db.$client.close();
     }
   },
+  "dry-run-report": (args, io) => {
+    let parsed: RawArgs | null = null;
+    try {
+      parsed = parseArgs({
+        args,
+        allowPositionals: true,
+        options: {
+          batch: { type: "string" },
+          posting: { type: "string" },
+          since: { type: "string" },
+          last: { type: "string" },
+        },
+      });
+    } catch {
+      // The parser's message quotes what was typed: runDryRunReport prints fixed text only.
+    }
+    return runDryRunReport({ args: parsed, dbPath: defaultDbPath(), out: io.out, err: io.err });
+  },
   "seed-demo": (args, io) => {
     let date: string | undefined;
     try {
@@ -393,7 +412,7 @@ const usage = (): string =>
     Object.keys(commands)
       .map((name) => `  ${name}`)
       .join("\n") || "  (none yet)"
-  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse, Lever or Ashby form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever|ashby  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n`;
+  }\n\nOptions:\n  process --reprocess  re-apply the current rules and resolve to every stored posting (no LLM call)\n  dry-run <posting-id> [--headless]  fill the posting's Greenhouse, Lever or Ashby form and screenshot it; never submits (owner-run, headed by default)\n  dry-run --fixture greenhouse|lever|ashby  the same on the committed fixture form (127.0.0.1, fake persona, scratch DB only)\n  dry-run-report [--batch <id>] [--posting <id>] [--since <ISO date>] [--last <n>]  read-only, value-free report of recent dry runs with a regression flag\n`;
 
 export async function main(
   argv: string[],

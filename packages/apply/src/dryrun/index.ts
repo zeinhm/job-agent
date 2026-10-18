@@ -1,5 +1,6 @@
 export { BROWSER_INSTALL_COMMAND, BrowserMissingError } from "./browser.ts";
 export { dataDirOfDb } from "./output.ts";
+export { AUTOCOMPLETE_NOTES } from "./autocomplete.ts";
 export { MAX_PRINTED, errorLine, errorWhere, refusalLine, sanitizeText } from "./safe-output.ts";
 export { ASHBY_READ_ONLY_OPERATIONS, type AbortedRequest, type GuardAts } from "./request-guard.ts";
 export type { PageAttempt } from "./page-guard.ts";

@@ -14,6 +14,7 @@ export {
 export {
   defaultDbPath,
   openDb,
+  openDbReadonly,
   type Db,
   type Analysis,
   type Company,
