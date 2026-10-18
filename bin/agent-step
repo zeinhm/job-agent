@@ -37,11 +37,17 @@ post_comment(){ local f="$COMMENTF"; [ -s "$f" ] || { printf 'Report (no comment
 task_branch(){ local b; b="$(git branch --list "task/$1-*" --format='%(refname:short)' | head -1)"
                [ -z "$b" ] && b="$(git ls-remote --heads origin "task/$1-*" 2>/dev/null | awk '{print $2}' | sed 's#refs/heads/##' | head -1)"
                printf '%s' "$b"; }
+# Reports that can carry the OWNER backup line: the dev card, its child (rework) cards, and the review card being run
+# with its parents. Prints nothing when the dev card cannot be read, so backup_before_merge fails closed.
+backup_report_text(){ local dc rc x; dc="$(card "$1")"; printf '%s' "$dc" | head -1 | grep -q "^Task $1" || return 0
+  printf '%s\n' "$dc"; rc="$(cat "$CARDF" 2>/dev/null)"; printf '%s\n' "$rc"
+  for x in $(field "$dc" children | tr ',' ' ') $(field "$rc" parents | tr ',' ' '); do
+    [ "$x" = "$1" ] || [ "$x" = "$ID" ] || card "$x"; done; }
 squash_merge(){ # $1 branch, $2 commit title -> merged and pushed, or a sync rework
   local br="$1" ref cf
   lock_main; main_ready
   # a report with the OWNER backup line: back up the DB first, or hold the card; nothing is merged without it
-  backup_before_merge "$(card "$(printf '%s' "$br" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')")" "$COMMENTF" || { unlock_main; question "OWNER: DB backup before merging $br failed: $STEP_ERR"; }
+  backup_before_merge "$(backup_report_text "$(printf '%s' "$br" | sed -nE 's#^task/(t_[0-9a-f]+)-.*#\1#p')")" "$COMMENTF" || { unlock_main; question "OWNER: DB backup before merging $br failed: $STEP_ERR"; }
   git fetch -q origin "$br" 2>/dev/null; ref="origin/$br"; git show-ref --quiet "refs/remotes/$ref" || ref="$br"
   if ! git merge -q --squash "$ref" >/dev/null 2>&1; then
     cf="$(git diff --name-only --diff-filter=U)"; git reset -q --hard HEAD; unlock_main; sync_rework "$br" "$cf"

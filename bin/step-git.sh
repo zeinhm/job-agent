@@ -40,7 +40,7 @@ sync_main() {
 # Does tag audit-$1 exist locally or on origin?
 audit_tag_exists() {
   git rev-parse -q --verify "refs/tags/audit-$1" >/dev/null 2>&1 && return 0
-  git ls-remote --tags origin "refs/tags/audit-$1" 2>/dev/null | grep -q .
+  git ls-remote --tags origin "refs/tags/audit-$1" 2>/dev/null | grep . >/dev/null
 }
 
 # First number >= $1 that has neither an audit tag nor a report docs/audits/$2-<n>.md.
@@ -103,11 +103,12 @@ record_audit() {
 # ---- DB backup before a merge (card t_3625211b) ----------------------------------------------------------------
 # Match rule: a line that, after optional spaces, an optional hermes comment prefix ("[2026-10-17 18:25] author: ")
 # and an optional `**`, starts with `OWNER: back up data/job-agent.db`. A mention elsewhere in a line does not count.
-BACKUP_LINE_RE='^[[:space:]]*(\[[0-9: -]+\] [^:]+: )?[[:space:]]*(\*\*)?[[:space:]]*OWNER: back up data/job-agent\.db'
+# A list bullet ("- ", "* ", "+ ") is accepted before the prefix or before the text (t_bfb86593).
+BACKUP_LINE_RE='^[[:space:]]*([-*+][[:space:]]+)?(\[[0-9: -]+\] [^:]+: )?[[:space:]]*([-*+][[:space:]]+)?(\*\*)?[[:space:]]*OWNER: back up data/job-agent\.db'
 BACKUP_KEEP=5
 
 # Does stdin carry the backup line?
-has_backup_line() { grep -qE "$BACKUP_LINE_RE"; }
+has_backup_line() { grep -E "$BACKUP_LINE_RE" >/dev/null; }  # no -q: it must drain stdin, or the writer gets SIGPIPE and pipefail reads it as "no line"  # no -q: it must drain stdin, or the writer gets SIGPIPE and pipefail reads it as "no line"
 
 # Dev card text without its Body section (the card body quotes the rule, it is not a report).
 card_reports() { printf '%s\n' "$1" | awk '/^Body:/{skip=1;next} /^(Latest summary|Comments|Events|Runs)( \([0-9]+\))?:/{skip=0} !skip'; }
@@ -116,9 +117,21 @@ card_reports() { printf '%s\n' "$1" | awk '/^Body:/{skip=1;next} /^(Latest summa
 # STEP_ERR when the line is there and the backup failed. DB path: $BACKUP_DB (tests override), else <repo>/data/job-agent.db.
 BACKUP_NOTE=""
 backup_before_merge() {
-  local db="${BACKUP_DB:-$REPO/data/job-agent.db}" dir base name bak out f n
+  local db="${BACKUP_DB:-$REPO/data/job-agent.db}"
   BACKUP_NOTE=""
-  { card_reports "$1"; if [ -f "$2" ]; then cat "$2"; fi; } | has_backup_line || return 0
+  # fail closed: without readable reports we cannot know whether a backup is required
+  if [ -z "$(printf '%s' "$1" | tr -d '[:space:]')" ]; then
+    STEP_ERR="the dev card reports could not be read, so it is unknown whether a DB backup is required"
+    log "backup FAILED for $ID: $STEP_ERR"; return 1
+  fi
+  if ! { card_reports "$1"; if [ -f "$2" ]; then cat "$2"; fi; } | has_backup_line; then
+    log "backup not needed for $ID: no OWNER backup line in the dev, QA or audit reports"; return 0
+  fi
+  _backup_run "$db" || { log "backup FAILED for $ID: $STEP_ERR"; return 1; }
+  log "backup made for $ID: $BACKUP_NOTE"; return 0
+}
+_backup_run() {
+  local db="$1" dir base name bak out f n
   dir="$(dirname "$db")"; base="$(basename "$db")"; name="$base.bak-$(date +%Y%m%d%H%M)"; bak="$dir/$name"
   command -v sqlite3 >/dev/null 2>&1 || { STEP_ERR="sqlite3 is not installed"; return 1; }
   [ -s "$db" ] || { STEP_ERR="no database file at data/$base"; return 1; }

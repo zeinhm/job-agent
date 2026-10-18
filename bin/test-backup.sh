@@ -8,7 +8,7 @@ bad() { echo "FAIL: $1"; failn=$((failn+1)); }
 check() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
 
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
-log() { :; }
+LOGF="$T/log"; : > "$LOGF"; log() { echo "$*" >> "$LOGF"; }
 errtail() { printf '%s' "$1" | grep -v '^[[:space:]]*$' | tail -n "${2:-3}" | tr '\n' ' ' | cut -c1-400; }
 REPO="$T/repo"; ID=t_test; ROLE=qa
 . "$BIN/step-git.sh"
@@ -72,6 +72,52 @@ check "agent-step: backup failure ends in an OWNER question" "grep -q 'backup_be
 check "agent-step: QA and audit merges both go through squash_merge, no other merge call" "[ \"\$(grep -c 'squash_merge \"\$BR\"' '$S')\" = 2 ] && [ \"\$(grep -c 'git merge -q --squash' '$S')\" = 1 ]"
 check "agent-step: note goes into the commit message and both summaries" "grep -q 'squash of \$br)\${BACKUP_NOTE' '$S' && [ \"\$(grep -c 'merged \$BR\${BACKUP_NOTE' '$S')\" = 2 ]"
 check "step-git: only .backup and PRAGMA integrity_check touch the DB" "! grep -E 'sqlite3' '$BIN/step-git.sh' | grep -vE 'command -v|\\.backup|integrity_check|^#' | grep -q ."
+
+# t_bfb86593: O1's case. The dev report has the line only as a bullet; the comment line carries the hermes prefix.
+BULLET="$(printf 'Task t_dev: x\n\nBody:\n**Risk:** high\n\nComments (1):\n  [2026-10-18 15:26] default: report\n  - OWNER: back up data/job-agent.db before this merges\n')"
+fresh_db; : > "$LOGF"
+backup_before_merge "$BULLET" "$NOFILE"; rc=$?
+check "O1: bullet form '- OWNER: back up ...' in the dev card: backup made" "[ $rc -eq 0 ] && [ \"\$(baks)\" = 1 ]"
+check "log: backup made is logged" "grep -q 'backup made for t_test: DB backup: data/job-agent.db.bak-' '$LOGF'"
+fresh_db; printf -- '- OWNER: back up data/job-agent.db before merging\n' > "$T/c.md"
+backup_before_merge "$NOCARD" "$T/c.md"
+check "bullet form in the QA/audit comment file: backup made" "[ \"\$(baks)\" = 1 ]"
+fresh_db; printf -- '* **OWNER: back up data/job-agent.db** x\n' > "$T/c.md"
+backup_before_merge "$NOCARD" "$T/c.md"
+check "star bullet with bold: backup made" "[ \"\$(baks)\" = 1 ]"
+fresh_db; printf -- '- see OWNER: back up data/job-agent.db later\n' > "$T/c.md"
+backup_before_merge "$NOCARD" "$T/c.md"
+check "bullet with a mid-line mention: no backup" "[ \"\$(baks)\" = 0 ]"
+fresh_db
+backup_before_merge "$(printf '%s\n%s\n' "$NOCARD" "$BULLET")" "$NOFILE"
+check "line in an additional (rework) card joined into the reports: backup made" "[ \"\$(baks)\" = 1 ]"
+
+# fail closed: unreadable (empty) reports -> non-zero with a reason, no backup, logged
+fresh_db; STEP_ERR=""; : > "$LOGF"
+backup_before_merge "" "$NOFILE"; rc=$?
+check "empty dev card reports: fails closed with a reason" "[ $rc -ne 0 ] && printf '%s' \"\$STEP_ERR\" | grep -q 'could not be read' && [ \"\$(baks)\" = 0 ]"
+check "empty reports: failure logged" "grep -q 'backup FAILED for t_test' '$LOGF'"
+backup_before_merge "$(printf ' \n\n')" "$T/c.md"; rc=$?
+check "whitespace-only reports: fails closed even with a reviewer file" "[ $rc -ne 0 ]"
+fresh_db; : > "$LOGF"
+backup_before_merge "$NOCARD" "$NOFILE"
+check "log: not needed is logged" "grep -q 'backup not needed for t_test' '$LOGF'"
+rm -f "$BACKUP_DB"; : > "$LOGF"
+backup_before_merge "$CARD" "$NOFILE"
+check "log: failed backup is logged with the reason" "grep -q 'backup FAILED for t_test: no database file' '$LOGF'"
+
+# agent-step wiring: reports come from backup_report_text, which prints nothing when the dev card is unreadable
+check "agent-step: backup_report_text feeds backup_before_merge" "grep -q 'backup_before_merge \"\$(backup_report_text' '$BIN/agent-step'"
+check "agent-step: backup_report_text prints nothing for an unreadable dev card" "grep -q 'head -1 | grep -q \"^Task \$1\" || return 0' '$BIN/agent-step'"
+
+# SIGPIPE: grep must drain a large input, or the writer dies (141) and pipefail reports "no line" -> backup skipped
+fresh_db; rm -f "$BACKUP_DB"; STEP_ERR=""
+{ printf 'OWNER: back up data/job-agent.db before this merges\n'; head -c 600000 /dev/zero | tr '\0' 'x' | fold -w 100; echo; } > "$T/big.md"
+backup_before_merge "$NOCARD" "$T/big.md"; rc=$?
+check "large reviewer file, line first, pipefail: backup still requested (fails on the missing DB)" "[ $rc -ne 0 ] && printf '%s' \"\$STEP_ERR\" | grep -q 'no database file'"
+fresh_db
+backup_before_merge "$(printf 'Task t_dev: x\n\nComments (1):\n  [2026-10-18 15:26] default: report\n  - OWNER: back up data/job-agent.db before this merges\n'; head -c 100000 /dev/zero | tr '\0' 'y' | fold -w 100)" "$NOFILE"; rc=$?
+check "large dev card, line first, pipefail: backup made" "[ $rc -eq 0 ] && [ \"\$(baks)\" = 1 ]"
 
 echo "$pass passed, $failn failed"
 [ "$failn" -eq 0 ]
