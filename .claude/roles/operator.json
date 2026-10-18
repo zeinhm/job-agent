@@ -3,8 +3,7 @@
     "allow": [
       "Bash(bin/operator:*)",
       "Bash(hermes kanban list:*)",
-      "Bash(hermes kanban show:*)",
-      "Edit(./data/handoff/**)"
+      "Bash(hermes kanban show:*)"
     ],
     "deny": [
       "Bash(hermes kanban create:*)",
