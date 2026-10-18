@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { openDb, type Db } from "@job-agent/core";
-import { createApp } from "./app.ts";
+import { createApp, errorWhere } from "./app.ts";
 import { parseBody, parseQuery } from "./validate.ts";
 import { startServer, type RunningServer } from "./server.ts";
 
@@ -262,13 +262,26 @@ describe("validation helper and error log", () => {
     expect(res.status).toBe(400);
   });
 
-  it("logs `dashboard error <route> <code>` for an unexpected error, without its message", async () => {
+  it("logs route, code, error name and top frame (file:line) for an unexpected error, without its message", async () => {
     const res = await validated().request("http://x/api/_boom?x=secret", {
       headers: { Host: HOST },
     });
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "internal error" });
-    expect(logs).toEqual(["dashboard error /api/_boom 500"]);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatch(
+      /^dashboard error \/api\/_boom 500 Error at apps\/dashboard\/src\/server\/app\.test\.ts:\d+$/,
+    );
+    expect(logs[0]).not.toContain("Alex Example");
+    expect(logs[0]).not.toContain("secret");
+    expect(logs[0]).not.toContain("/Users/");
+  });
+
+  it("errorWhere falls back to the name when there is no stack frame", () => {
+    const e = new TypeError("x");
+    e.stack = "TypeError: x";
+    expect(errorWhere(e)).toBe("TypeError");
+    expect(errorWhere("boom")).toBe("NonError");
   });
 
   it("does not log validation failures", async () => {

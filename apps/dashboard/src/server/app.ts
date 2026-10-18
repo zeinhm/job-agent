@@ -57,6 +57,18 @@ import { parseBody, parseParams, parseQuery } from "./validate.ts";
 const QueueQuery = z.strictObject({ date: z.string().refine(isDigestDate).optional() });
 const PostingParams = z.object({ id: z.string().min(1).max(200) });
 const AnswerParams = z.object({ key: AnswerKeySchema });
+/** `<ErrorName> at <path>:<line>` of the top stack frame; path trimmed to start at apps/, packages/ or node_modules/. */
+export function errorWhere(err: unknown): string {
+  const name = err instanceof Error ? err.name : "NonError";
+  const stack = err instanceof Error ? (err.stack ?? "") : "";
+  const frame = stack.split("\n").find((l) => l.trimStart().startsWith("at "));
+  const m = frame === undefined ? null : /([^\s()]+):(\d+):\d+\)?\s*$/.exec(frame);
+  if (m?.[1] === undefined) return name;
+  const path = m[1].replace(/^file:\/\//, "");
+  const cut = path.search(/(?:apps|packages|node_modules)\//);
+  return `${name} at ${cut >= 0 ? path.slice(cut) : (path.split("/").pop() ?? path)}:${m[2]}`;
+}
+
 const InboxParams = z.object({ id: z.string().min(1).max(200) });
 
 export interface AppOptions {
@@ -312,7 +324,8 @@ export function createApp(db: Db, opts: AppOptions): Hono {
     if (err instanceof HTTPException && err.status < 500) return err.getResponse();
     const code = err instanceof HTTPException ? err.status : 500;
     // routePath is the route pattern, never the request URL or its values.
-    logError(`dashboard error ${c.req.routePath} ${code}`);
+    // The error name and top frame (file:line) say where it failed; the message may hold row content and stays out.
+    logError(`dashboard error ${c.req.routePath} ${code} ${errorWhere(err)}`);
     return c.json({ error: "internal error" }, 500);
   });
 

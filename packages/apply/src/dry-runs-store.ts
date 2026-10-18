@@ -207,7 +207,9 @@ export function getDryRun(db: Db, runId: string): DryRunWithFields | null {
 
 // --- choice mappings -------------------------------------------------------------------------------------------
 
-const optionTexts = z.array(z.string().min(1).max(1_000)).min(1).max(200);
+/** Most options one choice question may list: a full country list is about 240, so the cap leaves room. */
+export const MAX_OPTIONS = 1_000;
+export const optionTexts = z.array(z.string().min(1).max(1_000)).min(1).max(MAX_OPTIONS);
 
 /** Hash of the sorted, normalized option texts: the same option set in any order or casing gives the same hash. */
 export function optionsHash(options: string[]): string {

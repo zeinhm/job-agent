@@ -6,6 +6,7 @@ import {
   DryRunStoreError,
   approveChoiceMapping,
   getChoiceMapping,
+  optionTexts,
   optionsHash,
   setChoiceMapping,
   type ChoiceMappingView,
@@ -15,8 +16,6 @@ import type { InboxExample } from "./inbox.ts";
 import { matchQuestions } from "./match-questions.ts";
 import { normalizeQuestion } from "./match.ts";
 import { isSalaryWording } from "./salary.ts";
-
-const optionTexts = z.array(z.string().min(1).max(1_000)).min(1).max(200);
 
 /** Body of `POST /api/choice-mappings`: which question (answer, wording, option set) and which options the owner picked. */
 export const ChoiceMappingSaveSchema = z.strictObject({
@@ -42,6 +41,18 @@ export interface MappingNeed {
   examples: InboxExample[];
   /** A pick stored earlier whose approval was cleared; re-saving it approves it again. */
   picked: string[] | null;
+  /** Suggestion only: the option that equals the answer text (case-insensitive). The owner still confirms it. */
+  suggested: string[] | null;
+  /** Set when this one question could not be read (error name only); the rest of the Inbox still loads. */
+  error: string | null;
+}
+
+const errorName = (e: unknown) => (e instanceof Error ? e.name : "Error");
+
+function suggestOption(options: string[], answerText: string): string[] | null {
+  const wanted = answerText.trim().toLowerCase();
+  const exact = options.find((o) => o.trim().toLowerCase() === wanted);
+  return exact === undefined ? null : [exact];
 }
 
 const EXAMPLES = 3;
@@ -71,35 +82,59 @@ export function listMappingNeeds(db: Db): MappingNeed[] {
   for (const { q, title, company } of rows) {
     const key = q.matched_key;
     if (key === null || key === "salary" || key.startsWith("standard.")) continue;
-    const options = choiceOptions(q.type, q.options);
-    const answer = answers.get(key);
-    if (options === null || answer === undefined || !answer.approved) continue;
-    const normalized = normalizeQuestion(q.normalized_label);
-    const id = mappingId(key, normalized, options);
-    if (approved.has(id)) continue;
-    let need = groups.get(id);
-    if (need === undefined) {
-      need = {
+    try {
+      const options = choiceOptions(q.type, q.options);
+      const answer = answers.get(key);
+      if (options === null || answer === undefined || !answer.approved) continue;
+      const normalized = normalizeQuestion(q.normalized_label);
+      const id = mappingId(key, normalized, options);
+      if (approved.has(id)) continue;
+      let need = groups.get(id);
+      if (need === undefined) {
+        need = {
+          answerKey: key,
+          label: q.label,
+          normalizedLabel: normalized,
+          options,
+          multi: q.type === "multi_choice",
+          answerText: answer.answer,
+          postingCount: 0,
+          examples: [],
+          picked: null,
+          suggested: suggestOption(options, answer.answer),
+          error: null,
+        };
+        try {
+          need.picked =
+            getChoiceMapping(db, { answer_key: key, label: normalized, options })?.chosen ?? null;
+        } catch (e) {
+          need.error = `could not read the stored mapping (${errorName(e)})`;
+        }
+        groups.set(id, need);
+        askedBy.set(id, new Set());
+      }
+      const asked = askedBy.get(id);
+      if (asked === undefined || asked.has(q.posting_id)) continue;
+      asked.add(q.posting_id);
+      need.postingCount++;
+      if (need.examples.length < EXAMPLES)
+        need.examples.push({ postingId: q.posting_id, title, company });
+    } catch (e) {
+      // One unreadable question is shown with a note; it never fails the whole list.
+      groups.set(`error:${q.id}`, {
         answerKey: key,
         label: q.label,
-        normalizedLabel: normalized,
-        options,
-        multi: q.type === "multi_choice",
-        answerText: answer.answer,
-        postingCount: 0,
-        examples: [],
-        picked:
-          getChoiceMapping(db, { answer_key: key, label: normalized, options })?.chosen ?? null,
-      };
-      groups.set(id, need);
-      askedBy.set(id, new Set());
+        normalizedLabel: q.normalized_label,
+        options: [],
+        multi: false,
+        answerText: "",
+        postingCount: 1,
+        examples: [{ postingId: q.posting_id, title, company }],
+        picked: null,
+        suggested: null,
+        error: `could not read this question (${errorName(e)})`,
+      });
     }
-    const asked = askedBy.get(id);
-    if (asked === undefined || asked.has(q.posting_id)) continue;
-    asked.add(q.posting_id);
-    need.postingCount++;
-    if (need.examples.length < EXAMPLES)
-      need.examples.push({ postingId: q.posting_id, title, company });
   }
   return [...groups.values()].sort(
     (a, b) => b.postingCount - a.postingCount || a.label.localeCompare(b.label),

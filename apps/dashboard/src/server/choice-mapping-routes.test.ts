@@ -96,6 +96,47 @@ const save = (over: Record<string, unknown> = {}) =>
 const get = (path: string) => app().request(`http://x${path}`, { headers: { Host: HOST } });
 
 describe("choice mapping routes", () => {
+  it("GET /api/inbox is 200 with a 240-option country question matched to the text answer location.country", async () => {
+    const countries = Array.from({ length: 240 }, (_, i) => `Fakeland ${i}`);
+    db.insert(answer_bank)
+      .values({
+        id: "location.country",
+        key: "location.country",
+        group: "location",
+        question: "Country",
+        answer: "fakeland 5",
+        approved: true,
+        approved_at: "2026-10-13T00:00:00.000Z",
+        source: "dashboard",
+        updated_at: "2026-10-13T00:00:00.000Z",
+      })
+      .run();
+    db.insert(posting_questions)
+      .values({
+        id: "q-country",
+        posting_id: "p1",
+        ats_type: "greenhouse",
+        question_id: "q-country",
+        label: "Country",
+        required: true,
+        type: "choice",
+        options: JSON.stringify(countries),
+        normalized_label: normalizeQuestion("Country"),
+        fetched_at: "2026-10-13T01:00:00.000Z",
+      })
+      .run();
+    matchQuestions(db);
+    const res = await get("/api/inbox");
+    expect(res.status).toBe(200);
+    const r = (await res.json()) as {
+      mappings: { answerKey: string; suggested: string[] | null; error: string | null }[];
+    };
+    expect(r.mappings.find((m) => m.answerKey === "location.country")).toMatchObject({
+      suggested: ["Fakeland 5"],
+      error: null,
+    });
+  });
+
   it("the inbox lists the choice question with its options and the approved answer text", async () => {
     const r = (await (await get("/api/inbox")).json()) as {
       items: unknown[];

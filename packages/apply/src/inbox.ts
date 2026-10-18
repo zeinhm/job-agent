@@ -49,6 +49,8 @@ export interface InboxItem {
   /** Pay question: answered by the per-posting tier ask, never from the bank. No answer form. */
   salary: boolean;
   examples: InboxExample[];
+  /** Set when this one wording could not be read (error name only); the rest of the Inbox still loads. */
+  error: string | null;
 }
 
 export interface InboxList {
@@ -86,35 +88,53 @@ export function listInbox(db: Db): InboxList {
     .orderBy(desc(unknown_questions.posting_count), asc(unknown_questions.label))
     .all();
   const items = rows.map((r): InboxItem => {
-    const examples: InboxExample[] = [];
-    const asked = db
-      .select({ id: postings.id, title: postings.title, company: postings.company_name })
-      .from(posting_questions)
-      .innerJoin(postings, eq(postings.id, posting_questions.posting_id))
-      .where(
-        and(
-          eq(posting_questions.normalized_label, r.normalized_label),
-          isNull(postings.canonical_posting_id),
-        ),
-      )
-      .orderBy(desc(posting_questions.fetched_at), asc(postings.id))
-      .all();
-    for (const a of asked) {
-      if (examples.some((e) => e.postingId === a.id)) continue;
-      examples.push({ postingId: a.id, title: a.title, company: a.company });
-      if (examples.length === EXAMPLES) break;
+    try {
+      return inboxItem(db, r);
+    } catch (e) {
+      return {
+        id: r.id,
+        label: r.label,
+        postingCount: r.posting_count,
+        firstSeenAt: r.first_seen_at,
+        lastSeenAt: r.last_seen_at,
+        salary: false,
+        examples: [],
+        error: `could not read this question (${e instanceof Error ? e.name : "Error"})`,
+      };
     }
-    return {
-      id: r.id,
-      label: r.label,
-      postingCount: r.posting_count,
-      firstSeenAt: r.first_seen_at,
-      lastSeenAt: r.last_seen_at,
-      salary: isSalaryWording(r.label),
-      examples,
-    };
   });
   return { openCount: items.length, items, mappings: listMappingNeeds(db) };
+}
+
+function inboxItem(db: Db, r: typeof unknown_questions.$inferSelect): InboxItem {
+  const examples: InboxExample[] = [];
+  const asked = db
+    .select({ id: postings.id, title: postings.title, company: postings.company_name })
+    .from(posting_questions)
+    .innerJoin(postings, eq(postings.id, posting_questions.posting_id))
+    .where(
+      and(
+        eq(posting_questions.normalized_label, r.normalized_label),
+        isNull(postings.canonical_posting_id),
+      ),
+    )
+    .orderBy(desc(posting_questions.fetched_at), asc(postings.id))
+    .all();
+  for (const a of asked) {
+    if (examples.some((e) => e.postingId === a.id)) continue;
+    examples.push({ postingId: a.id, title: a.title, company: a.company });
+    if (examples.length === EXAMPLES) break;
+  }
+  return {
+    id: r.id,
+    label: r.label,
+    postingCount: r.posting_count,
+    firstSeenAt: r.first_seen_at,
+    lastSeenAt: r.last_seen_at,
+    salary: isSalaryWording(r.label),
+    examples,
+    error: null,
+  };
 }
 
 function openRow(db: Db, id: string) {

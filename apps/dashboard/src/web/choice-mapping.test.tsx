@@ -23,6 +23,8 @@ const need = (over: Partial<MappingNeed> = {}): MappingNeed => ({
   postingCount: 2,
   examples: [{ postingId: "p1", title: "Engineer", company: "Acme" }],
   picked: null,
+  suggested: null,
+  error: null,
   ...over,
 });
 
@@ -145,7 +147,7 @@ describe("Inbox: choice mapping picker", () => {
   });
 
   it("pre-selects an option equal to the answer text but never saves it alone", async () => {
-    needs = [need({ answerText: " within 1 MONTH " })];
+    needs = [need({ answerText: " within 1 MONTH ", suggested: ["Within 1 month"] })];
     renderTab("inbox");
     const row = await screen.findByRole("listitem", { name: `Choice mapping for ${LABEL}` });
     expect(
@@ -153,6 +155,14 @@ describe("Inbox: choice mapping picker", () => {
     ).toBe(true);
     await new Promise((r) => setTimeout(r, 50));
     expect(saved).toEqual([]);
+  });
+
+  it("shows a question that could not be read with its error note and no picker", async () => {
+    needs = [need({ options: [], error: "could not read this question (ZodError)" })];
+    renderTab("inbox");
+    const row = await screen.findByRole("listitem", { name: `Choice mapping for ${LABEL}` });
+    expect(within(row).getByText("could not read this question (ZodError)")).toBeTruthy();
+    expect(within(row).queryByRole("button", { name: `Save mapping for ${LABEL}` })).toBeNull();
   });
 
   it("starts from an earlier pick whose approval was cleared", async () => {

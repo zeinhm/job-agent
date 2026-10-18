@@ -98,6 +98,7 @@ export const InboxItemSchema = z.object({
   lastSeenAt: z.string(),
   salary: z.boolean(),
   examples: z.array(z.object({ postingId: z.string(), title: z.string(), company: z.string() })),
+  error: z.string().nullable(),
 });
 export type InboxItem = z.infer<typeof InboxItemSchema>;
 
@@ -111,6 +112,8 @@ export const MappingNeedSchema = z.object({
   postingCount: z.number(),
   examples: z.array(z.object({ postingId: z.string(), title: z.string(), company: z.string() })),
   picked: z.array(z.string()).nullable(),
+  suggested: z.array(z.string()).nullable(),
+  error: z.string().nullable(),
 });
 export type MappingNeed = z.infer<typeof MappingNeedSchema>;
 

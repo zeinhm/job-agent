@@ -226,6 +226,7 @@ function InboxRow({
           </li>
         ))}
       </ul>
+      {item.error !== null && <p role="alert">{item.error}</p>}
       {item.salary ? (
         <p>Answered by the tier ask, stays in review.</p>
       ) : (
@@ -260,12 +261,10 @@ function InboxRow({
   );
 }
 
-/** Starting pick: an earlier unapproved pick, else the option that equals the answer text. Never saved on its own. */
+/** Starting pick: an earlier unapproved pick, else the server's suggestion (option equal to the answer text). Never saved on its own. */
 function initialPick(need: MappingNeed): string[] {
   if (need.picked !== null) return need.picked.filter((o) => need.options.includes(o));
-  const wanted = need.answerText.trim().toLowerCase();
-  const exact = need.options.find((o) => o.trim().toLowerCase() === wanted);
-  return exact === undefined ? [] : [exact];
+  return (need.suggested ?? []).filter((o) => need.options.includes(o));
 }
 
 function MappingRow({
@@ -301,33 +300,38 @@ function MappingRow({
           </li>
         ))}
       </ul>
+      {need.error !== null && <p role="alert">{need.error}</p>}
       <p>
         Approved answer {need.answerKey}: <span className="answer-text">{need.answerText}</span>
       </p>
-      <fieldset aria-label={`Options for ${need.label}`}>
-        <legend>{need.multi ? "Pick every matching option" : "Pick the matching option"}</legend>
-        {need.options.map((option) => (
-          <div key={option}>
-            <label>
-              <input
-                type={need.multi ? "checkbox" : "radio"}
-                name={`${need.answerKey}-${need.normalizedLabel}`}
-                checked={chosen.includes(option)}
-                onChange={(e) => toggle(option, e.target.checked)}
-              />{" "}
-              {option}
-            </label>
-          </div>
-        ))}
-      </fieldset>
-      <button
-        type="button"
-        disabled={busy || chosen.length === 0}
-        aria-label={`Save mapping for ${need.label}`}
-        onClick={() => onSave(chosen)}
-      >
-        Save mapping
-      </button>
+      {need.options.length > 0 && (
+        <fieldset aria-label={`Options for ${need.label}`}>
+          <legend>{need.multi ? "Pick every matching option" : "Pick the matching option"}</legend>
+          {need.options.map((option) => (
+            <div key={option}>
+              <label>
+                <input
+                  type={need.multi ? "checkbox" : "radio"}
+                  name={`${need.answerKey}-${need.normalizedLabel}`}
+                  checked={chosen.includes(option)}
+                  onChange={(e) => toggle(option, e.target.checked)}
+                />{" "}
+                {option}
+              </label>
+            </div>
+          ))}
+        </fieldset>
+      )}
+      {need.options.length > 0 && (
+        <button
+          type="button"
+          disabled={busy || chosen.length === 0}
+          aria-label={`Save mapping for ${need.label}`}
+          onClick={() => onSave(chosen)}
+        >
+          Save mapping
+        </button>
+      )}
     </li>
   );
 }

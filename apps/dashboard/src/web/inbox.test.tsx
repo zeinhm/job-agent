@@ -16,6 +16,7 @@ function item(over: Partial<InboxItem> & { id: string; label: string }): InboxIt
     firstSeenAt: "2026-10-13T00:00:00.000Z",
     lastSeenAt: "2026-10-14T00:00:00.000Z",
     salary: false,
+    error: null,
     examples: [{ postingId: "p1", title: "Engineer", company: "Acme" }],
     ...over,
   };

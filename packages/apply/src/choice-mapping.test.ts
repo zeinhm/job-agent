@@ -191,6 +191,8 @@ describe("listMappingNeeds", () => {
           { postingId: "p2", title: "Engineer p2", company: "Acme" },
         ],
         picked: null,
+        suggested: ["Within 1 month"],
+        error: null,
       },
     ]);
     expect(listInbox(db).mappings).toEqual(needs);
@@ -396,5 +398,60 @@ describe("removeChoiceMapping", () => {
       }),
     ).toBe(false);
     expect(matchQuestions(db)).toMatchObject({ needsMapping: 1, covered: 0 });
+  });
+});
+
+describe("long option lists (full country list)", () => {
+  const COUNTRIES = Array.from({ length: 240 }, (_, i) => `Fakeland ${String(i).padStart(3, "0")}`);
+  const COUNTRY_LABEL = "Country";
+
+  it("lists a 240-option choice question matched to a text answer, suggesting the equal option", () => {
+    addAnswer("location.country", COUNTRY_LABEL, true, "fakeland 123");
+    ask(addPosting(), COUNTRY_LABEL, "choice", COUNTRIES);
+    matchQuestions(db);
+    const inbox = listInbox(db);
+    expect(inbox.mappings).toHaveLength(1);
+    expect(inbox.mappings[0]).toMatchObject({
+      answerKey: "location.country",
+      suggested: ["Fakeland 123"],
+      picked: null,
+      error: null,
+    });
+    expect(inbox.mappings[0]?.options).toHaveLength(240);
+  });
+
+  it("suggests nothing when no option equals the answer text", () => {
+    addAnswer("location.country", COUNTRY_LABEL, true, "Atlantis");
+    ask(addPosting(), COUNTRY_LABEL, "choice", COUNTRIES);
+    matchQuestions(db);
+    expect(listMappingNeeds(db)[0]).toMatchObject({ suggested: null, error: null });
+  });
+
+  it("saves a mapping for the 240-option question", () => {
+    addAnswer("location.country", COUNTRY_LABEL, true, "Fakeland 007");
+    ask(addPosting(), COUNTRY_LABEL, "choice", COUNTRIES);
+    matchQuestions(db);
+    saveChoiceMapping(db, {
+      answer_key: "location.country",
+      label: COUNTRY_LABEL,
+      options: COUNTRIES,
+      chosen: ["Fakeland 007"],
+    });
+    expect(listMappingNeeds(db)).toEqual([]);
+  });
+
+  it("one unreadable question is listed with an error note and the others still load", () => {
+    addAnswer("location.country", COUNTRY_LABEL, true, "Fakeland 001");
+    addAnswer("work_setup.notice_period", LABEL);
+    const huge = Array.from({ length: 1_001 }, (_, i) => `Fakeland ${i}`);
+    ask(addPosting(), COUNTRY_LABEL, "choice", huge);
+    ask(addPosting(), LABEL, "choice", OPTIONS);
+    matchQuestions(db);
+    const needs = listInbox(db).mappings;
+    expect(needs).toHaveLength(2);
+    expect(needs.find((n) => n.answerKey === "work_setup.notice_period")?.error).toBeNull();
+    expect(needs.find((n) => n.answerKey === "location.country")?.error).toBe(
+      "could not read the stored mapping (ZodError)",
+    );
   });
 });
