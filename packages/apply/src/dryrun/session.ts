@@ -8,7 +8,7 @@ import { finalizeScreenshot, writePendingScreenshot } from "./output.ts";
 import { SUBMIT_ATTEMPT_KINDS, type PageAttempt } from "./page-guard.ts";
 import type { AbortedRequest, GuardAts } from "./request-guard.ts";
 import { recordDryRun, type DryRunFieldInput } from "../dry-runs-store.ts";
-import { matchingSuggestions, type SuggestionResult } from "./autocomplete.ts";
+import { chooseSuggestion, type SuggestionResult } from "./autocomplete.ts";
 
 export type FieldRef = { css: string } | { label: string };
 
@@ -242,7 +242,7 @@ export class DryRunSession {
 
   /**
    * Location autocomplete: types the answer into the input, reads the suggestions the page shows and picks one only when
-   * exactly one matches (`matchingSuggestions`). With none or several, or when the page does not keep the pick, the typed
+   * exactly one matches, or one is the exact match (`chooseSuggestion`). With none or several, or when the page does not keep the pick, the typed
    * text is cleared again and the field stays empty. A suggestion is a plain click on a `role=option` / `.dropdown-location`
    * element (never a submit control); the guards still abort every non-GET request the page sends meanwhile.
    */
@@ -271,16 +271,16 @@ export class DryRunSession {
       if (!(await option.isVisible())) continue;
       shown.push({ index, text: ((await option.textContent()) ?? "").replace(/\s+/g, " ").trim() });
     }
-    const hits = matchingSuggestions(
+    const choice = chooseSuggestion(
       answer,
       shown.map((s) => s.text),
     );
-    const hit = hits.length === 1 ? shown[hits[0] as number] : undefined;
-    if (hit === undefined) {
+    if (!("index" in choice)) {
       await clear();
       await this.recheck();
-      return { picked: false, reason: hits.length === 0 ? "none" : "several" };
+      return { picked: false, reason: choice.reason };
     }
+    const hit = shown[choice.index] as { index: number; text: string };
     const option = options.nth(hit.index);
     await this.inspect(option);
     await option.click();

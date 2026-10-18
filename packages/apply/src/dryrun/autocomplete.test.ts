@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { approvedLocation, autocompleteRow, matchingSuggestions } from "./autocomplete.ts";
+import {
+  approvedLocation,
+  autocompleteRow,
+  chooseSuggestion,
+  matchingSuggestions,
+} from "./autocomplete.ts";
 
 const CITIES = [
   "Jakarta, Indonesia",
@@ -23,6 +28,37 @@ describe("matchingSuggestions", () => {
   it("an answer without words matches nothing", () => {
     expect(matchingSuggestions("  ,. ", CITIES)).toEqual([]);
     expect(matchingSuggestions("Jakarta", [])).toEqual([]);
+  });
+});
+
+describe("chooseSuggestion", () => {
+  it("picks the only match", () => {
+    expect(chooseSuggestion("Jakarta", CITIES)).toEqual({ index: 0 });
+  });
+
+  it("picks the suggestion equal to the answer when several match", () => {
+    const shown = ["Jakarta Selatan, Indonesia", "Jakarta, Indonesia"];
+    expect(chooseSuggestion("jakarta,  INDONESIA.", shown)).toEqual({ index: 1 });
+    expect(chooseSuggestion("Jakarta", ["Jakarta, Indonesia", "Jakarta"])).toEqual({ index: 1 });
+  });
+
+  it("falls back to the only suggestion whose city part equals the answer's city", () => {
+    const shown = [
+      "Springfield Gardens, Illinois, United States",
+      "Springfield, Illinois, United States",
+    ];
+    expect(chooseSuggestion("Springfield, Illinois", shown)).toEqual({ index: 1 });
+    expect(chooseSuggestion("Illinois", shown)).toEqual({ reason: "several" });
+  });
+
+  it("stays open when two partial matches cannot be told apart", () => {
+    expect(chooseSuggestion("Springfield", CITIES)).toEqual({ reason: "several" });
+    expect(chooseSuggestion("United States", CITIES)).toEqual({ reason: "several" });
+  });
+
+  it("reports none without a match", () => {
+    expect(chooseSuggestion("Narnia", CITIES)).toEqual({ reason: "none" });
+    expect(chooseSuggestion("Jakarta", [])).toEqual({ reason: "none" });
   });
 });
 

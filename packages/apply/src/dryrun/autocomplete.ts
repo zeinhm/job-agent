@@ -30,6 +30,35 @@ export function matchingSuggestions(answer: string, suggestions: readonly string
   return hits;
 }
 
+/** Words of a text joined by single spaces: case, punctuation and extra spaces ignored. */
+const normalized = (text: string): string => words(text).join(" ");
+
+/** The leading city part (before the first comma), normalized. */
+const cityPart = (text: string): string => normalized(text.split(",")[0] ?? "");
+
+/**
+ * The suggestion to pick among those matching the answer (`matchingSuggestions`): the only one, else the only one whose
+ * whole text equals the answer, else the only one whose leading city part equals the answer's city. `none` when nothing
+ * matches, `several` when the tie cannot be broken (the owner decides then).
+ */
+export function chooseSuggestion(
+  answer: string,
+  suggestions: readonly string[],
+): { index: number } | { reason: "none" | "several" } {
+  const hits = matchingSuggestions(answer, suggestions);
+  if (hits.length === 0) return { reason: "none" };
+  const only = (keep: (text: string) => boolean): number | undefined => {
+    const kept = hits.filter((i) => keep(suggestions[i] as string));
+    return kept.length === 1 ? kept[0] : undefined;
+  };
+  const index =
+    hits.length === 1
+      ? hits[0]
+      : (only((s) => normalized(s) === normalized(answer)) ??
+        only((s) => cityPart(s) !== "" && cityPart(s) === cityPart(answer)));
+  return index === undefined ? { reason: "several" } : { index };
+}
+
 /** The approved location answer, or null (a missing, unapproved or empty one needs the owner). */
 export function approvedLocation(answers: readonly PlanAnswer[]): string | null {
   const a = answers.find((x) => x.key === LOCATION_ANSWER_KEY && x.approved);
