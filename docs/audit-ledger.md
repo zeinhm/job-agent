@@ -8,3 +8,4 @@ Last audit tag: audit-15 (6e8bb9d). Rows merged up to that commit were cleared b
 | Task id | Title | Risk | Merged commit | Merged on |
 |---|---|---|---|---|
 | t_beb259c9 | Answer-key contract: code and fixtures use only keys from answer-keys.json | medium | 04e39a4 | 2026-10-18 |
+| t_39042252 | Dashboard Inbox 500: choice question matched to a text answer (240-option Country list) | medium | d344479 | 2026-10-18 |
