@@ -447,7 +447,8 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 `--fixture` is refused on the real database (the default DB or one under `data/`), and a real posting id is refused on a
 scratch DB: only the owner's real DB opens a real form. The fixture run is stored with `fixture` = true and never counts
 for the done-when line. The folder holds other pages used by the tests: `changed.html` (stops `form_changed`),
-`location.html` (the location autocomplete: `needs_input`) and
+`location.html` (the location autocomplete: the approved `contact.location` answer is typed and a suggestion is picked only
+when exactly one matches, source `autocomplete`; none or several: `needs_input`) and
 `captcha/<variant>.html`, snippets the fixture server adds to `form.html` (`passive`, `visible-checkbox`,
 `visible-challenge`, `hidden-challenge`, `late-challenge`; the form itself is not changed).
 
@@ -554,7 +555,7 @@ dry-run: status=filled reason=- fields=13/13 screenshot=<smoke dir>/dryruns/<dat
 
 `--fixture lever` is refused on the real database, like `--fixture greenhouse`. Besides `form.html` the folder holds the
 pages the tests use: `captcha/<variant>.html` (snippets added to `form.html`, see the Greenhouse fixture), `changed.html` (stops `form_changed` after a run on `form.html`),
-`date.html` (a date question: stops `unexpected_field`) and `location.html` (the self-clearing location field).
+`date.html` (a date question: stops `unexpected_field`) and `location.html` (the location field: a suggestion is picked only when exactly one matches the answer).
 
 ## Ashby dry run (Phase 5)
 

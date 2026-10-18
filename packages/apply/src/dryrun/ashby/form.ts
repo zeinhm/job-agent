@@ -70,9 +70,20 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     e.getAttribute("role") === "combobox" ||
     e.getAttribute("aria-autocomplete") === "list" ||
     e.getAttribute("aria-haspopup") === "listbox";
+  // A helper "Search" input (a combobox's filter box) belongs to the widget's field, never a question of its own.
+  const helperOf = (e) => {
+    const label = (e.getAttribute("aria-label") || e.getAttribute("placeholder") || "").trim().toLowerCase();
+    if (e.tagName !== "INPUT" || (label !== "search" && typeOf(e) !== "search")) return false;
+    let box = e.parentElement;
+    for (let i = 0; i < 3 && box && box !== container; i++, box = box.parentElement) {
+      if ([...box.querySelectorAll(FIELDS)].some((o) => o !== e && isCombo(o))) return true;
+    }
+    return false;
+  };
   const inert = (e) => {
     const name = e.getAttribute("name") || "";
     return (
+      helperOf(e) ||
       typeOf(e) === "hidden" ||
       ["submit", "button", "image", "reset"].includes(typeOf(e)) ||
       /^(g-recaptcha-response|h-captcha-response)/.test(name) ||

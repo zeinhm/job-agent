@@ -596,16 +596,34 @@ describe("stops (nothing is filled)", () => {
 describe("every question on the page reaches the table (t_c7d6e06d)", () => {
   const P = (n: string) => `4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7c${n}`;
 
-  async function runReal(opts: { mapAi?: boolean } = {}) {
+  async function runReal(opts: { mapAi?: boolean; location?: string } = {}) {
     let checked: Record<string, string[]> = {};
     let location = "";
+    const base = ashbyRealShapeContext(dataDir, opts);
     const summary = await runAshbyDryRun({
       db,
       dataDir,
       postingId: ASHBY_FIXTURE_POSTING_ID,
       url: `${server.origin}${ASHBY_FIXTURE_REALSHAPE_PATH}`,
       fixture: true,
-      context: ashbyRealShapeContext(dataDir, opts),
+      context:
+        opts.location === undefined
+          ? base
+          : {
+              ...base,
+              answers: [
+                ...base.answers.filter((a) => a.key !== "contact.location"),
+                {
+                  key: "contact.location",
+                  question: null,
+                  alternatives: null,
+                  answer: opts.location,
+                  type: null,
+                  choices: null,
+                  approved: true,
+                },
+              ],
+            },
       beforeFinish: async (s) => {
         const seen = await pageOf(s).evaluate<{
           checked: Record<string, string[]>;
@@ -630,11 +648,61 @@ describe("every question on the page reaches the table (t_c7d6e06d)", () => {
     return { summary, checked, location };
   }
 
+  const locationRow = (runId: string) => fieldsOf(runId).find((r) => r.label === "Location");
+
+  it("location autocomplete, one matching suggestion: picked, source autocomplete, the input shows it", async () => {
+    const { summary, location } = await runReal({ location: "Jakarta" });
+    expect(summary).toMatchObject({ filled: 17, total: 18 }); // only the unanswered radio stays open
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: true,
+      value: "Jakarta, Indonesia",
+      source: "autocomplete",
+      answer_key: "contact.location",
+      note: null,
+    });
+    expect(location).toBe("Jakarta, Indonesia");
+    expect(fieldsOf(summary.runId).some((r) => r.label === "Search")).toBe(false);
+    expect(server.nonGet().filter((r) => r.op === undefined)).toEqual([]);
+  }, 120_000);
+
+  it("location autocomplete, no matching suggestion: stays open and empty", async () => {
+    const { summary, location } = await runReal({ location: "Atlantis" });
+    expect(summary).toMatchObject({ status: "needs_input", filled: 16, total: 18 });
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "location autocomplete: no suggestion matches the answer",
+    });
+    expect(location).toBe("");
+  }, 120_000);
+
+  it("location autocomplete, two matching suggestions: stays open and empty", async () => {
+    const { summary, location } = await runReal({ location: "Springfield" });
+    expect(summary).toMatchObject({ status: "needs_input", filled: 16, total: 18 });
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "location autocomplete: several suggestions match the answer",
+    });
+    expect(location).toBe("");
+  }, 120_000);
+
+  it("location autocomplete, no approved location answer: nothing is typed, the row says so", async () => {
+    const { summary, location } = await runReal({ location: "" });
+    expect(summary).toMatchObject({ status: "needs_input", filled: 16, total: 18 });
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "location autocomplete: no approved location answer",
+    });
+    expect(location).toBe("");
+  }, 120_000);
+
   it("lists radio groups, the combobox and the untouched blocks; radios are mapped, the combobox and the unanswered radio stay open", async () => {
     const { summary, checked, location } = await runReal();
     // Never a full fill while a combobox and an unanswered question are open.
     expect(summary).toMatchObject({ status: "needs_input", stopReason: "uncovered_question" });
-    expect(summary).toMatchObject({ filled: 16, total: 18 });
+    expect(summary).toMatchObject({ filled: 17, total: 18 });
     const rows = fieldsOf(summary.runId);
     const by = (label: string) => rows.find((r) => r.label === label);
 
@@ -650,15 +718,15 @@ describe("every question on the page reaches the table (t_c7d6e06d)", () => {
     ]);
     expect(by("Gender")).toMatchObject({ filled: false, source: "none", value: null });
 
-    // Location: a combobox, listed, never typed into.
+    // Location: a combobox; the fixture persona's location has exactly one suggestion, which is picked.
     expect(by("Location")).toMatchObject({
       field_type: "text",
       required: true,
-      filled: false,
-      source: "none",
-      note: "combobox / autocomplete: the owner picks the suggestion",
+      filled: true,
+      source: "autocomplete",
+      value: "Jakarta, Indonesia",
     });
-    expect(location).toBe("");
+    expect(location).toBe("Jakarta, Indonesia");
 
     // Radio groups go through the plan: yes/no from the bank, the 4-option group through its approved mapping.
     expect(by(AI_QUESTION)).toMatchObject({

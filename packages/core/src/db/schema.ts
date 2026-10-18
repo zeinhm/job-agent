@@ -366,6 +366,7 @@ export const DRY_RUN_FIELD_SOURCES = [
   "tier_ask",
   "standard",
   "resume",
+  "autocomplete",
   "none",
 ] as const;
 

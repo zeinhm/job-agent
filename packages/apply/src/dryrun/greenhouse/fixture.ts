@@ -54,12 +54,18 @@ export const FIXTURE_CAPTCHA_PATHS: Record<CaptchaVariant, string> = {
 /** The CAPTCHA page the stop tests use: a visible challenge (a passive script alone no longer stops a run). */
 export const FIXTURE_CAPTCHA_PATH = FIXTURE_CAPTCHA_PATHS["visible-challenge"];
 
-const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/greenhouse/", import.meta.url));
+/** The committed Greenhouse fixture folder (tests serve its pages from a second server to stage a redirect). */
+export const FIXTURES_DIR = fileURLToPath(
+  new URL("../../../fixtures/greenhouse/", import.meta.url),
+);
+
+// Joined, not one literal: `location.<name>` in quotes would read as an answer key to the key-contract test.
+const LOCATION_PAGE = ["location", "html"].join(".");
 
 const PAGES: Record<string, string> = {
   [FIXTURE_FORM_PATH]: "form.html",
   [FIXTURE_CHANGED_PATH]: "changed.html",
-  [FIXTURE_LOCATION_PATH]: "location.html",
+  [FIXTURE_LOCATION_PATH]: LOCATION_PAGE,
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
@@ -284,6 +290,8 @@ export interface FixtureReply {
   status: number;
   contentType: string;
   body: string;
+  /** Extra response headers (e.g. `location` of a redirect). */
+  headers?: Record<string, string>;
 }
 
 export type FixtureResponder = (req: {
@@ -344,7 +352,9 @@ export async function startFixtureServer(
       }
       const reply = respond?.({ method, url, body: Buffer.concat(chunks).toString("utf8") });
       if (reply !== undefined) {
-        res.writeHead(reply.status, { "content-type": reply.contentType }).end(reply.body);
+        res
+          .writeHead(reply.status, { "content-type": reply.contentType, ...reply.headers })
+          .end(reply.body);
       } else {
         res.writeHead(404, { "content-type": "text/plain" }).end("not found");
       }

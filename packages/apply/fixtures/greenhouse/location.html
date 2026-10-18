@@ -297,6 +297,16 @@
           </div>
         </div>
         <div class="field-wrapper">
+          <!-- a second helper outside the widget's own box (the owner's page nests it elsewhere) -->
+          <input
+            id="candidate-location-filter"
+            class="input input__single-line"
+            aria-label="Search"
+            type="text"
+            value=""
+          />
+        </div>
+        <div class="field-wrapper">
           <div class="text-input-wrapper">
             <div class="input-wrapper">
               <label id="question_1008-label" for="question_1008" class="label"
@@ -369,6 +379,39 @@
           container.appendChild(list);
         });
       }
+      // Location suggestions (invented): typing lists every city that contains any typed word, a click shows the pick in
+      // .select__single-value and empties the input, like react-select. Nothing is sent.
+      const CITIES = [
+        "Jakarta, Indonesia",
+        "Springfield, Illinois, United States",
+        "Springfield, Missouri, United States",
+      ];
+      const locationInput = document.getElementById("candidate-location");
+      const locationBox = locationInput.closest(".select__container");
+      locationInput.addEventListener("input", () => {
+        locationBox.querySelector("[role=listbox]")?.remove();
+        const words = locationInput.value.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+        const hits = CITIES.filter((c) => words.some((w) => c.toLowerCase().includes(w)));
+        if (hits.length === 0) return;
+        const list = document.createElement("div");
+        list.setAttribute("role", "listbox");
+        for (const text of hits) {
+          const option = document.createElement("div");
+          option.setAttribute("role", "option");
+          option.textContent = text;
+          option.addEventListener("click", () => {
+            locationBox.querySelector(".select__single-value")?.remove();
+            const shown = document.createElement("div");
+            shown.className = "select__single-value";
+            shown.textContent = text;
+            locationBox.appendChild(shown);
+            locationInput.value = "";
+            list.remove();
+          });
+          list.appendChild(option);
+        }
+        locationBox.appendChild(list);
+      });
       // Like the real page: analytics and validation calls on load and on change. A dry run aborts every one of them.
       const post = (path) => fetch(path, { method: "POST", body: "{}" }).catch(() => {});
       post("/collect/pageview");

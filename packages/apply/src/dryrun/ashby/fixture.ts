@@ -156,7 +156,11 @@ const VARIANTS: Record<string, (p: Posting) => void> = {
         field: { path: `4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7c${suffix}`, type, title, ...extra },
       });
     add("Combobox", "Location", "01", {
-      selectableValues: [{ label: "Example City, Exampleland", value: "loc-1" }],
+      selectableValues: [
+        { label: "Jakarta, Indonesia", value: "loc-1" },
+        { label: "Springfield, Illinois, United States", value: "loc-2" },
+        { label: "Springfield, Missouri, United States", value: "loc-3" },
+      ],
     });
     add("ValueSelect", AI_QUESTION, "02", {
       display: "radio",

@@ -416,13 +416,61 @@ describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
     expect(runOf(summary.runId)?.stop_detail).toBe("1 field(s) need input; the page refused 1");
   }, 90_000);
 
-  it("the location input clears itself without a picked suggestion (as on the real page): that field needs input", async () => {
+  const withLocation = (answer: string) => (c: PlanContext) => ({
+    ...c,
+    answers: c.answers.map((a) => (a.key === "contact.location" ? { ...a, answer } : a)),
+  });
+  const locationRow = (runId: string) =>
+    fieldsOf(runId).find((r) => r.label === "Current location");
+
+  it("one matching suggestion is picked: the row shows it with the source autocomplete", async () => {
     const { summary, seen } = await run(LEVER_FIXTURE_LOCATION_PATH);
-    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(summary).toMatchObject({ status: "filled", filled: 14, total: 14 });
     expect((seen as unknown as Seen).texts["name"]).toBe("Alex Example");
-    const row = fieldsOf(summary.runId).find((r) => r.label === "Current location");
-    expect(row).toMatchObject({ filled: false, value: null, source: "standard" });
-    expect(row?.note).toBe("page kept a different value");
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: true,
+      value: "Jakarta, Indonesia",
+      source: "autocomplete",
+      answer_key: "contact.location",
+      note: null,
+    });
+    expect(server.nonGet()).toEqual([]);
+  }, 90_000);
+
+  it("no matching suggestion: that field needs input, nothing stays typed", async () => {
+    const { summary } = await run(LEVER_FIXTURE_LOCATION_PATH, {
+      context: withLocation("Atlantis"),
+    });
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: false,
+      value: null,
+      source: "none",
+      note: "location autocomplete: no suggestion matches the answer",
+    });
+  }, 90_000);
+
+  it("two matching suggestions: that field needs input", async () => {
+    const { summary } = await run(LEVER_FIXTURE_LOCATION_PATH, {
+      context: withLocation("Springfield"),
+    });
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "location autocomplete: several suggestions match the answer",
+    });
+  }, 90_000);
+
+  it("a longer answer that names one of the two cities picks it", async () => {
+    const { summary } = await run(LEVER_FIXTURE_LOCATION_PATH, {
+      context: withLocation("springfield missouri"),
+    });
+    expect(locationRow(summary.runId)).toMatchObject({
+      filled: true,
+      value: "Springfield, Missouri, United States",
+      source: "autocomplete",
+    });
   }, 90_000);
 });
 

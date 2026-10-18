@@ -122,10 +122,29 @@ function control(field, required) {
       });
       if (required) input.setAttribute("aria-required", "true");
       const list = el("ul", { role: "listbox", hidden: "" });
-      for (const o of field.selectableValues || [])
-        list.append(el("li", { role: "option" }, o.label));
-      input.addEventListener("input", () => list.toggleAttribute("hidden", input.value === ""));
-      return el("div", { class: "ashby-application-form-input-combobox" }, input, list);
+      for (const o of field.selectableValues || []) {
+        const item = el("li", { role: "option" }, o.label);
+        // Picking a suggestion puts its text in the input and closes the list.
+        item.addEventListener("click", () => {
+          input.value = o.label;
+          list.setAttribute("hidden", "");
+        });
+        list.append(item);
+      }
+      // Typing lists every suggestion that contains any typed word (3+ letters / digits); nothing typed lists none.
+      input.addEventListener("input", () => {
+        const words = input.value.toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+        let shown = 0;
+        for (const item of list.children) {
+          const hit = words.some((w) => item.textContent.toLowerCase().includes(w));
+          item.toggleAttribute("hidden", !hit);
+          if (hit) shown += 1;
+        }
+        list.toggleAttribute("hidden", shown === 0);
+      });
+      // A helper filter box of the widget (no name, labelled "Search"): part of the field, never a question.
+      const search = el("input", { id: path + "-search", type: "text", "aria-label": "Search" });
+      return el("div", { class: "ashby-application-form-input-combobox" }, input, search, list);
     }
     case "Date":
       return el("input", { ...attrs, type: "date", class: "ashby-application-form-input-date" });

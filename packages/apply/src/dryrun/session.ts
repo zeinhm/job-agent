@@ -8,6 +8,7 @@ import { finalizeScreenshot, writePendingScreenshot } from "./output.ts";
 import { SUBMIT_ATTEMPT_KINDS, type PageAttempt } from "./page-guard.ts";
 import type { AbortedRequest, GuardAts } from "./request-guard.ts";
 import { recordDryRun, type DryRunFieldInput } from "../dry-runs-store.ts";
+import { matchingSuggestions, type SuggestionResult } from "./autocomplete.ts";
 
 export type FieldRef = { css: string } | { label: string };
 
@@ -36,6 +37,8 @@ export interface DryRunSessionOptions {
    * stop detectors look at the page.
    */
   ready?: string;
+  /** Opened once when `url` redirects to another host (same guards and detectors); never tried after any other stop. */
+  fallbackUrl?: string;
 }
 
 export interface DryRunResult {
@@ -69,6 +72,12 @@ export const internals = {
 };
 
 const TEXT_INPUT_TYPES = new Set(["", "text", "email", "tel", "url", "number", "search", "date"]);
+/** The suggestion items of the three ATS location widgets (react-select / listbox options, Lever's dropdown rows). */
+const SUGGESTION_SELECTOR = "[role='option'], .dropdown-location";
+/** `detectStop`'s wording for a redirect away from the requested host. */
+const REDIRECT_DETAIL = "redirected to another host";
+const SUGGESTION_WAIT_MS = 3_000;
+const SUGGESTION_SETTLE_MS = 300;
 const SUBMIT_LIKE =
   "button, [role='button'], [type='submit' i], input[type='image' i], input[type='button' i], input[type='reset' i]";
 
@@ -229,6 +238,67 @@ export class DryRunSession {
     await this.recheck();
   }
 
+  /**
+   * Location autocomplete: types the answer into the input, reads the suggestions the page shows and picks one only when
+   * exactly one matches (`matchingSuggestions`). With none or several, or when the page does not keep the pick, the typed
+   * text is cleared again and the field stays empty. A suggestion is a plain click on a `role=option` / `.dropdown-location`
+   * element (never a submit control); the guards still abort every non-GET request the page sends meanwhile.
+   */
+  async pickSuggestion(ref: FieldRef, answer: string): Promise<SuggestionResult> {
+    const { locator, facts } = await this.locate(ref);
+    if (facts.tag !== "input" || !TEXT_INPUT_TYPES.has(facts.type))
+      throw new HarnessRefusalError(`refused: cannot type into a ${facts.tag}[${facts.type}]`);
+    const clear = async (): Promise<void> => {
+      await locator.fill("");
+      await locator.blur();
+    };
+    await locator.click();
+    await locator.fill("");
+    await locator.pressSequentially(answer, { delay: 20 });
+    const options = this.#page.locator(SUGGESTION_SELECTOR);
+    await options
+      .first()
+      .waitFor({ state: "visible", timeout: SUGGESTION_WAIT_MS })
+      .catch(() => undefined);
+    // The list refilters while the page answers: give it a moment to settle before reading.
+    await this.#page.waitForTimeout(SUGGESTION_SETTLE_MS);
+    const shown: { index: number; text: string }[] = [];
+    const count = await options.count();
+    for (let index = 0; index < count; index++) {
+      const option = options.nth(index);
+      if (!(await option.isVisible())) continue;
+      shown.push({ index, text: ((await option.textContent()) ?? "").replace(/\s+/g, " ").trim() });
+    }
+    const hits = matchingSuggestions(
+      answer,
+      shown.map((s) => s.text),
+    );
+    const hit = hits.length === 1 ? shown[hits[0] as number] : undefined;
+    if (hit === undefined) {
+      await clear();
+      await this.recheck();
+      return { picked: false, reason: hits.length === 0 ? "none" : "several" };
+    }
+    const option = options.nth(hit.index);
+    await this.inspect(option);
+    await option.click();
+    // The input shows the pick, or the widget shows it next to an emptied input (react-select).
+    const keptPick =
+      (await locator.inputValue()) !== "" ||
+      (await locator.evaluate(
+        (el, text) =>
+          (
+            el.closest(
+              ".select__container, .location-widget, .application-field, [class*='combobox']",
+            )?.textContent ?? ""
+          ).includes(text),
+        hit.text,
+      ));
+    if (!keptPick) await clear();
+    await this.recheck();
+    return keptPick ? { picked: true, text: hit.text } : { picked: false, reason: "notKept" };
+  }
+
   /** Checks or unchecks a checkbox or radio. */
   async check(ref: FieldRef, checked = true): Promise<void> {
     const { locator, facts } = await this.locate(ref);
@@ -357,26 +427,36 @@ export async function openDryRunSession(opts: DryRunSessionOptions): Promise<Dry
     const page = await context.newPage();
     page.setDefaultTimeout(10_000);
     page.on("request", (r) => seenUrls.push(r.url()));
-    let mainStatus: number | null = null;
-    try {
-      const response = await page.goto(opts.url, { waitUntil: "load" });
-      mainStatus = response?.status() ?? null;
-    } catch {
-      mainStatus = null;
-    }
-    if (opts.ready !== undefined && mainStatus !== null && mainStatus < 400)
-      await page.waitForSelector(opts.ready).catch(() => undefined);
-    // The dry-run CAPTCHA rule (decisions.md 2026-10-17): a passive script or badge does not stop, a visible challenge does.
-    const { stop, passive } = await detectStop({
-      page,
-      requestedUrl: opts.url,
-      mainStatus,
-      seenUrls,
-      captchaMode: "dry-run",
-    }).catch((): { stop: StopSignal; passive: PassiveCaptcha[] } => ({
-      stop: { reason: "page_error", detail: "page unreadable" },
-      passive: [],
-    }));
+    const open = async (
+      url: string,
+    ): Promise<{ stop: StopSignal | null; passive: PassiveCaptcha[] }> => {
+      let mainStatus: number | null = null;
+      try {
+        const response = await page.goto(url, { waitUntil: "load" });
+        mainStatus = response?.status() ?? null;
+      } catch {
+        mainStatus = null;
+      }
+      if (opts.ready !== undefined && mainStatus !== null && mainStatus < 400)
+        await page.waitForSelector(opts.ready).catch(() => undefined);
+      // The dry-run CAPTCHA rule (decisions.md 2026-10-17): a passive script or badge does not stop, a visible challenge does.
+      return detectStop({
+        page,
+        requestedUrl: url,
+        mainStatus,
+        seenUrls,
+        captchaMode: "dry-run",
+      }).catch((): { stop: StopSignal; passive: PassiveCaptcha[] } => ({
+        stop: { reason: "page_error", detail: "page unreadable" },
+        passive: [],
+      }));
+    };
+    let detected = await open(opts.url);
+    // A board that sends its job page on to another host (a company career page): the same ATS's embedded application
+    // form is opened once instead. A redirect from there to anywhere else still stops the run.
+    if (opts.fallbackUrl !== undefined && detected.stop?.detail === REDIRECT_DETAIL)
+      detected = await open(opts.fallbackUrl);
+    const { stop, passive } = detected;
     return new DryRunSession(
       opts,
       browser,

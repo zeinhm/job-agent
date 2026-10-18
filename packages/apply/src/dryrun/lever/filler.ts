@@ -7,6 +7,7 @@ import { planFill, type FormField, type PlannedField, type ResumeProbe } from ".
 import type { DryRunFieldInput } from "../../dry-runs-store.ts";
 import { normalizeQuestion } from "../../match.ts";
 import { matchQuestions } from "../../match-questions.ts";
+import { autocompleteRow, type SuggestionResult } from "../autocomplete.ts";
 import { FIXTURE_HOST } from "../request-guard.ts";
 import {
   DryRunSession,
@@ -159,6 +160,9 @@ export async function applyControl(
   }
 }
 
+/** Lever's "Current location" input: the control named `location` (its hidden `selectedLocation` is never read). */
+const isLocationControl = (c: LeverControl): boolean => c.name === "location" && c.kind === "text";
+
 const digitsOf = (s: string): string => s.replace(/\D/g, "");
 
 /**
@@ -266,11 +270,24 @@ export async function runLeverDryRun(opts: LeverRunOptions): Promise<LeverRunSum
 
     // Fill every covered field; a refusal by the page is kept per field and never stops the others.
     const refused = new Map<string, string>();
+    const picked = new Map<string, SuggestionResult>();
     for (const p of plan.fields) {
       if (session.stop) break; // a CAPTCHA challenge appeared: no further field is filled
       if (!p.filled) continue;
       const control = byName.get(p.field.ats.id) as LeverControl;
       try {
+        if (isLocationControl(control)) {
+          // The location autocomplete: the approved answer is typed, a suggestion is picked only when exactly one matches.
+          const answer = Array.isArray(p.value) ? p.value.join(" ") : p.value;
+          picked.set(
+            p.field.ats.id,
+            await session.pickSuggestion(
+              { css: `${LEVER_SCOPE} [name="${cssEscape(control.name)}"]` },
+              answer,
+            ),
+          );
+          continue;
+        }
         await applyControl(session, control, p.value, LEVER_SCOPE);
       } catch (err) {
         // Playwright messages quote the value being set: only the fixed harness wording is kept.
@@ -292,6 +309,8 @@ export async function runLeverDryRun(opts: LeverRunOptions): Promise<LeverRunSum
       if (!p.filled) return { ...base, source: "none", value: null, filled: false, note: p.detail };
       const id = p.field.ats.id;
       const control = byName.get(id) as LeverControl;
+      const suggestion = picked.get(id);
+      if (suggestion !== undefined) return autocompleteRow(p.field, suggestion);
       const why =
         refused.get(id) ??
         (kept(control, p.value, got[id] ?? []) ? null : "page kept a different value");

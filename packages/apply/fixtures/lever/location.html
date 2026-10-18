@@ -337,6 +337,34 @@
       locationInput.addEventListener("blur", () => {
         if (document.getElementById("selected-location").value === "") locationInput.value = "";
       });
+      // Suggestions (invented, shaped like the real page's dropdown): typing lists every city that contains any typed
+      // word; a mousedown on a row picks it (before the input's blur), which sets selectedLocation. Nothing is sent.
+      const CITIES = [
+        "Jakarta, Indonesia",
+        "Springfield, Illinois, United States",
+        "Springfield, Missouri, United States",
+      ];
+      locationInput.addEventListener("input", () => {
+        document.getElementById("selected-location").value = "";
+        locationInput.parentElement.querySelector(".dropdown-results")?.remove();
+        const words = locationInput.value.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+        const hits = CITIES.filter((c) => words.some((w) => c.toLowerCase().includes(w)));
+        if (hits.length === 0) return;
+        const results = document.createElement("div");
+        results.className = "dropdown-results";
+        for (const text of hits) {
+          const row = document.createElement("div");
+          row.className = "dropdown-location";
+          row.textContent = text;
+          row.addEventListener("mousedown", () => {
+            locationInput.value = text;
+            document.getElementById("selected-location").value = text;
+            results.remove();
+          });
+          results.appendChild(row);
+        }
+        locationInput.parentElement.appendChild(results);
+      });
       // Like the real page: selecting a file posts it to /parseResume, analytics fire on load, and the visible button
       // submits the form. A dry run aborts every one of these requests and never clicks the button.
       const post = (path) => fetch(path, { method: "POST", body: "{}" }).catch(() => {});

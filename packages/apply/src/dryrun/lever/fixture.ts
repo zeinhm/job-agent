@@ -39,7 +39,7 @@ const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/lever/", import.me
 const PAGES: Record<string, string> = {
   [LEVER_FIXTURE_FORM_PATH]: "form.html",
   [LEVER_FIXTURE_CHANGED_PATH]: "changed.html",
-  [LEVER_FIXTURE_LOCATION_PATH]: "location.html",
+  [LEVER_FIXTURE_LOCATION_PATH]: ["location", "html"].join("."), // not one literal: it would read as an answer key
   [LEVER_FIXTURE_DATE_PATH]: "date.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(

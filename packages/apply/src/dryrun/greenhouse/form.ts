@@ -61,17 +61,20 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
       ["", "text"].includes((el.getAttribute("type") || "").toLowerCase()));
   const locations = new Set();
   const helpers = new Set();
+  const searches = [...form.querySelectorAll("input")].filter((n) => isInput(n) && plain(n) === "search");
   for (const el of form.querySelectorAll("input")) {
     if (!el.id || skipped(el) || !isInput(el) || plain(el) !== "location city") continue;
     locations.add(el);
-    let box = el.parentElement;
-    for (let i = 0; i < 3 && box && box !== form; i++, box = box.parentElement) {
-      const found = [...box.querySelectorAll("input")].filter((n) => n !== el && isInput(n) && plain(n) === "search");
-      if (found.length > 0) {
-        found.forEach((n) => helpers.add(n));
-        break;
-      }
+  }
+  // A helper "Search" input belongs to the widget it sits in, wherever the page puts it: every "Search" input of a form
+  // with a location widget, and any "Search" input within 3 levels of a combobox (a combobox filter box).
+  for (const n of searches) {
+    let box = n.parentElement;
+    let inWidget = locations.size > 0;
+    for (let i = 0; !inWidget && i < 3 && box && box !== form; i++, box = box.parentElement) {
+      inWidget = [...box.querySelectorAll("input")].some((o) => o !== n && o.getAttribute("role") === "combobox");
     }
+    if (inWidget && !skipped(n)) helpers.add(n);
   }
   for (const g of form.querySelectorAll("[role='group'][id], [role='radiogroup'][id]")) {
     const boxes = [...g.querySelectorAll("input[type='checkbox'], input[type='radio']")];

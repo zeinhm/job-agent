@@ -2,7 +2,9 @@ import type { Db } from "@job-agent/core";
 import { loadFillContext, recordUncoveredLabels } from "../../fill-plan-db.ts";
 import { PROFILE_KEYS, planFill, type FormField, type ResumeProbe } from "../../fill-plan.ts";
 import type { DryRunFieldInput } from "../../dry-runs-store.ts";
+import { normalizeQuestion } from "../../match.ts";
 import { matchQuestions } from "../../match-questions.ts";
+import { approvedLocation, autocompleteRow, type SuggestionResult } from "../autocomplete.ts";
 import { FIXTURE_HOST } from "../request-guard.ts";
 import {
   DryRunSession,
@@ -23,6 +25,8 @@ import {
   type AshbyControl,
   type AshbyPage,
 } from "./form.ts";
+
+const cssEscape = (s: string): string => s.replace(/["\\]/g, "\\$&");
 
 const COMBOBOX_NOTE = "combobox / autocomplete: the owner picks the suggestion";
 
@@ -143,9 +147,10 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
 
     const byName = new Map(controls.map((c) => [c.name, c]));
     // A combobox (location autocomplete) is never planned or filled: the owner picks the suggestion.
+    const context = opts.context ?? loadFillContext(opts.db, opts.postingId);
     const plan = planFill({
       fields: fields.filter((f) => byName.get(f.ats.id)?.kind !== "combobox"),
-      ...(opts.context ?? loadFillContext(opts.db, opts.postingId)),
+      ...context,
       ...(opts.probeResume !== undefined ? { probeResume: opts.probeResume } : {}),
     });
     if (plan.kind === "stop")
@@ -172,11 +177,35 @@ export async function runAshbyDryRun(opts: AshbyRunOptions): Promise<AshbyRunSum
         );
       }
     }
+    // The Location autocomplete: the approved location is typed, a suggestion is picked only when exactly one matches.
+    // Any other combobox stays with the owner.
+    const picked = new Map<string, SuggestionResult>();
+    const answer = approvedLocation(context.answers);
+    for (const c of controls) {
+      if (session.stop) break;
+      if (c.kind !== "combobox" || normalizeQuestion(c.label) !== "location") continue;
+      let result: SuggestionResult = { picked: false, reason: "noAnswer" };
+      if (answer !== null) {
+        const id = cssEscape(c.name);
+        try {
+          result = await session.pickSuggestion(
+            { css: `${ASHBY_SCOPE} :is([id="${id}"], [name="${id}"])` },
+            answer,
+          );
+        } catch {
+          // Playwright messages quote what was typed: only the fixed wording is kept.
+          result = { picked: false, reason: "refused" };
+        }
+      }
+      picked.set(c.name, result);
+    }
     if (session.stop) return await done(undefined);
     const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(controls));
     const planned = new Map(plan.fields.map((p) => [p.field.ats.id, p]));
     const rows: DryRunFieldInput[] = fields.map((field): DryRunFieldInput => {
       const p = planned.get(field.ats.id);
+      const suggestion = picked.get(field.ats.id);
+      if (suggestion !== undefined) return autocompleteRow(field, suggestion);
       if (p === undefined)
         return {
           label: field.label,

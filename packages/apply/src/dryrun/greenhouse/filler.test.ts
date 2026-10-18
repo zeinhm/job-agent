@@ -14,8 +14,15 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { planFill, type PlannedField } from "../../fill-plan.ts";
 import { normalizeQuestion } from "../../match.ts";
-import { loadStoredQuestions, runGreenhouseDryRun, type GreenhouseRunSummary } from "./filler.ts";
 import {
+  embeddedFormUrl,
+  loadStoredQuestions,
+  runGreenhouseDryRun,
+  type GreenhouseRunSummary,
+} from "./filler.ts";
+import {
+  FIXTURES_DIR,
+  startFixtureServer,
   FIXTURE_CAPTCHA_PATH,
   FIXTURE_CHANGED_PATH,
   FIXTURE_FORM_PATH,
@@ -297,62 +304,126 @@ describe("location autocomplete (the stored Location question: the owner picks)"
       })
       .run();
 
-  it("is recorded not filled with a fixed note, never typed into; the other fields fill; needs_input", async () => {
-    seedLocation();
-    const { summary } = await run(FIXTURE_LOCATION_PATH, {
-      context: (c) => ({
-        ...c,
-        // Even an approved answer for the question is not typed.
-        answers: [
-          ...c.answers,
-          {
-            key: "contact.location",
-            question: "Location",
-            alternatives: null,
-            answer: "Springfield",
-            type: null,
-            choices: null,
-            approved: true,
-          },
-        ],
-      }),
-    });
-    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
-    expect(runOf(summary.runId)).toMatchObject({
-      status: "needs_input",
-      stop_reason: "uncovered_question",
-      stop_detail: "1 field(s) need input",
-    });
-    const rows = fieldsOf(summary.runId);
-    expect(rows.find((r) => r.label === "Location")).toMatchObject({
-      filled: false,
-      value: null,
-      source: "none",
-      note: "location autocomplete: pick the suggestion yourself",
-    });
-    expect(rows.filter((r) => r.filled)).toHaveLength(13);
-    expect(rows.find((r) => r.label === "First Name")).toMatchObject({ filled: true });
-    expect(rows.some((r) => r.label === "Search")).toBe(false);
-  }, 90_000);
-
-  it("neither location input is touched on the page", async () => {
-    seedLocation();
-    let typed: string[] = [];
-    await runGreenhouseDryRun({
+  const withLocation = (answer: string) => (c: PlanContext) => ({
+    ...c,
+    answers: [
+      ...c.answers,
+      {
+        key: "contact.location",
+        question: "Location",
+        alternatives: null,
+        answer,
+        type: null,
+        choices: null,
+        approved: true,
+      },
+    ],
+  });
+  const locationState = async (context: (c: PlanContext) => PlanContext) => {
+    let page: { typed: string[]; shown: string } = { typed: [], shown: "" };
+    const summary = await runGreenhouseDryRun({
       db,
       dataDir,
       postingId: FIXTURE_POSTING_ID,
       url: `${server.origin}${FIXTURE_LOCATION_PATH}`,
       fixture: true,
-      context: fixtureContext(dataDir),
+      context: context(fixtureContext(dataDir)),
       beforeFinish: async (s) => {
-        typed = await pageOf(s).evaluate<string[]>(
-          `["candidate-location", "candidate-location-search"].map((id) => document.getElementById(id).value)`,
-        );
+        page = await pageOf(s).evaluate(`(() => ({
+          typed: ["candidate-location", "candidate-location-search", "candidate-location-filter"].map((id) => document.getElementById(id).value),
+          shown: document.querySelector("#candidate-location").closest(".select__container").querySelector(".select__single-value")?.textContent ?? "",
+        }))()`);
       },
     });
-    expect(typed).toEqual(["", ""]);
+    return { summary, page };
+  };
+
+  it("one matching suggestion is picked: the row shows it with the source autocomplete, the run is filled", async () => {
+    seedLocation();
+    const { summary, page } = await locationState(withLocation("Jakarta"));
+    expect(summary).toMatchObject({ status: "filled", filled: 14, total: 14 });
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location")).toMatchObject({
+      filled: true,
+      value: "Jakarta, Indonesia",
+      source: "autocomplete",
+      answer_key: "contact.location",
+      note: null,
+    });
+    expect(page.shown).toBe("Jakarta, Indonesia");
+    expect(page.typed).toEqual(["", "", ""]);
     expect(server.nonGet()).toEqual([]);
+  }, 90_000);
+
+  it("all words of the answer must be present: two cities share a word, the second word picks one", async () => {
+    seedLocation();
+    const { summary, page } = await locationState(withLocation("springfield ILLINOIS"));
+    expect(summary).toMatchObject({ status: "filled" });
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location")).toMatchObject({
+      filled: true,
+      value: "Springfield, Illinois, United States",
+      source: "autocomplete",
+    });
+    expect(page.shown).toBe("Springfield, Illinois, United States");
+  }, 90_000);
+
+  it("no matching suggestion: needs_input, nothing picked, the typed text is cleared", async () => {
+    seedLocation();
+    const { summary, page } = await locationState(withLocation("Atlantis"));
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(runOf(summary.runId)).toMatchObject({
+      stop_reason: "uncovered_question",
+      stop_detail: "1 field(s) need input",
+    });
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location")).toMatchObject({
+      filled: false,
+      value: null,
+      source: "none",
+      note: "location autocomplete: no suggestion matches the answer",
+    });
+    expect(page).toEqual({ typed: ["", "", ""], shown: "" });
+  }, 90_000);
+
+  it("two matching suggestions: needs_input, nothing picked", async () => {
+    seedLocation();
+    const { summary, page } = await locationState(withLocation("Springfield"));
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location")).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "location autocomplete: several suggestions match the answer",
+    });
+    expect(page).toEqual({ typed: ["", "", ""], shown: "" });
+  }, 90_000);
+
+  it("a suggestion that only partly matches the answer is not picked", async () => {
+    seedLocation();
+    const { summary } = await locationState(withLocation("Jakarta Narnia"));
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location")).toMatchObject({
+      filled: false,
+      note: "location autocomplete: no suggestion matches the answer",
+    });
+  }, 90_000);
+
+  it("no approved location answer: nothing is typed, the row says so", async () => {
+    seedLocation();
+    const { summary, page } = await locationState((c) => ({
+      ...c,
+      answers: c.answers.filter((a) => a.key !== "contact.location"),
+    }));
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 14 });
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location")).toMatchObject({
+      filled: false,
+      note: "location autocomplete: no approved location answer",
+    });
+    expect(page).toEqual({ typed: ["", "", ""], shown: "" });
+  }, 90_000);
+
+  it("regression: the widget's helper Search inputs (inside and beside it) are not extra questions", async () => {
+    seedLocation();
+    const { summary } = await locationState(withLocation("Atlantis"));
+    expect(summary.status).toBe("needs_input");
+    expect(summary.stopReason).not.toBe("form_changed");
+    expect(fieldsOf(summary.runId).some((r) => r.label === "Search")).toBe(false);
   }, 90_000);
 
   it("without the stored Location question the control is an extra field: form_changed", async () => {
@@ -367,6 +438,73 @@ describe("location autocomplete (the stored Location question: the owner picks)"
     expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
     expect(runOf(summary.runId)?.stop_detail).toBe("form changed (missing: Location)");
   }, 90_000);
+});
+
+describe("a hosted job page that sends the visitor to another host", () => {
+  const movedTo = (target: string) => (req: { url: URL }) =>
+    req.url.pathname === "/acme/jobs/1005" || req.url.pathname === "/embed/job_app"
+      ? {
+          status: 302,
+          contentType: "text/plain",
+          body: "",
+          headers: { location: `${target}/acme/jobs/1001` },
+        }
+      : undefined;
+
+  it("opens the embedded application form of the same board instead and fills it", async () => {
+    // Only the job page redirects; the embed path is a static page on the same (redirecting) host.
+    const board = await startFixtureServer(
+      FIXTURES_DIR,
+      { "/embed/job_app": "form.html" },
+      (req) => (req.url.pathname === "/acme/jobs/1005" ? movedTo(server.origin)(req) : undefined),
+    );
+    try {
+      const summary = await runGreenhouseDryRun({
+        db,
+        dataDir,
+        postingId: FIXTURE_POSTING_ID,
+        url: `${board.origin}/acme/jobs/1005`,
+        fixture: true,
+        context: fixtureContext(dataDir),
+      });
+      expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+      expect(board.requests.map((r) => `${r.method} ${r.path}`)).toEqual(
+        expect.arrayContaining(["GET /acme/jobs/1005", "GET /embed/job_app"]),
+      );
+      expect(board.nonGet()).toEqual([]);
+    } finally {
+      await board.close();
+    }
+  }, 90_000);
+
+  it("a redirect from the embedded form too still stops: redirected to another host", async () => {
+    const board = await startFixtureServer(FIXTURES_DIR, {}, movedTo(server.origin));
+    try {
+      const summary = await runGreenhouseDryRun({
+        db,
+        dataDir,
+        postingId: FIXTURE_POSTING_ID,
+        url: `${board.origin}/acme/jobs/1005`,
+        fixture: true,
+        context: fixtureContext(dataDir),
+      });
+      expect(summary).toMatchObject({ status: "stopped", stopReason: "other", filled: 0 });
+      expect(runOf(summary.runId)?.stop_detail).toBe("redirected to another host");
+    } finally {
+      await board.close();
+    }
+  }, 90_000);
+
+  it("the embedded form URL is derived from /<board>/jobs/<id> only", () => {
+    expect(embeddedFormUrl("https://job-boards.greenhouse.io/acme/jobs/1005")).toBe(
+      "https://job-boards.greenhouse.io/embed/job_app?for=acme&token=1005",
+    );
+    expect(embeddedFormUrl("https://job-boards.eu.greenhouse.io/acme/jobs/7/")).toBe(
+      "https://job-boards.eu.greenhouse.io/embed/job_app?for=acme&token=7",
+    );
+    expect(embeddedFormUrl("https://job-boards.greenhouse.io/acme")).toBeNull();
+    expect(embeddedFormUrl("https://example.test/acme/jobs/abc")).toBeNull();
+  });
 });
 
 describe("stops (nothing is filled)", () => {

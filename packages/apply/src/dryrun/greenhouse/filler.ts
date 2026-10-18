@@ -11,6 +11,7 @@ import {
 } from "../../fill-plan.ts";
 import type { DryRunFieldInput } from "../../dry-runs-store.ts";
 import { normalizeQuestion } from "../../match.ts";
+import { approvedLocation, autocompleteRow, type SuggestionResult } from "../autocomplete.ts";
 import { FIXTURE_HOST } from "../request-guard.ts";
 import {
   DryRunSession,
@@ -29,9 +30,6 @@ import {
 
 /** Hosts a real (owner-run) Greenhouse dry run may open: the hosted job-boards pages, nothing else. */
 const GREENHOUSE_HOST = /^(?:job-)?boards(?:\.eu)?\.greenhouse\.io$/;
-
-/** Note of the Location question's row: the autocomplete only keeps a picked suggestion, so the owner picks it. */
-const LOCATION_NOTE = "location autocomplete: pick the suggestion yourself";
 
 export type PlanContext = Pick<FillInput, "answers" | "choiceMappings" | "ask" | "scamFlagged">;
 
@@ -105,6 +103,16 @@ function assertUrl(url: string, fixture: boolean): void {
   } else if (parsed.protocol !== "https:" || !GREENHOUSE_HOST.test(parsed.hostname)) {
     throw new HarnessRefusalError("refused: not a Greenhouse job-boards page");
   }
+}
+
+/**
+ * The embedded application form of a hosted job page (`/<slug>/jobs/<id>` -> `/embed/job_app?for=<slug>&token=<id>`, same
+ * host): opened once when the hosted page sends the visitor on to the company's career page. Null for any other path.
+ */
+export function embeddedFormUrl(url: string): string | null {
+  const u = new URL(url);
+  const m = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/jobs\/(\d+)\/?$/.exec(u.pathname);
+  return m === null ? null : `${u.origin}/embed/job_app?for=${m[1]}&token=${m[2]}`;
 }
 
 const cssOf = (id: string) => ({ css: `[id="${id.replace(/["\\]/g, "\\$&")}"]` });
@@ -185,6 +193,9 @@ export async function runGreenhouseDryRun(
     ats: "greenhouse",
     url: opts.url,
     fixture: opts.fixture,
+    ...(embeddedFormUrl(opts.url) !== null
+      ? { fallbackUrl: embeddedFormUrl(opts.url) as string }
+      : {}),
     ...(opts.headless !== undefined ? { headless: opts.headless } : {}),
   });
   const done = async (
@@ -224,9 +235,10 @@ export async function runGreenhouseDryRun(
     const fields = stored
       .filter((f) => f.ats.id !== location?.storedId)
       .sort((a, b) => (order.get(a.ats.id) ?? 0) - (order.get(b.ats.id) ?? 0));
+    const context = opts.context ?? loadFillContext(opts.db, opts.postingId);
     const plan = planFill({
       fields,
-      ...(opts.context ?? loadFillContext(opts.db, opts.postingId)),
+      ...context,
       ...(opts.probeResume !== undefined ? { probeResume: opts.probeResume } : {}),
     });
     if (plan.kind === "stop")
@@ -253,6 +265,21 @@ export async function runGreenhouseDryRun(
         );
       }
     }
+    // The location autocomplete: type the approved location, pick the one matching suggestion (none / several: stays open).
+    let locationRow: DryRunFieldInput | undefined;
+    if (locationField !== undefined && location !== null && !session.stop) {
+      const answer = approvedLocation(context.answers);
+      let result: SuggestionResult = { picked: false, reason: "noAnswer" };
+      if (answer !== null) {
+        try {
+          result = await session.pickSuggestion(cssOf(location.domId), answer);
+        } catch {
+          // Playwright messages quote what was typed: only the fixed wording is kept.
+          result = { picked: false, reason: "refused" };
+        }
+      }
+      locationRow = autocompleteRow(locationField, result);
+    }
     if (session.stop) return await done(undefined);
     const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(fillable));
     const planned: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {
@@ -273,21 +300,7 @@ export async function runGreenhouseDryRun(
         : { ...base, source: p.source, value: null, filled: false, note: why };
     });
     const rows: DryRunFieldInput[] =
-      locationField === undefined
-        ? planned
-        : [
-            ...planned,
-            {
-              label: locationField.label,
-              field_type: locationField.field_type,
-              required: locationField.required,
-              answer_key: null,
-              source: "none",
-              value: null,
-              filled: false,
-              note: LOCATION_NOTE,
-            },
-          ];
+      locationRow === undefined ? planned : [...planned, locationRow];
 
     const open = rows.filter((r) => !r.filled).length;
     const pageRefused = rows.filter((r) => !r.filled && r.source !== "none").length;

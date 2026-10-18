@@ -66,6 +66,8 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     return (
       name === "" ||
       type === "hidden" ||
+      // a helper input inside a suggestion widget (location search box) belongs to that widget's field
+      el.closest(".dropdown-results, .dropdown-container") !== null ||
       ["submit", "button", "image", "reset"].includes(type) ||
       name.startsWith("surveysResponses[") ||
       name.startsWith("consent[") ||
