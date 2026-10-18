@@ -27,7 +27,7 @@ import { runFetchQuestions } from "./questions/index.ts";
 import { runProcess } from "./process.ts";
 import { runReprocess } from "./reprocess.ts";
 import { computeDayStats, formatStats, isDigestDate, jakartaDate } from "./review/index.ts";
-import { DRY_RUN_USAGE, runDryRun } from "./dry-run.ts";
+import { DRY_RUN_USAGE, describeError as describeDryRunError, runDryRun } from "./dry-run.ts";
 import { refusalReason, runSeedDemo } from "./seed-demo.ts";
 
 export interface Io {
@@ -274,12 +274,20 @@ const commands: Record<string, Command> = {
         allowPositionals: true,
         options: { headless: { type: "boolean", default: false }, fixture: { type: "string" } },
       });
-    } catch (e) {
-      io.err(`dry-run: ${e instanceof Error ? e.message : String(e)}\n${DRY_RUN_USAGE}`);
+    } catch {
+      // The parser's message quotes what was typed: print fixed text only.
+      io.err(`dry-run: refused: invalid arguments\n${DRY_RUN_USAGE}`);
       return 1;
     }
-    const dbPath = defaultDbPath();
-    const db = openDb(dbPath);
+    let dbPath: string;
+    let db;
+    try {
+      dbPath = defaultDbPath();
+      db = openDb(dbPath);
+    } catch (e) {
+      io.err(describeDryRunError(e));
+      return 1;
+    }
     try {
       return await runDryRun({
         positionals: parsed.positionals,

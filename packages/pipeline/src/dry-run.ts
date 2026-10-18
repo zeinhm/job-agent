@@ -4,14 +4,15 @@ import {
   BrowserMissingError,
   FIXTURE_FORM_PATH,
   ASHBY_FIXTURE_FORM_PATH,
-  HarnessRefusalError,
   LEVER_FIXTURE_FORM_PATH,
   ashbyFixtureContext,
   dataDirOfDb,
+  errorLine,
   fixtureContext,
   loadFillContext,
   leverFixtureContext,
   loadStoredQuestions,
+  refusalLine,
   runAshbyDryRun,
   runGreenhouseDryRun,
   runLeverDryRun,
@@ -96,19 +97,27 @@ export function ashbyFormUrl(link: AtsLink): string | null {
   return `https://${u.hostname}/${link.slug}/${id}/application`;
 }
 
+/**
+ * The one summary line. `dataDir` is given only by the owner's own `dry-run` command (owner-only code path: the
+ * screenshot path is printed); operator-facing callers pass `null` and the line carries no path at all.
+ */
 export function summaryLine(
   s: GreenhouseRunSummary | LeverRunSummary | AshbyRunSummary,
-  dataDir: string,
+  dataDir: string | null,
 ): string {
   // `captcha=passive`: the run went on with a CAPTCHA script / badge / hidden widget on the page (labels in stop_detail).
   const captcha = s.captchaPassive.length > 0 ? " captcha=passive" : "";
-  return `dry-run: status=${s.status} reason=${s.stopReason ?? "-"} fields=${s.filled}/${s.total}${captcha} screenshot=${join(dataDir, s.screenshotPath)}\n`;
+  const shot = dataDir === null ? "" : ` screenshot=${join(dataDir, s.screenshotPath)}`;
+  return `dry-run: status=${s.status} reason=${s.stopReason ?? "-"} fields=${s.filled}/${s.total}${captcha}${shot}\n`;
 }
 
-/** Never prints a value: only our own fixed refusal wordings reach the terminal. */
-function describeError(e: unknown): string {
-  if (e instanceof BrowserMissingError || e instanceof HarnessRefusalError) return e.message;
-  return `unexpected ${e instanceof Error ? e.name : "error"} (nothing was submitted)`;
+/**
+ * What a thrown error prints: the fixed "browser missing" wording, otherwise `dry-run: error <Name> at <path>:<line>`.
+ * Never a message (a Playwright error can quote a typed value) and never stack text.
+ */
+export function describeError(e: unknown): string {
+  if (e instanceof BrowserMissingError) return `dry-run: ${e.message}\n`;
+  return errorLine("dry-run", e);
 }
 
 /**
@@ -117,9 +126,19 @@ function describeError(e: unknown): string {
  * from 127.0.0.1 with a fake persona; refused on the real database. Returns the exit code.
  */
 export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
+  try {
+    return await runDryRunUnguarded(opts);
+  } catch (e) {
+    // Anything the steps below did not handle (a stored row that fails its schema, a failed read, ...).
+    opts.err(describeError(e));
+    return 1;
+  }
+}
+
+async function runDryRunUnguarded(opts: DryRunCommandOptions): Promise<number> {
   const { db, out, err } = opts;
   const refuse = (reason: string): number => {
-    err(`dry-run: refused: ${reason}\n`);
+    err(refusalLine("dry-run", reason));
     return 1;
   };
   const { positionals } = opts;
@@ -181,7 +200,7 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
       out(summaryLine(summary, dataDir));
       return summary.status === "error" ? 1 : 0;
     } catch (e) {
-      err(`dry-run: ${describeError(e)}\n`);
+      err(describeError(e));
       return 1;
     } finally {
       await server.close();
@@ -249,7 +268,7 @@ export async function runDryRun(opts: DryRunCommandOptions): Promise<number> {
     out(summaryLine(summary, dataDir));
     return summary.status === "error" ? 1 : 0;
   } catch (e) {
-    err(`dry-run: ${describeError(e)}\n`);
+    err(describeError(e));
     return 1;
   }
 }
