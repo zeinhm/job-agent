@@ -1,5 +1,30 @@
 {
   "permissions": {
-    "allow": ["Bash(./bin/test-:*)", "Bash(bash bin/test-:*)", "Bash(bin/test-:*)"]
+    "allow": [
+      "Bash(./bin/test-agent-step.sh)",
+      "Bash(./bin/test-backup.sh)",
+      "Bash(./bin/test-hold.sh)",
+      "Bash(./bin/test-operator-dispatch.sh)",
+      "Bash(./bin/test-operator-live.sh)",
+      "Bash(./bin/test-operator.sh)",
+      "Bash(bash bin/test-agent-step.sh)",
+      "Bash(bash bin/test-agent-step.sh:*)",
+      "Bash(bash bin/test-backup.sh)",
+      "Bash(bash bin/test-backup.sh:*)",
+      "Bash(bash bin/test-hold.sh)",
+      "Bash(bash bin/test-hold.sh:*)",
+      "Bash(bash bin/test-operator-dispatch.sh)",
+      "Bash(bash bin/test-operator-dispatch.sh:*)",
+      "Bash(bash bin/test-operator-live.sh)",
+      "Bash(bash bin/test-operator-live.sh:*)",
+      "Bash(bash bin/test-operator.sh)",
+      "Bash(bash bin/test-operator.sh:*)",
+      "Bash(bin/test-agent-step.sh)",
+      "Bash(bin/test-backup.sh)",
+      "Bash(bin/test-hold.sh)",
+      "Bash(bin/test-operator-dispatch.sh)",
+      "Bash(bin/test-operator-live.sh)",
+      "Bash(bin/test-operator.sh)"
+    ]
   }
 }
