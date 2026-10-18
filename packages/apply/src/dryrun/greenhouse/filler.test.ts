@@ -27,8 +27,11 @@ import {
   FIXTURE_CHANGED_PATH,
   FIXTURE_FORM_PATH,
   FIXTURE_LOCATION_PATH,
+  FIXTURE_EDUCATION_PATH,
   FIXTURE_LOCATION_QUESTION,
   FIXTURE_POSTING_ID,
+  FIXTURE_UNKNOWN_EXTRA_PATH,
+  FIXTURE_WIDGETS_PATH,
   fixtureContext,
   seedGreenhouseFixture,
   startGreenhouseFixtureServer,
@@ -437,6 +440,36 @@ describe("location autocomplete (the stored Location question: the owner picks)"
     const { summary } = await run();
     expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
     expect(runOf(summary.runId)?.stop_detail).toBe("form changed (missing: Location)");
+  }, 90_000);
+});
+
+describe("widget helper inputs and the education block are known fields (t_28f6e353)", () => {
+  it("combobox filter boxes and a react-select internal input are not extra questions: the run fills as on the plain form", async () => {
+    const { summary } = await run(FIXTURE_WIDGETS_PATH);
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 13, total: 13 });
+    expect(fieldsOf(summary.runId).some((r) => /search|filter/i.test(r.label))).toBe(false);
+  }, 90_000);
+
+  it("the education block is not form_changed: required controls are listed as needing input, optional ones are skipped", async () => {
+    const { summary, seen } = await run(FIXTURE_EDUCATION_PATH);
+    expect(summary).toMatchObject({ status: "needs_input", filled: 13, total: 15 });
+    expect(summary.stopReason).not.toBe("form_changed");
+    const rows = fieldsOf(summary.runId);
+    expect(
+      rows.filter((r) => !r.filled).map((r) => [r.label, r.required, r.source, r.value]),
+    ).toEqual([
+      ["School", true, "none", null],
+      ["Degree", true, "none", null],
+    ]);
+    expect(rows.some((r) => /Discipline|date|Search/.test(r.label))).toBe(false);
+    // Nothing was typed into the education controls.
+    expect(seen).not.toBeNull();
+  }, 90_000);
+
+  it("a really unknown extra question still stops form_changed, and the helper next to it is not named", async () => {
+    const { summary } = await run(FIXTURE_UNKNOWN_EXTRA_PATH);
+    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
+    expect(runOf(summary.runId)?.stop_detail).toBe("form changed (extra: Favourite database)");
   }, 90_000);
 });
 

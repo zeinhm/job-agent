@@ -15,6 +15,7 @@ export type DomKind =
   | "multiselect"
   | "combobox"
   | "location"
+  | "education"
   | "radio_group"
   | "checkbox_group"
   | "unsupported";
@@ -27,6 +28,8 @@ export interface DomControl {
   options: string[] | null;
   /** Ids of the radio / checkbox inputs of a group, parallel to `options`. */
   optionIds: string[];
+  /** The page marks the control required (`required` / `aria-required`); read for the education block. */
+  required?: boolean;
 }
 
 /** Fixed expression run in the page; the result is JSON (null when the page has no application form). */
@@ -61,21 +64,28 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
       ["", "text"].includes((el.getAttribute("type") || "").toLowerCase()));
   const locations = new Set();
   const helpers = new Set();
-  const searches = [...form.querySelectorAll("input")].filter((n) => isInput(n) && plain(n) === "search");
   for (const el of form.querySelectorAll("input")) {
     if (!el.id || skipped(el) || !isInput(el) || plain(el) !== "location city") continue;
     locations.add(el);
   }
-  // A helper "Search" input belongs to the widget it sits in, wherever the page puts it: every "Search" input of a form
-  // with a location widget, and any "Search" input within 3 levels of a combobox (a combobox filter box).
-  for (const n of searches) {
-    let box = n.parentElement;
-    let inWidget = locations.size > 0;
-    for (let i = 0; !inWidget && i < 3 && box && box !== form; i++, box = box.parentElement) {
-      inWidget = [...box.querySelectorAll("input")].some((o) => o !== n && o.getAttribute("role") === "combobox");
-    }
-    if (inWidget && !skipped(n)) helpers.add(n);
+  // A widget helper input is a search / filter box that belongs to a combobox or autocomplete (location, school, any
+  // react-select): labelled "Search ...", "Filter ..." or "Type to search", or a react-select internal input with no
+  // label at all. It is part of its widget, not a question, wherever the page puts it. A form with a widget has them.
+  const hasWidget =
+    locations.size > 0 ||
+    form.querySelector("input[role='combobox'], input[aria-autocomplete], .select__container") !== null;
+  const helperLabel = /^(search|filter|type to search)( |$)/;
+  for (const n of form.querySelectorAll("input")) {
+    if (!isInput(n) || skipped(n) || locations.has(n)) continue;
+    const text = plain(n);
+    const bare = text === "" && /^react-select-/.test(n.id);
+    if (hasWidget && (bare || helperLabel.test(text))) helpers.add(n);
   }
+  // The standard Greenhouse education block (School, Degree, Discipline, start / end dates) is not made of API questions.
+  const educationId = /^(school|degree|discipline|start-(month|year)|end-(month|year))(--\\d+)?$/;
+  const inEducation = (el) =>
+    el.closest("#education_section, .education, [data-section='education']") !== null ||
+    educationId.test(el.id);
   for (const g of form.querySelectorAll("[role='group'][id], [role='radiogroup'][id]")) {
     const boxes = [...g.querySelectorAll("input[type='checkbox'], input[type='radio']")];
     if (boxes.length === 0 || skipped(g)) continue;
@@ -95,6 +105,7 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     let kind = "unsupported";
     let options = null;
     if (locations.has(el)) kind = "location";
+    else if (inEducation(el)) kind = "education";
     else if (el.tagName === "TEXTAREA") kind = "textarea";
     else if (el.tagName === "SELECT") {
       kind = el.hasAttribute("multiple") ? "multiselect" : "select";
@@ -102,7 +113,8 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     } else if (type === "file") kind = "file";
     else if (el.getAttribute("role") === "combobox") kind = "combobox";
     else if (["", "text", "email", "tel", "url", "number"].includes(type)) kind = "text";
-    out.push({ id: el.id, kind, label: labelOf(el), options, optionIds: [] });
+    const required = el.required === true || el.getAttribute("aria-required") === "true";
+    out.push({ id: el.id, kind, label: labelOf(el), options, optionIds: [], required });
   }
   return out;
 })()`;
@@ -170,12 +182,16 @@ export function compareForm(
     }
     const kinds = COMPATIBLE[f.field_type];
     if (kinds === undefined) continue;
+    if (control.kind === "education") continue; // a stored question on an education id: the block stays the block
     const kindOk = kinds.includes(control.kind);
     const optionsOk =
       control.options === null || f.options === null || sameOptions(control.options, f.options);
     if (!kindOk || !optionsOk) different.push(f.label);
   }
-  const extra = dom.filter((c) => !storedIds.has(c.id)).map((c) => c.label || c.id);
+  // The education block is known to the form but is not an API question: never extra.
+  const extra = dom
+    .filter((c) => !storedIds.has(c.id) && c.kind !== "education")
+    .map((c) => c.label || c.id);
   return {
     ok: missing.length === 0 && extra.length === 0 && different.length === 0,
     missing,

@@ -22,6 +22,12 @@ export const FIXTURE_FORM_PATH = "/acme/jobs/1001";
 export const FIXTURE_CHANGED_PATH = "/acme/jobs/1003";
 /** The form with a location autocomplete (the stored Location question is `FIXTURE_LOCATION_QUESTION`). */
 export const FIXTURE_LOCATION_PATH = "/acme/jobs/1004";
+/** The form plus widget helper inputs (combobox filter boxes, a react-select internal input): no extra question. */
+export const FIXTURE_WIDGETS_PATH = "/acme/jobs/1008";
+/** The form plus the standard education block (School, Degree, Discipline, dates): known fields, not extra. */
+export const FIXTURE_EDUCATION_PATH = "/acme/jobs/1009";
+/** The form plus one real unknown extra question (a text input): still stops `form_changed`. */
+export const FIXTURE_UNKNOWN_EXTRA_PATH = "/acme/jobs/1010";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -66,6 +72,9 @@ const PAGES: Record<string, string> = {
   [FIXTURE_FORM_PATH]: "form.html",
   [FIXTURE_CHANGED_PATH]: "changed.html",
   [FIXTURE_LOCATION_PATH]: LOCATION_PAGE,
+  [FIXTURE_WIDGETS_PATH]: "form.html+form:snippets/widgets.html",
+  [FIXTURE_EDUCATION_PATH]: "form.html+form:snippets/education.html",
+  [FIXTURE_UNKNOWN_EXTRA_PATH]: "form.html+form:snippets/unknown-extra.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
@@ -337,12 +346,15 @@ export async function startFixtureServer(
       const spec = pages[url.pathname];
       if (spec !== undefined && (method === "GET" || method === "HEAD")) {
         // "page.html+snippet.html": the snippet (a CAPTCHA variant) goes in before </body>; the page file is not changed.
+        // "page.html+form:snippet.html": the same, before </form>.
         const [file = "", snippet] = spec.split("+");
         const ext = file.slice(file.lastIndexOf("."));
         let body = readFileSync(join(dir, file), "utf8");
         if (snippet !== undefined) {
-          const add = readFileSync(join(dir, snippet), "utf8");
-          const at = body.lastIndexOf("</body>");
+          // "form:<file>": the snippet goes in before </form> (extra form controls), not before </body>.
+          const inForm = snippet.startsWith("form:");
+          const add = readFileSync(join(dir, inForm ? snippet.slice(5) : snippet), "utf8");
+          const at = body.lastIndexOf(inForm ? "</form>" : "</body>");
           body = at === -1 ? body + add : `${body.slice(0, at)}${add}${body.slice(at)}`;
         }
         res

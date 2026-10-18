@@ -154,6 +154,7 @@ async function apply(
       return;
     }
     case "location": // never typed into: a typed location is not a picked suggestion
+    case "education": // the owner's to fill
     case "unsupported":
       throw new HarnessRefusalError("refused: unsupported control");
   }
@@ -233,7 +234,7 @@ export async function runGreenhouseDryRun(
     // and a suggestion is the owner's pick): it stays out of the plan and is recorded as not filled with a fixed note.
     const location = pairLocation(stored, controls);
     const locationField = stored.find((f) => f.ats.id === location?.storedId);
-    const fillable = controls.filter((c) => c.kind !== "location");
+    const fillable = controls.filter((c) => c.kind !== "location" && c.kind !== "education");
     const byId = new Map(fillable.map((c) => [c.id, c]));
     const order = new Map(fillable.map((c, i) => [c.id, i]));
     const fields = stored
@@ -303,8 +304,25 @@ export async function runGreenhouseDryRun(
         ? { ...base, source: p.source, value: valueText(p), filled: true, note: null }
         : { ...base, source: p.source, value: null, filled: false, note: why };
     });
-    const rows: DryRunFieldInput[] =
-      locationRow === undefined ? planned : [...planned, locationRow];
+    // The education block (School, Degree, Discipline, dates) is the owner's to fill: a required control is listed as
+    // needing input, an optional one is skipped. Never typed into, never a form change.
+    const educationRows = controls
+      .filter((c) => c.kind === "education" && c.required === true && c.label !== "")
+      .map((c): DryRunFieldInput => ({
+        label: c.label,
+        field_type: "text",
+        required: true,
+        answer_key: null,
+        source: "none",
+        value: null,
+        filled: false,
+        note: "education block: the owner fills it",
+      }));
+    const rows: DryRunFieldInput[] = [
+      ...planned,
+      ...(locationRow === undefined ? [] : [locationRow]),
+      ...educationRows,
+    ];
 
     const open = rows.filter((r) => !r.filled).length;
     const pageRefused = rows.filter((r) => !r.filled && r.source !== "none").length;
