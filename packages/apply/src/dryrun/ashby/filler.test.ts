@@ -979,7 +979,9 @@ describe("phone readback by digits (t_73f3d2e8)", () => {
     expect(kept(text, "5550100123", ["+1 555-0100-123"], true)).toBe(true);
     // Not a phone: the reformatted value is a different value.
     expect(kept(text, "5550100123", ["+1 555-0100-123"])).toBe(false);
-    expect(kept(text, "Example Corp", ["Example  Corp"])).toBe(false);
+    expect(kept(text, "Example Corp", ["Example Corporation"])).toBe(false);
+    // Whitespace and case are normalised (t_a3641596).
+    expect(kept(text, "Example Corp", [" example  corp "])).toBe(true);
     expect(kept(text, "Example Corp", ["Example Corp"])).toBe(true);
   });
 });

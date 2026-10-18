@@ -6,6 +6,7 @@ import { loadFillContext, recordUncoveredLabels } from "../../fill-plan-db.ts";
 import { planFill, type FormField, type PlannedField, type ResumeProbe } from "../../fill-plan.ts";
 import type { DryRunFieldInput } from "../../dry-runs-store.ts";
 import { normalizeQuestion } from "../../match.ts";
+import { readbackEqual } from "../readback.ts";
 import { matchQuestions } from "../../match-questions.ts";
 import { autocompleteRow, type SuggestionResult } from "../autocomplete.ts";
 import { FIXTURE_HOST } from "../request-guard.ts";
@@ -189,12 +190,7 @@ export function kept(
   phone = false,
 ): boolean {
   if (phone && (c.kind === "text" || c.kind === "textarea")) return phoneKept(value, got);
-  if (c.kind === "text" || c.kind === "textarea") return got.length === 1 && got[0] === value;
-  const want = (Array.isArray(value) ? value : [value]).map((v) =>
-    c.kind === "file" ? basename(v) : normalizeQuestion(v),
-  );
-  const have = got.map((v) => (c.kind === "file" ? v : normalizeQuestion(v)));
-  return want.length === have.length && want.every((w) => have.includes(w));
+  return readbackEqual(c.kind, value, got);
 }
 
 export const valueText = (p: Extract<PlannedField, { filled: true }>): string =>

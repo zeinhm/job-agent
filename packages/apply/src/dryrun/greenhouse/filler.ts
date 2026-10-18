@@ -11,6 +11,7 @@ import {
 } from "../../fill-plan.ts";
 import type { DryRunFieldInput } from "../../dry-runs-store.ts";
 import { normalizeQuestion } from "../../match.ts";
+import { readbackEqual } from "../readback.ts";
 import { approvedLocation, autocompleteRow, type SuggestionResult } from "../autocomplete.ts";
 import { FIXTURE_HOST } from "../request-guard.ts";
 import {
@@ -162,12 +163,7 @@ async function apply(
 
 /** True when what the page kept equals what was planned (texts exactly, choices and files by normalized label). */
 function kept(c: DomControl, value: string | string[], got: readonly string[]): boolean {
-  if (c.kind === "text" || c.kind === "textarea") return got.length === 1 && got[0] === value;
-  const want = (Array.isArray(value) ? value : [value]).map((v) =>
-    c.kind === "file" ? basename(v) : normalizeQuestion(v),
-  );
-  const have = got.map((v) => (c.kind === "file" ? v : normalizeQuestion(v)));
-  return want.length === have.length && want.every((w) => have.includes(w));
+  return readbackEqual(c.kind, value, got);
 }
 
 const valueText = (p: Extract<PlannedField, { filled: true }>): string =>
