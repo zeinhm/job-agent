@@ -955,3 +955,29 @@ The last section of every digest has one line per source that has ever run, buil
 ## Automation merges (bin/agent-step)
 
 - **Automatic DB backup before a merge.** Before QA or the auditor merges a card (one helper, `backup_before_merge` in `bin/step-git.sh`), the automation looks for a line starting with `OWNER: back up data/job-agent.db` (leading spaces, `**` and the `[date] author: ` comment prefix allowed) in the dev card's report comments and in the reviewer's own report. If found it runs `sqlite3 data/job-agent.db ".backup 'data/job-agent.db.bak-<YYYYmmddHHMM>'"` (local time), checks the copy is non-empty and `PRAGMA integrity_check` returns `ok`, and keeps only the 5 newest `job-agent.db.bak-*` files. The file name goes into the squash commit body and the card summary. If the backup fails, nothing is merged and the card is held `[OWNER]` with the reason. No line, no backup. Nothing reads or prints the DB contents; restoring is manual.
+
+## Operator
+
+The `operator` role (prompts/roles/operator.md, model `MODEL_operator`, default sonnet) runs the real dry-run loop for you:
+candidates -> real dry runs -> report -> fix cards -> re-run after a merged fix. Dispatch and triggers come with the O6 card;
+until then it only runs when started by hand.
+
+- **What it runs.** Only `bin/operator candidates [--limit n] | report [--posting id] [--since date] [--last n] | run <batch-id> <posting-id>`
+  (it calls `dry-run-candidates`, `dry-run-report`, `operator-dry-run` in the main checkout, prints their stdout and drops stderr;
+  a failure prints `operator: <sub> failed (exit n)`, anything else `operator: refused: ...`), `hermes kanban list|show`,
+  and `bin/operator card|note|release <batch-id> <slug> ...`, the only way it creates a card, comments or releases a card: the text
+  comes from `data/handoff/<batch-id>-<slug>.md` (regular file, no symlink, 20000 / 4000 bytes at most), assignee is dev, qa or auditor,
+  workspace and priority are fixed, and `release` refuses `[OWNER]` holds and `Operator fix` cards. `.claude/roles/operator.json`
+  allows only those commands and writing under `data/handoff/`, and denies `pnpm`, `node`, `sqlite3`, every shell reader,
+  `git`, `data/`, `config/`, `.env`, screenshots and edits to every tracked directory, `.git` and `.worktrees`. `bin/cc-run` runs
+  the operator in `--permission-mode dontAsk` (anything not allowed is refused) with only its own settings file (the overrides
+  file is not merged in; the run does not start without it); other roles keep the union of both deny lists, and a failing merge
+  falls back to the role file. `bin/test-operator-live.sh` (yours to run, uses the Pro plan) checks with the real `claude` that
+  readers on a fake file are refused.
+- **Limits in code.** 5 forms per batch for the first 3 batches, then 10; one form at a time; your own `dry-run` wins the lock; the
+  batch stops at the first CAPTCHA and the card is held `[OWNER]`. The D2 guard (no submit) is unchanged.
+- **How to stop it.** Block its card (`hermes kanban block <card>`); a form already open ends by itself (the
+  lock is stale after 30 minutes). Your own `dry-run` always wins the lock.
+- **Where the summary is.** The last section of its report (`## Owner summary`: runs ready for your Correct/Wrong, open root causes,
+  `[OWNER]` holds) on the operator card; the O6 card copies it to `data/dispatch/operator-summary.md`. You still mark runs
+  Correct/Wrong; the operator never does.

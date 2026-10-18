@@ -22,6 +22,9 @@ Never stop to ask or wait. Decide sensibly from the docs and the card, and write
   `bin/smoke run <smoke dir> <command...>`. Never prefix commands with environment variables (`JOB_AGENT_DB=... pnpm ...`):
   those are not allowed and nobody can approve them in an unattended run.
 
+- Exceptions for the `operator` role only (prompts/roles/operator.md): it may create the fix / QA / audit cards listed there
+  and open real employer forms through `bin/operator run`. They apply to no other role.
+
 ## Where to look (never outside the repo)
 - Never search or list outside the repo or its worktrees: no `find /`, `find ~`, `mdfind`, `du /`, `ls -R ~`. A disk-wide
   walk takes minutes and triggers macOS privacy prompts (network volumes, Music, Desktop).

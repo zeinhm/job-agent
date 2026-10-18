@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cc-run <role> <workdir> <prompt-file> <out-file>: one local Claude Code run on the Pro plan,
 # with the role's model (bin/jobagent.conf) and permissions (.claude/roles/<role>.json, merged with the
-# private ~/.config/job-agent/claude-overrides.json if present).
+# private ~/.config/job-agent/claude-overrides.json if present; both permissions.deny lists are kept).
 # Exit 42 = Pro limit reached (the out-file's last line is "LIMIT_RESET_EPOCH=<epoch or empty>").
 set -uo pipefail
 . "$(dirname "$0")/lib.sh"
@@ -9,9 +9,13 @@ ROLE="$1"; WD="$2"; PF="$3"; OUT="$4"
 eval "MODEL=\${MODEL_$ROLE:-sonnet}"
 SET="$(mktemp "${TMPDIR:-/tmp}/cc-settings.XXXXXX")"
 BASE="$REPO/.claude/roles/$ROLE.json"; OV="$HOME/.config/job-agent/claude-overrides.json"
-if [ -f "$BASE" ] && [ -f "$OV" ] && command -v jq >/dev/null; then jq -s '.[0] * .[1]' "$BASE" "$OV" > "$SET"
+# the operator is closed: dontAsk refuses everything its own allow list does not name, and the overrides are never merged in
+MODE=acceptEdits; [ "$ROLE" = operator ] && MODE=dontAsk
+if [ "$ROLE" = operator ] && [ ! -s "$BASE" ]; then echo "cc-run: operator settings file missing" > "$OUT"; rm -f "$SET"; exit 1; fi
+if [ "$ROLE" != operator ] && [ -f "$BASE" ] && [ -f "$OV" ] && command -v jq >/dev/null; then
+  jq -s -f "$REPO/bin/merge-settings.jq" "$BASE" "$OV" > "$SET" && [ -s "$SET" ] || cp "$BASE" "$SET"
 elif [ -f "$BASE" ]; then cp "$BASE" "$SET"; else echo '{}' > "$SET"; fi
-( cd "$WD" && claude -p "$(cat "$PF")" --model "$MODEL" --settings "$SET" --permission-mode acceptEdits \
+( cd "$WD" && claude -p "$(cat "$PF")" --model "$MODEL" --settings "$SET" --permission-mode "$MODE" \
     --add-dir "$(dirname "$PF")" ) > "$OUT" 2>&1 </dev/null
 RC=$?; rm -f "$SET"
 if grep -qiE "(usage|rate|session|weekly) limit|limit reached|hit your .*limit|out of (usage|credits)" "$OUT" \

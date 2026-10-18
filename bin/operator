@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# operator candidates [--limit <n>] | report [--batch <id>] [--posting <id>] [--since <date>] [--last <n>] | run <batch-id> <posting-id>
+#          | card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>] | note <batch-id> <slug> <card-id> | release <batch-id> <slug> <card-id>
+# card / note / release are the role's only way to create a card, comment or release a card: the text comes from
+# data/handoff/<batch-id>-<slug>.md in the main checkout (a regular file, not a symlink, size-limited), so no argument can
+# name another file; assignee, workspace and priority are fixed here; release refuses [OWNER] holds and the operator's own cards.
+# The only command the operator role may run (.claude/roles/operator.json). It calls dry-run-candidates, dry-run-report or
+# operator-dry-run in the main checkout and prints their stdout only: stderr is discarded, so nothing but the value-free
+# lines of those commands can reach the transcript. Arguments are checked here and never echoed back.
+# A failing command prints "operator: <subcommand> failed (exit <n>)" and its own stdout, and exits with <n>.
+# Anything else prints "operator: refused: <fixed text>" and exits 2.
+set -uo pipefail
+
+refuse() { echo "operator: refused: $1"; echo "usage: operator candidates [--limit <n>] | report [--batch <id>] [--posting <id>] [--since <date>] [--last <n>] | run <batch-id> <posting-id> | card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>] | note <batch-id> <slug> <card-id> | release <batch-id> <slug> <card-id>"; exit 2; }
+SLUG_RE='^[a-z0-9][a-z0-9-]{0,40}$'
+TITLE_RE='^[A-Za-z0-9][]A-Za-z0-9 ._:,()/#[-]{0,159}$'
+ID_RE='^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'
+NUM_RE='^[0-9]{1,4}$'
+DATE_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9:.]{1,12}(Z|[+-][0-9]{2}:?[0-9]{2})?)?$'
+
+[ $# -ge 1 ] || refuse "no subcommand"
+SUB="$1"; shift
+ARGS=()
+case "$SUB" in
+  candidates)
+    CMD="dry-run-candidates"
+    if [ $# -ne 0 ]; then
+      { [ $# -eq 2 ] && [ "$1" = "--limit" ] && [[ "$2" =~ $NUM_RE ]]; } || refuse "invalid arguments"
+      ARGS=(--limit "$2")
+    fi ;;
+  report)
+    CMD="dry-run-report"
+    while [ $# -gt 0 ]; do
+      [ $# -ge 2 ] || refuse "invalid arguments"
+      case "$1" in
+        --batch|--posting) [[ "$2" =~ $ID_RE ]] || refuse "invalid arguments" ;;
+        --since)           [[ "$2" =~ $DATE_RE ]] || refuse "invalid arguments" ;;
+        --last)            [[ "$2" =~ $NUM_RE ]] || refuse "invalid arguments" ;;
+        *) refuse "invalid arguments" ;;
+      esac
+      ARGS+=("$1" "$2"); shift 2
+    done ;;
+  run)
+    CMD="operator-dry-run"
+    [ $# -eq 2 ] && [[ "$1" =~ $ID_RE ]] && [[ "$2" =~ $ID_RE ]] || refuse "invalid arguments"
+    ARGS=("$1" "$2") ;;
+  card)
+    [ $# -ge 4 ] && [ $# -le 5 ] && [[ "$1" =~ $ID_RE ]] && [[ "$2" =~ $SLUG_RE ]] && [[ "$3" =~ ^(dev|qa|auditor)$ ]] \
+      && [[ "$4" =~ $TITLE_RE ]] && { [ $# -eq 4 ] || [[ "$5" =~ $ID_RE ]]; } || refuse "invalid arguments"
+    BATCH="$1"; SLUG="$2"; WHO="$3"; TITLE="$4"; PARENT="${5:-}"; MAXB=20000 ;;
+  note|release)
+    [ $# -eq 3 ] && [[ "$1" =~ $ID_RE ]] && [[ "$2" =~ $SLUG_RE ]] && [[ "$3" =~ $ID_RE ]] || refuse "invalid arguments"
+    BATCH="$1"; SLUG="$2"; TARGET="$3"; MAXB=4000 ;;
+  *) refuse "unknown subcommand" ;;
+esac
+
+# the main checkout, also when this script was started from a worktree
+COMMON="$(git -C "$(dirname "$0")" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || { echo "operator: $SUB failed (exit 2)"; exit 2; }
+MAIN="$(dirname "$COMMON")"
+
+case "$SUB" in
+  card|note|release)
+    HD="$(cd "$MAIN/data/handoff" 2>/dev/null && pwd -P)" || refuse "no handoff directory"
+    FILE="$HD/$BATCH-$SLUG.md"
+    { [ -f "$FILE" ] && [ ! -L "$FILE" ]; } || refuse "text file missing or not a regular file"
+    { [ -s "$FILE" ] && [ "$(wc -c < "$FILE" | tr -d ' ')" -le "$MAXB" ]; } || refuse "text file empty or too long"
+    HOUT=""; RC=0
+    case "$SUB" in
+      card)
+        set -- "$TITLE" --assignee "$WHO" --workspace "dir:$MAIN" --priority 9 --body-file "$FILE"
+        [ -n "$PARENT" ] && set -- "$@" --parent "$PARENT"
+        HOUT="$(cd "$MAIN" && hermes kanban create "$@" 2>/dev/null </dev/null)"; RC=$? ;;
+      note)
+        TXT="$(cat "$FILE")"; case "$TXT" in -*) TXT="Note: $TXT" ;; esac
+        HOUT="$(cd "$MAIN" && hermes kanban comment "$TARGET" "$TXT" 2>/dev/null </dev/null)"; RC=$? ;;
+      release)
+        [ -f "$MAIN/data/dispatch/notes/$TARGET.owner" ] && refuse "card is held for the owner"
+        SHOWN="$(cd "$MAIN" && hermes kanban show "$TARGET" 2>/dev/null </dev/null | head -1)"
+        case "$SHOWN" in *"Operator fix"*|*OWNER*) refuse "card is the operator's own or held for the owner" ;; esac
+        TXT="$(cat "$FILE")"
+        HOUT="$(cd "$MAIN" && bin/release "$TARGET" "$TXT" 2>/dev/null </dev/null)"; RC=$? ;;
+    esac
+    if [ $RC -ne 0 ]; then echo "operator: $SUB failed (exit $RC)"; exit $RC; fi
+    [ -n "$HOUT" ] && printf '%s\n' "$HOUT"
+    exit 0 ;;
+esac
+
+OUT="$(cd "$MAIN" && pnpm --silent job-agent "$CMD" ${ARGS[@]+"${ARGS[@]}"} 2>/dev/null </dev/null)"
+RC=$?
+if [ $RC -ne 0 ]; then
+  echo "operator: $SUB failed (exit $RC)"
+  [ -n "$OUT" ] && printf '%s\n' "$OUT"
+  exit $RC
+fi
+[ -n "$OUT" ] && printf '%s\n' "$OUT"
+exit 0

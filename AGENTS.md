@@ -11,6 +11,7 @@ Every agent reads this file first, every task. If anything here conflicts with a
 | `dev` | Implements tasks via Claude Code | Yes | Claude Code (human's subscription) |
 | `qa` | Verifies acceptance criteria, runs tests | No | Claude Sonnet 5.5 |
 | `auditor` | Independent adversarial review of delivered work | No | Claude Opus 5.5 |
+| `operator` | Runs real dry runs through `bin/operator` (value-free output only) and turns failures into fix cards | No | Claude Sonnet 5.5 |
 
 The human (repo owner) owns: phase approval, secrets and API keys, answer-bank content, salary numbers, anything legal / ToS-related, and any decision marked UNSURE.
 
@@ -114,6 +115,9 @@ Claims without evidence are treated as not done.
 - **Never** bypass a CAPTCHA.
 - **Never** read or print `~/.hermes/.env`, `.env`, keys, tokens, or anything outside the project folder.
 - **Never** submit a real job application in any phase before Phase 6 is approved. Dry-run only.
+- **Never** open a real employer form. Exception (decision 2026-10-18): the `operator` role, only through `bin/operator run`
+  (headed, batch limit, shared lock and CAPTCHA halt enforced in code, output free of any value, the D2 no-submit guard on).
+  Every other role keeps fixtures and `bin/smoke` only, and never reads `data/` or `config/`.
 - Scraping only logged out, at conservative rates, and only for sources listed in PLAN.md.
 - New dependencies need a one-line justification in the evidence comment. Prefer well-known packages.
 - **Never** search or list outside the repo or its worktrees (no `find /`, `find ~`, `mdfind`, `du /`, `ls -R ~`); find a package path with `workers/jobspy/.venv/bin/python -c "import jobspy, os; print(os.path.dirname(jobspy.__file__))"`.
