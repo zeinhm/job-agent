@@ -23,6 +23,8 @@
   "location.country",
   "location.lives_in_us",
   "location.us_work_authorized",
+  "misc.contractor_note",
+  "misc.cover_letter_text",
   "misc.how_did_you_hear",
   "misc.open_to_crypto_web3",
   "profile.resume_file",
