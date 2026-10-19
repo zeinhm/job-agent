@@ -1,0 +1,17 @@
+<script>
+  // A page that never completes the upload: every time a file is attached it replaces the file input with a fresh empty
+  // one and shows no file name, so the file is never kept (the listener is on the document, so the fresh input is covered).
+  document.addEventListener(
+    "change",
+    (event) => {
+      const input = event.target;
+      if (input.id !== "resume") return;
+      setTimeout(() => {
+        const fresh = document.createElement("input");
+        for (const a of input.attributes) fresh.setAttribute(a.name, a.value);
+        input.replaceWith(fresh);
+      }, 100);
+    },
+    true,
+  );
+</script>

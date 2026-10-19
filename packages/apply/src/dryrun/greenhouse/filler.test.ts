@@ -18,6 +18,7 @@ import {
   embeddedFormUrl,
   loadStoredQuestions,
   runGreenhouseDryRun,
+  UPLOAD_NOT_KEPT_NOTE,
   type GreenhouseRunSummary,
 } from "./filler.ts";
 import {
@@ -33,6 +34,8 @@ import {
   FIXTURE_LOCATION_QUESTION,
   FIXTURE_POSTING_ID,
   FIXTURE_UNKNOWN_EXTRA_PATH,
+  FIXTURE_UPLOAD_DROPPED_PATH,
+  FIXTURE_UPLOAD_SWAP_PATH,
   FIXTURE_WIDGETS_PATH,
   fixtureContext,
   seedGreenhouseFixture,
@@ -311,6 +314,27 @@ describe("readback after a late re-render (intermittent per page)", () => {
     for (const label of ["First Name", "Last Name"])
       expect(rows.find((r) => r.label === label)).toMatchObject({ filled: true, note: null });
     expect((seen as unknown as Seen).texts["last_name"]).toBe("Example");
+  }, 90_000);
+
+  it("an upload the page completes late (input swapped for a file-name line) is filled, not refused", async () => {
+    const { summary } = await run(FIXTURE_UPLOAD_SWAP_PATH);
+    expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+    expect(fieldsOf(summary.runId).find((r) => r.field_type === "file")).toMatchObject({
+      source: "resume",
+      filled: true,
+      note: null,
+    });
+  }, 90_000);
+
+  it("an upload the page drops names the upload as the cause, not a generic refusal", async () => {
+    const { summary } = await run(FIXTURE_UPLOAD_DROPPED_PATH);
+    expect(summary).toMatchObject({ status: "needs_input", filled: 12, total: 13 });
+    expect(fieldsOf(summary.runId).find((r) => r.field_type === "file")).toMatchObject({
+      source: "resume",
+      filled: false,
+      value: null,
+      note: UPLOAD_NOT_KEPT_NOTE,
+    });
   }, 90_000);
 });
 

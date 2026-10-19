@@ -148,6 +148,9 @@ describe("dry-run-report", () => {
     // what the Ashby filler stores for a skipped block
     const skipped = "skipped: text message consent, never touched";
     expect(printableNote(skipped)).toBe(skipped);
+    // what the Greenhouse filler stores for a file the page did not keep
+    const upload = "page did not keep the uploaded file";
+    expect(printableNote(upload)).toBe(upload);
   });
 
   it("regressionReasons: status, fewer filled, lost field, none", () => {

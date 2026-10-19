@@ -121,6 +121,10 @@ export function embeddedFormUrl(url: string): string | null {
 
 /** Readback settle: up to this many waits of this length before a mismatch counts (only paid when a field differs). */
 const SETTLE_POLLS = 4;
+/** A pending file field waits longer: the page uploads the file and swaps its input only when that completes. */
+const UPLOAD_SETTLE_POLLS = 20;
+/** Fixed note for a file the page did not keep (listed in the dry-run report's known notes). */
+export const UPLOAD_NOT_KEPT_NOTE = "page did not keep the uploaded file";
 const SETTLE_MS = 250;
 /** Control kinds written once more after the settle wait; choices are not clicked twice. */
 const REWRITABLE = new Set(["text", "textarea", "file", "select"]);
@@ -303,7 +307,12 @@ export async function runGreenhouseDryRun(
     await session.settle(SETTLE_MS);
     if (session.stop) return await done(undefined);
     let got = await readValues();
-    for (let i = 0; i < SETTLE_POLLS && pending(got).length > 0 && !session.stop; i++) {
+    for (let i = 0; !session.stop; i++) {
+      const waiting = pending(got);
+      const limit = waiting.some((p) => byId.get(p.field.ats.id)?.kind === "file")
+        ? UPLOAD_SETTLE_POLLS
+        : SETTLE_POLLS;
+      if (waiting.length === 0 || i >= limit) break;
       await session.settle(SETTLE_MS);
       if (!session.stop) got = await readValues();
     }
@@ -336,9 +345,11 @@ export async function runGreenhouseDryRun(
       if (!p.filled) return { ...base, source: "none", value: null, filled: false, note: p.detail };
       const id = p.field.ats.id;
       const control = byId.get(id) as DomControl;
-      const why =
+      const raw =
         refused.get(id) ??
         (kept(control, p.value, got[id] ?? []) ? null : "page kept a different value");
+      // A file the page does not keep (input swapped or cleared, upload never completes): name the upload as the cause.
+      const why = raw !== null && control.kind === "file" ? UPLOAD_NOT_KEPT_NOTE : raw;
       return why === null
         ? { ...base, source: p.source, value: valueText(p), filled: true, note: null }
         : { ...base, source: p.source, value: null, filled: false, note: why };

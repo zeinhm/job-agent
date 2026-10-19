@@ -213,7 +213,7 @@ export function describeComparison(c: FormComparison): string {
 
 /**
  * Fixed expression that reads what each control now holds, as visible texts: the typed value, the selected option
- * labels, the checked option labels, the picked react-select text, or the chosen file names, keyed by control id.
+ * labels, the checked option labels, the picked react-select text, or the chosen file names (also the page's upload-complete file-name line), keyed by control id.
  */
 export function readValuesExpression(controls: readonly DomControl[]): string {
   const spec = controls.map((c) => ({ id: c.id, kind: c.kind, optionIds: c.optionIds }));
@@ -225,6 +225,18 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
   };
   for (const c of spec) {
     const el = document.getElementById(c.id);
+    if (c.kind === "file") {
+      // The input's own files, else the page's upload-complete display: the form may swap the input for a file-name line.
+      const own = el ? [...(el.files || [])].map((f) => f.name) : [];
+      if (own.length > 0) { out[c.id] = own; continue; }
+      const box = (el && el.closest(".file-upload__wrapper")) || document.getElementById("upload-label-" + c.id)?.parentElement;
+      out[c.id] = box
+        ? [...box.querySelectorAll("[class*='filename'], [class*='file-name'], [data-testid*='filename']")]
+            .map((n) => n.textContent.replace(/\\s+/g, " ").trim())
+            .filter((t) => t !== "")
+        : [];
+      continue;
+    }
     if (!el) { out[c.id] = []; continue; }
     if (c.kind === "select" || c.kind === "multiselect") {
       out[c.id] = [...el.selectedOptions].filter((o) => o.value !== "").map((o) => o.textContent.trim());
@@ -237,8 +249,6 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
       out[c.id] = box
         ? [...box.querySelectorAll(".select__single-value, .select__multi-value__label")].map((n) => n.textContent.trim())
         : [];
-    } else if (c.kind === "file") {
-      out[c.id] = [...(el.files || [])].map((f) => f.name);
     } else {
       out[c.id] = el.value === "" ? [] : [el.value];
     }

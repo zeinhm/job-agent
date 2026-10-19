@@ -34,6 +34,7 @@ export const KNOWN_FIELD_NOTES: readonly string[] = [
   "no approved choice mapping",
   "page kept a different value",
   "page refused the value",
+  "page did not keep the uploaded file",
   "skipped: survey / self-identification block, never touched",
   "skipped: text message consent, never touched",
   "resume path is not absolute",

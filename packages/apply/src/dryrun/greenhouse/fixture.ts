@@ -32,6 +32,10 @@ export const FIXTURE_UNKNOWN_EXTRA_PATH = "/acme/jobs/1010";
 export const FIXTURE_LATE_CLEAR_PATH = "/acme/jobs/1011";
 /** The form plus a late re-render that blanks First Name and Last Name, then puts the values back. */
 export const FIXTURE_LATE_RESTORE_PATH = "/acme/jobs/1012";
+/** The form plus an upload that completes late: the file input is replaced by an empty one and a file-name line (kept). */
+export const FIXTURE_UPLOAD_SWAP_PATH = "/acme/jobs/1013";
+/** The form plus an upload the page drops: the file input is replaced by an empty one and nothing shows the file. */
+export const FIXTURE_UPLOAD_DROPPED_PATH = "/acme/jobs/1014";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -81,6 +85,8 @@ const PAGES: Record<string, string> = {
   [FIXTURE_UNKNOWN_EXTRA_PATH]: "form.html+form:snippets/unknown-extra.html",
   [FIXTURE_LATE_CLEAR_PATH]: "form.html+snippets/late-clear.html",
   [FIXTURE_LATE_RESTORE_PATH]: "form.html+snippets/late-restore.html",
+  [FIXTURE_UPLOAD_SWAP_PATH]: "form.html+snippets/upload-swap.html",
+  [FIXTURE_UPLOAD_DROPPED_PATH]: "form.html+snippets/upload-dropped.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
