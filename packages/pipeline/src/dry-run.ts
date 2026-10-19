@@ -321,6 +321,17 @@ function runFiller(
   return run({ ...o, url: p.url, fixture: false });
 }
 
+/** The fixed, value-free code `operator-dry-run` prints on stdout with every refusal: `operator-dry-run: refused:<code>`. */
+export type OperatorRefusalCode =
+  | "not_real_db"
+  | "no_db_file"
+  | "owner_waiting"
+  | "lock_held"
+  | "batch_limit"
+  | "daily_ceiling"
+  | "unknown_posting"
+  | "not_fillable";
+
 export const OPERATOR_DRY_RUN_USAGE = "Usage: job-agent operator-dry-run <batch-id> <posting-id>\n";
 
 export interface OperatorDryRunOptions {
@@ -353,8 +364,10 @@ export async function runOperatorDryRun(opts: OperatorDryRunOptions): Promise<nu
 
 async function runOperatorDryRunUnguarded(opts: OperatorDryRunOptions): Promise<number> {
   const { db, out, err } = opts;
-  const refuse = (reason: string): number => {
+  // Every refusal also prints its fixed code on stdout: bin/operator drops stderr, so the code is all the operator sees.
+  const refuse = (reason: string, code: OperatorRefusalCode): number => {
     err(refusalLine("operator-dry-run", reason));
+    out(`operator-dry-run: refused:${code}\n`);
     return 2;
   };
   const [batchId, postingId, ...extra] = opts.positionals;
@@ -366,30 +379,33 @@ async function runOperatorDryRunUnguarded(opts: OperatorDryRunOptions): Promise<
     extra.length > 0
   ) {
     err(`operator-dry-run: refused: invalid arguments\n${OPERATOR_DRY_RUN_USAGE}`);
+    out("operator-dry-run: refused:invalid_arguments\n");
     return 2;
   }
-  if (!opts.isRealDb) return refuse("a real form is only opened with the real database");
+  if (!opts.isRealDb)
+    return refuse("a real form is only opened with the real database", "not_real_db");
   let dataDir: string;
   try {
     dataDir = dataDirOfDb(opts.dbPath);
   } catch {
-    return refuse("a dry run needs a DB file");
+    return refuse("a dry run needs a DB file", "no_db_file");
   }
-  if (ownerWaiting(dataDir, opts.lock)) return refuse("an owner run is waiting");
+  if (ownerWaiting(dataDir, opts.lock)) return refuse("an owner run is waiting", "owner_waiting");
   const lock = tryAcquire(dataDir, "operator", opts.lock);
-  if (!lock.ok) return refuse("a dry run is already running");
+  if (!lock.ok) return refuse("a dry run is already running", "lock_held");
   try {
     // Counted under the lock, so two operator calls cannot both take the last place.
     const state = batchState(db, batchId);
     if (state.captchaHalt) {
       err("operator-dry-run: batch halted: captcha\n");
+      out("operator-dry-run: refused:captcha_stop\n");
       return 2;
     }
-    if (state.runs >= state.limit) return refuse("batch full");
-    if (state.windowFull) return refuse("daily operator limit reached");
-    if (!isDryRunCandidate(db, postingId)) return refuse("not a candidate");
+    if (state.runs >= state.limit) return refuse("batch full", "batch_limit");
+    if (state.dailyCeilingReached) return refuse("daily operator limit reached", "daily_ceiling");
+    if (!isDryRunCandidate(db, postingId)) return refuse("not a candidate", "unknown_posting");
     const prepared = prepareRealRun(db, postingId);
-    if ("refusal" in prepared) return refuse(prepared.refusal);
+    if ("refusal" in prepared) return refuse(prepared.refusal, "not_fillable");
     // The starter goes into the run's own insert: a run that throws afterwards is still counted.
     const summary = await runFiller(prepared, {
       db,

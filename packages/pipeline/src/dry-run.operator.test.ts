@@ -6,6 +6,7 @@ import {
   EARLY_BATCH_RUNS,
   LATER_BATCH_RUNS,
   LOCK_STALE_MS,
+  OPERATOR_DAILY_CEILING,
   ownerWaiting,
   seedGreenhouseFixture,
   tryAcquire,
@@ -273,9 +274,10 @@ describe("operator-dry-run: the run", () => {
 });
 
 describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () => {
-  async function refused(positionals: string[], line: string, isRealDb = true) {
+  async function refused(positionals: string[], line: string, code: string, isRealDb = true) {
     const r = await op(positionals, isRealDb);
-    expect(r).toMatchObject({ code: 2, out: "", err: line });
+    // stdout carries the fixed code (bin/operator drops stderr); stderr keeps the readable line.
+    expect(r).toMatchObject({ code: 2, out: `operator-dry-run: refused:${code}\n`, err: line });
     expect(r.err.trimEnd().split("\n")).toHaveLength(1);
     expectValueFree(r);
   }
@@ -285,6 +287,7 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     fakeFiller();
     const r = await op(["b", "p1"], false);
     expect(r.code).toBe(2);
+    expect(r.out).toBe("operator-dry-run: refused:not_real_db\n");
     expect(r.err).toBe(
       "operator-dry-run: refused: a real form is only opened with the real database\n",
     );
@@ -298,31 +301,33 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
       const r = await op(args);
       expect(r.code).toBe(2);
       expect(usage(r.err)).toBe("operator-dry-run: refused: invalid arguments");
+      expect(r.out).toBe("operator-dry-run: refused:invalid_arguments\n");
       expect(r.err).toContain("Usage: job-agent operator-dry-run <batch-id> <posting-id>");
       expectValueFree(r);
     }
   });
 
   it("the posting is not a candidate: unknown, rejected, suspicious, scam, not_interested, applied; reopen makes it one again", async () => {
-    const line = "operator-dry-run: refused: not a candidate\n";
+    const notCandidate = (id: string) =>
+      refused(["b", id], "operator-dry-run: refused: not a candidate\n", "unknown_posting");
     fakeFiller();
-    await refused(["b", `nope-${M}`], line);
+    await notCandidate(`nope-${M}`);
     addCandidate("noi");
     db.delete(intel).where(eq(intel.posting_id, "noi")).run();
-    await refused(["b", "noi"], line);
+    await notCandidate("noi");
     addCandidate("rej", "reject");
-    await refused(["b", "rej"], line);
+    await notCandidate("rej");
     addCandidate("sus", "suspicious");
-    await refused(["b", "sus"], line);
+    await notCandidate("sus");
     addCandidate("scam");
     review("scam", "scam", "2026-10-13T01:00:00.000Z");
-    await refused(["b", "scam"], line);
+    await notCandidate("scam");
     addCandidate("ni");
     review("ni", "not_interested", "2026-10-13T01:00:00.000Z");
-    await refused(["b", "ni"], line);
+    await notCandidate("ni");
     addCandidate("ap");
     review("ap", "applied_manually", "2026-10-13T01:00:00.000Z");
-    await refused(["b", "ap"], line);
+    await notCandidate("ap");
     expect(db.select().from(dry_runs).all()).toEqual([]);
 
     review("ni", "reopen", "2026-10-13T02:00:00.000Z");
@@ -336,28 +341,36 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     addCandidate("p1");
     fakeFiller();
     const held = tryAcquire(dir, "owner");
-    await refused(["b", "p1"], "operator-dry-run: refused: a dry run is already running\n");
+    await refused(
+      ["b", "p1"],
+      "operator-dry-run: refused: a dry run is already running\n",
+      "lock_held",
+    );
     if (held.ok) held.release();
 
     writeFileSync(join(mkdirSyncLocks(), "dryrun.owner-waiting-x"), "x\n");
-    await refused(["b", "p1"], "operator-dry-run: refused: an owner run is waiting\n");
+    await refused(
+      ["b", "p1"],
+      "operator-dry-run: refused: an owner run is waiting\n",
+      "owner_waiting",
+    );
     expect(db.select().from(dry_runs).all()).toEqual([]);
   });
 
   it("the batch is full: 5 runs in each of the first 3 batches, 10 from the 4th; a re-run counts", async () => {
     addCandidate("p1");
-    // Runs are 25 h apart, so the day window never applies here (it has its own test).
+    // Runs are 25 h apart, so the daily ceiling never applies here (it has its own test).
     fakeFiller({}, undefined, 25 * 3_600_000);
     // Batch "a" is the first batch ever: limit 5, the same posting five times (re-runs count).
     for (let i = 0; i < EARLY_BATCH_RUNS; i++) expect((await op(["a", "p1"])).code).toBe(0);
-    await refused(["a", "p1"], "operator-dry-run: refused: batch full\n");
+    await refused(["a", "p1"], "operator-dry-run: refused: batch full\n", "batch_limit");
     expect(db.select().from(dry_runs).all()).toHaveLength(EARLY_BATCH_RUNS);
     // Batches b and c are the 2nd and 3rd.
     expect((await op(["b", "p1"])).code).toBe(0);
     expect((await op(["c", "p1"])).code).toBe(0);
     // Batch d is the 4th: limit 10.
     for (let i = 0; i < LATER_BATCH_RUNS; i++) expect((await op(["d", "p1"])).code).toBe(0);
-    await refused(["d", "p1"], "operator-dry-run: refused: batch full\n");
+    await refused(["d", "p1"], "operator-dry-run: refused: batch full\n", "batch_limit");
     // A full batch does not block another one.
     expect((await op(["b", "p1"])).code).toBe(0);
   });
@@ -370,7 +383,11 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     expect(hit.code).toBe(0);
     expect(hit.out).toContain("status=stopped reason=captcha");
     const next = await op(["b", "p2"]);
-    expect(next).toEqual({ code: 2, out: "", err: "operator-dry-run: batch halted: captcha\n" });
+    expect(next).toEqual({
+      code: 2,
+      out: "operator-dry-run: refused:captcha_stop\n",
+      err: "operator-dry-run: batch halted: captcha\n",
+    });
     expectValueFree(next);
     // A fresh batch id does not get past the halt.
     expect((await op(["other", "p2"])).err).toBe("operator-dry-run: batch halted: captcha\n");
@@ -388,17 +405,29 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     expect((await op(["other", "p1"])).code).toBe(0);
   });
 
-  it("the day limit holds whatever the batch id: fresh ids do not give fresh runs", async () => {
+  it("a second batch the same day is allowed: the limit is per batch, not 5 or 10 per day", async () => {
     addCandidate("p1");
     fakeFiller();
-    for (let i = 0; i < LATER_BATCH_RUNS; i++) expect((await op([`id-${i}`, "p1"])).code).toBe(0);
+    for (let i = 0; i < EARLY_BATCH_RUNS; i++) expect((await op(["morning", "p1"])).code).toBe(0);
+    await refused(["morning", "p1"], "operator-dry-run: refused: batch full\n", "batch_limit");
+    // A new batch (a re-run after a merged fix) starts right away, and a third one too.
+    for (let i = 0; i < EARLY_BATCH_RUNS; i++) expect((await op(["rerun", "p1"])).code).toBe(0);
+    expect((await op(["rerun-2", "p1"])).code).toBe(0);
+    expect(db.select().from(dry_runs).all()).toHaveLength(2 * EARLY_BATCH_RUNS + 1);
+  });
+
+  it("the daily ceiling holds whatever the batch id: fresh ids do not give fresh runs", async () => {
+    addCandidate("p1");
+    fakeFiller();
+    for (let i = 0; i < OPERATOR_DAILY_CEILING; i++)
+      expect((await op([`id-${i}`, "p1"])).code).toBe(0);
     const next = await op(["yet-another", "p1"]);
     expect(next).toEqual({
       code: 2,
-      out: "",
+      out: "operator-dry-run: refused:daily_ceiling\n",
       err: "operator-dry-run: refused: daily operator limit reached\n",
     });
-    expect(db.select().from(dry_runs).all()).toHaveLength(LATER_BATCH_RUNS);
+    expect(db.select().from(dry_runs).all()).toHaveLength(OPERATOR_DAILY_CEILING);
   });
 
   it("a run that threw after it was recorded still counts and still halts on a CAPTCHA", async () => {
@@ -421,7 +450,7 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     addCandidate("p1");
     fakeFiller({}, undefined, 0, true);
     for (let i = 0; i < EARLY_BATCH_RUNS; i++) expect((await op(["b", "p1"])).code).toBe(1);
-    await refused(["b", "p1"], "operator-dry-run: refused: batch full\n");
+    await refused(["b", "p1"], "operator-dry-run: refused: batch full\n", "batch_limit");
   });
 
   it("a stopped (not CAPTCHA) run does not halt the batch", async () => {
@@ -449,6 +478,7 @@ describe("operator-dry-run: refusals are one fixed line, exit 2, no value", () =
     await refused(
       ["b", "p1"],
       "operator-dry-run: refused: the posting's apply link is not a Greenhouse, Lever or Ashby job link\n",
+      "not_fillable",
     );
   });
 
@@ -491,7 +521,7 @@ describe("the shared lock between operator and owner runs", () => {
     const second = await op(["b", "p2"]);
     expect(second).toEqual({
       code: 2,
-      out: "",
+      out: "operator-dry-run: refused:lock_held\n",
       err: "operator-dry-run: refused: a dry run is already running\n",
     });
     g.open();
@@ -524,6 +554,7 @@ describe("the shared lock between operator and owner runs", () => {
     expect(ownerOut).toEqual(["dry-run: waiting for the operator's current form\n"]);
     // The operator is refused while the owner waits, and the owner never waits for a whole batch.
     const refusedOp = await op(["b", "p3"]);
+    expect(refusedOp.out).toBe("operator-dry-run: refused:owner_waiting\n");
     expect(refusedOp.err).toBe("operator-dry-run: refused: an owner run is waiting\n");
 
     g.open();

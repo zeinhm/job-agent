@@ -505,8 +505,12 @@ lock is refused (`dry-run: refused: another dry run is running`).
 `operator-dry-run <batch-id> <posting-id>` is **agent-only** (the operator role runs it through `bin/operator`; you do not
 need it). It is the same filler as `dry-run`, always headed (it has no option), real database only, and enforces in code
 what the role prompt asks for. A refusal is one fixed line and exit 2 (an error is `operator-dry-run: error <ErrorName> at
-<path>:<line>`, exit 1): `refused: a dry run is already running`, `refused: an owner run is waiting`, `refused: batch
-full` (5 runs per batch for the first 3 batches, 10 after; every run counts, a re-run too), `batch halted: captcha` (a run
+<path>:<line>`, exit 1; every refusal also prints `operator-dry-run: refused:<code>` on **stdout**, because `bin/operator` drops stderr:
+`lock_held`, `owner_waiting`, `batch_limit`, `daily_ceiling`, `captcha_stop`, `unknown_posting`, `not_fillable`, `not_real_db`,
+`no_db_file`, `invalid_arguments`): `refused: a dry run is already running`, `refused: an owner run is waiting`, `refused: batch
+full` (5 runs per batch for the first 3 batches, 10 after; every run counts, a re-run too), `refused: daily operator limit
+reached` (a safety ceiling of 30 operator forms in a rolling 24 h across all batches; a new batch the same day is allowed),
+`batch halted: captcha` (a run
 of the batch stopped on a CAPTCHA), `refused: not a candidate` (kept by the pipeline, not scam-flagged, not marked
 `not_interested` / `applied_manually`), the scratch-database refusal of `dry-run`, `refused: invalid arguments`. On
 success it prints `operator-dry-run: run=<run id> posting=<id> ats=<ats> status=<status> reason=<reason or -> fields=<filled>/<total>`

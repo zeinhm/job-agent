@@ -16,8 +16,8 @@ export interface BatchState {
   limit: number;
   /** A run of the batch stopped on a CAPTCHA: the whole batch is halted. */
   captchaHalt: boolean;
-  /** The operator started the window maximum of runs in the last 24 h, in any batch. */
-  windowFull: boolean;
+  /** The operator started the daily ceiling of runs in the last 24 h, in any batch. */
+  dailyCeilingReached: boolean;
 }
 
 /** The operator's batches, oldest first (by the first run of each). */
@@ -33,11 +33,12 @@ function batchOrder(db: Db): string[] {
 }
 
 /**
- * The batch id is chosen by the agent, so it cannot be the only limit: whatever the id, the operator starts at most the
- * later-batch maximum of real forms in a rolling window, and a CAPTCHA stop halts every batch for the same window.
+ * The batch id is chosen by the agent, so it cannot be the only limit. Owner decision (t_fad1b0cd): the limit is per batch,
+ * plus a safety ceiling of 30 real forms in a rolling 24 h window whatever the batch id, so a re-run batch after a merged
+ * fix can start the same day. A CAPTCHA stop halts every batch for the same window.
  */
 export const OPERATOR_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const OPERATOR_WINDOW_RUNS = LATER_BATCH_RUNS;
+export const OPERATOR_DAILY_CEILING = 30;
 
 /** Runs, maximum and CAPTCHA halt of an operator batch (a batch with no run yet counts as the newest one). */
 export function batchState(db: Db, batchId: string, now: Date = new Date()): BatchState {
@@ -59,6 +60,6 @@ export function batchState(db: Db, batchId: string, now: Date = new Date()): Bat
     runs: rows.length,
     limit: rank <= EARLY_BATCHES ? EARLY_BATCH_RUNS : LATER_BATCH_RUNS,
     captchaHalt: rows.some((r) => r.stop === "captcha") || recent.some((r) => r.stop === "captcha"),
-    windowFull: recent.length >= OPERATOR_WINDOW_RUNS,
+    dailyCeilingReached: recent.length >= OPERATOR_DAILY_CEILING,
   };
 }

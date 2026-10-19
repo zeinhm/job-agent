@@ -130,7 +130,7 @@ export {
   EARLY_BATCH_RUNS,
   LATER_BATCH_RUNS,
   OPERATOR_WINDOW_MS,
-  OPERATOR_WINDOW_RUNS,
+  OPERATOR_DAILY_CEILING,
   batchState,
   type BatchState,
 } from "./operator-batch.ts";
