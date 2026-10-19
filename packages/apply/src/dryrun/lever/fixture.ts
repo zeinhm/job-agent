@@ -5,6 +5,7 @@ import {
   CAPTCHA_RECORDER_PAGE,
   CAPTCHA_VARIANTS,
   ensureFixtureResume,
+  FIXTURE_POSTING_NAMES,
   fixtureAnswers,
   fixtureChoiceMappings,
   startFixtureServer,
@@ -33,6 +34,8 @@ export const LEVER_FIXTURE_CAPTCHA_PATH = LEVER_FIXTURE_CAPTCHA_PATHS["visible-c
 export const LEVER_FIXTURE_CHANGED_PATH = `/acme/${POSTING_UUID}-changed/apply`;
 export const LEVER_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/apply`;
 export const LEVER_FIXTURE_LOCATION_PATH = `/acme/${POSTING_UUID}-location/apply`;
+/** The form plus Lever's "Additional information" textarea. */
+export const LEVER_FIXTURE_ADDITIONAL_PATH = `/acme/${POSTING_UUID}-additional/apply`;
 
 const FIXTURES_DIR = fileURLToPath(new URL("../../../fixtures/lever/", import.meta.url));
 
@@ -41,6 +44,7 @@ const PAGES: Record<string, string> = {
   [LEVER_FIXTURE_CHANGED_PATH]: "changed.html",
   [LEVER_FIXTURE_LOCATION_PATH]: ["location", "html"].join("."), // not one literal: it would read as an answer key
   [LEVER_FIXTURE_DATE_PATH]: "date.html",
+  [LEVER_FIXTURE_ADDITIONAL_PATH]: "form.html+form:snippets/additional-info.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [LEVER_FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
@@ -74,6 +78,7 @@ export function leverFixtureContext(dataDir: string): PlanContext {
     choiceMappings: fixtureChoiceMappings(),
     ask: { askIdrMonth: 30_000_000, askUsdYear: 24_000, askText: null },
     scamFlagged: false,
+    posting: FIXTURE_POSTING_NAMES,
   };
 }
 

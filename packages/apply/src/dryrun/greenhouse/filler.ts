@@ -3,6 +3,7 @@ import { posting_questions, type Db } from "@job-agent/core";
 import { asc, and, eq } from "drizzle-orm";
 import { loadFillContext, recordUncoveredLabels } from "../../fill-plan-db.ts";
 import {
+  COVER_LETTER_TEXT_KEY,
   planFill,
   type FillInput,
   type FormField,
@@ -33,7 +34,10 @@ import {
 /** Hosts a real (owner-run) Greenhouse dry run may open: the hosted job-boards pages, nothing else. */
 const GREENHOUSE_HOST = /^(?:job-)?boards(?:\.eu)?\.greenhouse\.io$/;
 
-export type PlanContext = Pick<FillInput, "answers" | "choiceMappings" | "ask" | "scamFlagged">;
+export type PlanContext = Pick<
+  FillInput,
+  "answers" | "choiceMappings" | "ask" | "scamFlagged" | "posting"
+>;
 
 export interface GreenhouseRunOptions {
   db: Db;
@@ -118,6 +122,10 @@ export function embeddedFormUrl(url: string): string | null {
   const m = /^\/([A-Za-z0-9][A-Za-z0-9._-]*)\/jobs\/(\d+)\/?$/.exec(u.pathname);
   return m === null ? null : `${u.origin}/embed/job_app?for=${m[1]}&token=${m[2]}`;
 }
+
+/** The cover letter upload (`input#cover_letter`) and the textarea its "Enter manually" option opens. */
+const COVER_FILE_ID = "cover_letter";
+const COVER_TEXT_ID = "cover_letter_text";
 
 /** Readback settle: up to this many waits of this length before a mismatch counts (only paid when a field differs). */
 const SETTLE_POLLS = 4;
@@ -221,14 +229,38 @@ export async function runGreenhouseDryRun(
   try {
     if (session.stop) return await done(undefined);
 
-    const controls = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
+    const context = opts.context ?? loadFillContext(opts.db, opts.postingId);
+    let controls = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
     if (controls === null)
       return await done({
         status: "stopped",
         stop_reason: "form_changed",
         stop_detail: "application form not found",
       });
-    const comparison = compareForm(stored, controls);
+    // A Cover Letter file upload with an "Enter manually" option: when the owner approved a cover letter text, open the
+    // text option (its textarea only exists afterwards) and read the form again.
+    const coverFile = stored.find((f) => f.ats.id === COVER_FILE_ID && f.field_type === "file");
+    if (
+      coverFile !== undefined &&
+      !controls.some((c) => c.id === COVER_TEXT_ID) &&
+      context.answers.some((a) => a.approved && a.key === COVER_LETTER_TEXT_KEY)
+    ) {
+      if (await session.revealCoverLetterText()) {
+        await session.settle(SETTLE_MS);
+        if (session.stop) return await done(undefined);
+        controls =
+          (await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION)) ?? controls;
+      }
+    }
+    // The manual textarea stands for the stored cover letter file question (it is not a stored question of its own).
+    const coverText =
+      coverFile === undefined
+        ? undefined
+        : controls.find((c) => c.id === COVER_TEXT_ID && c.kind === "textarea");
+    const comparison = compareForm(
+      stored,
+      coverText === undefined ? controls : controls.filter((c) => c !== coverText),
+    );
     if (!comparison.ok)
       return await done({
         status: "stopped",
@@ -245,8 +277,13 @@ export async function runGreenhouseDryRun(
     const order = new Map(fillable.map((c, i) => [c.id, i]));
     const fields = stored
       .filter((f) => f.ats.id !== location?.storedId)
+      // The cover letter file question becomes a long text field on its manual textarea.
+      .map((f) =>
+        coverText !== undefined && f === coverFile
+          ? { ...f, field_type: "long_text", ats: { ...f.ats, id: COVER_TEXT_ID } }
+          : f,
+      )
       .sort((a, b) => (order.get(a.ats.id) ?? 0) - (order.get(b.ats.id) ?? 0));
-    const context = opts.context ?? loadFillContext(opts.db, opts.postingId);
     const plan = planFill({
       fields,
       ...context,

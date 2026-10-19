@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { answer_bank, intel, reviews, unknown_questions, type Db } from "@job-agent/core";
+import { answer_bank, intel, postings, reviews, unknown_questions, type Db } from "@job-agent/core";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { approvedMappings } from "./choice-coverage.ts";
 import type { FillInput, FillPlan, PlanAnswer, TierAsk } from "./fill-plan.ts";
@@ -23,7 +23,7 @@ function parseList(text: string | null): string[] | null {
 export function loadFillContext(
   db: Db,
   postingId: string,
-): Pick<FillInput, "answers" | "choiceMappings" | "ask" | "scamFlagged"> {
+): Pick<FillInput, "answers" | "choiceMappings" | "ask" | "scamFlagged" | "posting"> {
   const answers: PlanAnswer[] = db
     .select()
     .from(answer_bank)
@@ -48,8 +48,14 @@ export function loadFillContext(
     .where(and(eq(reviews.posting_id, postingId), inArray(reviews.action, ["scam", "not_scam"])))
     .orderBy(desc(reviews.reviewed_at), desc(reviews.id))
     .get();
+  const posting = db
+    .select({ company: postings.company_name, title: postings.title })
+    .from(postings)
+    .where(eq(postings.id, postingId))
+    .get();
   return {
     answers,
+    posting: posting ?? null,
     choiceMappings: approvedMappings(db),
     ask,
     scamFlagged: row?.final_decision === "suspicious" || latest?.action === "scam",

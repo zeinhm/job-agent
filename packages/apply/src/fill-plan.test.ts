@@ -175,7 +175,7 @@ describe("needs input (partial plan)", () => {
     const p = plan([
       field("Email", "text", { required: true }),
       field("Favourite colour", "text", { required: true }),
-      field("Anything else?", "long_text"),
+      field("Tell us about a hobby", "long_text"),
     ]);
     expect(p).toMatchObject({
       kind: "fill",

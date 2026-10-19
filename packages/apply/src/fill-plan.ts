@@ -69,8 +69,16 @@ export interface FillInput {
   ask: TierAsk | null;
   /** `scam` verdict or review action on the posting. */
   scamFlagged: boolean;
+  /** The posting's company name and title, for the cover letter's `{company}` / `{role}`; absent = unknown. */
+  posting?: PostingNames | null;
   /** Defaults to `probeResumeFile`. */
   probeResume?: ResumeProbe;
+}
+
+/** The posting facts a cover letter text may name. */
+export interface PostingNames {
+  company: string | null;
+  title: string | null;
 }
 
 export type FieldSource = "answer" | "choice_mapping" | "tier_ask" | "standard" | "resume" | "none";
@@ -153,7 +161,40 @@ export const PROFILE_KEYS: Record<StandardField, string | null> = {
   linkedin: "contact.linkedin",
   website: "contact.portfolio",
   location: "contact.location",
+  additional_info: "misc.contractor_note",
 };
+
+/** Approved answer of a "Cover letter" text field (owner decision, no LLM): a text with `{company}` and `{role}`. */
+export const COVER_LETTER_TEXT_KEY = "misc.cover_letter_text";
+
+type Rendered = { ok: true; text: string } | { ok: false; detail: string };
+
+/**
+ * Plain replacement of `{company}` and `{role}` in the approved cover letter text with the posting's company name and
+ * title. One pass (a company named "{role}" is not expanded again). Any other `{...}` placeholder, or a missing / blank
+ * company or title for a placeholder the text uses, is a miss. The detail never contains the text.
+ */
+export function renderCoverLetter(
+  template: string,
+  posting: PostingNames | null | undefined,
+): Rendered {
+  const names: Record<string, string | null | undefined> = {
+    company: posting?.company,
+    role: posting?.title,
+  };
+  let detail: string | null = null;
+  const text = template.replace(/\{([^{}]*)\}/g, (whole: string, name: string) => {
+    if (!Object.hasOwn(names, name)) {
+      detail ??= "cover letter text has an unknown placeholder";
+      return whole;
+    }
+    const value = (names[name] ?? "").trim().replace(/\s+/g, " ");
+    if (value === "")
+      detail ??= `cover letter needs the posting's ${name === "role" ? "title" : "company name"}`;
+    return value;
+  });
+  return detail === null ? { ok: true, text } : { ok: false, detail };
+}
 
 /**
  * Name rule: `contact.full_name` is the full name. A "first name" / "given name" field (and "preferred name") gets the first
@@ -425,6 +466,35 @@ function coverField(
   }
 
   const m = matchQuestion(n, index);
+
+  // A cover letter TEXT field is filled from the approved text; a cover letter file field stays uncovered (below).
+  if (
+    m?.kind === "standard" &&
+    m.field === "cover_letter" &&
+    (type === "text" || type === "long_text")
+  ) {
+    const key = COVER_LETTER_TEXT_KEY;
+    const a = byKey.get(key);
+    if (a === undefined) return miss(`no approved ${key}`, key);
+    const base = answerValue(field, a);
+    if (base === null || base === "") return miss(`${key} is empty or not valid`, key);
+    const r = renderCoverLetter(base, input.posting);
+    return r.ok
+      ? { ok: true, value: r.text, answerKey: key, source: "answer" }
+      : miss(r.detail, key);
+  }
+
+  if (m?.kind === "standard" && m.field === "additional_info") {
+    const key = PROFILE_KEYS.additional_info as string;
+    if (type !== "text" && type !== "long_text")
+      return miss(`additional information field is a ${type} field`, key);
+    const a = byKey.get(key);
+    if (a === undefined) return miss(`no approved ${key}`, key);
+    const value = answerValue(field, a);
+    return value === null || value === ""
+      ? miss(`${key} is empty or not valid`, key)
+      : { ok: true, value, answerKey: key, source: "answer" };
+  }
 
   if (m?.kind === "standard") {
     const key = PROFILE_KEYS[m.field];

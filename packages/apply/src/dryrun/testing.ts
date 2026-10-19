@@ -183,6 +183,29 @@ const PAGES: Record<string, string> = {
   "/captcha-below-fold": page(
     `<form><input id="a" type="text"></form><div style="height:3000px"></div>${frame(BFRAME, "400", "580")}`,
   ),
+  // The "Enter manually" button in safe and unsafe variants (revealCoverLetterText). Any click sets window.__clicks.
+  ...Object.fromEntries(
+    Object.entries({
+      safe: `<button type="button" data-testid="cover_letter-text">Enter manually</button>`,
+      "no-type": `<button data-testid="cover_letter-text">Enter manually</button>`,
+      "type-submit": `<button type="submit" data-testid="cover_letter-text">Enter manually</button>`,
+      "submit-id": `<button type="button" id="submit-btn" data-testid="cover_letter-text">Enter manually</button>`,
+      "submit-name": `<button type="button" name="Submit" data-testid="cover_letter-text">Enter manually</button>`,
+      "submit-data-qa": `<button type="button" data-qa="btn-submit" data-testid="cover_letter-text">Enter manually</button>`,
+      "in-submit-area": `<div class="application--submit"><button type="button" data-testid="cover_letter-text">Enter manually</button></div>`,
+      "in-submit-control": `<div type="submit"><button type="button" data-testid="cover_letter-text">Enter manually</button></div>`,
+      duplicate: `<button type="button" data-testid="cover_letter-text">A</button><button type="button" data-testid="cover_letter-text">B</button>`,
+      none: `<p>no button</p>`,
+    }).map(([variant, body]) => [
+      `/cover-btn-${variant}`,
+      page(
+        `<form><input id="a" type="text">${body}</form><script>
+    window.__clicks = 0;
+    document.addEventListener("click", () => { window.__clicks += 1; }, true);
+  </script>`,
+      ),
+    ]),
+  ),
   "/login": page(`<form><input id="u" type="text"><input id="p" type="password"></form>`),
   "/plain": page(`<form><input id="a" type="text"></form>`),
   "/ashby": page(`<form><input id="a" type="text"></form><script>

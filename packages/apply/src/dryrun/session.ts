@@ -320,6 +320,37 @@ export class DryRunSession {
     await this.recheck();
   }
 
+  /**
+   * Opens the "Enter manually" text option of a Greenhouse file upload (the `cover_letter` upload only): the one
+   * `button[type=button][data-testid=cover_letter-text]`. This is the only button the session ever clicks. It refuses a
+   * button that is not an explicit `type=button`, that carries "submit" in its id / name / data-qa, or that sits inside
+   * the submit area, and it returns false when the page has no such button. The guards still abort every non-GET request.
+   */
+  async revealCoverLetterText(): Promise<boolean> {
+    if (this.stop)
+      throw new HarnessRefusalError(`run is stopped (${this.stop.reason}): nothing is filled`);
+    if (this.#finished) throw new HarnessRefusalError("run is finished");
+    const button = this.#page.locator('button[data-testid="cover_letter-text"]');
+    const count = await button.count();
+    if (count === 0) return false;
+    if (count !== 1) throw new HarnessRefusalError(`expected exactly one element, found ${count}`);
+    const safe = await button.evaluate((el) => {
+      const attrs = [el.id, el.getAttribute("name") ?? "", el.getAttribute("data-qa") ?? ""].join(
+        " ",
+      );
+      return (
+        el.getAttribute("type") === "button" &&
+        !/submit/i.test(attrs) &&
+        el.closest(".application--submit, [type='submit' i]") === null
+      );
+    });
+    if (!safe)
+      throw new HarnessRefusalError("refused: element is, or sits inside, a submit control");
+    await button.click();
+    await this.recheck();
+    return true;
+  }
+
   /** Attaches a local file to a file input. */
   async upload(ref: FieldRef, filePath: string): Promise<void> {
     const { locator, facts } = await this.locate(ref);

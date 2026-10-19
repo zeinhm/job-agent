@@ -37,6 +37,8 @@ export const ASHBY_FIXTURE_DATE_PATH = `/acme/${POSTING_UUID}-date/application`;
 export const ASHBY_FIXTURE_PHONE_PAIR_PATH = `/acme/${POSTING_UUID}-phonepair/application`;
 export const ASHBY_FIXTURE_PHONE_FORMAT_PATH = `/acme/${POSTING_UUID}-phonefmt/application`;
 
+/** The form plus a "Cover letter" long-text question. */
+export const ASHBY_FIXTURE_COVER_PATH = `/acme/${POSTING_UUID}-coverletter/application`;
 export const ASHBY_FIXTURE_REALSHAPE_PATH = `/acme/${POSTING_UUID}-realshape/application`;
 export const ASHBY_FIXTURE_ORPHAN_PATH = `/acme/${POSTING_UUID}-orphan/application`;
 
@@ -65,6 +67,7 @@ const PAGES: Record<string, string> = {
   [ASHBY_FIXTURE_PHONE_FORMAT_PATH]: "app.html",
   [ASHBY_FIXTURE_REALSHAPE_PATH]: "app.html",
   [ASHBY_FIXTURE_ORPHAN_PATH]: "app.html",
+  [ASHBY_FIXTURE_COVER_PATH]: "app.html",
   "/app.js": "app.js",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
@@ -206,6 +209,19 @@ const VARIANTS: Record<string, (p: Posting) => void> = {
       ],
     });
     p.surveyForms = surveys;
+  },
+  // A "Cover letter" long-text question (a textarea on the page).
+  [`${POSTING_UUID}-coverletter`]: (p) => {
+    entries(p).push({
+      id: "x4",
+      isRequired: false,
+      isHidden: false,
+      field: {
+        path: "4a1f0c52-7e1d-4b8a-9a31-0c2d5e6f7b04",
+        type: "LongText",
+        title: "Cover letter",
+      },
+    });
   },
   // A question the reader's entry hooks do not cover (a title with buttons, outside any entry): the run must not go on.
   [`${POSTING_UUID}-orphan`]: (p) => {

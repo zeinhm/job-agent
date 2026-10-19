@@ -19,6 +19,7 @@ export const STANDARD_FIELDS = [
   "linkedin",
   "website",
   "location",
+  "additional_info",
 ] as const;
 export type StandardField = (typeof STANDARD_FIELDS)[number];
 
@@ -88,6 +89,18 @@ const STANDARD_WORDINGS: Record<StandardField, readonly string[]> = {
     "city",
     "current city",
     "city of residence",
+  ],
+  additional_info: [
+    "additional information",
+    "additional info",
+    "anything else",
+    "anything else we should know",
+    "anything else you would like us to know",
+    "anything else you would like to add",
+    "anything else you would like to share",
+    "anything else you d like us to know",
+    "anything else you d like to add",
+    "anything else you d like to share",
   ],
 };
 

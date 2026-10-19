@@ -36,6 +36,12 @@ export const FIXTURE_LATE_RESTORE_PATH = "/acme/jobs/1012";
 export const FIXTURE_UPLOAD_SWAP_PATH = "/acme/jobs/1013";
 /** The form plus an upload the page drops: the file input is replaced by an empty one and nothing shows the file. */
 export const FIXTURE_UPLOAD_DROPPED_PATH = "/acme/jobs/1014";
+/** The form plus a Cover Letter textarea question (stored `long_text`, id `cover_letter`). */
+export const FIXTURE_COVER_TEXTAREA_PATH = "/acme/jobs/1015";
+/** The form plus a Cover Letter file upload with the "Enter manually" option (stored `file`, id `cover_letter`). */
+export const FIXTURE_COVER_MANUAL_PATH = "/acme/jobs/1016";
+/** The form plus a Cover Letter file upload without a text option. */
+export const FIXTURE_COVER_FILE_ONLY_PATH = "/acme/jobs/1017";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -87,6 +93,9 @@ const PAGES: Record<string, string> = {
   [FIXTURE_LATE_RESTORE_PATH]: "form.html+snippets/late-restore.html",
   [FIXTURE_UPLOAD_SWAP_PATH]: "form.html+snippets/upload-swap.html",
   [FIXTURE_UPLOAD_DROPPED_PATH]: "form.html+snippets/upload-dropped.html",
+  [FIXTURE_COVER_TEXTAREA_PATH]: "form.html+form:snippets/cover-textarea.html",
+  [FIXTURE_COVER_MANUAL_PATH]: "form.html+form:snippets/cover-manual.html",
+  [FIXTURE_COVER_FILE_ONLY_PATH]: "form.html+form:snippets/cover-file-only.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
@@ -169,6 +178,16 @@ export const FIXTURE_LOCATION_QUESTION: StoredQuestion = {
   options: null,
 };
 
+/** The fixture posting's company name and title (what the fixture seeds store). */
+export const FIXTURE_POSTING_NAMES = {
+  company: "Fixture Co",
+  title: "Senior Backend Engineer (fixture)",
+};
+/** Fake persona texts for the two free-text answers: the cover letter names the company and the role. */
+export const COVER_LETTER_FIXTURE_TEXT =
+  "Dear {company} team, I am applying for the {role} position. Thank you for reading.";
+export const CONTRACTOR_NOTE_FIXTURE_TEXT = "I work as a contractor and invoice monthly.";
+
 const answer = (key: string, text: string, extra: Partial<PlanAnswer> = {}): PlanAnswer => ({
   key,
   question: null,
@@ -186,6 +205,8 @@ export function fixtureAnswers(resumePath: string): PlanAnswer[] {
     answer("contact.full_name", "Alex Example"),
     answer("contact.email", "alex.example@example.test"),
     answer("contact.phone", "+1 555 0100 123"),
+    answer("misc.cover_letter_text", COVER_LETTER_FIXTURE_TEXT),
+    answer("misc.contractor_note", CONTRACTOR_NOTE_FIXTURE_TEXT),
     answer("contact.linkedin", "https://www.example.test/in/alex-example"),
     answer("profile.resume_file", resumePath),
     answer("work_setup.remote_only", "Yes", {
@@ -250,6 +271,7 @@ export function fixtureContext(dataDir: string): PlanContext {
     choiceMappings: fixtureChoiceMappings(),
     ask: { askIdrMonth: 30_000_000, askUsdYear: 24_000, askText: null },
     scamFlagged: false,
+    posting: FIXTURE_POSTING_NAMES,
   };
 }
 

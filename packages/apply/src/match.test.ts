@@ -100,6 +100,8 @@ describe("matchQuestion golden table", () => {
     ["CV", "standard.resume"],
     ["Cover letter", "standard.cover_letter"],
     ["Cover Letter *", "standard.cover_letter"],
+    ["Additional information", "standard.additional_info"],
+    ["Anything else?", "standard.additional_info"],
     ["LinkedIn", "standard.linkedin"],
     ["LinkedIn Profile", "standard.linkedin"],
     ["LinkedIn URL *", "standard.linkedin"],
