@@ -3,7 +3,13 @@ import { dry_runs, type Db, type DRY_RUN_STOP_REASONS } from "@job-agent/core";
 import { eq } from "drizzle-orm";
 import type { Browser, BrowserContext, Locator, Page } from "playwright";
 import { launchChromium, newGuardedContext } from "./browser.ts";
-import { detectCaptcha, detectStop, type PassiveCaptcha, type StopSignal } from "./detectors.ts";
+import {
+  describeNavFailure,
+  detectCaptcha,
+  detectStop,
+  type PassiveCaptcha,
+  type StopSignal,
+} from "./detectors.ts";
 import { finalizeScreenshot, writePendingScreenshot } from "./output.ts";
 import { SUBMIT_ATTEMPT_KINDS, type PageAttempt } from "./page-guard.ts";
 import type { AbortedRequest, GuardAts } from "./request-guard.ts";
@@ -493,12 +499,21 @@ export async function openDryRunSession(opts: DryRunSessionOptions): Promise<Dry
       url: string,
     ): Promise<{ stop: StopSignal | null; passive: PassiveCaptcha[] }> => {
       let mainStatus: number | null = null;
+      let navCause: string | undefined;
+      const abortedBefore = aborted.length;
       try {
         const response = await page.goto(url, { waitUntil: "load" });
         mainStatus = response?.status() ?? null;
-      } catch {
+      } catch (err) {
         mainStatus = null;
+        navCause = describeNavFailure(err);
       }
+      // Our own request guard aborting the load looks like a network failure from outside: say which one it was.
+      const guardAborts = aborted.slice(abortedBefore);
+      if (mainStatus === null && guardAborts.length > 0)
+        navCause = `${navCause ?? "no response"}; request guard aborted ${guardAborts.length} request(s): ${guardAborts
+          .map((a) => `${a.reason} ${a.method} ${a.host}`)
+          .join(", ")}`;
       if (opts.ready !== undefined && mainStatus !== null && mainStatus < 400)
         await page.waitForSelector(opts.ready).catch(() => undefined);
       // The dry-run CAPTCHA rule (decisions.md 2026-10-17): a passive script or badge does not stop, a visible challenge does.
@@ -506,6 +521,7 @@ export async function openDryRunSession(opts: DryRunSessionOptions): Promise<Dry
         page,
         requestedUrl: url,
         mainStatus,
+        navCause,
         seenUrls,
         captchaMode: "dry-run",
       }).catch((): { stop: StopSignal; passive: PassiveCaptcha[] } => ({

@@ -274,6 +274,8 @@ export interface DetectInput {
   requestedUrl: string;
   /** HTTP status of the main document, or null when the navigation produced no response. */
   mainStatus: number | null;
+  /** Why the navigation produced no response (see `describeNavFailure`); only read when `mainStatus` is null. */
+  navCause?: string | undefined;
   /** Every URL the page requested while loading. */
   seenUrls: readonly string[];
   /** Required, no default: see `CaptchaMode`. */
@@ -293,11 +295,29 @@ function safeUrl(url: string): URL | null {
   }
 }
 
+/**
+ * A short, value-free cause for a navigation that threw: a timeout, or Chromium's `net::ERR_*` code. The error text
+ * itself carries the URL, so only these two shapes are kept.
+ */
+export function describeNavFailure(err: unknown): string {
+  const text = err instanceof Error ? err.message : "";
+  const net = /net::(ERR_[A-Z0-9_]+)/.exec(text);
+  if (net) return `navigation failed (net::${net[1]})`;
+  if (/timeout/i.test(text)) return "navigation timeout";
+  return "navigation failed (other)";
+}
+
 /** Page error, then CAPTCHA, then login wall, then a redirect away. The first hit wins. */
 export async function detectStop(input: DetectInput): Promise<DetectResult> {
   const { page, requestedUrl, mainStatus, seenUrls } = input;
   if (mainStatus === null)
-    return { stop: { reason: "page_error", detail: "no response" }, passive: [] };
+    return {
+      stop: {
+        reason: "page_error",
+        detail: `no response: ${input.navCause ?? "navigation returned no response"}`,
+      },
+      passive: [],
+    };
   if (mainStatus >= 400)
     return { stop: { reason: "page_error", detail: `http ${mainStatus}` }, passive: [] };
 
