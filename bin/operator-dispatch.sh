@@ -21,15 +21,47 @@ operator_note_merge() {
   log "operator trigger: $id touched $hit"
 }
 
-# The operator card that is not finished (todo, ready, running, blocked, anything but done / archived), if any.
+# The operator card that is still going (todo, ready, running, anything but done / archived / blocked), if any.
+# A blocked batch is not open: it waits for a human or the Doctor, so it must not swallow later triggers.
 operator_open_card() { local id st role
   while read -r id st role; do
     [ "$role" = operator ] || continue
-    case "$st" in done|archived) ;; *) echo "$id"; return 0 ;; esac
+    case "$st" in done|archived|blocked) ;; *) echo "$id"; return 0 ;; esac
   done <<EOT
 $(board)
 EOT
   return 1; }
+
+# The blocked operator cards, one id per line.
+operator_blocked_cards() { local id st role
+  while read -r id st role; do [ "$role" = operator ] && [ "$st" = blocked ] && echo "$id"; done <<EOT
+$(board)
+EOT
+  return 0; }
+
+op_epoch() { printf '%s' "${OPERATOR_EPOCH:-$(date +%s)}"; }
+
+# Blocked operator batches older than OPERATOR_BLOCKED_MINUTES (default 30) are listed in operator-summary.md under
+# "[OWNER] holds", so the owner sees them (NEEDS-ZEIN lists only [OWNER] holds). The first time a card is seen blocked is kept
+# in $STATE/operator-blocked/<id>; the block in the summary file is rebuilt every pass and dropped when nothing is overdue.
+op_report_blocked() {
+  local dir="$STATE/operator-blocked" out="$STATE/operator-summary.md" lim="${OPERATOR_BLOCKED_MINUTES:-30}" now id since f tmp blocked lines=""
+  hk list >/dev/null 2>&1 || return 0
+  mkdir -p "$dir"; now="$(op_epoch)"; blocked="$(operator_blocked_cards)"
+  for f in "$dir"/t_*; do [ -e "$f" ] || continue; printf '%s\n' "$blocked" | grep -qx "$(basename "$f")" || rm -f "$f"; done
+  for id in $blocked; do
+    [ -s "$dir/$id" ] || echo "$now" > "$dir/$id"
+    since="$(cat "$dir/$id")"
+    if [ $(( (now - since) / 60 )) -gt "$lim" ]; then
+      lines="$lines- $id: operator batch blocked for $(( (now - since) / 60 )) min
+"
+    fi
+  done
+  tmp="$(mktemp "$STATE/.summary.XXXXXX")" || return 0
+  [ -f "$out" ] && awk '/^<!-- blocked-batches -->$/{f=1;next} /^<!-- \/blocked-batches -->$/{f=0;next} !f' "$out" > "$tmp"
+  [ -n "$lines" ] && printf '<!-- blocked-batches -->\n[OWNER] holds (blocked operator batches):\n%s<!-- /blocked-batches -->\n' "$lines" >> "$tmp"
+  if [ -s "$tmp" ]; then mv "$tmp" "$out"; else rm -f "$tmp" "$out"; fi
+}
 
 # Put consumed triggers ($1 = the processing file) back at the end of operator-pending.
 op_restore() { cat "$1" >> "$STATE/operator-pending"; rm -f "$1"; }
@@ -37,7 +69,8 @@ op_restore() { cat "$1" >> "$STATE/operator-pending"; rm -f "$1"; }
 # One pass: create at most one batch card, or turn the triggers into a comment on the open one.
 # Outside the window nothing happens and the triggers stay pending (deferred, not dropped).
 op_tick() {
-  local clk day hm pend proc open ids title new id daily=0 body="$STATE/notes/operator-batch-body.md"
+  local clk day hm pend proc open ids title new id daily=0 body="$STATE/notes/operator-batch-body.md" blocked old
+  op_report_blocked
   op_in_window || return 0
   clk="$(op_clock)"; day="${clk%% *}"; hm="${clk##* }"
   if [ "$(cat "$STATE/operator-daily" 2>/dev/null)" != "$day" ] && [ "$(op_minutes "$hm")" -ge "$(op_minutes "$OPERATOR_DAILY_AT")" ]; then daily=1; fi
@@ -54,6 +87,7 @@ op_tick() {
     rm -f "$proc"; [ "$daily" = 1 ] && echo "$day" > "$STATE/operator-daily"
     log "operator trigger coalesced into $open"; return 0
   fi
+  blocked="$(operator_blocked_cards)"
   ids="$(printf '%s' "$pend" | tr '\n' ' ' | sed 's/ *$//; s/ /, /g')"
   if [ -n "$ids" ]; then title="Operator batch $clk (after $ids)"; else title="Operator batch $clk (daily)"; fi
   {
@@ -63,12 +97,19 @@ op_tick() {
       echo; echo "Merged cards that touched the dry-run code (re-run their postings first, step b of the loop):"
       for id in $pend; do echo "- $id: $(title_of "$id")"; done
     fi
+    for old in $blocked; do
+      echo; echo "Merged cards from the blocked batch $old (superseded by this one, re-run them too):"
+      body_of "$old" | grep -E '^- t_[0-9a-f]+:' || echo "- (none listed)"
+    done
     [ "$daily" = 1 ] && { echo; echo "Daily trigger ($OPERATOR_DAILY_AT)."; }
     echo; echo "Follow prompts/roles/operator.md; end the report with the '## Owner summary' section."
   } > "$body"
   new="$(hk create "$title" --assignee operator --workspace "dir:$REPO" --priority 5 --body-file "$body" | grep -oE 't_[0-9a-f]+' | head -1)"
   if [ -n "$new" ]; then
     rm -f "$proc"; echo "$day" > "$STATE/operator-daily"; log "created operator batch card $new ($title)"
+    for old in $blocked; do
+      hk comment "$old" "superseded by $new" >/dev/null && hk complete "$old" --summary "superseded by $new" >/dev/null && rm -f "$STATE/operator-blocked/$old"
+    done
   else op_restore "$proc"; log "could not create the operator batch card ($title): will retry"; fi
 }
 

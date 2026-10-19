@@ -27,7 +27,9 @@ cat > "$T/stub/hermes" <<EOF
 shift
 case "\$1" in
   list) cat "$BOARD"; [ -f "$T/list-fails" ] && exit 1; exit 0 ;;
-  show) echo "Task \$2: \$(sed -n "s/^\$2 //p" "$T/titles.txt" | head -1)"; echo "  status:    ready"; echo "  assignee:  operator"; echo "  parents:   " ;;
+  show) echo "Task \$2: \$(sed -n "s/^\$2 //p" "$T/titles.txt" | head -1)"; echo "  status:    ready"; echo "  assignee:  operator"; echo "  parents:   "
+        [ -f "$T/body-\$2.md" ] && { echo; echo "Body:"; cat "$T/body-\$2.md"; echo; echo "Events (1):"; } ;;
+  complete) echo "complete \$2" >> "$CALLS" ;;
   create) shift; echo "create \$*" >> "$CALLS"; n=\$(( \$(wc -l < "$T/created.txt") + 1 )); echo x >> "$T/created.txt"
           id="t_\$(printf '%08x' \$n)"; echo "\$id todo operator" >> "$BOARD"; echo "Created \$id"
           while [ \$# -gt 0 ]; do [ "\$1" = --body-file ] && cp "\$2" "$T/body-\$id.md"; shift; done ;;
@@ -83,8 +85,8 @@ check "card body names the merged card and its title" "grep -q 't_dev1: Dry-run 
 check "the pending trigger is consumed" "[ ! -s '$STATE/operator-pending' ]"
 check "no daily card is made later that day (a card was already created)" "tick '2026-10-18 13:00'; [ \$(ncreate) = 1 ]"
 
-# 3. coalescing: while a card is open (todo/ready/running/blocked) a trigger is a comment
-for st in todo ready running blocked; do
+# 3. coalescing: while a card is open (todo/ready/running; a blocked one is section 3c) a trigger is a comment
+for st in todo ready running; do
   reset; echo "t_ab01 $st operator" > "$BOARD"; echo "t_dev2" > "$STATE/operator-pending"
   tick "2026-10-18 12:30"
   check "open card ($st): no new card, comment on the open one" "[ \$(ncreate) = 0 ] && grep -q '^comment t_ab01 ' '$CALLS' && [ ! -s '$STATE/operator-pending' ]"
@@ -116,6 +118,37 @@ tick "2026-10-18 12:30"
 check "failed comment puts the consumed trigger back, no temp file left" "grep -qx t_dev1 '$STATE/operator-pending' && ! ls -A '$STATE' | grep -q operator-processing"
 hk() { hermes kanban "$@" </dev/null 2>&1; }
 
+# 3c. a blocked batch is not open: a trigger makes a new card that carries its merged cards, and supersedes it
+reset; printf -- '- t_0de2: Another filler fix\n' > "$T/body-t_ab01.md"
+echo "t_ab01 blocked operator" > "$BOARD"; echo t_dev1 > "$STATE/operator-pending"
+tick "2026-10-18 12:30"
+check "blocked batch: a new card is created" "[ \$(ncreate) = 1 ] && grep -q '(after t_dev1)' '$CALLS'"
+check "blocked batch: no 'No new card' comment" "! grep -q '^comment t_ab01 Operator trigger' '$CALLS'"
+check "new card lists the pending merge and the blocked batch's merged cards" "grep -q 't_dev1: Dry-run filler fix' '$T/body-t_00000001.md' && grep -q 'blocked batch t_ab01' '$T/body-t_00000001.md' && grep -q '^- t_0de2: Another filler fix' '$T/body-t_00000001.md'"
+check "blocked batch gets 'superseded by <new id>' and is completed" "grep -q '^comment t_ab01 superseded by t_00000001' '$CALLS' && grep -q '^complete t_ab01' '$CALLS'"
+rm -f "$T/body-t_ab01.md"
+reset; echo "t_ab01 blocked operator" > "$BOARD"; echo t_dev1 > "$STATE/operator-pending"; echo "t_ab02 running operator" >> "$BOARD"
+tick "2026-10-18 12:30"
+check "blocked plus a running batch: the trigger still coalesces into the running one" "[ \$(ncreate) = 0 ] && grep -q '^comment t_ab02 ' '$CALLS' && ! grep -q 'superseded' '$CALLS'"
+reset; echo "t_ab01 blocked operator" > "$BOARD"; tick "2026-10-18 10:00"
+check "blocked batch + daily trigger: new daily card supersedes it" "[ \$(ncreate) = 1 ] && grep -q '^complete t_ab01' '$CALLS'"
+
+# 3d. a batch blocked for more than 30 minutes is listed in operator-summary.md under [OWNER] holds
+reset; rm -rf "$STATE/operator-blocked"; rm -f "$STATE/operator-summary.md"
+printf '## Owner summary\nReady for your review: 1 runs (p1)\nOpen root causes: none\n[OWNER] holds: none\n' > "$STATE/operator-summary.md"
+echo "t_ab01 blocked operator" > "$BOARD"
+OPERATOR_EPOCH=1000000; export OPERATOR_EPOCH; OPERATOR_NOW="2026-10-18 07:00"; export OPERATOR_NOW; op_tick
+check "blocked just now: not listed" "! grep -q 't_ab01' '$STATE/operator-summary.md'"
+OPERATOR_EPOCH=$((1000000 + 30*60)); op_tick
+check "blocked exactly 30 min: not yet listed" "! grep -q 't_ab01' '$STATE/operator-summary.md'"
+OPERATOR_EPOCH=$((1000000 + 31*60)); op_tick
+check "blocked over 30 min: listed under [OWNER] holds, outside the window too" "grep -q '^\\[OWNER\\] holds (blocked operator batches)' '$STATE/operator-summary.md' && grep -q '^- t_ab01: operator batch blocked for 31 min' '$STATE/operator-summary.md'"
+check "the existing owner summary text is kept" "grep -q 'Ready for your review: 1 runs (p1)' '$STATE/operator-summary.md'"
+op_tick; check "listing is not duplicated on a later pass" "[ \$(grep -c 't_ab01' '$STATE/operator-summary.md') = 1 ]"
+echo "t_ab01 done operator" > "$BOARD"; op_tick
+check "once the batch is no longer blocked it leaves the summary" "! grep -q 't_ab01' '$STATE/operator-summary.md' && grep -q 'Ready for your review' '$STATE/operator-summary.md'"
+unset OPERATOR_EPOCH
+
 # 4. daily: once, at the configured time, none before it
 reset
 tick "2026-10-18 09:59"; check "daily: nothing before 10:00" "[ \$(ncreate) = 0 ]"
@@ -123,7 +156,7 @@ tick "2026-10-18 10:00"; check "daily: card at 10:00" "[ \$(ncreate) = 1 ] && gr
 echo "t_00000001 done operator" > "$BOARD"; tick "2026-10-18 11:00"
 check "daily: only once a day, even when the card is done" "[ \$(ncreate) = 1 ]"
 tick "2026-10-19 10:05"; check "daily: next day, new card" "[ \$(ncreate) = 2 ]"
-reset; echo "t_ab01 blocked operator" > "$BOARD"; tick "2026-10-18 10:00"; tick "2026-10-18 10:01"
+reset; echo "t_ab01 running operator" > "$BOARD"; tick "2026-10-18 10:00"; tick "2026-10-18 10:01"
 check "daily with an open card: one comment, no card, not repeated" "[ \$(ncreate) = 0 ] && [ \$(grep -c '^comment ' '$CALLS') = 1 ]"
 
 # 5. window: outside 08:00-22:00 nothing happens, the trigger is kept and fires at the window start

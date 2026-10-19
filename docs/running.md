@@ -979,7 +979,10 @@ candidates -> real dry runs -> report -> fix cards -> re-run after a merged fix.
   Batches only start inside `OPERATOR_WINDOW_START`-`OPERATOR_WINDOW_END` (default 08:00-22:00, local time, merge-triggered ones
   included); a trigger outside the window waits (kept in `data/dispatch/operator-pending`) and fires when the window opens, and
   the dispatcher does not start a ready operator card outside it. **Never two:** while an operator card is todo / ready /
-  running / blocked, a trigger only becomes a comment on that card, never a second card (also when the board cannot be read).
+  running, a trigger only becomes a comment on that card, never a second card (also when the board cannot be read).
+  A **blocked** batch is not open: the next trigger creates a new batch card that also lists the blocked batch's merged cards,
+  comments "superseded by <new id>" on the blocked one and completes it. A batch blocked for more than 30 minutes
+  (`OPERATOR_BLOCKED_MINUTES`) is listed under "[OWNER] holds (blocked operator batches)" in `data/dispatch/operator-summary.md`.
   Hand-start a batch: create a card assigned to `operator`.
 
 - **What it runs.** Only `bin/operator candidates [--limit n] | report [--posting id] [--since date] [--last n] | run <batch-id> <posting-id>`
