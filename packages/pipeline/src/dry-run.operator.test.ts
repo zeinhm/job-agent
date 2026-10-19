@@ -7,6 +7,9 @@ import {
   LATER_BATCH_RUNS,
   LOCK_STALE_MS,
   OPERATOR_DAILY_CEILING,
+  PACING_MAX_S,
+  PACING_MIN_S,
+  pacingGapMs,
   ownerWaiting,
   seedGreenhouseFixture,
   tryAcquire,
@@ -15,7 +18,7 @@ import {
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
-import { runDryRun, runOperatorDryRun } from "./dry-run.ts";
+import { OPERATOR_WAIT_EXIT, runDryRun, runOperatorDryRun } from "./dry-run.ts";
 
 // The Greenhouse runner is replaced per test, like in dry-run.value-free.test.ts. Everything else is real.
 type RunnerOptions = {
@@ -66,7 +69,12 @@ function expectValueFree(r: { out: string; err: string }) {
   expect(r.err).not.toContain(M);
 }
 
-async function op(positionals: string[], isRealDb = true) {
+async function op(
+  positionals: string[],
+  isRealDb = true,
+  // Pacing is off here (the fake runs are stamped up to a few ms ahead of now, so the gap is negative) unless a test is about it.
+  pacing: { nowMs?: () => number; gapMs?: (id: string) => number } = { gapMs: () => -60_000 },
+) {
   const out: string[] = [];
   const err: string[] = [];
   const code = await runOperatorDryRun({
@@ -74,6 +82,7 @@ async function op(positionals: string[], isRealDb = true) {
     db,
     dbPath,
     isRealDb,
+    pacing,
     out: (t) => out.push(t),
     err: (t) => err.push(t),
   });
@@ -628,5 +637,114 @@ describe("operator-dry-run through main()", () => {
     expect(await main(["operator-dry-run", "b", "p1"], io)).toBe(1);
     expect(err.join("")).toMatch(/^operator-dry-run: error \w+/);
     expect(out.join("") + err.join("")).not.toContain(M);
+  });
+});
+
+describe("operator-dry-run: pacing of 60 to 120 s between two real forms", () => {
+  const BASE = Date.parse(T);
+  const lastRun = (by: "operator" | "owner", at: number, id: string) =>
+    db
+      .insert(dry_runs)
+      .values({
+        id,
+        posting_id: "p1",
+        ats_type: "greenhouse",
+        started_at: new Date(at - 5_000).toISOString(),
+        finished_at: new Date(at).toISOString(),
+        status: "filled",
+        fixture: false,
+        started_by: by,
+        operator_batch: by === "operator" ? "b" : null,
+      })
+      .run();
+  const at = (ms: number) => ({ nowMs: () => BASE + ms });
+
+  it("the gap is in range, stable per run and not the same for every run", () => {
+    const gaps = Array.from({ length: 200 }, (_, i) => pacingGapMs(`run-${i}`));
+    for (const g of gaps) {
+      expect(g).toBeGreaterThanOrEqual(PACING_MIN_S * 1000);
+      expect(g).toBeLessThanOrEqual(PACING_MAX_S * 1000);
+      expect(g % 1000).toBe(0);
+    }
+    expect(pacingGapMs("run-1")).toBe(pacingGapMs("run-1"));
+    expect(new Set(gaps).size).toBeGreaterThan(20);
+    expect(Math.min(...gaps)).toBeLessThan(70_000);
+    expect(Math.max(...gaps)).toBeGreaterThan(110_000);
+  });
+
+  it("the first operator form never waits; the next one waits the rest of the gap and opens nothing", async () => {
+    addCandidate("p1");
+    let calls = 0;
+    fakeFiller({}, () => calls++);
+    expect((await op(["b", "p1"], true, at(0))).code).toBe(0);
+    expect(calls).toBe(1);
+    db.delete(dry_runs).run();
+    lastRun("operator", BASE, "prev-op");
+    const gap = pacingGapMs("prev-op") / 1000;
+    const r = await op(["b", "p1"], true, at(10_000));
+    expect(r).toEqual({
+      code: OPERATOR_WAIT_EXIT,
+      out: `operator-dry-run: waiting:${gap - 10}\n`,
+      err: "operator-dry-run: waiting: the pacing gap has not passed\n",
+    });
+    expect(calls).toBe(1);
+    expect(existsSync(lockDir())).toBe(false);
+    expectValueFree(r);
+  });
+
+  it("once the gap has passed the form is opened; the wait counts down to zero", async () => {
+    addCandidate("p1");
+    fakeFiller();
+    lastRun("operator", BASE, "prev-op");
+    const gapMs = pacingGapMs("prev-op");
+    const almost = await op(["b", "p1"], true, at(gapMs - 1));
+    expect(almost.out).toBe("operator-dry-run: waiting:1\n");
+    expect((await op(["b", "p1"], true, at(gapMs))).code).toBe(0);
+  });
+
+  it("an owner run neither waits nor makes the operator wait", async () => {
+    addCandidate("p1");
+    fakeFiller();
+    lastRun("owner", BASE, "prev-owner");
+    expect((await op(["b", "p1"], true, at(1_000))).code).toBe(0);
+    // the owner's own command has no pacing at all, even right after an operator run
+    lastRun("operator", Date.now(), "prev-op");
+    const out: string[] = [];
+    const code = await runDryRun({
+      positionals: ["p1"],
+      fixture: undefined,
+      headless: true,
+      db,
+      dbPath,
+      isRealDb: true,
+      out: (t) => out.push(t),
+      err: () => undefined,
+    });
+    expect(code).toBe(0);
+    expect(out.join("")).not.toContain("waiting");
+  });
+
+  it("a refusal never waits: it comes before the pacing check", async () => {
+    addCandidate("p1");
+    fakeFiller();
+    lastRun("operator", BASE, "prev-op");
+    const r = await op(["b", `nope-${M}`], true, at(1_000));
+    expect(r.out).toBe("operator-dry-run: refused:unknown_posting\n");
+    expect(r.code).toBe(2);
+  });
+
+  it("the defaults are the real clock and the random gap: a run that just finished makes the next wait 1 to 120 s", async () => {
+    addCandidate("p1");
+    fakeFiller();
+    lastRun("operator", Date.now(), "prev-op");
+    const r = await op(["b", "p1"], true, {});
+    expect(r.code).toBe(OPERATOR_WAIT_EXIT);
+    const s = Number(/waiting:(\d+)\n$/.exec(r.out)?.[1]);
+    expect(s).toBeGreaterThanOrEqual(1);
+    expect(s).toBeLessThanOrEqual(PACING_MAX_S);
+  });
+
+  it("the daily ceiling is 100 forms", () => {
+    expect(OPERATOR_DAILY_CEILING).toBe(100);
   });
 });

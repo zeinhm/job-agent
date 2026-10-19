@@ -38,8 +38,9 @@ Full reference: `docs/running.md`, sections "The dry-run lock and `operator-dry-
   kept in `data/dispatch/operator-pending` and fires when the window opens.
 - **Never two batches:** while an operator card is todo / ready / running / blocked, a new trigger becomes a comment on it.
 - **Batch size (in code, `packages/apply/src/operator-batch.ts`):** 5 forms per batch for the first 3 batches ever
-  started, then 10. Re-runs count. On top of that, a rolling cap of **10 operator forms per 24 h** across all batches, so a
-  merge batch on the same day as the daily batch can be refused with `batch full` early. This is by design.
+  started, then 10. Re-runs count. There is no per-day limit of 5 or 10; a safety ceiling of **100 operator forms per
+  rolling 24 h** across all batches applies. A random gap of **60 to 120 s** between two operator forms is enforced in code
+  (your own runs never wait and do not count); `bin/operator run` sleeps for it and prints `waiting:<seconds>`.
 - **One form at a time, headed.** `operator-dry-run` has no headless option. Expect a browser window on your screen during a
   batch.
 - **Lock:** mkdir lock at `<data dir>/locks/dryrun`, shared with your own `pnpm job-agent dry-run`. Your run always wins: it
@@ -107,8 +108,8 @@ batch. Neither blocks a safe batch: #1 only affects the label the operator reads
 ## Known limitations
 
 - Headed only: a window opens on your screen for each form during a batch (08:00-22:00).
-- The 24 h rolling cap (10 forms) and the 24 h CAPTCHA halt apply across batch ids, so a busy merge day can leave the daily
-  batch with few or no runs.
+- The 24 h rolling ceiling (100 forms) and the 24 h CAPTCHA halt apply across batch ids.
+- The pacing gap (60 to 120 s) makes a batch of 10 forms take about 10 to 20 minutes.
 - The operator reads page text (labels, stop details) as untrusted data. The prompt and the fixed card template limit what it
   does with it, and `bin/operator` constrains every argument, but a page could still steer the wording of a fix card's
   root-cause paragraph. QA and the auditor review every fix card's code change as usual.

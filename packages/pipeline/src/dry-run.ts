@@ -9,6 +9,7 @@ import {
   acquireOwner,
   ashbyFixtureContext,
   batchState,
+  pacingWaitSeconds,
   dataDirOfDb,
   errorLine,
   isDryRunCandidate,
@@ -344,7 +345,12 @@ export interface OperatorDryRunOptions {
   err: (text: string) => void;
   /** Test seam for the lock's clock; empty in production. */
   lock?: LockOptions;
+  /** Test seam for the pacing clock and gap; empty in production (real clock, random 60 to 120 s gap). */
+  pacing?: { nowMs?: () => number; gapMs?: (prevRunId: string) => number };
 }
+
+/** Exit code of "the pacing gap has not passed": nothing was opened, `bin/operator run` sleeps and calls again. */
+export const OPERATOR_WAIT_EXIT = 75;
 
 /**
  * `operator-dry-run <batch-id> <posting-id>`: the agent-only twin of `dry-run` (same filler path, always headed: no flag
@@ -406,6 +412,13 @@ async function runOperatorDryRunUnguarded(opts: OperatorDryRunOptions): Promise<
     if (!isDryRunCandidate(db, postingId)) return refuse("not a candidate", "unknown_posting");
     const prepared = prepareRealRun(db, postingId);
     if ("refusal" in prepared) return refuse(prepared.refusal, "not_fillable");
+    // Pacing comes last, so a refusal never makes the caller wait. Not a refusal: the lock is freed and the caller sleeps.
+    const wait = pacingWaitSeconds(db, (opts.pacing?.nowMs ?? Date.now)(), opts.pacing?.gapMs);
+    if (wait > 0) {
+      err("operator-dry-run: waiting: the pacing gap has not passed\n");
+      out(`operator-dry-run: waiting:${wait}\n`);
+      return OPERATOR_WAIT_EXIT;
+    }
     // The starter goes into the run's own insert: a run that throws afterwards is still counted.
     const summary = await runFiller(prepared, {
       db,

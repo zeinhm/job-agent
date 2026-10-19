@@ -507,9 +507,12 @@ need it). It is the same filler as `dry-run`, always headed (it has no option), 
 what the role prompt asks for. A refusal is one fixed line and exit 2 (an error is `operator-dry-run: error <ErrorName> at
 <path>:<line>`, exit 1; every refusal also prints `operator-dry-run: refused:<code>` on **stdout**, because `bin/operator` drops stderr:
 `lock_held`, `owner_waiting`, `batch_limit`, `daily_ceiling`, `captcha_stop`, `unknown_posting`, `not_fillable`, `not_real_db`,
-`no_db_file`, `invalid_arguments`): `refused: a dry run is already running`, `refused: an owner run is waiting`, `refused: batch
+`no_db_file`, `invalid_arguments`; `bin/operator run` adds `outside_window` outside 08:00 to 22:00). **Pacing:** a random gap of
+60 to 120 s (fixed per previous run) must pass after the previous operator form ended; owner runs are not counted and never wait.
+If it has not passed, nothing is opened: stdout `operator-dry-run: waiting:<seconds>`, exit 75; `bin/operator run` prints
+`waiting:<seconds>`, sleeps and calls again (at most 3 times). Refusals: `refused: a dry run is already running`, `refused: an owner run is waiting`, `refused: batch
 full` (5 runs per batch for the first 3 batches, 10 after; every run counts, a re-run too), `refused: daily operator limit
-reached` (a safety ceiling of 30 operator forms in a rolling 24 h across all batches; a new batch the same day is allowed),
+reached` (a safety ceiling of 100 operator forms in a rolling 24 h across all batches; a new batch the same day is allowed),
 `batch halted: captcha` (a run
 of the batch stopped on a CAPTCHA), `refused: not a candidate` (kept by the pipeline, not scam-flagged, not marked
 `not_interested` / `applied_manually`), the scratch-database refusal of `dry-run`, `refused: invalid arguments`. On

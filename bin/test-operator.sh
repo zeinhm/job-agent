@@ -24,6 +24,7 @@ EOF
 chmod +x "$T/stub/pnpm"
 export PATH="$T/stub:$PATH"
 OP="$R/bin/operator"
+export OPERATOR_NOW="2026-10-19 12:00"   # inside the start window
 run() { rm -f "$T/pnpm.call"; STDOUT="$(bash "$OP" "$@" 2>"$T/err" <"${STDIN_FILE:-/dev/null}")"; RC=$?; STDERR="$(cat "$T/err")"; }
 called() { [ -f "$T/pnpm.call" ]; }
 
@@ -77,6 +78,45 @@ rm -f "$T/out"; echo 1 > "$T/rc"
 run candidates
 check "failure without stdout: one line" "[ \"\$STDOUT\" = 'operator: candidates failed (exit 1)' ] && [ \$RC -eq 1 ]"
 rm -f "$T/rc" "$T/out"
+
+# pacing: exit 75 + "waiting:<s>" -> wrapper prints waiting:<s>, sleeps <s>, asks again (stub sleep records its argument)
+printf '#!/usr/bin/env bash\necho "$*" >> "%s/sleep.calls"\n' "$T" > "$T/stub/sleep"; chmod +x "$T/stub/sleep"
+cp "$T/stub/pnpm" "$T/pnpm.plain"
+cat > "$T/stub/pnpm" <<EOF
+#!/usr/bin/env bash
+echo x >> "$T/pnpm.n"
+f="$T/seq.\$(wc -l < "$T/pnpm.n" | tr -d ' ')"
+[ -f "\$f" ] && { cat "\$f.out"; exit "\$(cat "\$f")"; }
+echo "operator-dry-run: run=r posting=p status=filled"; exit 0
+EOF
+seqstep() { echo "$2" > "$T/seq.$1"; printf '%s' "$3" > "$T/seq.$1.out"; }   # call n: exit code, stdout
+reseq() { rm -f "$T"/seq.* "$T/pnpm.n" "$T/sleep.calls"; }
+reseq; seqstep 1 75 'operator-dry-run: waiting:47'
+run run t_batch1 gh-1
+check "pacing: waits, prints waiting:<s> and runs again" "[ \$RC -eq 0 ] && [ \"\$(printf '%s\n' \"\$STDOUT\" | sed -n 1p)\" = 'waiting:47' ] && printf '%s' \"\$STDOUT\" | grep -q 'status=filled' && [ \"\$(cat \"$T/sleep.calls\")\" = 47 ] && [ \"\$(wc -l < \"$T/pnpm.n\" | tr -d ' ')\" = 2 ]"
+reseq; seqstep 1 75 'operator-dry-run: waiting:61'; seqstep 2 75 'operator-dry-run: waiting:3'
+run run t_batch1 gh-1
+check "pacing: asks again after each wait" "[ \$RC -eq 0 ] && [ \"\$(cat \"$T/sleep.calls\" | tr '\n' ' ')\" = '61 3 ' ]"
+reseq; for n in 1 2 3 4; do seqstep $n 75 'operator-dry-run: waiting:5'; done
+run run t_batch1 gh-1
+check "pacing: gives up after 3 waits with the failure line" "[ \$RC -eq 75 ] && printf '%s\n' \"\$STDOUT\" | grep -qx 'operator: run failed (exit 75)' && [ \"\$(wc -l < \"$T/sleep.calls\" | tr -d ' ')\" = 3 ]"
+reseq; seqstep 1 75 'operator-dry-run: waiting:900'
+run run t_batch1 gh-1
+check "pacing: a wait above 120 s is not slept" "[ \$RC -eq 75 ] && [ ! -f \"$T/sleep.calls\" ]"
+reseq; seqstep 1 3 'operator-dry-run: waiting:5'
+run run t_batch1 gh-1
+check "pacing: only exit 75 waits" "[ \$RC -eq 3 ] && [ ! -f \"$T/sleep.calls\" ]"
+reseq; seqstep 1 2 'operator-dry-run: refused:batch_limit'
+run run t_batch1 gh-1
+check "refusal code reaches the caller on stdout" "[ \$RC -eq 2 ] && printf '%s\n' \"\$STDOUT\" | grep -qx 'operator-dry-run: refused:batch_limit'"
+reseq
+OPERATOR_NOW="2026-10-19 22:00" run run t_batch1 gh-1
+check "outside the window: refused:outside_window, nothing called" "[ \$RC -eq 2 ] && [ \"\$STDOUT\" = 'operator-dry-run: refused:outside_window' ] && [ ! -f \"$T/pnpm.n\" ]"
+OPERATOR_NOW="2026-10-19 07:59" run run t_batch1 gh-1
+check "before the window: refused:outside_window" "[ \$RC -eq 2 ] && [ \"\$STDOUT\" = 'operator-dry-run: refused:outside_window' ]"
+OPERATOR_NOW="2026-10-19 08:00" run candidates
+check "the window applies to run only" "[ \$RC -eq 0 ] && [ -f \"$T/pnpm.n\" ]"
+reseq; cp "$T/pnpm.plain" "$T/stub/pnpm"; rm -f "$T/stub/sleep"
 
 # started from a worktree: the command still runs in the main checkout
 git -C "$R" -c user.email=t@example.invalid -c user.name=t commit -q --allow-empty -m init

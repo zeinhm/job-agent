@@ -131,6 +131,10 @@ export {
   LATER_BATCH_RUNS,
   OPERATOR_WINDOW_MS,
   OPERATOR_DAILY_CEILING,
+  PACING_MIN_S,
+  PACING_MAX_S,
+  pacingGapMs,
+  pacingWaitSeconds,
   batchState,
   type BatchState,
 } from "./operator-batch.ts";

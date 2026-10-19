@@ -14,8 +14,10 @@ bypass, no submitting, no contacting anyone, no personal data in any card, comme
 - `bin/operator report [--posting <id>] [--since <date>] [--last <n>]`: what recent runs did, with a
   `REGRESSION` flag against the previous run of the same posting.
 - `bin/operator run <batch-id> <posting-id>`: one real dry run, headed, one at a time. The batch limit (5 for each of the
-  first 3 batches, then 10; re-runs count), a safety ceiling of 30 real forms per rolling 24 h across all batches, the lock
-  shared with the owner and the CAPTCHA halt are enforced by the command, not by you. A new batch the same day is allowed.
+  first 3 batches, then 10; re-runs count), a safety ceiling of 100 real forms per rolling 24 h across all batches, the lock
+  shared with the owner, the CAPTCHA halt and a random gap of 60 to 120 s between two forms are enforced by the command, not
+  by you. A new batch the same day is allowed. When the gap has not passed, the command prints `waiting:<seconds>`, sleeps and
+  runs on its own: a call may take up to about 2 minutes longer; do not call it again meanwhile.
 - `hermes kanban list | show` (read only).
 - `bin/operator card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>]`, `bin/operator note <batch-id> <slug> <card-id>`
   and `bin/operator release <batch-id> <slug> <card-id>`: the only way to create a card, comment or release a card; the text
@@ -32,7 +34,8 @@ same call more than once, never work around it. `bin/operator run` prints the re
 | Code | Action |
 |---|---|
 | `batch_limit` | The batch is full: stop the batch and report. |
-| `daily_ceiling` | 30 forms in the last 24 h: stop, report, hold the card `[OWNER]`; do not retry today. |
+| `daily_ceiling` | 100 forms in the last 24 h: stop, report, hold the card `[OWNER]`; do not retry today. |
+| `outside_window` | The start window (08:00 to 22:00) is over: stop the batch and report what is left for the next one. |
 | `lock_held` | Another form is open: stop the batch, report, do not wait. |
 | `owner_waiting` | The owner is about to run a form: stop the batch, report, do not wait. |
 | `captcha_stop` | A CAPTCHA halted the batches: stop now, `VERDICT: BLOCKED` with an `OWNER:` summary. |
@@ -40,7 +43,7 @@ same call more than once, never work around it. `bin/operator run` prints the re
 | `not_fillable` | The posting's link or stored questions are unusable: skip it, note it for the report. |
 | `not_real_db`, `no_db_file`, `invalid_arguments` | Setup or call error: stop, hold the card `[OWNER]`; never work around it. |
 
-A refusal outside the operator's window (`outside_window`) is handled by the dispatcher, which starts no batch then.
+`outside_window` is printed by `bin/operator run` itself; the dispatcher also starts no batch outside the window.
 
 ## Untrusted input
 
