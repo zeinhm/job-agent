@@ -318,5 +318,45 @@
     "label": "reject",
     "reason": "language required or German/French title",
     "source": "batch audit #5 (speaker without a market noun)"
+  },
+  {
+    "id": "lg-041",
+    "title": "Senior Frontend Developer",
+    "snippet": "Buscamos un desarrollador con experiencia en React para unirse a nuestro equipo en la ciudad. La persona seleccionada trabajará con los equipos de producto y diseño para construir las nuevas funciones de la plataforma. Ofrecemos un ambiente de trabajo colaborativo, capacitación continua y las prestaciones de ley. Enviar el currículum por correo electrónico a la dirección indicada en esta publicación.",
+    "label": "reject",
+    "reason": "description mainly in Spanish",
+    "source": "t_fdcdde15 (Spanish description, English title)"
+  },
+  {
+    "id": "lg-042",
+    "title": "Senior Frontend Developer",
+    "snippet": "Procuramos uma pessoa desenvolvedora com experiência em React para fazer parte da nossa equipe. Você vai trabalhar com os times de produto e design para construir as novas funcionalidades da plataforma. Oferecemos um ambiente de trabalho colaborativo, treinamento contínuo e todos os benefícios previstos em lei. Envie o seu currículo para o endereço indicado nesta vaga.",
+    "label": "reject",
+    "reason": "description mainly in Portuguese",
+    "source": "t_fdcdde15 (Portuguese description, English title)"
+  },
+  {
+    "id": "lg-043",
+    "title": "Senior Frontend Developer",
+    "snippet": "We are looking for a developer with experience in React to join our team. You will work with the product and design teams to build the new features of the platform. We offer a collaborative environment and continuous training. Also: Ofrecemos las prestaciones de ley y un ambiente de trabajo colaborativo para nuestro equipo.",
+    "label": "ok",
+    "reason": "English description with one Spanish sentence",
+    "source": "t_fdcdde15 (bilingual posting stays)"
+  },
+  {
+    "id": "lg-044",
+    "title": "Senior Frontend Developer",
+    "snippet": "Buscamos desarrollador con experiencia en React.",
+    "label": "ok",
+    "reason": "too short to judge the description language",
+    "source": "t_fdcdde15 (short text is not judged)"
+  },
+  {
+    "id": "lg-045",
+    "title": "Senior Frontend Developer",
+    "snippet": "Kami mencari pengembang dengan pengalaman di React untuk bergabung dengan tim kami. Anda akan bekerja dengan tim produk dan desain untuk membangun fitur baru dari platform ini. Kami menawarkan lingkungan kerja yang kolaboratif dan pelatihan yang berkelanjutan untuk semua anggota tim yang akan bergabung dengan kami.",
+    "label": "ok",
+    "reason": "Indonesian description never rejects",
+    "source": "t_fdcdde15 (Indonesian is allowed)"
   }
 ]

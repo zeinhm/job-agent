@@ -1292,5 +1292,45 @@
     "descriptionSnippet": "",
     "expected": "apac_ok",
     "source": "t_b032ee04 title worldwide"
+  },
+  {
+    "id": "loc-180",
+    "titleText": "Senior Frontend Developer",
+    "locationText": "Example City, Exampleland, Exampleland",
+    "descriptionSnippet": "Modalidad de trabajo híbrida. Prestaciones de ley.",
+    "expected": "restricted",
+    "source": "t_fdcdde15 (Spanish hybrid wording in the description)"
+  },
+  {
+    "id": "loc-181",
+    "titleText": "Senior Frontend Developer",
+    "locationText": "Example City, Exampleland",
+    "descriptionSnippet": "Trabalho presencial no escritório da empresa, cinco dias por semana.",
+    "expected": "restricted",
+    "source": "t_fdcdde15 (Portuguese on-site wording in the description)"
+  },
+  {
+    "id": "loc-182",
+    "titleText": "Senior Frontend Developer",
+    "locationText": "Example City (Híbrido)",
+    "descriptionSnippet": "",
+    "expected": "restricted",
+    "source": "t_fdcdde15 (Spanish hybrid wording in the location)"
+  },
+  {
+    "id": "loc-183",
+    "titleText": "Senior Frontend Developer",
+    "locationText": "Example City, Exampleland",
+    "descriptionSnippet": "Puesto híbrido o remoto según el equipo. Trabajo 100% remoto posible.",
+    "expected": "unclear",
+    "source": "t_fdcdde15 (remote wording next to hybrid wording keeps it unclear)"
+  },
+  {
+    "id": "loc-184",
+    "titleText": "Senior Frontend Developer",
+    "locationText": "Example City, Exampleland",
+    "descriptionSnippet": "Hybrid role, three days a week in the office.",
+    "expected": "unclear",
+    "source": "t_fdcdde15 (English description wording stays unchanged)"
   }
 ]

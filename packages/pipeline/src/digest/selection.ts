@@ -380,6 +380,9 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
 
   // A group (several postings) with no member that has an ask is not a Top match without one.
   const askless = group.length > 1 && i !== null && askLabel(i) === null;
+  // A location the description and the extraction could not settle waits in Needs a look, never Top.
+  const locationStillUnclear = unclear.includes("location_unclear");
+  let heldForLocation = false;
   // A posting without its description is judged on the title alone: it waits (and shows in Needs a look), never Top.
   if (
     isScored(g.lead) &&
@@ -410,24 +413,27 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
         ],
       };
     }
-    const scamReason = parseList(i.scam_reasons)[0];
-    return {
-      ...base,
-      kind: "top",
-      rank,
-      view: viewOf(g, "top"),
-      line: [
-        ...head,
-        `- Fit: ${i.fit_score}/100 (rank ${rank})${fitReasons.length > 0 ? ` — ${fitReasons.join("; ")}` : ""}`,
-        `- Type: ${employmentLabel(i.extraction)}`,
-        `- Tier / ask: ${i.tier ?? "no tier"} — ${label ?? "no ask decided"}`,
-        ...hoursLine(i.extraction),
-        ...(i.scam_score !== null && i.scam_score > 0
-          ? [`- Scam score: ${i.scam_score}${scamReason !== undefined ? ` — ${scamReason}` : ""}`]
-          : []),
-        ...common,
-      ],
-    };
+    if (!locationStillUnclear) {
+      const scamReason = parseList(i.scam_reasons)[0];
+      return {
+        ...base,
+        kind: "top",
+        rank,
+        view: viewOf(g, "top"),
+        line: [
+          ...head,
+          `- Fit: ${i.fit_score}/100 (rank ${rank})${fitReasons.length > 0 ? ` — ${fitReasons.join("; ")}` : ""}`,
+          `- Type: ${employmentLabel(i.extraction)}`,
+          `- Tier / ask: ${i.tier ?? "no tier"} — ${label ?? "no ask decided"}`,
+          ...hoursLine(i.extraction),
+          ...(i.scam_score !== null && i.scam_score > 0
+            ? [`- Scam score: ${i.scam_score}${scamReason !== undefined ? ` — ${scamReason}` : ""}`]
+            : []),
+          ...common,
+        ],
+      };
+    }
+    heldForLocation = true;
   }
 
   return {
@@ -436,7 +442,7 @@ function buildEntry(db: Db, group: Row[]): Entry | null {
     rank: 0,
     view: viewOf(g, "waiting"),
     line: [
-      `- ${title} — ${p.company_name}${paidLabel} — ${waitingReason(i, g.description)} — ${applyUrl}`,
+      `- ${title} — ${p.company_name}${paidLabel} — ${heldForLocation ? "location still unclear after the description" : waitingReason(i, g.description)} — ${applyUrl}`,
     ],
   };
 }

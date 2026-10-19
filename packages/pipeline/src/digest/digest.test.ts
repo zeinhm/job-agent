@@ -642,14 +642,30 @@ describe("runDigest", () => {
     it("shows Flags: none when location_unclear was settled, and keeps other flags", () => {
       seed("s", { title: "Settled", flags: ["location_unclear", "salary_unknown"] });
       score("s", { extraction: extraction() });
-      seed("o", { title: "Open", flags: ["location_unclear"] });
+      seed("o", { title: "Open", flags: ["role_unclear"] });
       score("o");
       const blocks = topOf(run().text).split("### ").slice(1);
       const settled = blocks.find((b) => b.startsWith("Settled")) ?? "";
       const open = blocks.find((b) => b.startsWith("Open")) ?? "";
       expect(settled).toContain("- Flags: salary_unknown\n");
       expect(settled).not.toContain("location_unclear");
-      expect(open).toContain("- Flags: location_unclear\n");
+      expect(open).toContain("- Flags: role_unclear\n");
+    });
+
+    it("never lists a scored posting with location_unclear still open as a Top match; it waits in Needs a look", () => {
+      seed("o", { title: "Open Location", flags: ["location_unclear"] });
+      score("o", { fit_score: 93 });
+      const { text } = run();
+      expect(topOf(text)).not.toContain("Open Location");
+      const waiting = text.slice(
+        text.indexOf("## Waiting for scoring"),
+        text.indexOf("## Needs a look"),
+      );
+      const looks = text.slice(text.indexOf("## Needs a look"), text.indexOf("## Suspicious"));
+      expect(waiting).toContain(
+        "Open Location — Acme Inc — location still unclear after the description",
+      );
+      expect(looks).toContain("Open Location — Acme Inc: location_unclear");
     });
 
     it("lists waiting entries as single lines with status and link", () => {

@@ -8,6 +8,7 @@ import {
   KNOWN_PLACES,
   MULTI_PLACE_PHRASES,
   NO_REMOTE_PHRASES,
+  ONSITE_DESCRIPTION_PHRASES,
   ONSITE_PHRASES,
   REMOTE_PHRASES,
   RESTRICTED_COUNTRY_NAMES,
@@ -346,6 +347,20 @@ export function classifyLocation(input: LocationInput): LocationResult {
         reason: `step 2 on-site/hybrid without remote option ${cite(onsite)}`,
       };
     }
+  }
+
+  // Spanish / Portuguese hybrid or on-site wording in the description, with no remote wording anywhere.
+  const descriptionOnsite = findPhrase([descriptionField], ONSITE_DESCRIPTION_PHRASES);
+  if (
+    descriptionOnsite &&
+    input.remote !== true &&
+    !findPhrase(allFields, REMOTE_PHRASES) &&
+    !findPhrase(allFields, WORLDWIDE_LOCATION_PHRASES)
+  ) {
+    return {
+      class: "restricted",
+      reason: `step 2 on-site/hybrid without remote option ${cite(descriptionOnsite)}`,
+    };
   }
 
   const remoteWording = findPhrase(locationFields, REMOTE_PHRASES);

@@ -964,6 +964,40 @@ describe("after the description arrives", () => {
     expect(requests).toHaveLength(0);
   });
 
+  const SPANISH = [
+    "Buscamos un desarrollador frontend con experiencia en React para unirse a nuestro equipo.",
+    "Modalidad de trabajo híbrida en la oficina de la ciudad.",
+    "La persona seleccionada trabajará con los equipos de producto y diseño para construir las nuevas funciones de la plataforma.",
+    "Ofrecemos un ambiente de trabajo colaborativo, capacitación continua y las prestaciones de ley.",
+    "Enviar el currículum por correo electrónico a la dirección indicada en esta publicación.",
+  ].join("\n");
+
+  it("rejects a Spanish hybrid posting with an unclear location by the language and location rules when its description arrives", async () => {
+    li("p-gt", {
+      title: "Senior Frontend Developer",
+      location_text: "Example City, Exampleland, Exampleland",
+      remote: null,
+    });
+    process();
+    expect(analysisOf("p-gt").decision).toBe("keep");
+    expect(analysisOf("p-gt").location_class).toBe("unclear");
+    expect(flagsOf("p-gt")).toContain("location_unclear");
+
+    const f = fakeFetcher(() => ({ kind: "ok", description: SPANISH }));
+    const r = await fetchStep(f.fetchDescription);
+    expect(r.out).toContain("fetched 1 (rejected by the rules 1)");
+
+    const a = analysisOf("p-gt");
+    expect(a.decision).toBe("reject");
+    expect(a.location_class).toBe("restricted");
+    expect(a.location_reason).toContain("híbrida");
+    const reasons = JSON.parse(a.reasons ?? "[]") as string[];
+    expect(reasons).toContain("language: description written in spanish");
+    const day = selectDay(db, DATE, { stamp: false });
+    expect(day.top).toEqual([]);
+    expect(day.needsALook).toEqual([]);
+  });
+
   it("makes the English worldwide-remote posting a normal candidate that enrich extracts, with the title-only extraction redone", async () => {
     li("p-remote", { title: "Senior Frontend Engineer", location_text: "Worldwide" });
     process();

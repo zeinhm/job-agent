@@ -9,6 +9,7 @@ import {
   LANGUAGE_TITLE_SPEAKING_TERMS,
   LANGUAGE_TITLE_TERMS,
 } from "./keywords.ts";
+import { foreignDescriptionLanguage } from "./description-language.ts";
 import { compoundPattern, phrasePattern } from "./phrases.ts";
 
 export type LanguageClass = "ok" | "reject";
@@ -174,8 +175,8 @@ function titleWord(title: string): string | undefined {
 }
 
 /**
- * Rejects postings that need a language other than English or Indonesian: a German/French title, or a
- * language requirement in the title or description. A gender marker such as "(m/w/d)" is not a signal.
+ * Rejects postings that need a language other than English or Indonesian: a German/French title, a
+ * description mainly written in another language, or a language requirement in the title or description. A gender marker such as "(m/w/d)" is not a signal.
  * Wording that makes the language optional ("a plus", "nice to have") keeps the posting.
  */
 export function classifyLanguage(input: LanguageInput): LanguageResult {
@@ -194,6 +195,11 @@ export function classifyLanguage(input: LanguageInput): LanguageResult {
     if (m !== null && !isOptional(clause)) {
       return { class: "reject", reason: `title asks for a language ("${m[0]}")` };
     }
+  }
+
+  const written = foreignDescriptionLanguage(input.descriptionText);
+  if (written !== null) {
+    return { class: "reject", reason: `description written in ${written}` };
   }
 
   for (const paragraph of (input.descriptionText ?? "").split(/[\n\r•]+/)) {

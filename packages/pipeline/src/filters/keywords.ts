@@ -270,6 +270,36 @@ export const ONSITE_PHRASES: readonly string[] = [
   "hybrid",
   "in-office",
   "in office",
+  "híbrido",
+  "híbrida",
+  "hibrido",
+  "hibrida",
+  "presencial",
+];
+
+/**
+ * Spanish and Portuguese hybrid / on-site wording in a description. Counts only when no remote wording
+ * (REMOTE_PHRASES) appears anywhere in the posting; English description wording is not used (see location.ts step 5).
+ */
+export const ONSITE_DESCRIPTION_PHRASES: readonly string[] = [
+  "híbrido",
+  "híbrida",
+  "hibrido",
+  "hibrida",
+  "modalidad híbrida",
+  "modalidad hibrida",
+  "trabajo híbrido",
+  "trabajo hibrido",
+  "modelo híbrido",
+  "modelo hibrido",
+  "regime híbrido",
+  "regime hibrido",
+  "presencial",
+  "trabalho presencial",
+  "trabajo presencial",
+  "oficina",
+  "escritório",
+  "escritorio",
 ];
 
 /**
@@ -619,6 +649,9 @@ export const REMOTE_PHRASES: readonly string[] = [
   "home-office",
   "homeoffice",
   "remoto",
+  "remota",
+  "teletrabalho",
+  "a distancia",
   "télétravail",
   "teletrabajo",
   "telearbeit",
