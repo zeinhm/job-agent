@@ -15,7 +15,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { main } from "./cli.ts";
 import { normalizeCompanyName } from "./normalize/index.ts";
-import { runProcess } from "./process.ts";
+import { analyze, runProcess } from "./process.ts";
 
 const NOW = new Date("2026-10-07T03:00:00Z");
 const exampleDir = join(dirname(fileURLToPath(import.meta.url)), "../../../config");
@@ -397,5 +397,59 @@ describe("process command", () => {
     const code = runProcess({ db, now: () => NOW, out: () => undefined, err: () => undefined });
     expect(code).toBe(0);
     expect(byPosting("low-pay").decision).toBe("reject");
+  });
+});
+
+describe("description language and work mode", () => {
+  const SPANISH =
+    "Buscamos un desarrollador con experiencia en React y TypeScript para unirse a nuestro equipo en la empresa. " +
+    "Ofrecemos un ambiente de trabajo colaborativo, beneficios de ley y capacitación continua. Requisitos: más de tres años de experiencia, " +
+    "conocimientos de pruebas automatizadas y buena comunicación con el equipo. Modalidad de trabajo híbrida.";
+
+  const base = {
+    source: "linkedin",
+    title: "Mid Frontend Engineer",
+    location_text: "Sample City, Examplia",
+  } as const;
+
+  it("rejects a posting whose description is mainly Spanish, once the description exists", () => {
+    add({ id: "es", ...base, description_text: SPANISH });
+    run();
+    const a = byPosting("es");
+    expect(a.decision).toBe("reject");
+    expect(a.reasons).toContain("language: description written in spanish");
+  });
+
+  it("judges the title alone while there is no description (no language reject)", () => {
+    add({ id: "title-only", ...base });
+    run();
+    const a = byPosting("title-only");
+    expect(a.decision).toBe("keep");
+    expect(a.flags).toContain("location_unclear");
+  });
+
+  it("settles location_unclear as restricted from Spanish hybrid wording in a short description", () => {
+    add({
+      id: "hybrid-es",
+      ...base,
+      description_text: "Modalidad de trabajo híbrida. Enviar el currículum por correo.",
+    });
+    run();
+    const a = byPosting("hybrid-es");
+    expect(a.location_class).toBe("restricted");
+    expect(a.decision).toBe("reject");
+    expect(a.flags).not.toContain("location_unclear");
+  });
+
+  it("re-analysing after the description arrives rejects it and drops location_unclear", () => {
+    add({ id: "later", ...base });
+    run();
+    expect(byPosting("later").flags).toContain("location_unclear");
+    db.update(postings).set({ description_text: SPANISH }).where(eq(postings.id, "later")).run();
+    const fresh = db.select().from(postings).where(eq(postings.id, "later")).get();
+    if (!fresh) throw new Error("missing posting");
+    const { row, rejectedBy } = analyze(db, fresh, 10_000_000, NOW);
+    expect(rejectedBy).toContain("language");
+    expect(row.flags).not.toContain("location_unclear");
   });
 });
