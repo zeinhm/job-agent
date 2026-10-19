@@ -26,6 +26,8 @@ import {
   FIXTURE_CAPTCHA_PATH,
   FIXTURE_CHANGED_PATH,
   FIXTURE_FORM_PATH,
+  FIXTURE_LATE_CLEAR_PATH,
+  FIXTURE_LATE_RESTORE_PATH,
   FIXTURE_LOCATION_PATH,
   FIXTURE_EDUCATION_PATH,
   FIXTURE_LOCATION_QUESTION,
@@ -285,6 +287,30 @@ describe("needs_input (owner answer on gate t_2c20b3fa, question 4)", () => {
     expect(row).toMatchObject({ filled: false, value: null, source: "answer" });
     expect(row?.note).toMatch(/page (kept a different value|refused the value)/);
     expect(runOf(summary.runId)?.stop_detail).toBe("1 field(s) need input; the page refused 1");
+  }, 90_000);
+});
+
+describe("readback after a late re-render (intermittent per page)", () => {
+  it("a field the page blanks after the write is written again and counted as filled", async () => {
+    const { summary, seen } = await run(FIXTURE_LATE_CLEAR_PATH);
+    expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+    const rows = fieldsOf(summary.runId);
+    for (const label of ["First Name", "Email"])
+      expect(rows.find((r) => r.label === label)).toMatchObject({ filled: true, note: null });
+    expect(rows.find((r) => r.field_type === "file")).toMatchObject({ filled: true, note: null });
+    const s = seen as unknown as Seen;
+    expect(s.texts["first_name"]).toBe("Alex");
+    expect(s.texts["email"]).not.toBe("");
+    expect(s.files).toEqual(["fixture-resume.pdf"]);
+  }, 90_000);
+
+  it("a value the page blanks and then puts back is read once settled, not reported as different", async () => {
+    const { summary, seen } = await run(FIXTURE_LATE_RESTORE_PATH);
+    expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+    const rows = fieldsOf(summary.runId);
+    for (const label of ["First Name", "Last Name"])
+      expect(rows.find((r) => r.label === label)).toMatchObject({ filled: true, note: null });
+    expect((seen as unknown as Seen).texts["last_name"]).toBe("Example");
   }, 90_000);
 });
 

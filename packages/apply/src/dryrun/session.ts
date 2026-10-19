@@ -193,6 +193,15 @@ export class DryRunSession {
     return this.#page.evaluate<T>(expression);
   }
 
+  /** Waits `ms` for the page to settle (a late re-render), then re-checks for a CAPTCHA. Refused after a stop. */
+  async settle(ms: number): Promise<void> {
+    if (this.stop)
+      throw new HarnessRefusalError(`run is stopped (${this.stop.reason}): nothing is read`);
+    if (this.#finished) throw new HarnessRefusalError("run is finished");
+    await this.#page.waitForTimeout(ms);
+    await this.recheck();
+  }
+
   /** Sets the value of a text-like input or textarea. */
   async fill(ref: FieldRef, value: string): Promise<void> {
     const { locator, facts } = await this.locate(ref);

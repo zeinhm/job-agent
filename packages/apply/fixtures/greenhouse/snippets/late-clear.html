@@ -1,0 +1,16 @@
+<script>
+  // A page that re-renders late: once the last text field (question_1008) is written it drops the First Name, Email and
+  // resume values, once, and does not put them back.
+  (() => {
+    let done = false;
+    document.getElementById("question_1008").addEventListener("change", () => {
+      if (done) return;
+      done = true;
+      setTimeout(() => {
+        document.getElementById("first_name").value = "";
+        document.getElementById("email").value = "";
+        document.getElementById("resume").value = "";
+      }, 0);
+    });
+  })();
+</script>

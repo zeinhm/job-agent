@@ -119,6 +119,12 @@ export function embeddedFormUrl(url: string): string | null {
   return m === null ? null : `${u.origin}/embed/job_app?for=${m[1]}&token=${m[2]}`;
 }
 
+/** Readback settle: up to this many waits of this length before a mismatch counts (only paid when a field differs). */
+const SETTLE_POLLS = 4;
+const SETTLE_MS = 250;
+/** Control kinds written once more after the settle wait; choices are not clicked twice. */
+const REWRITABLE = new Set(["text", "textarea", "file", "select"]);
+
 const cssOf = (id: string) => ({ css: `[id="${id.replace(/["\\]/g, "\\$&")}"]` });
 
 /** Puts one planned value into its control, through the guarded session helpers only. */
@@ -282,7 +288,44 @@ export async function runGreenhouseDryRun(
       locationRow = autocompleteRow(locationField, result);
     }
     if (session.stop) return await done(undefined);
-    const got = await session.snapshot<Record<string, string[]>>(readValuesExpression(fillable));
+    const readValues = () =>
+      session.snapshot<Record<string, string[]>>(readValuesExpression(fillable));
+    // A page may re-render a field after the write (blanking it, or putting the value back): wait for the settled value,
+    // then write a still-missing text, file or select value once more. A value the page really refuses stays refused.
+    const pending = (seen: Record<string, string[]>) =>
+      plan.fields.filter(
+        (p) =>
+          p.filled &&
+          !refused.has(p.field.ats.id) &&
+          !kept(byId.get(p.field.ats.id) as DomControl, p.value, seen[p.field.ats.id] ?? []),
+      );
+    // One settle wait always comes before the first trusted read: a re-render queued by the write has not run yet.
+    await session.settle(SETTLE_MS);
+    if (session.stop) return await done(undefined);
+    let got = await readValues();
+    for (let i = 0; i < SETTLE_POLLS && pending(got).length > 0 && !session.stop; i++) {
+      await session.settle(SETTLE_MS);
+      if (!session.stop) got = await readValues();
+    }
+    const rewrite = session.stop
+      ? []
+      : pending(got).filter((p) => REWRITABLE.has((byId.get(p.field.ats.id) as DomControl).kind));
+    for (const p of rewrite) {
+      if (session.stop || !p.filled) break;
+      try {
+        await apply(session, byId.get(p.field.ats.id) as DomControl, p.value);
+      } catch (err) {
+        refused.set(
+          p.field.ats.id,
+          err instanceof HarnessRefusalError ? err.message.slice(0, 200) : "page refused the value",
+        );
+      }
+    }
+    if (rewrite.length > 0 && !session.stop) {
+      await session.settle(SETTLE_MS);
+      if (!session.stop) got = await readValues();
+    }
+    if (session.stop) return await done(undefined);
     const planned: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {
       const base = {
         label: p.field.label,

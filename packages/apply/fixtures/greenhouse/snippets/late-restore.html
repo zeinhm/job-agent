@@ -1,0 +1,20 @@
+<script>
+  // A page that re-renders late and settles: once the last text field (question_1008) is written it blanks First Name and
+  // Last Name, and 600 ms later puts the values back.
+  (() => {
+    let done = false;
+    document.getElementById("question_1008").addEventListener("change", () => {
+      if (done) return;
+      done = true;
+      setTimeout(() => {
+        const ids = ["first_name", "last_name"];
+        const kept = ids.map((id) => document.getElementById(id).value);
+        ids.forEach((id) => (document.getElementById(id).value = ""));
+        setTimeout(
+          () => ids.forEach((id, i) => (document.getElementById(id).value = kept[i])),
+          600,
+        );
+      }, 0);
+    });
+  })();
+</script>

@@ -28,6 +28,10 @@ export const FIXTURE_WIDGETS_PATH = "/acme/jobs/1008";
 export const FIXTURE_EDUCATION_PATH = "/acme/jobs/1009";
 /** The form plus one real unknown extra question (a text input): still stops `form_changed`. */
 export const FIXTURE_UNKNOWN_EXTRA_PATH = "/acme/jobs/1010";
+/** The form plus a late re-render that blanks First Name, Email and the resume once and never puts them back. */
+export const FIXTURE_LATE_CLEAR_PATH = "/acme/jobs/1011";
+/** The form plus a late re-render that blanks First Name and Last Name, then puts the values back. */
+export const FIXTURE_LATE_RESTORE_PATH = "/acme/jobs/1012";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -75,6 +79,8 @@ const PAGES: Record<string, string> = {
   [FIXTURE_WIDGETS_PATH]: "form.html+form:snippets/widgets.html",
   [FIXTURE_EDUCATION_PATH]: "form.html+form:snippets/education.html",
   [FIXTURE_UNKNOWN_EXTRA_PATH]: "form.html+form:snippets/unknown-extra.html",
+  [FIXTURE_LATE_CLEAR_PATH]: "form.html+snippets/late-clear.html",
+  [FIXTURE_LATE_RESTORE_PATH]: "form.html+snippets/late-restore.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),
