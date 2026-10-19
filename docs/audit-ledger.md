@@ -7,3 +7,4 @@ Last audit tag: audit-17 (e6a005a). Rows merged up to that commit were cleared b
 
 | Task id | Title | Risk | Merged commit | Merged on |
 |---|---|---|---|---|
+| t_6d99e420 | Dispatch: a blocked operator batch never stalls later batches, and shows in the owner summary | medium | 0f1c5a0 | 2026-10-19 |
