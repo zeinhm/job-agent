@@ -348,15 +348,19 @@ export async function runGreenhouseDryRun(
     await session.settle(SETTLE_MS);
     if (session.stop) return await done(undefined);
     let got = await readValues();
-    for (let i = 0; !session.stop; i++) {
-      const waiting = pending(got);
-      const limit = waiting.some((p) => byId.get(p.field.ats.id)?.kind === "file")
-        ? UPLOAD_SETTLE_POLLS
-        : SETTLE_POLLS;
-      if (waiting.length === 0 || i >= limit) break;
-      await session.settle(SETTLE_MS);
-      if (!session.stop) got = await readValues();
-    }
+    // Polls until nothing is pending (a pending file waits longer), at most the limit.
+    const pollPending = async () => {
+      for (let i = 0; !session.stop; i++) {
+        const waiting = pending(got);
+        const limit = waiting.some((p) => byId.get(p.field.ats.id)?.kind === "file")
+          ? UPLOAD_SETTLE_POLLS
+          : SETTLE_POLLS;
+        if (waiting.length === 0 || i >= limit) break;
+        await session.settle(SETTLE_MS);
+        if (!session.stop) got = await readValues();
+      }
+    };
+    await pollPending();
     const rewrite = session.stop
       ? []
       : pending(got).filter((p) => REWRITABLE.has((byId.get(p.field.ats.id) as DomControl).kind));
@@ -365,6 +369,9 @@ export async function runGreenhouseDryRun(
       try {
         await apply(session, byId.get(p.field.ats.id) as DomControl, p.value, true);
       } catch (err) {
+        // A file whose input is gone or whose chooser never opens may still be kept by the page (a late upload-complete
+        // line): the readback after the second wait decides, not the failed second attempt.
+        if (byId.get(p.field.ats.id)?.kind === "file") continue;
         refused.set(
           p.field.ats.id,
           err instanceof HarnessRefusalError ? err.message.slice(0, 200) : "page refused the value",
@@ -374,6 +381,7 @@ export async function runGreenhouseDryRun(
     if (rewrite.length > 0 && !session.stop) {
       await session.settle(SETTLE_MS);
       if (!session.stop) got = await readValues();
+      await pollPending();
     }
     if (session.stop) return await done(undefined);
     const planned: DryRunFieldInput[] = plan.fields.map((p): DryRunFieldInput => {

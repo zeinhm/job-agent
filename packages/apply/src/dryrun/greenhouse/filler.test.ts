@@ -36,6 +36,7 @@ import {
   FIXTURE_UNKNOWN_EXTRA_PATH,
   FIXTURE_UPLOAD_CHOOSER_PATH,
   FIXTURE_UPLOAD_DROPPED_PATH,
+  FIXTURE_UPLOAD_LATE_GONE_PATH,
   FIXTURE_UPLOAD_SWAP_PATH,
   FIXTURE_WIDGETS_PATH,
   fixtureContext,
@@ -336,6 +337,44 @@ describe("readback after a late re-render (intermittent per page)", () => {
       note: null,
     });
   }, 90_000);
+
+  describe.each([
+    ["required", true],
+    ["optional", false],
+  ])("a %s resume field", (_name, required) => {
+    const setRequired = () =>
+      db
+        .update(posting_questions)
+        .set({ required })
+        .where(
+          and(
+            eq(posting_questions.posting_id, FIXTURE_POSTING_ID),
+            eq(posting_questions.question_id, "resume"),
+          ),
+        )
+        .run();
+
+    it.each([
+      ["a plain attach", FIXTURE_FORM_PATH],
+      ["a late input swap", FIXTURE_UPLOAD_SWAP_PATH],
+      ["a chooser-only widget", FIXTURE_UPLOAD_CHOOSER_PATH],
+      ["a slow upload that removes its input", FIXTURE_UPLOAD_LATE_GONE_PATH],
+    ])(
+      "is kept on %s",
+      async (_widget, path) => {
+        setRequired();
+        const { summary } = await run(path);
+        expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+        expect(fieldsOf(summary.runId).find((r) => r.field_type === "file")).toMatchObject({
+          required,
+          source: "resume",
+          filled: true,
+          note: null,
+        });
+      },
+      90_000,
+    );
+  });
 
   it("an upload the page drops names the upload as the cause, not a generic refusal", async () => {
     const { summary } = await run(FIXTURE_UPLOAD_DROPPED_PATH);

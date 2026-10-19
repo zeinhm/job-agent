@@ -230,13 +230,17 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
       const own = el ? [...(el.files || [])].map((f) => f.name) : [];
       if (own.length > 0) { out[c.id] = own; continue; }
       const box = (el && el.closest(".file-upload__wrapper")) || document.getElementById("upload-label-" + c.id)?.parentElement;
-      out[c.id] = box
+      const named = box
         ? [...box.querySelectorAll("[class*='filename'], [class*='file-name'], [data-testid*='filename']")]
             .map((n) => n.textContent.replace(/\\s+/g, " ").trim())
             .filter((t) => t !== "")
-            // A widget with other markup: any file-name-looking token (name.ext) in the control's text.
-            .concat((box.parentElement.textContent.match(/[^\\s\\/\\\\]+\\.(?:pdf|docx?|txt|rtf)\\b/gi)) || [])
         : [];
+      // A widget with other markup: any file-name-looking token (name.ext) in the control's text, only when no name line
+      // is found; each name once (a name counted twice would not equal the single planned file).
+      const loose = box && named.length === 0
+        ? box.parentElement.textContent.match(/[^\\s\\/\\\\]+\\.(?:pdf|docx?|txt|rtf)\\b/gi) || []
+        : [];
+      out[c.id] = [...new Set([...named, ...loose])];
       continue;
     }
     if (!el) { out[c.id] = []; continue; }
