@@ -234,6 +234,8 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
         ? [...box.querySelectorAll("[class*='filename'], [class*='file-name'], [data-testid*='filename']")]
             .map((n) => n.textContent.replace(/\\s+/g, " ").trim())
             .filter((t) => t !== "")
+            // A widget with other markup: any file-name-looking token (name.ext) in the control's text.
+            .concat((box.parentElement.textContent.match(/[^\\s\\/\\\\]+\\.(?:pdf|docx?|txt|rtf)\\b/gi)) || [])
         : [];
       continue;
     }

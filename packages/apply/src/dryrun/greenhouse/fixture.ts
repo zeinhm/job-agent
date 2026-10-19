@@ -42,6 +42,8 @@ export const FIXTURE_COVER_TEXTAREA_PATH = "/acme/jobs/1015";
 export const FIXTURE_COVER_MANUAL_PATH = "/acme/jobs/1016";
 /** The form plus a Cover Letter file upload without a text option. */
 export const FIXTURE_COVER_FILE_ONLY_PATH = "/acme/jobs/1017";
+/** The form plus a widget that keeps only a file chosen through its own picker (a programmatic attach is dropped). */
+export const FIXTURE_UPLOAD_CHOOSER_PATH = "/acme/jobs/1018";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -96,6 +98,7 @@ const PAGES: Record<string, string> = {
   [FIXTURE_COVER_TEXTAREA_PATH]: "form.html+form:snippets/cover-textarea.html",
   [FIXTURE_COVER_MANUAL_PATH]: "form.html+form:snippets/cover-manual.html",
   [FIXTURE_COVER_FILE_ONLY_PATH]: "form.html+form:snippets/cover-file-only.html",
+  [FIXTURE_UPLOAD_CHOOSER_PATH]: "form.html+snippets/upload-chooser-only.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),

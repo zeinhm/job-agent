@@ -144,6 +144,7 @@ async function apply(
   session: DryRunSession,
   c: DomControl,
   value: string | string[],
+  again = false,
 ): Promise<void> {
   const list = Array.isArray(value) ? value : [value];
   const first = list[0] ?? "";
@@ -158,7 +159,10 @@ async function apply(
     case "combobox":
       return session.choose(cssOf(c.id), list);
     case "file":
-      return session.upload(cssOf(c.id), first);
+      // The second attempt goes through the page's own file chooser, like a user's picker (a widget may drop the first).
+      return again
+        ? session.uploadViaChooser(cssOf(c.id), first)
+        : session.upload(cssOf(c.id), first);
     case "radio_group":
     case "checkbox_group": {
       for (const label of list) {
@@ -359,7 +363,7 @@ export async function runGreenhouseDryRun(
     for (const p of rewrite) {
       if (session.stop || !p.filled) break;
       try {
-        await apply(session, byId.get(p.field.ats.id) as DomControl, p.value);
+        await apply(session, byId.get(p.field.ats.id) as DomControl, p.value, true);
       } catch (err) {
         refused.set(
           p.field.ats.id,

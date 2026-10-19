@@ -1,0 +1,33 @@
+<script>
+  // A page that only keeps a file chosen through its own file picker: a programmatic attach (no click on the input first)
+  // is dropped (the input is replaced by a fresh empty one, no file name shown); a pick after a click is kept and named.
+  let picked = false;
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (event.target.id === "resume") picked = true;
+    },
+    true,
+  );
+  document.addEventListener(
+    "change",
+    (event) => {
+      const input = event.target;
+      if (input.id !== "resume" || !input.files[0]) return;
+      const name = input.files[0].name;
+      setTimeout(() => {
+        if (picked) {
+          const line = document.createElement("div");
+          line.className = "file-upload__filename";
+          line.textContent = name;
+          input.closest(".file-upload__wrapper").appendChild(line);
+          return;
+        }
+        const fresh = document.createElement("input");
+        for (const a of input.attributes) fresh.setAttribute(a.name, a.value);
+        input.replaceWith(fresh);
+      }, 100);
+    },
+    true,
+  );
+</script>

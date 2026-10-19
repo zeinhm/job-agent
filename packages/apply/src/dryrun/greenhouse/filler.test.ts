@@ -34,6 +34,7 @@ import {
   FIXTURE_LOCATION_QUESTION,
   FIXTURE_POSTING_ID,
   FIXTURE_UNKNOWN_EXTRA_PATH,
+  FIXTURE_UPLOAD_CHOOSER_PATH,
   FIXTURE_UPLOAD_DROPPED_PATH,
   FIXTURE_UPLOAD_SWAP_PATH,
   FIXTURE_WIDGETS_PATH,
@@ -318,6 +319,16 @@ describe("readback after a late re-render (intermittent per page)", () => {
 
   it("an upload the page completes late (input swapped for a file-name line) is filled, not refused", async () => {
     const { summary } = await run(FIXTURE_UPLOAD_SWAP_PATH);
+    expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
+    expect(fieldsOf(summary.runId).find((r) => r.field_type === "file")).toMatchObject({
+      source: "resume",
+      filled: true,
+      note: null,
+    });
+  }, 90_000);
+
+  it("a widget that drops a programmatic attach but keeps a file picked through its chooser is filled on the second attempt", async () => {
+    const { summary } = await run(FIXTURE_UPLOAD_CHOOSER_PATH);
     expect(summary).toMatchObject({ status: "filled", filled: 13, total: 13 });
     expect(fieldsOf(summary.runId).find((r) => r.field_type === "file")).toMatchObject({
       source: "resume",

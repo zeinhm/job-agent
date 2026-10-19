@@ -362,6 +362,23 @@ export class DryRunSession {
   }
 
   /**
+   * Attaches a local file the way a user's file picker does: the input is clicked, the page's own file chooser opens and
+   * the file is handed to it. For a widget that drops a programmatic attach (second attempt after `upload`).
+   */
+  async uploadViaChooser(ref: FieldRef, filePath: string): Promise<void> {
+    const { locator, facts } = await this.locate(ref);
+    if (facts.tag !== "input" || facts.type !== "file") {
+      throw new HarnessRefusalError(`refused: cannot upload into a ${facts.tag}[${facts.type}]`);
+    }
+    const [chooser] = await Promise.all([
+      this.#page.waitForEvent("filechooser", { timeout: 5_000 }),
+      locator.evaluate((el) => (el as unknown as { click(): void }).click()),
+    ]);
+    await chooser.setFiles(filePath);
+    await this.recheck();
+  }
+
+  /**
    * Takes the full-page screenshot, writes it and the run + fields through the D1 store, and closes the browser.
    * After a detector stop the run is recorded as stopped with no fields, whatever `result` says.
    * A "filled" run during which the page tried to submit is recorded as stopped (`blocked_request`).
