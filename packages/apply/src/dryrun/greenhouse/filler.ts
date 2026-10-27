@@ -3,7 +3,6 @@ import { posting_questions, type Db } from "@job-agent/core";
 import { asc, and, eq } from "drizzle-orm";
 import { loadFillContext, recordUncoveredLabels } from "../../fill-plan-db.ts";
 import {
-  COVER_LETTER_TEXT_KEY,
   planFill,
   type FillInput,
   type FormField,
@@ -241,14 +240,10 @@ export async function runGreenhouseDryRun(
         stop_reason: "form_changed",
         stop_detail: "application form not found",
       });
-    // A Cover Letter file upload with an "Enter manually" option: when the owner approved a cover letter text, open the
-    // text option (its textarea only exists afterwards) and read the form again.
+    // A Cover Letter file upload with an "Enter manually" option: open the text option (its textarea only exists
+    // afterwards) and read the form again; the plan then fills it, or notes an unapproved or missing text.
     const coverFile = stored.find((f) => f.ats.id === COVER_FILE_ID && f.field_type === "file");
-    if (
-      coverFile !== undefined &&
-      !controls.some((c) => c.id === COVER_TEXT_ID) &&
-      context.answers.some((a) => a.approved && a.key === COVER_LETTER_TEXT_KEY)
-    ) {
+    if (coverFile !== undefined && !controls.some((c) => c.id === COVER_TEXT_ID)) {
       if (await session.revealCoverLetterText()) {
         await session.settle(SETTLE_MS);
         if (session.stop) return await done(undefined);

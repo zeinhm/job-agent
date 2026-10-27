@@ -467,21 +467,23 @@ function coverField(
 
   const m = matchQuestion(n, index);
 
-  // A cover letter TEXT field is filled from the approved text; a cover letter file field stays uncovered (below).
-  if (
-    m?.kind === "standard" &&
-    m.field === "cover_letter" &&
-    (type === "text" || type === "long_text")
-  ) {
-    const key = COVER_LETTER_TEXT_KEY;
-    const a = byKey.get(key);
-    if (a === undefined) return miss(`no approved ${key}`, key);
-    const base = answerValue(field, a);
-    if (base === null || base === "") return miss(`${key} is empty or not valid`, key);
-    const r = renderCoverLetter(base, input.posting);
-    return r.ok
-      ? { ok: true, value: r.text, answerKey: key, source: "answer" }
-      : miss(r.detail, key);
+  // A cover letter TEXT field is filled from the approved text; a file-only cover letter needs a file (none is generated).
+  if (m?.kind === "standard" && m.field === "cover_letter") {
+    if (type === "file") return miss("cover letter needs a file");
+    if (type === "text" || type === "long_text") {
+      const key = COVER_LETTER_TEXT_KEY;
+      const a = byKey.get(key);
+      if (a === undefined)
+        return input.answers.some((x) => x.key === key)
+          ? miss("cover letter text not approved", key)
+          : miss("no answer-bank key for cover_letter", key);
+      const base = answerValue(field, a);
+      if (base === null || base === "") return miss(`${key} is empty or not valid`, key);
+      const r = renderCoverLetter(base, input.posting);
+      return r.ok
+        ? { ok: true, value: r.text, answerKey: key, source: "answer" }
+        : miss(r.detail, key);
+    }
   }
 
   if (m?.kind === "standard" && m.field === "additional_info") {

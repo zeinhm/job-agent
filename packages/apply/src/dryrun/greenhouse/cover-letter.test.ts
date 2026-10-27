@@ -139,15 +139,36 @@ describe("Greenhouse cover letter text", () => {
     expect(summary.attempts.map((a) => a.kind)).not.toContain("submit_event");
   }, 90_000);
 
-  it("the Enter manually option is not opened without an approved cover letter text", async () => {
+  it("a missing cover letter text leaves the manual textarea empty with the missing-key note", async () => {
     storeCoverLetter("file");
     const { summary, dom } = await run(FIXTURE_COVER_MANUAL_PATH, (c) => ({
       ...c,
       answers: c.answers.filter((a) => a.key !== "misc.cover_letter_text"),
     }));
-    expect(dom["manual"]).toBe("(none)");
+    expect(dom["manual"]).toBe("");
     expect(summary.status).toBe("needs_input");
-    expect(row(summary.runId, "Cover Letter")).toMatchObject({ filled: false, source: "none" });
+    expect(row(summary.runId, "Cover Letter")).toMatchObject({
+      filled: false,
+      source: "none",
+      note: "no answer-bank key for cover_letter",
+    });
+  }, 90_000);
+
+  it("a cover letter text that is not approved is never typed", async () => {
+    storeCoverLetter("file");
+    const { summary, dom } = await run(FIXTURE_COVER_MANUAL_PATH, (c) => ({
+      ...c,
+      answers: c.answers.map((a) =>
+        a.key === "misc.cover_letter_text" ? { ...a, approved: false } : a,
+      ),
+    }));
+    expect(dom["manual"]).toBe("");
+    expect(summary.status).toBe("needs_input");
+    expect(row(summary.runId, "Cover Letter")).toMatchObject({
+      filled: false,
+      value: null,
+      note: "cover letter text not approved",
+    });
   }, 90_000);
 
   it("a file upload without a text option stays needs_input", async () => {
@@ -159,6 +180,7 @@ describe("Greenhouse cover letter text", () => {
       filled: false,
       source: "none",
       value: null,
+      note: "cover letter needs a file",
     });
   }, 90_000);
 
