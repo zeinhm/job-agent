@@ -132,6 +132,8 @@ const SETTLE_POLLS = 4;
 const UPLOAD_SETTLE_POLLS = 20;
 /** Fixed note for a file the page did not keep (listed in the dry-run report's known notes). */
 export const UPLOAD_NOT_KEPT_NOTE = "page did not keep the uploaded file";
+/** Fixed note for a cover letter text the manual textarea refused or did not keep (listed in the report's known notes). */
+export const COVER_TEXT_NOT_KEPT_NOTE = "cover letter text not kept by the page";
 const SETTLE_MS = 250;
 /** Control kinds written once more after the settle wait; choices are not clicked twice. */
 const REWRITABLE = new Set(["text", "textarea", "file", "select"]);
@@ -393,7 +395,14 @@ export async function runGreenhouseDryRun(
         refused.get(id) ??
         (kept(control, p.value, got[id] ?? []) ? null : "page kept a different value");
       // A file the page does not keep (input swapped or cleared, upload never completes): name the upload as the cause.
-      const why = raw !== null && control.kind === "file" ? UPLOAD_NOT_KEPT_NOTE : raw;
+      const why =
+        raw === null
+          ? null
+          : control.kind === "file"
+            ? UPLOAD_NOT_KEPT_NOTE
+            : id === COVER_TEXT_ID
+              ? COVER_TEXT_NOT_KEPT_NOTE
+              : raw;
       return why === null
         ? { ...base, source: p.source, value: valueText(p), filled: true, note: null }
         : { ...base, source: p.source, value: null, filled: false, note: why };

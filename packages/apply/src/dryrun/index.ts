@@ -24,6 +24,7 @@ export {
   type FinishedRun,
 } from "./session.ts";
 export {
+  COVER_TEXT_NOT_KEPT_NOTE,
   loadStoredQuestions,
   runGreenhouseDryRun,
   type GreenhouseRunOptions,

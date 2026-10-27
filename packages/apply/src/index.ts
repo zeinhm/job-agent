@@ -102,6 +102,7 @@ export {
 } from "./typed-answer.ts";
 export {
   MAX_RESUME_BYTES,
+  COVER_LETTER_NOTES,
   PROFILE_KEYS,
   SUPPORTED_FIELD_TYPES,
   nameRole,

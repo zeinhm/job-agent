@@ -153,6 +153,20 @@ describe("dry-run-report", () => {
     expect(printableNote(upload)).toBe(upload);
   });
 
+  it("prints every cover letter note exactly, never as 'other' (t_c459a940)", () => {
+    for (const note of [
+      "cover letter needs a file",
+      "cover letter text not approved",
+      "no answer-bank key for cover_letter",
+      "misc.cover_letter_text is empty or not valid",
+      "cover letter text has an unknown placeholder",
+      "cover letter needs the posting's title",
+      "cover letter needs the posting's company name",
+      "cover letter text not kept by the page",
+    ])
+      expect(printableNote(note)).toBe(note);
+  });
+
   it("regressionReasons: status, fewer filled, lost field, none", () => {
     const f = (label: string, filled: boolean) => ({
       label,

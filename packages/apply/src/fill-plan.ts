@@ -167,6 +167,17 @@ export const PROFILE_KEYS: Record<StandardField, string | null> = {
 /** Approved answer of a "Cover letter" text field (owner decision, no LLM): a text with `{company}` and `{role}`. */
 export const COVER_LETTER_TEXT_KEY = "misc.cover_letter_text";
 
+/** The fixed cover letter notes a row may carry (listed in the dry-run report's known notes; the text itself never is). */
+export const COVER_LETTER_NOTES: readonly string[] = [
+  "cover letter needs a file",
+  "cover letter text not approved",
+  "no answer-bank key for cover_letter",
+  `${COVER_LETTER_TEXT_KEY} is empty or not valid`,
+  "cover letter text has an unknown placeholder",
+  "cover letter needs the posting's title",
+  "cover letter needs the posting's company name",
+];
+
 type Rendered = { ok: true; text: string } | { ok: false; detail: string };
 
 /**

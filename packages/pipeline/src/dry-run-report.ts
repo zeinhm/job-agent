@@ -12,7 +12,14 @@ import {
   postings,
   type Db,
 } from "@job-agent/core";
-import { AUTOCOMPLETE_NOTES, errorLine, refusalLine, sanitizeText } from "@job-agent/apply";
+import {
+  AUTOCOMPLETE_NOTES,
+  COVER_LETTER_NOTES,
+  COVER_TEXT_NOT_KEPT_NOTE,
+  errorLine,
+  refusalLine,
+  sanitizeText,
+} from "@job-agent/apply";
 import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -49,6 +56,8 @@ export const KNOWN_FIELD_NOTES: readonly string[] = [
   "salary: period not supported",
   "salary: period unclear",
   "salary: no ask",
+  ...COVER_LETTER_NOTES,
+  COVER_TEXT_NOT_KEPT_NOTE,
 ];
 
 export function printableNote(note: string | null): string | null {
