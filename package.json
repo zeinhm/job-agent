@@ -13,7 +13,7 @@
     "lint": "eslint . && prettier --check .",
     "test": "vitest run",
     "build:web": "pnpm --filter @job-agent/dashboard build",
-    "check": "pnpm typecheck && pnpm lint && pnpm build:web && pnpm test && bash .githooks/test-pre-commit.sh && bash bin/test-hold.sh && bash bin/test-agent-step.sh && bash bin/test-backup.sh && bash bin/test-operator.sh && bash bin/test-operator-dispatch.sh && bash scripts/test-python.sh",
+    "check": "pnpm typecheck && pnpm lint && pnpm build:web && pnpm test && bash .githooks/test-pre-commit.sh && bash bin/test-hold.sh && bash bin/test-dispatch.sh &&bash bin/test-agent-step.sh && bash bin/test-backup.sh && bash bin/test-operator.sh && bash bin/test-operator-dispatch.sh && bash scripts/test-python.sh",
     "job-agent": "tsx packages/pipeline/src/cli.ts",
     "dashboard": "pnpm build:web && tsx apps/dashboard/src/server/main.ts",
     "playwright:install": "pnpm --filter @job-agent/apply exec playwright install chromium",

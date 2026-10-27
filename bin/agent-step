@@ -125,15 +125,16 @@ fi
   echo "Comment file: $COMMENTF"; echo
   cat prompts/roles/common.md "prompts/roles/$ROLE.md"; echo; echo "## Task card"; cat "$CARDF"
 } > "$PROMPTF"
+echo $$ > "$STATE/sessions/$ID.step"
 log "agent-step: $ROLE $ID running Claude Code (Pro, model ${ROLE})"
-"$REPO/bin/cc-run" "$ROLE" "$WORKDIR" "$PROMPTF" "$OUTF"; RC=$?
+"$REPO/bin/cc-run" "$ROLE" "$WORKDIR" "$PROMPTF" "$OUTF" "$STATE/sessions/$ID"; RC=$?
 [ -n "$REVIEW_WT" ] && git worktree remove --force "$REVIEW_WT" 2>/dev/null
-[ $RC -eq 42 ] && act pause "RESET: $(sed -n 's/^LIMIT_RESET_EPOCH=//p' "$OUTF" | tail -1)"
+[ $RC -eq 42 ] && act pause "RESET: $(LC_ALL=C sed -n 's/^LIMIT_RESET_EPOCH=//p' "$OUTF" | tail -1)"
 
-VLINE="$(grep '^VERDICT:' "$OUTF" | tail -1)"
-[ -z "$VLINE" ] && { echo "no verdict (exit $RC)"; tail -5 "$OUTF"; exit 1; }    # dispatcher retries, then the Doctor
-VERDICT="$(printf '%s' "$VLINE" | sed -E 's/^VERDICT: *([A-Z]+).*/\1/')"
-VSUM="$(printf '%s' "$VLINE" | awk -F'|' '{print $NF}' | sed -E 's/^ +//; s/ +$//')"
+VLINE="$(last_verdict_line "$OUTF")"
+[ -z "$VLINE" ] && { echo "no verdict (exit $RC)"; tail -5 "$OUTF" | LC_ALL=C tr -c '[:print:]\n' '?'; exit 1; }    # dispatcher retries, then the Doctor
+VERDICT="$(printf '%s' "$VLINE" | LC_ALL=C sed -E 's/^VERDICT: *([A-Z]+).*/\1/')"
+VSUM="$(printf '%s' "$VLINE" | LC_ALL=C awk -F'|' '{print $NF}' | LC_ALL=C sed -E 's/^ +//; s/ +$//')"
 post_comment
 [ "$ROLE" = operator ] && { copy_owner_summary "$COMMENTF" || log "could not copy the operator summary"; }   # also after BLOCKED (CAPTCHA)
 [ "$VERDICT" = BLOCKED ] && question "$VSUM"

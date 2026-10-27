@@ -3,7 +3,7 @@
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "not in the job-agent repo" >&2; exit 2; }
 . "$REPO/bin/jobagent.conf"
 STATE="$REPO/data/dispatch"
-for d in running cloud fails errors notes syncs; do mkdir -p "$STATE/$d"; done
+for d in running cloud fails errors notes syncs sessions adopted; do mkdir -p "$STATE/$d"; done
 export USER="${USER:-$(id -un)}"
 
 log()   { echo "$(date '+%F %T') $*" >> "$STATE/dispatch.log"; [ -t 1 ] && echo "$(date '+%F %T') $*"; return 0; }
@@ -29,4 +29,13 @@ cloud_allowed() { [ ! -f "$STATE/cloud-off" ] && [[ "$(date +%F)" < "$CLOUD_UNTI
 owner_cause() { printf '%s' "$1" | grep -qiE 'push|keychain|token|jpush|not on github|authenticat|permission denied|credential|username|\b40[13]\b|config/|private config|api key|usage limit|rate limit|limit reached|out of (usage|credits)|credit|log ?in|logged in|password|captcha|subscription'; }
 # the last lines of a failing command's output, on one line, for a hold reason
 errtail() { printf '%s' "$1" | grep -v '^[[:space:]]*$' | tail -n "${2:-3}" | tr '\n' ' ' | cut -c1-400; }
+# Live-session registry: cc-run records the claude pid in sessions/<id>, agent-step its own pid in sessions/<id>.step.
+# A card with a live session (kill -0) must never be reclaimed or started again. Dead entries are pruned.
+session_alive() { local f p alive=1
+  for f in "$STATE/sessions/$1" "$STATE/sessions/$1.step"; do
+    [ -s "$f" ] || continue; p="$(cat "$f")"
+    if kill -0 "$p" 2>/dev/null; then alive=0; else rm -f "$f"; fi
+  done; return $alive; }
+# The last VERDICT line of an output file, binary-safe: NUL bytes dropped, grep -a, bytes not decoded.
+last_verdict_line() { [ -f "$1" ] || return 0; LC_ALL=C tr -d '\000' < "$1" | LC_ALL=C grep -a '^VERDICT:' | tail -1; }
 pro_paused()    { local u; u="$(cat "$STATE/pro-paused-until" 2>/dev/null)"; [ -n "$u" ] && [ "$(now)" -lt "$u" ]; }

@@ -10,8 +10,9 @@
 #   Pro limit reached       -> card back to Ready, all Pro roles pause until the reset
 #   waiting for a rework    -> card back to Todo, linked to the rework card
 set -uo pipefail
-. "$(dirname "$0")/lib.sh"
-. "$(dirname "$0")/operator-dispatch.sh"
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; SELF="$BIN_DIR/dispatch"
+. "$BIN_DIR/lib.sh"
+. "$BIN_DIR/operator-dispatch.sh"
 cd "$REPO"
 ONCE=0; [ "${1:-}" = "--once" ] && ONCE=1
 ROLES=" dev qa auditor researcher pm operator "
@@ -49,7 +50,7 @@ run_local() { # $1 role, $2 id
   local role="$1" id="$2" out rc a s new t f kind
   out="$("$REPO/bin/agent-step" "$role" "$id" 2>&1)"; rc=$?
   printf '%s\n' "$out" > "$STATE/notes/$id-last.txt"
-  v() { printf '%s\n' "$out" | sed -n "s/^$1: //p" | tail -1; }
+  v() { printf '%s\n' "$out" | LC_ALL=C sed -n "s/^$1: //p" | tail -1; }
   a="$(v ACTION)"
   case "$a" in
     complete)
@@ -134,16 +135,51 @@ recover() {
     case "$ROLES" in *" $role "*) ;; *) continue ;; esac
     [ -f "$STATE/cloud/$id" ] && continue
     ls "$STATE/running" 2>/dev/null | grep -q "^$id\." && continue
+    if session_alive "$id"; then   # the claude session of an earlier dispatcher is still going: wait for it, never run it twice
+      echo "$$" > "$STATE/running/$id.$role"; touch "$STATE/adopted/$id"
+      log "adopted live session of $id ($role): not reclaimed"; continue
+    fi
     hk reclaim "$id" >/dev/null 2>&1; log "recovered orphaned running card $id ($role)"
   done <<EOF
 $(board)
 EOF
 }
 
+# Drop the running markers of finished jobs. An adopted card (its session belongs to an earlier dispatcher) is done when its
+# session is gone; nobody is left to act on the result, so a card still running is reclaimed and runs again.
+reap_running() {
+  local f pid id b
+  for f in "$STATE"/running/*; do
+    [ -e "$f" ] || continue; b="$(basename "$f")"; id="${b%%.*}"
+    if [ -f "$STATE/adopted/$id" ]; then
+      session_alive "$id" && continue
+      rm -f "$f" "$STATE/adopted/$id"
+      [ "$(status_of "$id")" = running ] && { hk reclaim "$id" >/dev/null 2>&1; log "adopted session of $id ended: card reclaimed"; }
+      continue
+    fi
+    pid="$(cat "$f")"; kill -0 "$pid" 2>/dev/null || rm -f "$f"
+  done
+}
+
+# ------------------------------------------------------------------ self-restart after a script change
+# Everything this process has loaded: itself plus what it sources. (agent-step, cc-run, ... are started fresh every run.)
+script_sum() { cat "$BIN_DIR/dispatch" "$BIN_DIR/operator-dispatch.sh" "$BIN_DIR/lib.sh" "$BIN_DIR/jobagent.conf" 2>/dev/null | shasum | cut -d' ' -f1; }
+restart_self() { exec "$SELF" "$@"; }
+# At an idle point (no local job running) re-exec when the scripts changed. A script that does not parse is not loaded.
+maybe_restart() {
+  local now_sum; [ $ONCE -eq 1 ] && return 0
+  now_sum="$(script_sum)"; [ "$now_sum" = "$SCRIPT_SUM" ] && return 0
+  [ "$(local_count)" -gt 0 ] && return 0
+  if ! bash -n "$BIN_DIR/dispatch" 2>/dev/null || ! bash -n "$BIN_DIR/operator-dispatch.sh" 2>/dev/null || ! bash -n "$BIN_DIR/lib.sh" 2>/dev/null; then
+    log "scripts changed but do not parse: keeping the running code"; SCRIPT_SUM="$now_sum"; return 0
+  fi
+  log "restarted after script change"; restart_self "$@"
+}
+
 # ------------------------------------------------------------------ one pass
 pass() {
   local f pid id st role B rc
-  for f in "$STATE"/running/*; do [ -e "$f" ] || continue; pid="$(cat "$f")"; kill -0 "$pid" 2>/dev/null || rm -f "$f"; done
+  reap_running
   [ -f "$STATE/pro-paused-until" ] && ! pro_paused && { rm -f "$STATE/pro-paused-until"; log "Pro limit reset: Pro roles resume"; }
   poll_cloud
   op_tick
@@ -188,11 +224,13 @@ EOF
 }
 
 # ------------------------------------------------------------------ main
+[ "${DISPATCH_LIB_ONLY:-0}" = 1 ] && return 0   # bin/test-dispatch.sh sources the functions above
+SCRIPT_SUM="$(script_sum)"
 if hermes gateway status </dev/null 2>/dev/null | grep -qiE "supervised by launchd \(PID|detached gateway process is running"; then
   echo "The Hermes gateway is running: stop it (hermes gateway stop). Its AI workers would also take cards." >&2; exit 2
 fi
 echo $$ > "$STATE/dispatch.pid"
 log "dispatch started (cloud: $(cloud_allowed && echo on || echo off), max $MAX_PARALLEL local)"
 recover
-while :; do pass; [ $ONCE -eq 1 ] && break; sleep "$INTERVAL"; done
+while :; do pass; [ $ONCE -eq 1 ] && break; maybe_restart "$@"; sleep "$INTERVAL"; done
 [ $ONCE -eq 1 ] && wait
