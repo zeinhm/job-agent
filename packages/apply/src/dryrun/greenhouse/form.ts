@@ -34,7 +34,7 @@ export interface DomControl {
 
 /** Fixed expression run in the page; the result is JSON (null when the page has no application form). */
 export const READ_CONTROLS_EXPRESSION = `(() => {
-  const form = document.querySelector("form#application-form");
+  const form = document.querySelector("form#application-form, form#application_form");
   if (!form) return null;
   const clean = (el) => {
     const copy = el.cloneNode(true);
@@ -117,6 +117,16 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
     out.push({ id: el.id, kind, label: labelOf(el), options, optionIds: [], required });
   }
   return out;
+})()`;
+
+/**
+ * Fixed expression run in the page when no application form is there: true when the page says the posting is closed
+ * (Greenhouse's "no longer open / available / accepting applications" wording), so the run can say so instead of
+ * reporting a changed form.
+ */
+export const READ_CLOSED_EXPRESSION = `(() => {
+  const text = (document.body ? document.body.innerText : "").replace(/\\s+/g, " ");
+  return /no longer (open|available|accepting)|(position|job|posting|role) (has been|is) (closed|filled|removed)|(job|position|posting) (not found|does not exist)/i.test(text);
 })()`;
 
 /** DOM kinds a stored question type may appear as. `other` (unknown to the planner) is checked by the planner itself. */

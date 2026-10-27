@@ -47,6 +47,12 @@ export const FIXTURE_UPLOAD_CHOOSER_PATH = "/acme/jobs/1018";
 
 /** The form plus a widget that completes an upload slowly and then removes its input (an upload-complete line stays). */
 export const FIXTURE_UPLOAD_LATE_GONE_PATH = "/acme/jobs/1019";
+/** A closed posting: the job board page says the job is no longer open and has no application form (t_c0c2b45a). */
+export const FIXTURE_CLOSED_PATH = "/acme/jobs/1020";
+/** The form, rendered 1.5 s after the load event. */
+export const FIXTURE_LATE_FORM_PATH = "/acme/jobs/1021";
+/** The form under the older embed's id `application_form`. */
+export const FIXTURE_UNDERSCORE_FORM_PATH = "/acme/jobs/1022";
 
 /**
  * The CAPTCHA variants every ATS fixture has (t_cbcbc227): the same form plus a snippet `captcha/<variant>.html`.
@@ -103,6 +109,9 @@ const PAGES: Record<string, string> = {
   [FIXTURE_COVER_FILE_ONLY_PATH]: "form.html+form:snippets/cover-file-only.html",
   [FIXTURE_UPLOAD_CHOOSER_PATH]: "form.html+snippets/upload-chooser-only.html",
   [FIXTURE_UPLOAD_LATE_GONE_PATH]: "form.html+snippets/upload-late-gone.html",
+  [FIXTURE_CLOSED_PATH]: "closed.html",
+  [FIXTURE_LATE_FORM_PATH]: "form.html+snippets/late-form.html",
+  [FIXTURE_UNDERSCORE_FORM_PATH]: "form.html+snippets/underscore-form.html",
   ...CAPTCHA_RECORDER_PAGE,
   ...Object.fromEntries(
     CAPTCHA_VARIANTS.map((v) => [FIXTURE_CAPTCHA_PATHS[v], `form.html+captcha/${v}.html`]),

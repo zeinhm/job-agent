@@ -26,7 +26,10 @@ import {
   startFixtureServer,
   FIXTURE_CAPTCHA_PATH,
   FIXTURE_CHANGED_PATH,
+  FIXTURE_CLOSED_PATH,
   FIXTURE_FORM_PATH,
+  FIXTURE_LATE_FORM_PATH,
+  FIXTURE_UNDERSCORE_FORM_PATH,
   FIXTURE_LATE_CLEAR_PATH,
   FIXTURE_LATE_RESTORE_PATH,
   FIXTURE_LOCATION_PATH,
@@ -540,6 +543,26 @@ describe("location autocomplete (the stored Location question: the owner picks)"
     const { summary } = await run();
     expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
     expect(runOf(summary.runId)?.stop_detail).toBe("form changed (missing: Location)");
+  }, 90_000);
+});
+
+describe("locating the application form (t_c0c2b45a)", () => {
+  it("a form rendered after the load event is waited for: the run fills as on the plain form", async () => {
+    const { summary } = await run(FIXTURE_LATE_FORM_PATH);
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 13, total: 13 });
+  }, 90_000);
+
+  it("the older embed's form#application_form is found", async () => {
+    const { summary } = await run(FIXTURE_UNDERSCORE_FORM_PATH);
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 13, total: 13 });
+  }, 90_000);
+
+  it("a closed posting stops with its own detail, not form_changed", async () => {
+    const { summary } = await run(FIXTURE_CLOSED_PATH);
+    expect(summary).toMatchObject({ status: "stopped", stopReason: "page_error", filled: 0 });
+    expect(runOf(summary.runId)?.stop_detail).toBe(
+      "posting closed: the page has no application form",
+    );
   }, 90_000);
 });
 

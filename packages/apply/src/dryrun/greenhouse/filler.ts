@@ -22,6 +22,7 @@ import {
   type FinishedRun,
 } from "../session.ts";
 import {
+  READ_CLOSED_EXPRESSION,
   READ_CONTROLS_EXPRESSION,
   compareForm,
   describeComparison,
@@ -135,6 +136,8 @@ export const UPLOAD_NOT_KEPT_NOTE = "page did not keep the uploaded file";
 /** Fixed note for a cover letter text the manual textarea refused or did not keep (listed in the report's known notes). */
 export const COVER_TEXT_NOT_KEPT_NOTE = "cover letter text not kept by the page";
 const SETTLE_MS = 250;
+/** Waits for a late-rendering application form before the run reports none (about 10 s at most). */
+const FORM_POLLS = 40;
 /** Control kinds written once more after the settle wait; choices are not clicked twice. */
 const REWRITABLE = new Set(["text", "textarea", "file", "select"]);
 
@@ -236,12 +239,26 @@ export async function runGreenhouseDryRun(
 
     const context = opts.context ?? loadFillContext(opts.db, opts.postingId);
     let controls = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
-    if (controls === null)
+    // The page renders its form after the load event: wait for it before concluding there is none.
+    for (let i = 0; controls === null && i < FORM_POLLS; i++) {
+      await session.settle(SETTLE_MS);
+      if (session.stop) return await done(undefined);
+      controls = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
+    }
+    if (controls === null) {
+      // A closed posting has no form at all: say so instead of reporting a changed form.
+      if (await session.snapshot<boolean>(READ_CLOSED_EXPRESSION))
+        return await done({
+          status: "stopped",
+          stop_reason: "page_error",
+          stop_detail: "posting closed: the page has no application form",
+        });
       return await done({
         status: "stopped",
         stop_reason: "form_changed",
         stop_detail: "application form not found",
       });
+    }
     // A Cover Letter file upload with an "Enter manually" option: open the text option (its textarea only exists
     // afterwards) and read the form again; the plan then fills it, or notes an unapproved or missing text.
     const coverFile = stored.find((f) => f.ats.id === COVER_FILE_ID && f.field_type === "file");

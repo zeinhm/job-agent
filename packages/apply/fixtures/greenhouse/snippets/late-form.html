@@ -1,0 +1,10 @@
+<script>
+  // A page that renders its application form late: the form is taken out at once and put back 1.5 s after load.
+  (() => {
+    const form = document.getElementById("application-form");
+    const holder = form.parentNode;
+    const next = form.nextSibling;
+    form.remove();
+    setTimeout(() => holder.insertBefore(form, next), 1500);
+  })();
+</script>
