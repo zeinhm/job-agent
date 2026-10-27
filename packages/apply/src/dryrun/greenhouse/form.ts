@@ -98,6 +98,52 @@ export const READ_CONTROLS_EXPRESSION = `(() => {
       optionIds: boxes.map((b) => b.id),
     });
   }
+  // Checkbox / radio options that no id-carrying group element wraps (a plain fieldset with a legend, a field wrapper with
+  // a caption label, the classic embed's list of wrapped labels): one question per holder, not one control per option.
+  const holderOf = (b) => b.closest("fieldset, [role='group'], [role='radiogroup'], .field-wrapper, .field");
+  const optionLabel = (b) => {
+    const own = labelOf(b);
+    if (own) return own;
+    const wrap = b.closest("label");
+    return wrap ? clean(wrap) : "";
+  };
+  const captionOf = (holder, boxes) => {
+    const direct = labelOf(holder);
+    if (direct) return direct;
+    const legend = holder.querySelector("legend");
+    if (legend) return clean(legend);
+    const caption = [...holder.querySelectorAll("label, .label, [class*='label']")].find(
+      (n) => !n.querySelector("input") && !boxes.some((b) => b.id && n.getAttribute("for") === b.id),
+    );
+    return caption ? clean(caption) : "";
+  };
+  const groupIdOf = (holder, boxes) => {
+    if (holder.id) return holder.id;
+    const first = boxes[0];
+    const name = (first.getAttribute("name") || "").replace(/\\[\\]$/, "");
+    const fromId = first.id ? first.id.replace(/(\\[\\])?[_-][^_\\-\\[\\]]+$/, "") : "";
+    return fromId !== "" && fromId !== first.id ? fromId : name || first.id;
+  };
+  const holders = new Map();
+  for (const b of form.querySelectorAll("input[type='checkbox'], input[type='radio']")) {
+    if (grouped.has(b) || skipped(b)) continue;
+    const holder = holderOf(b);
+    if (!holder || skipped(holder)) continue;
+    if (!holders.has(holder)) holders.set(holder, []);
+    holders.get(holder).push(b);
+  }
+  for (const [holder, boxes] of holders) {
+    // A lone box in a plain field wrapper is a single consent / yes-no control with its own id, not a group.
+    if (boxes.length < 2 && !holder.matches("fieldset, [role='group'], [role='radiogroup']")) continue;
+    boxes.forEach((b) => grouped.add(b));
+    out.push({
+      id: groupIdOf(holder, boxes),
+      kind: boxes[0].type === "radio" ? "radio_group" : "checkbox_group",
+      label: captionOf(holder, boxes),
+      options: boxes.map(optionLabel),
+      optionIds: boxes.map((b) => b.id),
+    });
+  }
   for (const el of form.querySelectorAll("input, textarea, select")) {
     if (grouped.has(el) || helpers.has(el) || skipped(el) || el.type === "hidden" || !el.id) continue;
     const type = (el.getAttribute("type") || "").toLowerCase();
@@ -147,6 +193,43 @@ export interface FormComparison {
   extra: string[];
   /** Stored questions whose control is of another kind or lists other options (labels). */
   different: string[];
+}
+
+const isGroup = (c: DomControl): boolean => c.kind === "checkbox_group" || c.kind === "radio_group";
+
+/**
+ * A choice group read from the page under an id that is not the stored question's (a fieldset without an id, a classic
+ * list of wrapped labels) is the stored question of the same label: it takes that question's id, so the compare and the
+ * filler see one question with its options. Only when exactly one stored question and one group carry that label.
+ */
+export function alignGroups(
+  stored: readonly FormField[],
+  dom: readonly DomControl[],
+): DomControl[] {
+  const storedIds = new Set(stored.map((f) => f.ats.id));
+  const unmatched = (c: DomControl) => isGroup(c) && !storedIds.has(c.id);
+  return dom.map((c) => {
+    if (!unmatched(c)) return c;
+    // The API names a multi-select question `question_<id>[]`; the page's group may carry the bare id.
+    const listed = stored.find(
+      (f) => f.ats.id === `${c.id}[]` && !dom.some((d) => d.id === f.ats.id),
+    );
+    if (listed !== undefined) return { ...c, id: listed.ats.id };
+    const label = normalizeQuestion(c.label);
+    if (label === "") return c;
+    const domIds = new Set(dom.map((d) => d.id));
+    const questions = stored.filter(
+      (f) =>
+        normalizeQuestion(f.label) === label &&
+        !domIds.has(f.ats.id) &&
+        (COMPATIBLE[f.field_type] ?? []).includes(c.kind),
+    );
+    const groups = dom.filter((d) => unmatched(d) && normalizeQuestion(d.label) === label);
+    const q = questions[0];
+    return questions.length === 1 && groups.length === 1 && q !== undefined
+      ? { ...c, id: q.ats.id }
+      : c;
+  });
 }
 
 const sameOptions = (a: readonly string[], b: readonly string[]): boolean => {
@@ -230,7 +313,7 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
   return `((spec) => {
   const out = {};
   const labelFor = (id) => {
-    const l = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+    const l = document.querySelector('label[for="' + CSS.escape(id) + '"]') || document.getElementById(id)?.closest("label");
     return l ? l.textContent.replace(/\\s+/g, " ").trim() : "";
   };
   for (const c of spec) {
@@ -253,13 +336,16 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
       out[c.id] = [...new Set([...named, ...loose])];
       continue;
     }
-    if (!el) { out[c.id] = []; continue; }
-    if (c.kind === "select" || c.kind === "multiselect") {
-      out[c.id] = [...el.selectedOptions].filter((o) => o.value !== "").map((o) => o.textContent.trim());
-    } else if (c.kind === "radio_group" || c.kind === "checkbox_group") {
+    if (c.kind === "radio_group" || c.kind === "checkbox_group") {
+      // A group may have no element of its own id (its id can be derived from the options): read the options.
       out[c.id] = c.optionIds
         .filter((id) => document.getElementById(id)?.checked)
         .map((id) => labelFor(id));
+      continue;
+    }
+    if (!el) { out[c.id] = []; continue; }
+    if (c.kind === "select" || c.kind === "multiselect") {
+      out[c.id] = [...el.selectedOptions].filter((o) => o.value !== "").map((o) => o.textContent.trim());
     } else if (c.kind === "combobox") {
       const box = el.closest(".select__container");
       out[c.id] = box

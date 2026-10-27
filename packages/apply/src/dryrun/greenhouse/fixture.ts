@@ -47,6 +47,12 @@ export const FIXTURE_UPLOAD_CHOOSER_PATH = "/acme/jobs/1018";
 
 /** The form plus a widget that completes an upload slowly and then removes its input (an upload-complete line stays). */
 export const FIXTURE_UPLOAD_LATE_GONE_PATH = "/acme/jobs/1019";
+/** The form plus a multi-select question as a plain fieldset of checkboxes (stored id `question_2001`). */
+export const FIXTURE_CHECKBOX_FIELDSET_PATH = "/acme/jobs/1023";
+/** The form plus a multi-select question as the classic list of wrapped-label checkboxes (stored id `question_2002[]`). */
+export const FIXTURE_CHECKBOX_CLASSIC_PATH = "/acme/jobs/1024";
+/** The form plus one lone consent checkbox in a plain field wrapper (stored id `question_3001`, type `other`). */
+export const FIXTURE_CHECKBOX_LONE_PATH = "/acme/jobs/1025";
 /** A closed posting: the job board page says the job is no longer open and has no application form (t_c0c2b45a). */
 export const FIXTURE_CLOSED_PATH = "/acme/jobs/1020";
 /** The form, rendered 1.5 s after the load event. */
@@ -109,6 +115,9 @@ const PAGES: Record<string, string> = {
   [FIXTURE_COVER_FILE_ONLY_PATH]: "form.html+form:snippets/cover-file-only.html",
   [FIXTURE_UPLOAD_CHOOSER_PATH]: "form.html+snippets/upload-chooser-only.html",
   [FIXTURE_UPLOAD_LATE_GONE_PATH]: "form.html+snippets/upload-late-gone.html",
+  [FIXTURE_CHECKBOX_FIELDSET_PATH]: "form.html+form:snippets/checkbox-group-fieldset.html",
+  [FIXTURE_CHECKBOX_CLASSIC_PATH]: "form.html+form:snippets/checkbox-group-classic.html",
+  [FIXTURE_CHECKBOX_LONE_PATH]: "form.html+form:snippets/checkbox-lone.html",
   [FIXTURE_CLOSED_PATH]: "closed.html",
   [FIXTURE_LATE_FORM_PATH]: "form.html+snippets/late-form.html",
   [FIXTURE_UNDERSCORE_FORM_PATH]: "form.html+snippets/underscore-form.html",

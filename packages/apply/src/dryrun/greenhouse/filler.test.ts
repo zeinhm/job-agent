@@ -12,6 +12,7 @@ import {
 } from "@job-agent/core";
 import { and, eq } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { mappingId } from "../../choice-coverage.ts";
 import { planFill, type PlannedField } from "../../fill-plan.ts";
 import { normalizeQuestion } from "../../match.ts";
 import {
@@ -25,6 +26,9 @@ import {
   FIXTURES_DIR,
   startFixtureServer,
   FIXTURE_CAPTCHA_PATH,
+  FIXTURE_CHECKBOX_CLASSIC_PATH,
+  FIXTURE_CHECKBOX_FIELDSET_PATH,
+  FIXTURE_CHECKBOX_LONE_PATH,
   FIXTURE_CHANGED_PATH,
   FIXTURE_CLOSED_PATH,
   FIXTURE_FORM_PATH,
@@ -772,4 +776,110 @@ describe("refusals before a browser opens", () => {
     ).rejects.toThrow(/no stored Greenhouse questions/);
     expect(server.requests).toEqual([]);
   });
+});
+
+describe("a multi-select question shown as checkboxes is one question", () => {
+  const LABEL = "Do you have experience with the following stack:";
+  const OPTIONS = ["JS", "Vue", "Some of the above", "None of the above"];
+  const KEY = "experience.years_react";
+
+  const addQuestion = (questionId: string) =>
+    db
+      .insert(posting_questions)
+      .values({
+        id: randomUUID(),
+        posting_id: FIXTURE_POSTING_ID,
+        ats_type: "greenhouse",
+        question_id: questionId,
+        label: LABEL,
+        required: false,
+        type: "multi_choice",
+        options: JSON.stringify(OPTIONS),
+        normalized_label: normalizeQuestion(LABEL),
+        matched_key: null,
+        fetched_at: new Date().toISOString(),
+      })
+      .run();
+  const withAnswer = (c: PlanContext): PlanContext => ({
+    ...c,
+    answers: [
+      ...c.answers,
+      {
+        key: KEY,
+        question: LABEL,
+        alternatives: null,
+        answer: "JS, Vue",
+        type: null,
+        choices: null,
+        approved: true,
+      },
+    ],
+    choiceMappings: new Map([...c.choiceMappings, [mappingId(KEY, LABEL, OPTIONS), ["JS", "Vue"]]]),
+  });
+  const checkedWith = (s: Seen | null, prefix: string) =>
+    (s as Seen).checked.filter((id) => id.startsWith(prefix)).sort();
+
+  it("job-boards fieldset without a group id: the compare matches and the mapped options are checked", async () => {
+    addQuestion("question_2001");
+    const { summary, seen } = await run(FIXTURE_CHECKBOX_FIELDSET_PATH, { context: withAnswer });
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 14, total: 14 });
+    expect(checkedWith(seen, "question_2001_")).toEqual(["question_2001_0", "question_2001_1"]);
+    expect(fieldsOf(summary.runId).find((r) => r.label === LABEL)).toMatchObject({
+      filled: true,
+      source: "choice_mapping",
+      value: "JS; Vue",
+    });
+    expect(server.nonGet()).toEqual([]);
+  }, 90_000);
+
+  it("classic list of wrapped labels, stored id with the `[]` suffix", async () => {
+    addQuestion("question_2002[]");
+    const { summary, seen } = await run(FIXTURE_CHECKBOX_CLASSIC_PATH, { context: withAnswer });
+    expect(summary).toMatchObject({ status: "filled", stopReason: null, filled: 14, total: 14 });
+    expect(checkedWith(seen, "question_2002_")).toEqual(["question_2002_a", "question_2002_b"]);
+  }, 90_000);
+
+  it("not covered by the answer bank: needs_input with a note, never form_changed", async () => {
+    addQuestion("question_2001");
+    const { summary, seen } = await run(FIXTURE_CHECKBOX_FIELDSET_PATH);
+    expect(summary.status).toBe("needs_input");
+    expect(summary.stopReason).not.toBe("form_changed");
+    expect(checkedWith(seen, "question_2001_")).toEqual([]);
+    expect(fieldsOf(summary.runId).find((r) => r.label === LABEL)).toMatchObject({
+      filled: false,
+    });
+  }, 90_000);
+
+  it("a group whose options differ from the stored ones still stops form_changed", async () => {
+    addQuestion("question_2001");
+    db.update(posting_questions)
+      .set({ options: JSON.stringify([...OPTIONS, "Svelte"]) })
+      .where(eq(posting_questions.question_id, "question_2001"))
+      .run();
+    const { summary } = await run(FIXTURE_CHECKBOX_FIELDSET_PATH);
+    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
+    expect(runOf(summary.runId)?.stop_detail).toBe(`form changed (different: ${LABEL})`);
+  }, 90_000);
+
+  it("a lone checkbox in a plain field wrapper keeps its own id: the compare matches, never form_changed", async () => {
+    const label = "I agree to the data policy";
+    db.insert(posting_questions)
+      .values({
+        id: randomUUID(),
+        posting_id: FIXTURE_POSTING_ID,
+        ats_type: "greenhouse",
+        question_id: "question_3001",
+        label,
+        required: false,
+        type: "other",
+        options: null,
+        normalized_label: normalizeQuestion(label),
+        matched_key: null,
+        fetched_at: new Date().toISOString(),
+      })
+      .run();
+    const { summary } = await run(FIXTURE_CHECKBOX_LONE_PATH);
+    expect(summary.stopReason).not.toBe("form_changed");
+    expect(runOf(summary.runId)?.stop_detail ?? "").not.toContain("form changed");
+  }, 90_000);
 });

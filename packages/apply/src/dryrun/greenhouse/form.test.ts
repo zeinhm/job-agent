@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FormField } from "../../fill-plan.ts";
-import { compareForm, describeComparison, type DomControl } from "./form.ts";
+import { alignGroups, compareForm, describeComparison, type DomControl } from "./form.ts";
 
 const stored = (
   id: string,
@@ -121,5 +121,33 @@ describe("compareForm", () => {
     const many = Array.from({ length: 40 }, (_, i) => `Extra question number ${i}`);
     const text = describeComparison({ ok: false, missing: [], extra: many, different: [] });
     expect(text.length).toBeLessThanOrEqual(200);
+  });
+});
+
+describe("alignGroups", () => {
+  const label = "Do you have experience with the following stack:";
+  const options = ["JS", "Vue"];
+  const group = (id: string, text = label): DomControl => ({
+    ...dom(id, "checkbox_group", text, options),
+    optionIds: ["x_0", "x_1"],
+  });
+
+  it("a group under a derived id takes the stored question's id, and the compare then matches", () => {
+    const S = [stored("question_9", label, "multi_choice", options)];
+    const aligned = alignGroups(S, [group("question_9_derived")]);
+    expect(aligned.map((c) => c.id)).toEqual(["question_9"]);
+    expect(compareForm(S, aligned).ok).toBe(true);
+    expect(compareForm(S, [group("question_9_derived")]).ok).toBe(false);
+  });
+
+  it("the API's `[]` suffix on a multi-select id is the page group's bare id", () => {
+    const S = [stored("question_9[]", label, "multi_choice", options)];
+    expect(alignGroups(S, [group("question_9")]).map((c) => c.id)).toEqual(["question_9[]"]);
+  });
+
+  it("a group with another label, or two groups with one label, stay unmatched", () => {
+    const S = [stored("question_9", label, "multi_choice", options)];
+    expect(alignGroups(S, [group("g1", "Something else")]).map((c) => c.id)).toEqual(["g1"]);
+    expect(alignGroups(S, [group("g1"), group("g2")]).map((c) => c.id)).toEqual(["g1", "g2"]);
   });
 });

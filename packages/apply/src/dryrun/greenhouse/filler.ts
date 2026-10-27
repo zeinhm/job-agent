@@ -24,6 +24,7 @@ import {
 import {
   READ_CLOSED_EXPRESSION,
   READ_CONTROLS_EXPRESSION,
+  alignGroups,
   compareForm,
   describeComparison,
   pairLocation,
@@ -96,6 +97,15 @@ export function loadStoredQuestions(
         ats: { type: atsType, id: q.question_id },
       };
     });
+}
+
+/** The page's controls, with a choice group that has no id of its own taking its stored question's id. */
+async function readControls(
+  session: DryRunSession,
+  stored: readonly FormField[],
+): Promise<DomControl[] | null> {
+  const read = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
+  return read === null ? null : alignGroups(stored, read);
 }
 
 function assertUrl(url: string, fixture: boolean): void {
@@ -238,12 +248,12 @@ export async function runGreenhouseDryRun(
     if (session.stop) return await done(undefined);
 
     const context = opts.context ?? loadFillContext(opts.db, opts.postingId);
-    let controls = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
+    let controls = await readControls(session, stored);
     // The page renders its form after the load event: wait for it before concluding there is none.
     for (let i = 0; controls === null && i < FORM_POLLS; i++) {
       await session.settle(SETTLE_MS);
       if (session.stop) return await done(undefined);
-      controls = await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION);
+      controls = await readControls(session, stored);
     }
     if (controls === null) {
       // A closed posting has no form at all: say so instead of reporting a changed form.
@@ -266,8 +276,7 @@ export async function runGreenhouseDryRun(
       if (await session.revealCoverLetterText()) {
         await session.settle(SETTLE_MS);
         if (session.stop) return await done(undefined);
-        controls =
-          (await session.snapshot<DomControl[] | null>(READ_CONTROLS_EXPRESSION)) ?? controls;
+        controls = (await readControls(session, stored)) ?? controls;
       }
     }
     // The manual textarea stands for the stored cover letter file question (it is not a stored question of its own).

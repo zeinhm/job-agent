@@ -1,0 +1,29 @@
+<!-- classic embed markup shape of a multi-select question: a field div with a caption label and a list of labels that wrap
+     their checkbox (no label[for], no group element id); the inputs are named `question_<id>[]`. Fake question, fake options. -->
+<div class="field">
+  <label class="field-label">Do you have experience with the following stack:</label>
+  <ul class="checkbox-list">
+    <li>
+      <label
+        ><input type="checkbox" id="question_2002_a" name="question_2002[]" value="a" /> JS</label
+      >
+    </li>
+    <li>
+      <label
+        ><input type="checkbox" id="question_2002_b" name="question_2002[]" value="b" /> Vue</label
+      >
+    </li>
+    <li>
+      <label
+        ><input type="checkbox" id="question_2002_c" name="question_2002[]" value="c" /> Some of the
+        above</label
+      >
+    </li>
+    <li>
+      <label
+        ><input type="checkbox" id="question_2002_d" name="question_2002[]" value="d" /> None of the
+        above</label
+      >
+    </li>
+  </ul>
+</div>
