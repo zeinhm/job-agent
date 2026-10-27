@@ -254,6 +254,21 @@ export function pairLocation(
     : null;
 }
 
+/**
+ * Controls on the page that no stored question explains (the education block and the location autocomplete paired with
+ * the stored Location question are known). These are new, unmatched questions: the filler lists them as needing input.
+ */
+export function extraControls(
+  allStored: readonly FormField[],
+  allDom: readonly DomControl[],
+): DomControl[] {
+  const pair = pairLocation(allStored, allDom);
+  const storedIds = new Set(allStored.map((f) => f.ats.id));
+  return allDom.filter(
+    (c) => c.id !== pair?.domId && !storedIds.has(c.id) && c.kind !== "education",
+  );
+}
+
 /** Stored questions (`FormField.ats.id` = question id) against the controls read from the page. Labels only. */
 export function compareForm(
   allStored: readonly FormField[],
@@ -264,7 +279,6 @@ export function compareForm(
   const stored = pair ? allStored.filter((f) => f.ats.id !== pair.storedId) : allStored;
   const dom = pair ? allDom.filter((c) => c.id !== pair.domId) : allDom;
   const byId = new Map(dom.map((c) => [c.id, c]));
-  const storedIds = new Set(stored.map((f) => f.ats.id));
   const missing: string[] = [];
   const different: string[] = [];
   for (const f of stored) {
@@ -282,9 +296,7 @@ export function compareForm(
     if (!kindOk || !optionsOk) different.push(f.label);
   }
   // The education block is known to the form but is not an API question: never extra.
-  const extra = dom
-    .filter((c) => !storedIds.has(c.id) && c.kind !== "education")
-    .map((c) => c.label || c.id);
+  const extra = extraControls(allStored, allDom).map((c) => c.label || c.id);
   return {
     ok: missing.length === 0 && extra.length === 0 && different.length === 0,
     missing,

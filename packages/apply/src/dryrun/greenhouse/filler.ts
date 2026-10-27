@@ -27,9 +27,11 @@ import {
   alignGroups,
   compareForm,
   describeComparison,
+  extraControls,
   pairLocation,
   readValuesExpression,
   type DomControl,
+  type DomKind,
 } from "./form.ts";
 
 /** Hosts a real (owner-run) Greenhouse dry run may open: the hosted job-boards pages, nothing else. */
@@ -145,6 +147,21 @@ const UPLOAD_SETTLE_POLLS = 20;
 export const UPLOAD_NOT_KEPT_NOTE = "page did not keep the uploaded file";
 /** Fixed note for a cover letter text the manual textarea refused or did not keep (listed in the report's known notes). */
 export const COVER_TEXT_NOT_KEPT_NOTE = "cover letter text not kept by the page";
+/** Fixed note for a page question that is not among the stored questions (listed in the dry-run report's known notes). */
+export const EXTRA_QUESTION_NOTE = "question not in the stored set: needs an answer";
+const EXTRA_FIELD_TYPE: Record<DomKind, string> = {
+  text: "text",
+  textarea: "long_text",
+  file: "file",
+  select: "choice",
+  multiselect: "multi_choice",
+  combobox: "choice",
+  location: "text",
+  education: "text",
+  radio_group: "choice",
+  checkbox_group: "multi_choice",
+  unsupported: "other",
+};
 const SETTLE_MS = 250;
 /** Waits for a late-rendering application form before the run reports none (about 10 s at most). */
 const FORM_POLLS = 40;
@@ -288,7 +305,9 @@ export async function runGreenhouseDryRun(
       stored,
       coverText === undefined ? controls : controls.filter((c) => c !== coverText),
     );
-    if (!comparison.ok)
+    // Extra page questions are new, unmatched questions (listed below as needing input); only a stored question that is
+    // missing from the page or of another kind / options means the form changed.
+    if (comparison.missing.length > 0 || comparison.different.length > 0)
       return await done({
         status: "stopped",
         stop_reason: "form_changed",
@@ -447,8 +466,23 @@ export async function runGreenhouseDryRun(
         filled: false,
         note: "education block: the owner fills it",
       }));
+    // Page questions no stored question explains (e.g. optional demographic ones): never typed into, listed as needing input.
+    const extraRows = extraControls(
+      stored,
+      coverText === undefined ? controls : controls.filter((c) => c !== coverText),
+    ).map((c): DryRunFieldInput => ({
+      label: c.label || c.id,
+      field_type: EXTRA_FIELD_TYPE[c.kind],
+      required: c.required === true,
+      answer_key: null,
+      source: "none",
+      value: null,
+      filled: false,
+      note: EXTRA_QUESTION_NOTE,
+    }));
     const rows: DryRunFieldInput[] = [
       ...planned,
+      ...extraRows,
       ...(locationRow === undefined ? [] : [locationRow]),
       ...educationRows,
     ];

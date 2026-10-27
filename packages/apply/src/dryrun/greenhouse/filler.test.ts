@@ -17,6 +17,7 @@ import { planFill, type PlannedField } from "../../fill-plan.ts";
 import { normalizeQuestion } from "../../match.ts";
 import {
   embeddedFormUrl,
+  EXTRA_QUESTION_NOTE,
   loadStoredQuestions,
   runGreenhouseDryRun,
   UPLOAD_NOT_KEPT_NOTE,
@@ -40,6 +41,7 @@ import {
   FIXTURE_EDUCATION_PATH,
   FIXTURE_LOCATION_QUESTION,
   FIXTURE_POSTING_ID,
+  FIXTURE_DEMOGRAPHICS_PATH,
   FIXTURE_UNKNOWN_EXTRA_PATH,
   FIXTURE_UPLOAD_CHOOSER_PATH,
   FIXTURE_UPLOAD_DROPPED_PATH,
@@ -536,10 +538,14 @@ describe("location autocomplete (the stored Location question: the owner picks)"
     expect(fieldsOf(summary.runId).some((r) => r.label === "Search")).toBe(false);
   }, 90_000);
 
-  it("without the stored Location question the control is an extra field: form_changed", async () => {
+  it("without the stored Location question the control is an extra question: listed as needing input, not form_changed", async () => {
     const { summary } = await run(FIXTURE_LOCATION_PATH);
-    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
-    expect(runOf(summary.runId)?.stop_detail).toBe("form changed (extra: Location (City))");
+    expect(summary).toMatchObject({ status: "needs_input", stopReason: "uncovered_question" });
+    expect(fieldsOf(summary.runId).find((r) => r.label === "Location (City)")).toMatchObject({
+      filled: false,
+      source: "none",
+      note: EXTRA_QUESTION_NOTE,
+    });
   }, 90_000);
 
   it("the Location question on a form that has no location control: form_changed", async () => {
@@ -593,10 +599,52 @@ describe("widget helper inputs and the education block are known fields (t_28f6e
     expect(seen).not.toBeNull();
   }, 90_000);
 
-  it("a really unknown extra question still stops form_changed, and the helper next to it is not named", async () => {
+  it("several extra self-identification questions: the stored fields are filled, the extras are listed unmatched, nothing is typed into them", async () => {
+    const { summary } = await run(FIXTURE_DEMOGRAPHICS_PATH);
+    expect(summary).toMatchObject({
+      status: "needs_input",
+      stopReason: "uncovered_question",
+      filled: 13,
+      total: 16,
+    });
+    const open = fieldsOf(summary.runId).filter((r) => !r.filled);
+    const byLabel = (a: { label: string }, b: { label: string }) => a.label.localeCompare(b.label);
+    expect(
+      [...open]
+        .sort(byLabel)
+        .map((r) => [r.label, r.field_type, r.required, r.source, r.value, r.note]),
+    ).toEqual([
+      [
+        "Do you identify as a fictional species?",
+        "choice",
+        false,
+        "none",
+        null,
+        EXTRA_QUESTION_NOTE,
+      ],
+      ["How old are you?", "text", false, "none", null, EXTRA_QUESTION_NOTE],
+      ["Which era do you prefer?", "choice", false, "none", null, EXTRA_QUESTION_NOTE],
+    ]);
+  }, 90_000);
+
+  it("an extra question next to a renamed (missing) stored question is still form_changed", async () => {
+    const { summary } = await run(FIXTURE_CHANGED_PATH);
+    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed", filled: 0 });
+  }, 90_000);
+
+  it("a really unknown extra question is listed as needing input (the stored fields are still filled), and the helper next to it is not named", async () => {
     const { summary } = await run(FIXTURE_UNKNOWN_EXTRA_PATH);
-    expect(summary).toMatchObject({ status: "stopped", stopReason: "form_changed" });
-    expect(runOf(summary.runId)?.stop_detail).toBe("form changed (extra: Favourite database)");
+    expect(summary).toMatchObject({
+      status: "needs_input",
+      stopReason: "uncovered_question",
+      filled: 13,
+      total: 14,
+    });
+    const rows = fieldsOf(summary.runId);
+    expect(rows.filter((r) => !r.filled).map((r) => [r.label, r.source, r.value, r.note])).toEqual([
+      ["Favourite database", "none", null, EXTRA_QUESTION_NOTE],
+    ]);
+    expect(rows.some((r) => /search|filter/i.test(r.label))).toBe(false);
   }, 90_000);
 });
 

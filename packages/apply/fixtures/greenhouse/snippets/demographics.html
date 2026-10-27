@@ -1,0 +1,30 @@
+<!-- optional self-identification questions that the stored set does not have: a radio group, a text and a select (fake) -->
+<div class="field-wrapper">
+  <fieldset class="radio">
+    <legend class="label">Do you identify as a fictional species?</legend>
+    <div class="radio__wrapper">
+      <input type="radio" id="demo_species_0" name="demo_species" value="0" /><label
+        for="demo_species_0"
+        >Yes</label
+      >
+    </div>
+    <div class="radio__wrapper">
+      <input type="radio" id="demo_species_1" name="demo_species" value="1" /><label
+        for="demo_species_1"
+        >No</label
+      >
+    </div>
+  </fieldset>
+</div>
+<div class="field-wrapper">
+  <label id="demo-age-label" for="demo_age" class="label">How old are you?</label>
+  <input id="demo_age" aria-required="false" type="text" value="" />
+</div>
+<div class="field-wrapper">
+  <label id="demo-era-label" for="demo_era" class="label">Which era do you prefer?</label>
+  <select id="demo_era">
+    <option value=""></option>
+    <option value="1">Past</option>
+    <option value="2">Future</option>
+  </select>
+</div>

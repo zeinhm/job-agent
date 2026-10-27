@@ -53,6 +53,8 @@ export const FIXTURE_CHECKBOX_FIELDSET_PATH = "/acme/jobs/1023";
 export const FIXTURE_CHECKBOX_CLASSIC_PATH = "/acme/jobs/1024";
 /** The form plus one lone consent checkbox in a plain field wrapper (stored id `question_3001`, type `other`). */
 export const FIXTURE_CHECKBOX_LONE_PATH = "/acme/jobs/1025";
+/** The form plus optional self-identification questions the stored set does not have (radio group, text, select). */
+export const FIXTURE_DEMOGRAPHICS_PATH = "/acme/jobs/1026";
 /** A closed posting: the job board page says the job is no longer open and has no application form (t_c0c2b45a). */
 export const FIXTURE_CLOSED_PATH = "/acme/jobs/1020";
 /** The form, rendered 1.5 s after the load event. */
@@ -118,6 +120,7 @@ const PAGES: Record<string, string> = {
   [FIXTURE_CHECKBOX_FIELDSET_PATH]: "form.html+form:snippets/checkbox-group-fieldset.html",
   [FIXTURE_CHECKBOX_CLASSIC_PATH]: "form.html+form:snippets/checkbox-group-classic.html",
   [FIXTURE_CHECKBOX_LONE_PATH]: "form.html+form:snippets/checkbox-lone.html",
+  [FIXTURE_DEMOGRAPHICS_PATH]: "form.html+form:snippets/demographics.html",
   [FIXTURE_CLOSED_PATH]: "closed.html",
   [FIXTURE_LATE_FORM_PATH]: "form.html+snippets/late-form.html",
   [FIXTURE_UNDERSCORE_FORM_PATH]: "form.html+snippets/underscore-form.html",
