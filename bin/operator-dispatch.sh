@@ -114,8 +114,14 @@ op_tick() {
 }
 
 # Copy the "## Owner summary" section of a comment file ($1) to $STATE/operator-summary.md (overwritten each batch).
-copy_owner_summary() { local out="$STATE/operator-summary.md" tmp
+# When the comment file is missing, the wrapper's fallback file next to it (<card>-fallback.md) is used, and the summary says so.
+# With neither file the summary says so, with the card id. Never silent.
+copy_owner_summary() { local out="$STATE/operator-summary.md" tmp src="$1" note="" id fb
+  id="$(basename "$1" -comment.md)"; fb="${1%-comment.md}-fallback.md"
+  if [ ! -s "$src" ] && [ -s "$fb" ]; then src="$fb"; note="(taken from $(basename "$fb"): no comment file for $id)"; fi
   tmp="$(mktemp "$STATE/.summary.XXXXXX")" || return 1
-  awk '/^## Owner summary[[:space:]]*$/{f=1;print;next} f&&/^## /{f=0} f' "$1" 2>/dev/null | head -c 4000 > "$tmp"
-  if [ ! -s "$tmp" ]; then printf '## Owner summary\nNo owner summary in the last batch report (%s).\n' "$(basename "$1")" > "$tmp"; fi
+  [ -s "$src" ] && awk '/^## Owner summary[[:space:]]*$/{f=1;print;next} f&&/^## /{f=0} f' "$src" 2>/dev/null | head -c 4000 > "$tmp"
+  if [ -s "$tmp" ]; then [ -z "$note" ] || printf '%s\n' "$note" >> "$tmp"
+  elif [ -s "$src" ]; then printf '## Owner summary\nNo owner summary in the last batch report (%s).\n' "$(basename "$src")" > "$tmp"
+  else printf '## Owner summary\nNo batch report for %s (no comment file, no fallback file).\n' "$id" > "$tmp"; fi
   mv "$tmp" "$out"; }

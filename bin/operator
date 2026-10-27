@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # operator candidates [--limit <n>] | report [--batch <id>] [--posting <id>] [--since <date>] [--last <n>] | run <batch-id> <posting-id>
 #          | card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>] | note <batch-id> <slug> <card-id> | release <batch-id> <slug> <card-id>
+# comment <batch-id>: the batch report (stdin, max 20000 bytes) is written to data/handoff/<batch-id>-comment.md, the file the
+# wrapper posts and copies the owner summary from.
 # card / note / release are the role's only way to create a card, comment or release a card: the text comes from stdin
 # (a heredoc; non-empty, size-limited) and is written here to data/handoff/<batch-id>-<slug>.md in the main checkout (never
 # through a symlink), so no argument can name another file and the role needs no write tool; assignee, workspace and priority are fixed here; release refuses [OWNER] holds and the operator's own cards.
@@ -12,7 +14,7 @@
 # Anything else prints "operator: refused: <fixed text>" and exits 2.
 set -uo pipefail
 
-refuse() { echo "operator: refused: $1"; echo "usage: operator candidates [--limit <n>] | report [--batch <id>] [--posting <id>] [--since <date>] [--last <n>] | run <batch-id> <posting-id> | card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>] | note <batch-id> <slug> <card-id> | release <batch-id> <slug> <card-id>"; exit 2; }
+refuse() { echo "operator: refused: $1"; echo "usage: operator candidates [--limit <n>] | report [--batch <id>] [--posting <id>] [--since <date>] [--last <n>] | run <batch-id> <posting-id> | card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>] | note <batch-id> <slug> <card-id> | release <batch-id> <slug> <card-id> | comment <batch-id>"; exit 2; }
 SLUG_RE='^[a-z0-9][a-z0-9-]{0,40}$'
 TITLE_RE='^[A-Za-z0-9][]A-Za-z0-9 ._:,()/#[-]{0,159}$'
 ID_RE='^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$'
@@ -49,6 +51,9 @@ case "$SUB" in
     [ $# -ge 4 ] && [ $# -le 5 ] && [[ "$1" =~ $ID_RE ]] && [[ "$2" =~ $SLUG_RE ]] && [[ "$3" =~ ^(dev|qa|auditor)$ ]] \
       && [[ "$4" =~ $TITLE_RE ]] && { [ $# -eq 4 ] || [[ "$5" =~ $ID_RE ]]; } || refuse "invalid arguments"
     BATCH="$1"; SLUG="$2"; WHO="$3"; TITLE="$4"; PARENT="${5:-}"; MAXB=20000 ;;
+  comment)
+    [ $# -eq 1 ] && [[ "$1" =~ $ID_RE ]] || refuse "invalid arguments"
+    BATCH="$1"; SLUG="comment"; MAXB=20000 ;;
   note|release)
     [ $# -eq 3 ] && [[ "$1" =~ $ID_RE ]] && [[ "$2" =~ $SLUG_RE ]] && [[ "$3" =~ $ID_RE ]] || refuse "invalid arguments"
     BATCH="$1"; SLUG="$2"; TARGET="$3"; MAXB=4000 ;;
@@ -60,7 +65,7 @@ COMMON="$(git -C "$(dirname "$0")" rev-parse --path-format=absolute --git-common
 MAIN="$(dirname "$COMMON")"
 
 case "$SUB" in
-  card|note|release)
+  card|note|release|comment)
     mkdir -p "$MAIN/data/handoff" 2>/dev/null
     HD="$(cd "$MAIN/data/handoff" 2>/dev/null && pwd -P)" || refuse "no handoff directory"
     FILE="$HD/$BATCH-$SLUG.md"
@@ -76,6 +81,7 @@ case "$SUB" in
     mv -f "$TMPF" "$FILE" && chmod 600 "$FILE" || refuse "cannot write the text file"
     HOUT=""; RC=0
     case "$SUB" in
+      comment) exit 0 ;;   # the file is the batch report; the wrapper posts it
       card)
         set -- "$TITLE" --assignee "$WHO" --workspace "dir:$MAIN" --priority 9 --body-file "$FILE"
         [ -n "$PARENT" ] && set -- "$@" --parent "$PARENT"

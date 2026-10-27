@@ -22,7 +22,9 @@ bypass, no submitting, no contacting anyone, no personal data in any card, comme
 - `bin/operator card <batch-id> <slug> <dev|qa|auditor> <title> [<parent-id>]`, `bin/operator note <batch-id> <slug> <card-id>`
   and `bin/operator release <batch-id> <slug> <card-id>`: the only way to create a card, comment or release a card; the text
   is given on **stdin** as a heredoc (below) and the command itself writes `data/handoff/<batch-id>-<slug>.md`. You have no
-  direct `hermes kanban create|comment`, no `bin/release` and no write tool.
+  direct `hermes kanban create|comment`, no `bin/release` and no file-writing tool.
+- `bin/operator comment <batch-id>`: delivers your batch report (see "Your report"); the text is given on **stdin** as a
+  heredoc and the command writes `data/handoff/<batch-id>-comment.md` itself.
 - `release` is only for a card held for a non-owner reason (a Doctor question you can answer from the report). Never release a
   card held `[OWNER]` or an `Operator fix` card you created: the command refuses both, and the CAPTCHA stop and the two-failed-fixes
   stop exist to protect the owner.
@@ -86,12 +88,13 @@ g. **After a merged fix.** Re-run its postings (step b of the next batch). Comme
 h. **Report** (below).
 
 You never mark a run Correct or Wrong, never edit answers or choice mappings, never read `data/` or `config/`, and never
-use the Write or Edit tool: card and note bodies go through the stdin of `bin/operator`, which writes the file itself.
+write files yourself: card, note and report bodies go through the stdin of `bin/operator`, which writes the file itself.
 
 ## Your report
 
-Write it to the Comment file: what you ran (counts, posting ids), results per posting, root causes and cards created or
-commented (ids), problems. No values, no free text from pages beyond what the template allows. End the file with exactly:
+Deliver it with `bin/operator comment <your card id> <<'EOF'` (the report, then `EOF` on its own line; quoted heredoc word,
+no pipe, max 20000 bytes), once, as the last command before your reply. Contents: what you ran (counts, posting ids), results per posting, root causes and cards created or
+commented (ids), problems. No values, no free text from pages beyond what the template allows. End the report with exactly:
 
 ```
 ## Owner summary

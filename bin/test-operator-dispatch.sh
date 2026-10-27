@@ -190,6 +190,20 @@ check "summary file is overwritten each batch" "grep -q '0 runs' '$STATE/operato
 printf 'Ran 1 posting.\n' > "$T/comment-3.md"
 step 'VERDICT: DONE | branch: - | third' "$T/comment-3.md" >/dev/null
 check "no Owner summary in the report: the file says so, the old summary is not kept" "grep -q 'No owner summary' '$STATE/operator-summary.md' && ! grep -q '0 runs' '$STATE/operator-summary.md'"
+# no comment file, but the wrapper's fallback file carries the owner summary: it is used, and the summary says which file
+rm -f "$R/data/handoff/t_op1-fallback.md"
+step $'Report text\n\n## Owner summary\nReady for your review: 3 runs (p4, p5, p6)\nOpen root causes: none\n[OWNER] holds: none\nVERDICT: DONE | branch: - | fallback' "" >/dev/null
+check "fallback file used: its owner summary is shown" "[ -s '$R/data/handoff/t_op1-fallback.md' ] && grep -q 'Ready for your review: 3 runs (p4, p5, p6)' '$STATE/operator-summary.md'"
+check "fallback file used: the summary names the file and the card" "grep -q 't_op1-fallback.md' '$STATE/operator-summary.md' && grep -q 'no comment file for t_op1' '$STATE/operator-summary.md'"
+# neither file: the summary says so, with the card id
+rm -f "$R/data/handoff/t_op7-comment.md" "$R/data/handoff/t_op7-fallback.md"
+copy_owner_summary "$R/data/handoff/t_op7-comment.md"
+check "neither file: summary names the card and says no report" "grep -q 'No batch report for t_op7' '$STATE/operator-summary.md' && ! grep -q 'runs' '$STATE/operator-summary.md'"
+# the comment file wins over a leftover fallback file
+printf '## Owner summary\nReady for your review: 8 runs (c1)\n' > "$R/data/handoff/t_op8-comment.md"; printf '## Owner summary\nReady for your review: 9 runs (f1)\n' > "$R/data/handoff/t_op8-fallback.md"
+copy_owner_summary "$R/data/handoff/t_op8-comment.md"
+check "comment file preferred over a fallback file, no note" "grep -q '8 runs' '$STATE/operator-summary.md' && ! grep -q 'fallback' '$STATE/operator-summary.md'"
+check "operator prompt: report goes through bin/operator comment, no Write tool" "grep -q 'bin/operator comment' '$BIN/../prompts/roles/operator.md' && ! grep -qiE 'write tool|Write or Edit|to the Comment file' '$BIN/../prompts/roles/operator.md'"
 printf '## Owner summary\nReady for your review: 1 runs (p9)\nOpen root causes: none\n[OWNER] holds: t_op1: CAPTCHA\n' > "$T/comment-4.md"
 OUT="$(step 'VERDICT: BLOCKED | branch: - | OWNER: CAPTCHA seen on greenhouse posting p9 in batch t_op1' "$T/comment-4.md")"
 check "operator BLOCKED -> ACTION: question with the OWNER: text" "printf '%s' \"\$OUT\" | grep -q '^ACTION: question' && printf '%s' \"\$OUT\" | grep -q 'QUESTION: OWNER: CAPTCHA seen'"

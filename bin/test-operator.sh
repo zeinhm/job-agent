@@ -206,6 +206,21 @@ check "release: a card with OWNER in its title is refused" "[ \$RC -eq 2 ] && [ 
 printf 'Task t_x5: Some question card\n' > "$T/show"; : > "$R/data/dispatch/notes/t_x5.owner"
 hrun release t_b1 ans t_x5
 check "release: an owner-held card (notes/<id>.owner) is refused" "[ \$RC -eq 2 ] && [ ! -f \"$T/release.call\" ]"
+# ---- comment: the batch report, from stdin, to data/handoff/<batch>-comment.md; no hermes call ----
+sin $'Ran 1 posting.\n\n## Owner summary\nReady for your review: 1 runs (p1)\n'
+hrun comment t_b1
+check "comment: stdin written to <batch>-comment.md, hermes not called" "[ \$RC -eq 0 ] && ! hcalled && grep -q 'Ready for your review: 1 runs (p1)' \"$HD/t_b1-comment.md\" && [ -z \"\$(ls -A \"$HD\" | grep '^\\.stdin')\" ]"
+crefused "comment: extra argument" comment t_b1 ZZ_TYPED
+crefused "comment: path as batch id" comment ../x
+sin ''
+crefused "comment: empty stdin" comment t_b2
+head -c 20001 /dev/zero | tr '\0' a > "$T/stdin"; STDIN_FILE="$T/stdin"
+crefused "comment: stdin over 20000 bytes" comment t_b2
+check "comment: oversize leaves no file" "[ ! -e \"$HD/t_b2-comment.md\" ]"
+ln -s "$T/secretfile" "$HD/t_b3-comment.md"
+sin 'x'
+crefused "comment: symlink target refused" comment t_b3
+check "comment: symlink target untouched" "[ \"\$(cat \"$T/secretfile\")\" = SECRET_ZZ ]"
 rm -f "$T/show"; STDIN_FILE=""
 
 # ---- bin/cc-run: the overrides never remove a deny rule ----
