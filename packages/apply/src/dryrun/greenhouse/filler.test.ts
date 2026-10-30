@@ -46,6 +46,7 @@ import {
   FIXTURE_UPLOAD_CHOOSER_PATH,
   FIXTURE_UPLOAD_DROPPED_PATH,
   FIXTURE_UPLOAD_LATE_GONE_PATH,
+  FIXTURE_UPLOAD_LATE_SHORTENED_PATH,
   FIXTURE_UPLOAD_SWAP_PATH,
   FIXTURE_WIDGETS_PATH,
   fixtureContext,
@@ -102,7 +103,7 @@ async function readPage(session: DryRunSession): Promise<Seen> {
       selected: { question_1004: sel("question_1004"), question_1005: sel("question_1005") },
       checked: [...document.querySelectorAll("input[type=radio]:checked, input[type=checkbox]:checked")].map((b) => b.id),
       picked: { question_1003: picked("question_1003") },
-      files: [...document.getElementById("resume").files].map((f) => f.name),
+      files: [...(document.getElementById("resume")?.files ?? [])].map((f) => f.name),
       eeocPicked: document.querySelectorAll(".eeoc__container .select__single-value").length +
         document.querySelectorAll(".phone-input__country .select__single-value").length,
     };
@@ -368,6 +369,7 @@ describe("readback after a late re-render (intermittent per page)", () => {
       ["a late input swap", FIXTURE_UPLOAD_SWAP_PATH],
       ["a chooser-only widget", FIXTURE_UPLOAD_CHOOSER_PATH],
       ["a slow upload that removes its input", FIXTURE_UPLOAD_LATE_GONE_PATH],
+      ["a 12 s upload that shows a shortened name", FIXTURE_UPLOAD_LATE_SHORTENED_PATH],
     ])(
       "is kept on %s",
       async (_widget, path) => {

@@ -163,7 +163,7 @@ function coverTextOf(
 /** Readback settle: up to this many waits of this length before a mismatch counts (only paid when a field differs). */
 const SETTLE_POLLS = 4;
 /** A pending file field waits longer: the page uploads the file and swaps its input only when that completes. */
-const UPLOAD_SETTLE_POLLS = 20;
+const UPLOAD_SETTLE_POLLS = 40;
 /** Fixed note for a file the page did not keep (listed in the dry-run report's known notes). */
 export const UPLOAD_NOT_KEPT_NOTE = "page did not keep the uploaded file";
 /** Fixed note for a cover letter text the manual textarea refused or did not keep (listed in the report's known notes). */
@@ -393,8 +393,12 @@ export async function runGreenhouseDryRun(
       locationRow = autocompleteRow(locationField, result);
     }
     if (session.stop) return await done(undefined);
+    const plannedFiles: Record<string, string> = {};
+    for (const p of plan.fields)
+      if (p.filled && byId.get(p.field.ats.id)?.kind === "file" && typeof p.value === "string")
+        plannedFiles[p.field.ats.id] = basename(p.value);
     const readValues = () =>
-      session.snapshot<Record<string, string[]>>(readValuesExpression(fillable));
+      session.snapshot<Record<string, string[]>>(readValuesExpression(fillable, plannedFiles));
     // A page may re-render a field after the write (blanking it, or putting the value back): wait for the settled value,
     // then write a still-missing text, file or select value once more. A value the page really refuses stays refused.
     const pending = (seen: Record<string, string[]>) =>

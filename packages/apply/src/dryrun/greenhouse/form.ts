@@ -320,13 +320,37 @@ export function describeComparison(c: FormComparison): string {
  * Fixed expression that reads what each control now holds, as visible texts: the typed value, the selected option
  * labels, the checked option labels, the picked react-select text, or the chosen file names (also the page's upload-complete file-name line), keyed by control id.
  */
-export function readValuesExpression(controls: readonly DomControl[]): string {
-  const spec = controls.map((c) => ({ id: c.id, kind: c.kind, optionIds: c.optionIds }));
+export function readValuesExpression(
+  controls: readonly DomControl[],
+  plannedFiles: Readonly<Record<string, string>> = {},
+): string {
+  const spec = controls.map((c) => ({
+    id: c.id,
+    kind: c.kind,
+    optionIds: c.optionIds,
+    planned: plannedFiles[c.id] ?? "",
+  }));
   return `((spec) => {
   const out = {};
   const labelFor = (id) => {
     const l = document.querySelector('label[for="' + CSS.escape(id) + '"]') || document.getElementById(id)?.closest("label");
     return l ? l.textContent.replace(/\\s+/g, " ").trim() : "";
+  };
+  const fold = (t) => t.normalize("NFC").replace(/\\s+/g, " ").trim().toLowerCase();
+  const shown = (root, name) => {
+    const want = fold(name);
+    const copy = root.cloneNode(true);
+    for (const bad of copy.querySelectorAll("[role='alert'], [class*='error'], [class*='fail']")) bad.remove();
+    const attrs = ["title", "aria-label", "data-filename", "data-file-name", "alt"];
+    const texts = [copy.textContent, ...[...copy.querySelectorAll("*")].flatMap((n) => attrs.map((a) => n.getAttribute(a) || ""))].map(fold);
+    return texts.some((t) => {
+      if (t.includes(want)) return true;
+      // A shortened name: "start...end.ext" with both ends of the planned name.
+      return t.split(" ").some((w) => {
+        const parts = w.split(/\\u2026|\\.\\.\\./);
+        return parts.length === 2 && parts[0].length >= 2 && parts[1].length >= 4 && want.startsWith(parts[0]) && want.endsWith(parts[1]);
+      });
+    });
   };
   for (const c of spec) {
     const el = document.getElementById(c.id);
@@ -345,7 +369,15 @@ export function readValuesExpression(controls: readonly DomControl[]): string {
       const loose = box && named.length === 0
         ? box.parentElement.textContent.match(/[^\\s\\/\\\\]+\\.(?:pdf|docx?|txt|rtf)\\b/gi) || []
         : [];
-      out[c.id] = [...new Set([...named, ...loose])];
+      let found = [...new Set([...named, ...loose])];
+      // No name equal to the planned one yet: a widget that shows the planned file's name in its own markup (spaces in the
+      // name, a shortened "start...end.pdf", a title / aria-label attribute, no "filename" class). The planned name is only
+      // looked for in the control's group, never in an error / alert part of it.
+      if (c.planned !== "" && !found.some((n) => fold(n) === fold(c.planned))) {
+        const root = (el && el.closest(".file-upload, [role='group'], .field-wrapper")) || document.getElementById("upload-label-" + c.id)?.parentElement;
+        if (root && shown(root, c.planned)) found = [c.planned];
+      }
+      out[c.id] = found;
       continue;
     }
     if (c.kind === "radio_group" || c.kind === "checkbox_group") {

@@ -1,0 +1,25 @@
+<script>
+  // A page that takes the attach and removes the file input at once, then completes the upload very slowly (12 s) and shows
+  // the file as a shortened name ("fixt…me.pdf") in an attachment chip whose full name sits in a title attribute. No
+  // "filename" class and no whole name token in the text.
+  document.addEventListener(
+    "change",
+    (event) => {
+      const input = event.target;
+      if (input.id !== "resume" || !input.files[0]) return;
+      const name = input.files[0].name;
+      const wrapper = input.closest(".file-upload__wrapper");
+      setTimeout(() => input.remove(), 0);
+      setTimeout(() => {
+        const chip = document.createElement("div");
+        chip.className = "attachment-chip";
+        const label = document.createElement("span");
+        label.title = name;
+        label.textContent = name.slice(0, 4) + "…" + name.slice(-6);
+        chip.appendChild(label);
+        wrapper.appendChild(chip);
+      }, 12000);
+    },
+    true,
+  );
+</script>
