@@ -42,6 +42,8 @@ export const FIXTURE_COVER_TEXTAREA_PATH = "/acme/jobs/1015";
 export const FIXTURE_COVER_MANUAL_PATH = "/acme/jobs/1016";
 /** The form plus a Cover Letter file upload without a text option. */
 export const FIXTURE_COVER_FILE_ONLY_PATH = "/acme/jobs/1017";
+/** The form plus a Cover Letter file upload and a paste-text textarea (id of its own) already on the page. */
+export const FIXTURE_COVER_BOTH_PATH = "/acme/jobs/1027";
 /** The form plus a widget that keeps only a file chosen through its own picker (a programmatic attach is dropped). */
 export const FIXTURE_UPLOAD_CHOOSER_PATH = "/acme/jobs/1018";
 
@@ -115,6 +117,7 @@ const PAGES: Record<string, string> = {
   [FIXTURE_COVER_TEXTAREA_PATH]: "form.html+form:snippets/cover-textarea.html",
   [FIXTURE_COVER_MANUAL_PATH]: "form.html+form:snippets/cover-manual.html",
   [FIXTURE_COVER_FILE_ONLY_PATH]: "form.html+form:snippets/cover-file-only.html",
+  [FIXTURE_COVER_BOTH_PATH]: "form.html+form:snippets/cover-both.html",
   [FIXTURE_UPLOAD_CHOOSER_PATH]: "form.html+snippets/upload-chooser-only.html",
   [FIXTURE_UPLOAD_LATE_GONE_PATH]: "form.html+snippets/upload-late-gone.html",
   [FIXTURE_CHECKBOX_FIELDSET_PATH]: "form.html+form:snippets/checkbox-group-fieldset.html",

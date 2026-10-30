@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { runGreenhouseDryRun, type GreenhouseRunSummary, type PlanContext } from "./filler.ts";
 import {
   COVER_LETTER_FIXTURE_TEXT,
+  FIXTURE_COVER_BOTH_PATH,
   FIXTURE_COVER_FILE_ONLY_PATH,
   FIXTURE_COVER_MANUAL_PATH,
   FIXTURE_COVER_TEXTAREA_PATH,
@@ -84,6 +85,7 @@ async function run(
       dom = await pageOf(s).evaluate<Record<string, string>>(`(() => ({
         textarea: document.getElementById("cover_letter")?.value ?? "(none)",
         manual: document.getElementById("cover_letter_text")?.value ?? "(none)",
+        paste: document.getElementById("cover_letter_paste")?.value ?? "(none)",
       }))()`);
     },
   });
@@ -169,6 +171,40 @@ describe("Greenhouse cover letter text", () => {
       value: null,
       note: "cover letter text not approved",
     });
+  }, 90_000);
+
+  it("a block with attach and paste-text side by side reads as the text field: filled, no field lost (t_bcd45253)", async () => {
+    // The earlier read of the same posting: a plain Cover Letter text field.
+    storeCoverLetter("long_text");
+    const before = await run(FIXTURE_COVER_TEXTAREA_PATH);
+    db.delete(posting_questions).where(eq(posting_questions.posting_id, FIXTURE_POSTING_ID)).run();
+    seedGreenhouseFixture(db);
+    resetRunLimit();
+    // Now the page offers the attach control and a text box of its own id; the stored question is the upload.
+    storeCoverLetter("file");
+    const now = await run(FIXTURE_COVER_BOTH_PATH);
+    expect(now.summary).toMatchObject({ status: "filled", filled: 14, total: 14 });
+    expect(now.dom["paste"]).toBe(EXPECTED);
+    expect(row(now.summary.runId, "Cover Letter")).toMatchObject({
+      field_type: "long_text",
+      source: "answer",
+      answer_key: "misc.cover_letter_text",
+      value: EXPECTED,
+      filled: true,
+      note: null,
+    });
+    // Every field filled in the earlier run is still filled (the report's field_lost check).
+    const filledLabels = (id: string) =>
+      db
+        .select()
+        .from(dry_run_fields)
+        .where(eq(dry_run_fields.dry_run_id, id))
+        .all()
+        .filter((r) => r.filled)
+        .map((r) => r.label)
+        .sort();
+    expect(filledLabels(now.summary.runId)).toEqual(filledLabels(before.summary.runId));
+    expect(server.nonGet()).toEqual([]);
   }, 90_000);
 
   it("a file upload without a text option stays needs_input", async () => {

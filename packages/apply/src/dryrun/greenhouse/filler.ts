@@ -139,6 +139,27 @@ export function embeddedFormUrl(url: string): string | null {
 const COVER_FILE_ID = "cover_letter";
 const COVER_TEXT_ID = "cover_letter_text";
 
+/**
+ * The text alternative of a Cover Letter upload block: the `cover_letter_text` textarea, or else the one textarea no stored
+ * question explains whose label is "Cover Letter" (a block offering attach and paste-text side by side). Undefined when
+ * the block has none, or when several textareas would qualify.
+ */
+function coverTextOf(
+  stored: readonly FormField[],
+  controls: readonly DomControl[],
+): DomControl | undefined {
+  const byId = controls.find((c) => c.id === COVER_TEXT_ID && c.kind === "textarea");
+  if (byId !== undefined) return byId;
+  const storedIds = new Set(stored.map((f) => f.ats.id));
+  const labelled = controls.filter(
+    (c) =>
+      c.kind === "textarea" &&
+      !storedIds.has(c.id) &&
+      normalizeQuestion(c.label) === normalizeQuestion("Cover Letter"),
+  );
+  return labelled.length === 1 ? labelled[0] : undefined;
+}
+
 /** Readback settle: up to this many waits of this length before a mismatch counts (only paid when a field differs). */
 const SETTLE_POLLS = 4;
 /** A pending file field waits longer: the page uploads the file and swaps its input only when that completes. */
@@ -289,18 +310,15 @@ export async function runGreenhouseDryRun(
     // A Cover Letter file upload with an "Enter manually" option: open the text option (its textarea only exists
     // afterwards) and read the form again; the plan then fills it, or notes an unapproved or missing text.
     const coverFile = stored.find((f) => f.ats.id === COVER_FILE_ID && f.field_type === "file");
-    if (coverFile !== undefined && !controls.some((c) => c.id === COVER_TEXT_ID)) {
+    if (coverFile !== undefined && coverTextOf(stored, controls) === undefined) {
       if (await session.revealCoverLetterText()) {
         await session.settle(SETTLE_MS);
         if (session.stop) return await done(undefined);
         controls = (await readControls(session, stored)) ?? controls;
       }
     }
-    // The manual textarea stands for the stored cover letter file question (it is not a stored question of its own).
-    const coverText =
-      coverFile === undefined
-        ? undefined
-        : controls.find((c) => c.id === COVER_TEXT_ID && c.kind === "textarea");
+    // The text alternative stands for the stored cover letter file question (it is not a stored question of its own).
+    const coverText = coverFile === undefined ? undefined : coverTextOf(stored, controls);
     const comparison = compareForm(
       stored,
       coverText === undefined ? controls : controls.filter((c) => c !== coverText),
@@ -326,7 +344,7 @@ export async function runGreenhouseDryRun(
       // The cover letter file question becomes a long text field on its manual textarea.
       .map((f) =>
         coverText !== undefined && f === coverFile
-          ? { ...f, field_type: "long_text", ats: { ...f.ats, id: COVER_TEXT_ID } }
+          ? { ...f, field_type: "long_text", ats: { ...f.ats, id: coverText.id } }
           : f,
       )
       .sort((a, b) => (order.get(a.ats.id) ?? 0) - (order.get(b.ats.id) ?? 0));
@@ -445,7 +463,7 @@ export async function runGreenhouseDryRun(
           ? null
           : control.kind === "file"
             ? UPLOAD_NOT_KEPT_NOTE
-            : id === COVER_TEXT_ID
+            : id === coverText?.id
               ? COVER_TEXT_NOT_KEPT_NOTE
               : raw;
       return why === null
