@@ -30,6 +30,7 @@ import {
   extraControls,
   pairLocation,
   readValuesExpression,
+  uploadStructureExpression,
   type DomControl,
   type DomKind,
 } from "./form.ts";
@@ -164,6 +165,8 @@ function coverTextOf(
 const SETTLE_POLLS = 4;
 /** A pending file field waits longer: the page uploads the file and swaps its input only when that completes. */
 const UPLOAD_SETTLE_POLLS = 40;
+/** A file whose page still shows a running upload (progress, spinner) waits up to this many polls and is not attached twice. */
+const UPLOAD_BUSY_POLLS = 100;
 /** Fixed note for a file the page did not keep (listed in the dry-run report's known notes). */
 export const UPLOAD_NOT_KEPT_NOTE = "page did not keep the uploaded file";
 /** Fixed note for a cover letter text the manual textarea refused or did not keep (listed in the report's known notes). */
@@ -188,6 +191,15 @@ const SETTLE_MS = 250;
 const FORM_POLLS = 40;
 /** Control kinds written once more after the settle wait; choices are not clicked twice. */
 const REWRITABLE = new Set(["text", "textarea", "file", "select"]);
+
+/** Appends the value-free upload markup to a detail, within the stored detail limit (200; the passive-CAPTCHA note follows). */
+function withUpload(detail: string, structure: readonly string[]): string {
+  if (structure.length === 0) return detail;
+  const room = 130 - detail.length;
+  return room < 20
+    ? detail
+    : `${detail}; upload: ${structure.join(" | ")}`.slice(0, detail.length + room);
+}
 
 const cssOf = (id: string) => ({ css: `[id="${id.replace(/["\\]/g, "\\$&")}"]` });
 
@@ -399,6 +411,7 @@ export async function runGreenhouseDryRun(
         plannedFiles[p.field.ats.id] = basename(p.value);
     const readValues = () =>
       session.snapshot<Record<string, string[]>>(readValuesExpression(fillable, plannedFiles));
+    const isBusy = (id: string) => (got["busy:" + id] ?? []).length > 0;
     // A page may re-render a field after the write (blanking it, or putting the value back): wait for the settled value,
     // then write a still-missing text, file or select value once more. A value the page really refuses stays refused.
     const pending = (seen: Record<string, string[]>) =>
@@ -416,9 +429,12 @@ export async function runGreenhouseDryRun(
     const pollPending = async () => {
       for (let i = 0; !session.stop; i++) {
         const waiting = pending(got);
-        const limit = waiting.some((p) => byId.get(p.field.ats.id)?.kind === "file")
-          ? UPLOAD_SETTLE_POLLS
-          : SETTLE_POLLS;
+        const files = waiting.filter((p) => byId.get(p.field.ats.id)?.kind === "file");
+        const limit = files.some((p) => isBusy(p.field.ats.id))
+          ? UPLOAD_BUSY_POLLS
+          : files.length > 0
+            ? UPLOAD_SETTLE_POLLS
+            : SETTLE_POLLS;
         if (waiting.length === 0 || i >= limit) break;
         await session.settle(SETTLE_MS);
         if (!session.stop) got = await readValues();
@@ -427,7 +443,11 @@ export async function runGreenhouseDryRun(
     await pollPending();
     const rewrite = session.stop
       ? []
-      : pending(got).filter((p) => REWRITABLE.has((byId.get(p.field.ats.id) as DomControl).kind));
+      : pending(got).filter((p) => {
+          const kind = (byId.get(p.field.ats.id) as DomControl).kind;
+          // A second attach while the page still uploads can cancel the upload that would have succeeded.
+          return REWRITABLE.has(kind) && !(kind === "file" && isBusy(p.field.ats.id));
+        });
     for (const p of rewrite) {
       if (session.stop || !p.filled) break;
       try {
@@ -509,6 +529,17 @@ export async function runGreenhouseDryRun(
       ...educationRows,
     ];
 
+    // Value-free markup of a file control the page did not keep, so the next operator run can show what the widget is.
+    const structure: string[] = [];
+    for (const p of plan.fields) {
+      const lost =
+        p.filled &&
+        byId.get(p.field.ats.id)?.kind === "file" &&
+        !kept(byId.get(p.field.ats.id) as DomControl, p.value, got[p.field.ats.id] ?? []);
+      if (lost)
+        structure.push(await session.snapshot<string>(uploadStructureExpression(p.field.ats.id)));
+    }
+
     const open = rows.filter((r) => !r.filled).length;
     const pageRefused = rows.filter((r) => !r.filled && r.source !== "none").length;
     const filled = rows.length - open;
@@ -519,7 +550,10 @@ export async function runGreenhouseDryRun(
         status: "needs_input",
         stop_reason:
           pageRefused > 0 ? "uncovered_question" : (plan.needsInputReason ?? "uncovered_question"),
-        stop_detail: `${open} field(s) need input${pageRefused > 0 ? `; the page refused ${pageRefused}` : ""}`,
+        stop_detail: withUpload(
+          `${open} field(s) need input${pageRefused > 0 ? `; the page refused ${pageRefused}` : ""}`,
+          structure,
+        ),
         fields: rows,
       },
       filled,

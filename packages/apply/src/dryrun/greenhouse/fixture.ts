@@ -52,6 +52,12 @@ export const FIXTURE_UPLOAD_LATE_GONE_PATH = "/acme/jobs/1019";
 
 /** The form plus a widget that completes an upload after 12 s and then shows only a shortened name (full name in a title). */
 export const FIXTURE_UPLOAD_LATE_SHORTENED_PATH = "/acme/jobs/1028";
+
+/** The form plus a 13 s upload behind a progress bar that a second attach cancels. */
+export const FIXTURE_UPLOAD_BUSY_CANCEL_PATH = "/acme/jobs/1029";
+
+/** The form plus a widget that shows the file as a chip: name with spaces and no extension, a size, a remove button. */
+export const FIXTURE_UPLOAD_CHIP_RENAMED_PATH = "/acme/jobs/1030";
 /** The form plus a multi-select question as a plain fieldset of checkboxes (stored id `question_2001`). */
 export const FIXTURE_CHECKBOX_FIELDSET_PATH = "/acme/jobs/1023";
 /** The form plus a multi-select question as the classic list of wrapped-label checkboxes (stored id `question_2002[]`). */
@@ -124,6 +130,8 @@ const PAGES: Record<string, string> = {
   [FIXTURE_UPLOAD_CHOOSER_PATH]: "form.html+snippets/upload-chooser-only.html",
   [FIXTURE_UPLOAD_LATE_GONE_PATH]: "form.html+snippets/upload-late-gone.html",
   [FIXTURE_UPLOAD_LATE_SHORTENED_PATH]: "form.html+snippets/upload-late-shortened.html",
+  [FIXTURE_UPLOAD_BUSY_CANCEL_PATH]: "form.html+snippets/upload-busy-cancel.html",
+  [FIXTURE_UPLOAD_CHIP_RENAMED_PATH]: "form.html+snippets/upload-chip-renamed.html",
   [FIXTURE_CHECKBOX_FIELDSET_PATH]: "form.html+form:snippets/checkbox-group-fieldset.html",
   [FIXTURE_CHECKBOX_CLASSIC_PATH]: "form.html+form:snippets/checkbox-group-classic.html",
   [FIXTURE_CHECKBOX_LONE_PATH]: "form.html+form:snippets/checkbox-lone.html",

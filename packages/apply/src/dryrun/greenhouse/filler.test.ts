@@ -43,6 +43,8 @@ import {
   FIXTURE_POSTING_ID,
   FIXTURE_DEMOGRAPHICS_PATH,
   FIXTURE_UNKNOWN_EXTRA_PATH,
+  FIXTURE_UPLOAD_BUSY_CANCEL_PATH,
+  FIXTURE_UPLOAD_CHIP_RENAMED_PATH,
   FIXTURE_UPLOAD_CHOOSER_PATH,
   FIXTURE_UPLOAD_DROPPED_PATH,
   FIXTURE_UPLOAD_LATE_GONE_PATH,
@@ -370,6 +372,8 @@ describe("readback after a late re-render (intermittent per page)", () => {
       ["a chooser-only widget", FIXTURE_UPLOAD_CHOOSER_PATH],
       ["a slow upload that removes its input", FIXTURE_UPLOAD_LATE_GONE_PATH],
       ["a 12 s upload that shows a shortened name", FIXTURE_UPLOAD_LATE_SHORTENED_PATH],
+      ["a 13 s upload that a second attach cancels", FIXTURE_UPLOAD_BUSY_CANCEL_PATH],
+      ["a chip with a renamed name, a size and a remove button", FIXTURE_UPLOAD_CHIP_RENAMED_PATH],
     ])(
       "is kept on %s",
       async (_widget, path) => {
@@ -396,6 +400,10 @@ describe("readback after a late re-render (intermittent per page)", () => {
       value: null,
       note: UPLOAD_NOT_KEPT_NOTE,
     });
+    // The report carries the control's markup without any value, so the next operator run can show the widget.
+    const detail = runOf(summary.runId)?.stop_detail ?? "";
+    expect(detail).toMatch(/; upload: input=(yes|no) div/);
+    expect(detail).not.toContain("fixture-resume");
   }, 90_000);
 });
 

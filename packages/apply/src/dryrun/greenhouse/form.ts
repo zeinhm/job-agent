@@ -340,11 +340,14 @@ export function readValuesExpression(
   const shown = (root, name) => {
     const want = fold(name);
     const copy = root.cloneNode(true);
-    for (const bad of copy.querySelectorAll("[role='alert'], [class*='error'], [class*='fail']")) bad.remove();
+    for (const bad of copy.querySelectorAll("[role='alert'], [class*='error'], [class*='fail'], label, .label, [id^='upload-label'], [class*='filetypes']")) bad.remove();
     const attrs = ["title", "aria-label", "data-filename", "data-file-name", "alt"];
     const texts = [copy.textContent, ...[...copy.querySelectorAll("*")].flatMap((n) => attrs.map((a) => n.getAttribute(a) || ""))].map(fold);
+    const flat = (t) => t.replace(/[^\\p{L}\\p{N}]/gu, "");
+    const stem = want.replace(/\\.[a-z0-9]{2,5}$/, "");
     return texts.some((t) => {
       if (t.includes(want)) return true;
+      if (flat(stem).length >= 4 && flat(t).includes(flat(stem))) return true;
       // A shortened name: "start...end.ext" with both ends of the planned name.
       return t.split(" ").some((w) => {
         const parts = w.split(/\\u2026|\\.\\.\\./);
@@ -370,13 +373,19 @@ export function readValuesExpression(
         ? box.parentElement.textContent.match(/[^\\s\\/\\\\]+\\.(?:pdf|docx?|txt|rtf)\\b/gi) || []
         : [];
       let found = [...new Set([...named, ...loose])];
-      // No name equal to the planned one yet: a widget that shows the planned file's name in its own markup (spaces in the
-      // name, a shortened "start...end.pdf", a title / aria-label attribute, no "filename" class). The planned name is only
-      // looked for in the control's group, never in an error / alert part of it.
-      if (c.planned !== "" && !found.some((n) => fold(n) === fold(c.planned))) {
-        const root = (el && el.closest(".file-upload, [role='group'], .field-wrapper")) || document.getElementById("upload-label-" + c.id)?.parentElement;
-        if (root && shown(root, c.planned)) found = [c.planned];
+      const root = (el && el.closest(".file-upload, [role='group'], .field-wrapper")) || document.getElementById("upload-label-" + c.id)?.parentElement;
+      if (c.planned !== "") {
+        const want = fold(c.planned);
+        // A line that holds the planned name plus a size or a remove hint is the planned file, and counts once.
+        if (found.some((n) => fold(n).includes(want))) found = [c.planned];
+        // Else a widget that shows the planned file's name in its own markup (spaces or underscores swapped, no extension, a
+        // shortened "start...end.pdf", a title / aria-label attribute, no "filename" class). Only the control's group is
+        // looked at, never an error / alert part of it.
+        else if (root && shown(root, c.planned)) found = [c.planned];
       }
+      // An upload that is still running (a progress bar, a spinner, an uploading class): the filler waits instead of
+      // attaching the file a second time.
+      out["busy:" + c.id] = root && root.querySelector("progress, [role='progressbar'], [aria-busy='true'], [class*='uploading'], [class*='progress'], [class*='spinner'], [class*='loading']") ? ["1"] : [];
       out[c.id] = found;
       continue;
     }
@@ -401,4 +410,27 @@ export function readValuesExpression(
   }
   return out;
 })(${JSON.stringify(spec)})`;
+}
+
+/**
+ * Fixed expression that describes the markup around one file control without any value: tag names, class tokens and the
+ * input type of the control's group (no text, no attribute values, no file names), for the dry-run report.
+ */
+export function uploadStructureExpression(controlId: string): string {
+  return `((id) => {
+  const el = document.getElementById(id);
+  const root = (el && el.closest(".file-upload, [role='group'], .field-wrapper")) || document.getElementById("upload-label-" + id)?.parentElement;
+  if (!root) return "no-group";
+  const tok = (t) => t.toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 24);
+  const part = (n) => {
+    const kind = n.tagName === "INPUT" ? "[" + tok(n.getAttribute("type") || "") + "]" : "";
+    const cls = [...n.classList].slice(0, 2).map(tok).filter((t) => t !== "").map((t) => "." + t).join("");
+    return tok(n.tagName) + kind + cls;
+  };
+  const walk = (n, depth) => {
+    const kids = depth < 3 ? [...n.children].slice(0, 6).map((k) => walk(k, depth + 1)) : [];
+    return part(n) + (kids.length > 0 ? "(" + kids.join(",") + ")" : "");
+  };
+  return (el ? "input=yes " : "input=no ") + walk(root, 0).slice(0, 300);
+})(${JSON.stringify(controlId)})`;
 }

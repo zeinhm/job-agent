@@ -1,0 +1,34 @@
+<script>
+  // A page that uploads slowly behind a progress bar (13 s). A second attach while it runs cancels the running upload and
+  // leaves the field empty; left alone, the upload completes, the input goes and the file name is shown in a line.
+  let running = null;
+  document.addEventListener(
+    "change",
+    (event) => {
+      const input = event.target;
+      if (input.id !== "resume" || !input.files[0]) return;
+      const wrapper = input.closest(".file-upload__wrapper");
+      if (running !== null) {
+        clearTimeout(running);
+        running = null;
+        wrapper.querySelector(".upload-progress")?.remove();
+        return;
+      }
+      const name = input.files[0].name;
+      const bar = document.createElement("div");
+      bar.className = "upload-progress";
+      bar.setAttribute("role", "progressbar");
+      wrapper.appendChild(bar);
+      running = setTimeout(() => {
+        running = null;
+        bar.remove();
+        input.remove();
+        const line = document.createElement("div");
+        line.className = "file-upload__filename";
+        line.textContent = name;
+        wrapper.appendChild(line);
+      }, 13000);
+    },
+    true,
+  );
+</script>
