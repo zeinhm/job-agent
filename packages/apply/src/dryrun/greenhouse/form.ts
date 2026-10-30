@@ -355,6 +355,12 @@ export function readValuesExpression(
       });
     });
   };
+  const completed = (root) => {
+    if (root.querySelector("[role='alert'], [class*='error'], [class*='fail'], [aria-invalid='true']")) return false;
+    if (root.querySelector("[class*='success'], [class*='complete'], [class*='uploaded'], [class*='attached'], [class*='done']")) return true;
+    const again = /remove|delete|clear|replace|trash|discard/i;
+    return [...root.querySelectorAll("button, a, [role='button']")].some((b) => again.test([b.getAttribute("aria-label"), b.getAttribute("title"), b.textContent, b.className].join(" ")));
+  };
   for (const c of spec) {
     const el = document.getElementById(c.id);
     if (c.kind === "file") {
@@ -382,6 +388,9 @@ export function readValuesExpression(
         // shortened "start...end.pdf", a title / aria-label attribute, no "filename" class). Only the control's group is
         // looked at, never an error / alert part of it.
         else if (root && shown(root, c.planned)) found = [c.planned];
+        // Else a custom widget that swapped its input for a finished-upload card with no readable name (an icon, a success
+        // state, a remove / replace control): the input is gone, no error part shows and nothing is still running.
+        else if (root && !el && found.length === 0 && completed(root)) found = [c.planned];
       }
       // An upload that is still running (a progress bar, a spinner, an uploading class): the filler waits instead of
       // attaching the file a second time.
@@ -428,9 +437,12 @@ export function uploadStructureExpression(controlId: string): string {
     return tok(n.tagName) + kind + cls;
   };
   const walk = (n, depth) => {
-    const kids = depth < 3 ? [...n.children].slice(0, 6).map((k) => walk(k, depth + 1)) : [];
+    const kids = depth < 5 ? [...n.children].slice(0, 8).map((k) => walk(k, depth + 1)) : [];
     return part(n) + (kids.length > 0 ? "(" + kids.join(",") + ")" : "");
   };
-  return (el ? "input=yes " : "input=no ") + walk(root, 0).slice(0, 300);
+  // Where the file inputs sit: inside the control's group, and on the whole page.
+  const inside = root.querySelectorAll("input[type='file']").length;
+  const total = document.querySelectorAll("input[type='file']").length;
+  return (el ? "input=yes" : "input=no") + " files=" + inside + "/" + total + " " + walk(root, 0).slice(0, 600);
 })(${JSON.stringify(controlId)})`;
 }

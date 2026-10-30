@@ -69,7 +69,7 @@ export const NewDryRunSchema = z
     status: z.enum(DRY_RUN_STATUSES),
     stop_reason: z.enum(DRY_RUN_STOP_REASONS).nullish(),
     /** Short, never answer text. */
-    stop_detail: nullableText(200),
+    stop_detail: nullableText(700),
     screenshot_path: relativePath.nullish(),
     fixture: z.boolean(),
     /** Who started the run and, for the operator, its batch: written with the row so a run is never uncounted. */

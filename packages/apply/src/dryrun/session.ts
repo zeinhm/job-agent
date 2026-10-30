@@ -463,7 +463,7 @@ export class DryRunSession {
   private withPassive(detail: string | null): string | null {
     if (this.#passive.size === 0) return detail;
     const note = `captcha=passive:${[...this.#passive].join(",")}`;
-    return detail === null ? note : `${detail}; ${note}`.slice(0, 200);
+    return detail === null ? note : `${detail}; ${note}`.slice(0, 700);
   }
 
   /** Closes the browser without recording anything (error paths). Safe to call twice. */

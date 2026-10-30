@@ -44,6 +44,7 @@ import {
   FIXTURE_DEMOGRAPHICS_PATH,
   FIXTURE_UNKNOWN_EXTRA_PATH,
   FIXTURE_UPLOAD_BUSY_CANCEL_PATH,
+  FIXTURE_UPLOAD_CARD_NAMELESS_PATH,
   FIXTURE_UPLOAD_CHIP_RENAMED_PATH,
   FIXTURE_UPLOAD_CHOOSER_PATH,
   FIXTURE_UPLOAD_DROPPED_PATH,
@@ -374,6 +375,7 @@ describe("readback after a late re-render (intermittent per page)", () => {
       ["a 12 s upload that shows a shortened name", FIXTURE_UPLOAD_LATE_SHORTENED_PATH],
       ["a 13 s upload that a second attach cancels", FIXTURE_UPLOAD_BUSY_CANCEL_PATH],
       ["a chip with a renamed name, a size and a remove button", FIXTURE_UPLOAD_CHIP_RENAMED_PATH],
+      ["a finished-upload card with no file name", FIXTURE_UPLOAD_CARD_NAMELESS_PATH],
     ])(
       "is kept on %s",
       async (_widget, path) => {
@@ -402,7 +404,7 @@ describe("readback after a late re-render (intermittent per page)", () => {
     });
     // The report carries the control's markup without any value, so the next operator run can show the widget.
     const detail = runOf(summary.runId)?.stop_detail ?? "";
-    expect(detail).toMatch(/; upload: input=(yes|no) div/);
+    expect(detail).toMatch(/; upload: input=(yes|no) files=\d+\/\d+ div/);
     expect(detail).not.toContain("fixture-resume");
   }, 90_000);
 });

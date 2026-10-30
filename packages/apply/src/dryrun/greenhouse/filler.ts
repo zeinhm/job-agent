@@ -192,10 +192,10 @@ const FORM_POLLS = 40;
 /** Control kinds written once more after the settle wait; choices are not clicked twice. */
 const REWRITABLE = new Set(["text", "textarea", "file", "select"]);
 
-/** Appends the value-free upload markup to a detail, within the stored detail limit (200; the passive-CAPTCHA note follows). */
+/** Appends the value-free upload markup to a detail, within the stored detail limit (700; the passive-CAPTCHA note follows). */
 function withUpload(detail: string, structure: readonly string[]): string {
   if (structure.length === 0) return detail;
-  const room = 130 - detail.length;
+  const room = 600 - detail.length;
   return room < 20
     ? detail
     : `${detail}; upload: ${structure.join(" | ")}`.slice(0, detail.length + room);

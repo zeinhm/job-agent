@@ -133,7 +133,7 @@ describe("recordDryRun", () => {
     bad({ ats_type: "workable" });
     bad({ status: "done" });
     bad({ extra: 1 });
-    bad({ stop_detail: "x".repeat(201) });
+    bad({ stop_detail: "x".repeat(701) });
     bad({ finished_at: "2026-10-01T09:00:00.000Z" });
     bad({ started_at: "yesterday" });
     bad({ screenshot_path: "/etc/passwd" });

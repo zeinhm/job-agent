@@ -1,0 +1,21 @@
+<script>
+  // A custom file-upload widget: on attach it removes the file input and shows a finished-upload card with an icon, a
+  // "success" state and a remove button, but no readable file name anywhere (not in the text, a title or an attribute).
+  document.addEventListener(
+    "change",
+    (event) => {
+      const input = event.target;
+      if (input.id !== "resume" || !input.files[0]) return;
+      const wrapper = input.closest(".file-upload__wrapper");
+      setTimeout(() => {
+        input.remove();
+        const card = document.createElement("div");
+        card.className = "upload-card upload-card--success";
+        card.innerHTML =
+          "<svg width='12' height='12'></svg><span>Uploaded</span><button type='button' aria-label='Remove file'>x</button>";
+        wrapper.appendChild(card);
+      }, 300);
+    },
+    true,
+  );
+</script>
